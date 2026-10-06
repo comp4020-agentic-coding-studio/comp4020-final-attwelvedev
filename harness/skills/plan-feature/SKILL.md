@@ -207,6 +207,11 @@ every section. Rules for the task breakdown, non-negotiable:
   list can prove the jargon is gone; it can't prove the rewrite is actually
   funny or on-voice. Don't paper over that gap with an acceptance criterion
   that sounds mechanical but isn't really checkable by anyone but a human.
+  Name a **local build** as where the review happens (the project's
+  build-and-start command), not a deployed copy: the task can't be committed
+  before the user accepts it, and a deploy needs a committed tree. If only
+  the deployed app can prove something (a proxy, TLS, the real domain), put
+  that in the phase's Definition of Done as a post-deploy check instead.
 
 Also fill in the non-functional-requirements, out-of-scope, assumptions, and
 existing-code-context sections seriously — these are what make the plan

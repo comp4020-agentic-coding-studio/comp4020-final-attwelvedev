@@ -87,9 +87,11 @@ files, functions, and behaviour, not "handle X" or "improve Y."*
 - **Human review (if applicable):** what a human must look at and explicitly
   accept because no automated check can settle it — tone, voice, phrasing
   quality, visual/UX feel. Name the exact artifact (a diff, a rendered page,
-  the rewritten copy) and what a pass looks like. Omit this line entirely
-  when acceptance criteria alone are genuinely sufficient — don't add it as
-  boilerplate.
+  the rewritten copy) and what a pass looks like. The review happens on a
+  local build, not a deployed copy (a deploy needs a committed tree; this task
+  isn't committed until accepted); deployed-only proofs go in the Definition
+  of Done. Omit this line entirely when acceptance criteria alone are
+  genuinely sufficient — don't add it as boilerplate.
 - **Depends on:** other task numbers, or "None."
 
 ### Task 2: ...
