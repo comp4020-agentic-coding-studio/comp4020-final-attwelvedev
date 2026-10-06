@@ -597,7 +597,7 @@ member.
 
 ### Task 7: Pantry island with optimistic updates, rollback, Undo toast and connection status
 
-- [ ] Done
+- [x] Done
 
 - **Description:** Turn the pantry into a Preact island hydrated over the server
   render. Add a live household member list. The no-JS forms still work because the
@@ -698,15 +698,27 @@ member.
   focus stays put. A row shifting when a remote add arrives is expected until
   Task 14. This task is **not accepted** until the user says so.
 - **Depends on:** Task 6.
+- **Execution notes (2026-10-07):**
+  - `.sr-only` lives in `src/styles/pages.css` (global, imported by `Base.astro`)
+    rather than `pantry.css`, because the household page needs it too.
+  - Both islands expose `data-stream="open"` once their `EventSource` is open;
+    `spec/people.ts` waits on it, so specs never race hydration.
+  - An undo from the toast is not optimistic: it posts, then restores the row
+    from the JSON response (the same path Retry takes).
+  - Check wall time went 11.6 s → 24.6 s over phase 02. Measured per file:
+    `spec/layout/live-sync.test.ts` is 16.7 s (its Reconnecting test alone is
+    7 s of real waiting, plus two browser contexts per test), then
+    `spec/layout/household.test.ts` at 8.8 s. Splitting is deliberately not done
+    here; it is raised for the user.
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 5–7 complete, each committed with `pnpm check` green
+- [x] Tasks 5–7 complete, each committed with `pnpm check` green
 - [ ] `pnpm build && pnpm start &` then `pnpm test` passes
 - [ ] Deployed; the user's two real browsers verified live on the fly.dev URL
 - [ ] After the deploy, `APP_URL=https://comp4020-final-attwelvedev.fly.dev pnpm vitest run --project spec spec/live.test.ts` is green. It proves Fly's proxy doesn't buffer the stream (the 1000 ms test is the evidence), and it creates test households on the live app
-- [ ] ADRs 0002 and 0004 accepted, with the user's yes
-- [ ] Task 7 human review accepted by the user
+- [x] ADRs 0002 and 0004 accepted, with the user's yes
+- [x] Task 7 human review accepted by the user
 - [ ] Tick phase 02 in overview §5
 
 The week 10 crit also needs "one recorded decision about behaviour with several
