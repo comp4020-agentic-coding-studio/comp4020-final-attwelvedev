@@ -33,3 +33,6 @@ export const joinThrottle = failureThrottle({ limit: 10, windowMs: 60_000 });
 export function throttleKey(headers: Headers, clientAddress: string): string {
   return headers.get("fly-client-ip") ?? clientAddress;
 }
+
+// A passkey sign-in with no matching credential is a guess too.
+export const passkeyThrottle = failureThrottle({ limit: 10, windowMs: 60_000 });

@@ -1,10 +1,12 @@
 ---
 import CopyLink from "../../components/CopyLink.astro";
 import { MemberList } from "../../components/MemberList.tsx";
+import PasskeyRegister from "../../components/PasskeyRegister.astro";
 import Base from "../../layouts/Base.astro";
 import { db } from "../../lib/db.ts";
 import { listMembers } from "../../lib/households.ts";
 import { offeringFor } from "../../lib/offers.ts";
+import { listPasskeys } from "../../lib/passkeys.ts";
 
 const { session, newInviteLink } = Astro.locals;
 if (!session) return Astro.redirect("/", 303);
@@ -15,6 +17,7 @@ if (newInviteLink) Astro.response.headers.set("Cache-Control", "no-store");
 const members = listMembers(db, session.household.id);
 const pickupNote = offeringFor(db, session).defaultPickupNote ?? "";
 const onlyMe = members.length === 1;
+const passkeys = listPasskeys(db, session.member.id);
 const inviteUrl = newInviteLink ? new URL(`/join/${newInviteLink.token}`, Astro.url).href : "";
 ---
 
@@ -48,6 +51,11 @@ const inviteUrl = newInviteLink ? new URL(`/join/${newInviteLink.token}`, Astro.
   <section class="stack" aria-labelledby="devices-heading">
     <h2 id="devices-heading">Your devices</h2>
     <p><a href="/household/devices">Add another device</a> (a phone, say) by link or QR code.</p>
+  </section>
+
+  <section class="stack" aria-labelledby="passkeys-heading">
+    <h2 id="passkeys-heading">Passkeys</h2>
+    <PasskeyRegister passkeys={passkeys} />
   </section>
 
   <section class="stack" aria-labelledby="pickup-heading">

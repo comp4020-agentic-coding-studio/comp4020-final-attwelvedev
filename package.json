@@ -36,6 +36,8 @@
   "dependencies": {
     "@astrojs/node": "^11.1.6",
     "@astrojs/preact": "^6.0.5",
+    "@simplewebauthn/browser": "^14.0.0",
+    "@simplewebauthn/server": "^14.0.3",
     "astro": "^7.3.5",
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.3",

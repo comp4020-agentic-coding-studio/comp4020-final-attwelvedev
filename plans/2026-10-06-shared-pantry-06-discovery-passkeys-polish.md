@@ -107,7 +107,7 @@ verbatim at phase start.
 
 ### Task 18: Optional passkey sign-in
 
-- [ ] Done
+- [x] Done
 
 - **Tier:** Slice, with an ADR (a new dependency pair that shapes identity).
 - **Description:** A signed-in member can register a passkey from the

@@ -1,5 +1,13 @@
 import { sql } from "drizzle-orm";
-import { integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import {
+  blob,
+  integer,
+  primaryKey,
+  real,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 // Times are epoch milliseconds. A device token is stored only as its hash.
 
@@ -167,3 +175,18 @@ export const offerTargets = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.offerId, t.communityId] })],
 );
+
+// A passkey signs a member in on a device with no cookie (the sign-in mints a
+// new device token). Only the public half is stored: the credential id, its
+// public key, the signature counter and how to reach the authenticator.
+export const passkeys = sqliteTable("passkeys", {
+  credentialId: text("credential_id").primaryKey(), // base64url
+  memberId: text("member_id")
+    .notNull()
+    .references(() => members.id, { onDelete: "cascade" }),
+  publicKey: blob("public_key", { mode: "buffer" }).notNull(),
+  counter: integer("counter").notNull(),
+  transports: text("transports"), // JSON array, or null
+  createdAt: integer("created_at").notNull(),
+  lastUsedAt: integer("last_used_at"),
+});

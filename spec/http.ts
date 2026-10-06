@@ -10,6 +10,7 @@ export interface Client {
     fields?: Record<string, string | string[]>,
     headers?: Record<string, string>,
   ): Promise<Response>; // form-encoded, Origin = baseUrl
+  postJson(path: string, body?: unknown, headers?: Record<string, string>): Promise<Response>; // JSON body, Origin = baseUrl
   cookie(name: string): string | undefined;
 }
 
@@ -61,6 +62,12 @@ export function client(
             [value].flat().map((v) => [name, v] as [string, string]),
           ),
         ).toString(),
+      }),
+    postJson: (path, body = {}, headers) =>
+      send(path, {
+        method: "POST",
+        headers: { "content-type": "application/json", origin, ...headers },
+        body: JSON.stringify(body),
       }),
     cookie: (name) => jar.get(name),
   };
