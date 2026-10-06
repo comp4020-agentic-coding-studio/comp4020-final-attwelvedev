@@ -21,7 +21,8 @@ Files in this set:
 
 - A session reads **this overview + exactly one phase file + the spec's §2**
   (`specs/2026-10-06-shared-pantry.md`). It needs nothing else.
-- Task numbers are global (Task 1–19) across all files.
+- Task numbers are global (Task 1–19, plus Task 20 added to phase 03 on
+  2026-10-07) across all files.
 - A phase is ticked in §5 once its phase Definition of Done is met.
 - **Outlined phases** (03–06) already fix their tasks, files, interfaces and
   acceptance criteria. Before executing one, re-run `plan-feature` Phases 2–4
@@ -276,7 +277,8 @@ deletes the history row.
 | `GET /events` | — | 200 `text/event-stream`, household channel | 401 without a session | 6 |
 | `GET /api/pantry` | — | 200 `Snapshot` | 401 | 6 |
 | `POST /items`, `POST /items/:id/outcome`, `POST /history/:id/undo` with `Accept: application/json` | as above | 201/200 JSON | 400/404/401 `{ error }` | 6 |
-| *(Task 8 onward)* communities, offers | — | — | — | 8–19 |
+| *(Task 8 onward)* communities, offers | see phase 03 §4.4 | | | 8–10, 20 |
+| *(later phases)* | — | — | — | 11–19 |
 
 ## 5. Phases
 
@@ -289,7 +291,7 @@ something to show. It is never a start gate.
 | --- | --- | --- | --- | --- | --- | --- |
 | 01 | `…-01-proof-of-life.md` | 1–4 | — | Week 9 crit | Deployed at `https://comp4020-final-attwelvedev.fly.dev`; first run, add by name, Used/Binned with undo, history; README served; `pnpm check` green. Human review of the first screens and the README | [x] |
 | 02 | `…-02-household-live.md` | 5–7 | 01 | Week 10 crit | Invites, device links and member removal; SSE live sync under 1 s across two browsers; pantry island with optimistic updates and rollback | [x] |
-| 03 | `…-03-communities-offers.md` | 8–10 | 02 | Week 10 crit | Communities joined by link or code; offer, claim, collect, release; scoped payloads; live offers feed | [ ] |
+| 03 | `…-03-communities-offers.md` | 8–10, 20 | 02 | Week 10 crit | Communities joined by link or code; offer, claim, collect, release; scoped payloads; live offers feed | [ ] |
 | 04 | `…-04-logging-item-model.md` | 11–13 | Tasks 11–12: 01 only. Task 13: 03 (offer-some needs Task 9) | Week 11 crit (logging) | Structured, redacted server logs; FoodKeeper guesses; measure types, estimates and moving buckets | [ ] |
 | 05 | `…-05-visual-pantry.md` | 14–16 | 04 | Before 9 Nov (aim for week 12) | The Enamelware pantry view (tape, panel, trailing Used, keyboard model); images and photos; search combobox. Human review of the visual design | [ ] |
 | 06 | `…-06-discovery-passkeys-polish.md` | 17–19 | 03, 05 (Task 18: only Task 5) | 9 Nov, noon (submission) | Map discovery and community areas; passkeys; accessibility and viewport pass | [ ] |
@@ -392,17 +394,17 @@ something to show. It is never a start gate.
 | FR23 discovery by location | Task 17 |
 | FR24 join instantly, link/code, several | Task 8 (link/code), Task 17 (listed) |
 | FR25 household names only, suffix | Task 8, Task 9 |
-| FR26 one-tap offer, some, targets | Task 9, Task 10 (offer some value reduction: Task 13) |
-| FR27 pickup note default | Task 9, Task 10 |
+| FR26 one-tap offer, some, targets | Task 9, Task 20 (offer some value reduction: Task 13) |
+| FR27 pickup note default | Task 9, Task 20 |
 | FR28 lifecycle | Task 9 |
 | FR29 first-come, no self-claim | Task 9 |
 | FR30 note only to claimer | Task 9 |
 | FR31 either side Collected, manual Release | Task 9, Task 10 |
 | FR32 auto-withdraw, live update, past-estimate | Task 9 (past-estimate display: Task 14) |
 | FR33 leaving withdraws and releases | Task 8, Task 9 |
-| FR34 history list and filter | Task 3 (records), Task 4 (page) |
-| FR35 live within ~1 s | Task 6, Task 7, Task 10 |
-| FR36 optimistic + rollback | Task 7 |
+| FR34 history list and filter | Task 3 (records), Task 4 (page), Task 9 (Given filter and wording) |
+| FR35 live within ~1 s | Task 6, Task 7, Task 10 (offers, community lists) |
+| FR36 optimistic + rollback | Task 7, Task 20 (offer taps) |
 | FR37 reconnect snapshot, status | Task 6, Task 7 |
 | FR38 survives restarts and redeploys | Task 2 (DB on `DATABASE_PATH`), Task 4 (deploy and restart check) |
 | NFR-Effortless | Task 3, Task 4 (one-field add), Task 7, Task 10, Task 14 |
