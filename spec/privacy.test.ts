@@ -54,38 +54,54 @@ async function scene() {
   return { offerer, neighbour, claimer, communityId, offerId, claimBody, frames };
 }
 
+// The offering household reads its own note (so it can view and edit it per
+// item) and the claiming household reads it to collect. Nobody else does.
 describe("Pickup notes go only to the claiming household", () => {
-  it("shows the note to the claimer and to no one else, in any response, page or frame", async () => {
+  it("shows the note to the offerer and the claimer, and to no one else, in any response, page or frame", async () => {
     const s = await scene();
     const seen = JSON.stringify;
     // the claimer: the claim response, an offer.claim frame
     expect(s.claimBody).toContain(NOTE);
     const claimFrame = s.frames.claimer.find((f) => f.event === "offer.claim");
     expect(seen(claimFrame)).toContain(NOTE);
+    // the offerer: its own offer.mine frame
+    expect(seen(s.frames.offerer.filter((f) => f.event === "offer.mine"))).toContain(NOTE);
 
-    // no other household's responses, pages or frames, and none of the offerer's own
-    for (const [who, me] of [
-      ["offerer", s.offerer],
-      ["neighbour", s.neighbour],
-    ] as const) {
-      for (const body of await everythingSeenBy(me, s.communityId)) {
-        expect(body, `${who}'s pages and JSON`).not.toContain(NOTE);
-      }
+    // the neighbour's responses, pages and frames never carry it
+    for (const body of await everythingSeenBy(s.neighbour, s.communityId)) {
+      expect(body, "the neighbour's pages and JSON").not.toContain(NOTE);
     }
-    for (const who of ["offerer", "neighbour"] as const) {
-      expect(seen(s.frames[who]), `${who}'s stream`).not.toContain(NOTE);
+    expect(seen(s.frames.neighbour), "the neighbour's stream").not.toContain(NOTE);
+
+    // no community channel carries it, whoever is listening
+    for (const frames of Object.values(s.frames)) {
+      for (const f of frames.filter((f) => f.data.communityId !== undefined)) {
+        expect(seen(f)).not.toContain(NOTE);
+      }
     }
     // on the claimer's own stream, only offer.claim carries it
     for (const f of s.frames.claimer.filter((f) => f.event !== "offer.claim")) {
       expect(seen(f)).not.toContain(NOTE);
     }
+    // on the offerer's, only its own offer.mine
+    for (const f of s.frames.offerer.filter((f) => f.event !== "offer.mine")) {
+      expect(seen(f)).not.toContain(NOTE);
+    }
   });
 
-  it("keeps the claimer's /api/offers note until the offer is collected", async () => {
-    const { offerer, claimer } = await neighbourhood(baseUrl);
+  it("shows the note in the offerer's and claimer's /api/offers and /api/pantry, never the neighbour's", async () => {
+    const { offerer, neighbour, claimer } = await neighbourhood(baseUrl);
     const { offerId } = await offerNamed(offerer, "milk", NOTE);
+    expect(await (await offerer.get("/api/offers", asJson)).text()).toContain(NOTE);
+    expect(await (await offerer.get("/api/pantry", asJson)).text()).toContain(NOTE);
     await claim(claimer, offerId);
     expect(await (await claimer.get("/api/offers", asJson)).text()).toContain(NOTE);
+    expect(await (await offerer.get("/api/offers", asJson)).text()).toContain(NOTE);
+    expect(await (await neighbour.get("/api/offers", asJson)).text()).not.toContain(NOTE);
+    expect(await (await neighbour.get("/api/pantry", asJson)).text()).not.toContain(NOTE);
+    // collected: it is gone from both
+    await act(claimer, offerId, "collected");
+    expect(await (await claimer.get("/api/offers", asJson)).text()).not.toContain(NOTE);
     expect(await (await offerer.get("/api/offers", asJson)).text()).not.toContain(NOTE);
   });
 });

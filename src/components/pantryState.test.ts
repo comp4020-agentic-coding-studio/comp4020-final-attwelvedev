@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Item } from "../lib/items.ts";
+import type { MyOffer } from "../lib/offers.ts";
 import {
   type Action,
   initialState,
@@ -209,5 +210,142 @@ describe("failures", () => {
     expect(s.failures).toEqual([failure]);
     s = run(s, { type: "dismiss", failureId: "f1" });
     expect(s.failures).toEqual([]);
+  });
+});
+
+const offerOn = (
+  itemId: string,
+  status: MyOffer["status"] = "offered",
+  claimedBy: string | null = null,
+): MyOffer => ({
+  id: `offer-${itemId}`,
+  itemId,
+  itemName: itemId,
+  note: `note for ${itemId}`,
+  status,
+  claimedBy,
+  claimedAt: claimedBy ? 50 : null,
+  communityIds: ["c1"],
+  createdAt: 40,
+});
+const marked = (state: PantryState, itemId: string) =>
+  state.rows.find((r) => r.item.id === itemId)?.offer;
+
+describe("offers on rows", () => {
+  it("marks a row from the snapshot and clears the marks the snapshot no longer lists", () => {
+    let s = run(initialState([milk, eggs]), { type: "offers.snapshot", open: [offerOn("milk")] });
+    expect(marked(s, "milk")).toEqual({
+      id: "offer-milk",
+      status: "offered",
+      claimedBy: null,
+      note: "note for milk",
+    });
+    expect(marked(s, "eggs")).toBeUndefined();
+    s = run(s, { type: "offers.snapshot", open: [offerOn("eggs", "claimed", "House 9")] });
+    expect(marked(s, "milk")).toBeUndefined();
+    expect(marked(s, "eggs")).toEqual({
+      id: "offer-eggs",
+      status: "claimed",
+      claimedBy: "House 9",
+      note: "note for eggs",
+    });
+  });
+
+  it("marks and updates a row on offer.mine, and a terminal status clears it", () => {
+    let s = run(initialState([milk]), { type: "offer.mine", offer: offerOn("milk") });
+    expect(marked(s, "milk")?.status).toBe("offered");
+    s = run(s, { type: "offer.mine", offer: offerOn("milk", "claimed", "House 9") });
+    expect(marked(s, "milk")).toEqual({
+      id: "offer-milk",
+      status: "claimed",
+      claimedBy: "House 9",
+      note: "note for milk",
+    });
+    for (const status of ["withdrawn", "collected"] as const) {
+      const cleared = run(s, { type: "offer.mine", offer: offerOn("milk", status) });
+      expect(marked(cleared, "milk")).toBeUndefined();
+    }
+  });
+
+  it("is idempotent, and ignores an offer for an item that isn't a row", () => {
+    const once = run(initialState([milk]), { type: "offer.mine", offer: offerOn("milk") });
+    const twice = run(once, { type: "offer.mine", offer: offerOn("milk") });
+    expect(twice).toEqual(once);
+    const snap = run(once, { type: "offers.snapshot", open: [offerOn("milk")] });
+    expect(run(snap, { type: "offers.snapshot", open: [offerOn("milk")] })).toEqual(snap);
+    expect(run(once, { type: "offer.mine", offer: offerOn("ghost") })).toEqual(once);
+  });
+
+  it("keeps the offer mark through an items snapshot", () => {
+    const s = run(
+      initialState([milk]),
+      { type: "offer.mine", offer: offerOn("milk") },
+      { type: "snapshot", items: [milk, eggs] },
+    );
+    expect(marked(s, "milk")?.status).toBe("offered");
+  });
+
+  it("shows an optimistic offer until the server's offer arrives, or rolls it back", () => {
+    let s = run(initialState([milk]), { type: "offer.pending", itemId: "milk" });
+    expect(s.rows[0].offering).toBe(true);
+    s = run(s, { type: "offers.snapshot", open: [] });
+    expect(s.rows[0].offering).toBe(true);
+    expect(run(s, { type: "offer.rolledBack", itemId: "milk" }).rows[0].offering).toBeUndefined();
+    s = run(s, { type: "offer.mine", offer: offerOn("milk") });
+    expect(s.rows[0].offering).toBeUndefined();
+    expect(marked(s, "milk")?.status).toBe("offered");
+  });
+
+  it("hides a mark while a withdraw is pending, restores it on rollback and drops it on confirm", () => {
+    const base = run(initialState([milk]), { type: "offer.mine", offer: offerOn("milk") });
+    const pending = run(base, { type: "withdraw.pending", itemId: "milk" });
+    expect(pending.rows[0].withdrawing).toBe(true);
+    expect(run(pending, { type: "withdraw.rolledBack", itemId: "milk" })).toEqual(base);
+    const done = run(pending, { type: "withdraw.confirmed", itemId: "milk" });
+    expect(marked(done, "milk")).toBeUndefined();
+    expect(done.rows[0].withdrawing).toBeUndefined();
+  });
+
+  it("shows an edited note at once, and puts the old one back on rollback", () => {
+    const base = run(initialState([milk]), { type: "offer.mine", offer: offerOn("milk") });
+    const edited = run(base, { type: "offer.noted", itemId: "milk", note: "Side gate" });
+    expect(marked(edited, "milk")?.note).toBe("Side gate");
+    expect(run(edited, { type: "offer.noted", itemId: "milk", note: "Side gate" })).toEqual(edited);
+    expect(run(edited, { type: "offer.noted", itemId: "milk", note: "note for milk" })).toEqual(
+      base,
+    );
+    // the server's own offer.mine wins whenever it arrives
+    const echoed = run(edited, {
+      type: "offer.mine",
+      offer: { ...offerOn("milk"), note: "Gate 3" },
+    });
+    expect(marked(echoed, "milk")?.note).toBe("Gate 3");
+  });
+
+  it("ignores an edited note for a row with no offer", () => {
+    const s = initialState([milk]);
+    expect(run(s, { type: "offer.noted", itemId: "milk", note: "x" })).toEqual(s);
+  });
+
+  it("does not allow offering a pending row", () => {
+    const s = run(
+      initialState([]),
+      { type: "add.pending", rid: "r1", name: "tea", at: 40 },
+      { type: "offer.pending", itemId: "pending:r1" },
+    );
+    expect(s.rows[0].offering).toBeUndefined();
+  });
+
+  it("notes a neighbour's collection as Given to a neighbour, whoever tapped", () => {
+    for (const byName of ["a neighbour", "Alex"]) {
+      const s = run(initialState([milk]), {
+        type: "event.removed",
+        itemId: "milk",
+        outcome: "given",
+        byName,
+        mine: false,
+      });
+      expect(s.rows[0].note).toBe("Given to a neighbour");
+    }
   });
 });

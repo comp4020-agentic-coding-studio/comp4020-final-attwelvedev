@@ -26,7 +26,7 @@ describe("the offers feed, live", () => {
     await close(offerer, claimer, other);
   }, 30_000);
 
-  it("shows Taken to a third household, Claimed by to the offerer, and the note only to the claimer", async () => {
+  it("shows Taken to a third household, Claimed by to the offerer, and the note to no third household", async () => {
     const { offerer, claimer, other, http } = await trio(browser, baseUrl);
     await offerNamed(http, "soup", "Porch, after 5");
     await row(claimer.page, "soup").waitFor({ timeout: 1000 });
@@ -41,7 +41,6 @@ describe("the offers feed, live", () => {
 
     expect(await other.page.content()).not.toContain("House 9");
     expect(await other.page.content()).not.toContain("Porch, after 5");
-    expect(await offerer.page.content()).not.toContain("Porch, after 5");
     await row(other.page, "soup").waitFor({ state: "detached", timeout: 7000 });
     await close(offerer, claimer, other);
   }, 30_000);

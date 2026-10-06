@@ -24,11 +24,13 @@ export interface PublicOffer {
   communityIds: string[];
   createdAt: number;
 }
-// The offerer's view. Never a note.
+// The offerer's view. It carries the offer's own note so the household can read
+// and edit it per item; no neighbour's view ever does.
 export interface MyOffer {
   id: string;
   itemId: string;
   itemName: string;
+  note: string;
   status: OfferStatus;
   claimedBy: string | null; // the claimer's display name
   claimedAt: number | null;
@@ -148,6 +150,7 @@ function myOfferOf(tx: Reader, row: OfferRow, targets: Target[]): MyOffer {
     id: row.id,
     itemId: row.itemId,
     itemName: row.itemName,
+    note: row.pickupNote,
     status: row.status,
     claimedBy: row.claimedByHouseholdId
       ? nameIn(tx, row.claimedCommunityId, row.claimedByHouseholdId)
@@ -241,19 +244,13 @@ export function createOffer(
     }
     const targets = asked.length ? asked : mine;
 
-    const saved = tx
-      .select({ note: households.defaultPickupNote })
-      .from(households)
+    // Notes differ from item to item, so there is no silent fallback: the
+    // posted note is required, and becomes the one the next offer starts from.
+    const note = cleanNote(input.note ?? "");
+    tx.update(households)
+      .set({ defaultPickupNote: note })
       .where(eq(households.id, householdId))
-      .get()?.note;
-    const posted = (input.note ?? "").trim();
-    const note = cleanNote(posted || saved || "");
-    if (posted && !saved) {
-      tx.update(households)
-        .set({ defaultPickupNote: note })
-        .where(eq(households.id, householdId))
-        .run();
-    }
+      .run();
 
     const id = randomUUID();
     tx.insert(offers)

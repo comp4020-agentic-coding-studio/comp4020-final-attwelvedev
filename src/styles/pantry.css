@@ -38,14 +38,22 @@
 }
 .pantry li {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
   border-bottom: 1px solid var(--line);
   padding: 6px 0;
 }
 .pantry .name {
-  flex: 1;
+  flex: 1 1 8rem;
   min-width: 0;
+  overflow-wrap: anywhere;
+}
+.pantry .offer-state {
+  font-weight: 700;
+}
+.offer-hint {
+  margin: 12px 0 0;
 }
 .pantry li[aria-busy="true"] {
   opacity: 0.7;

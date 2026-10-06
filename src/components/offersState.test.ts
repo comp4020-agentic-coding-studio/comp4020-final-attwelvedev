@@ -28,6 +28,7 @@ const mine = (
   id,
   itemId: `i-${id}`,
   itemName: `item ${id}`,
+  note: `note ${id}`,
   status,
   claimedBy,
   claimedAt: claimedBy ? 5 : null,

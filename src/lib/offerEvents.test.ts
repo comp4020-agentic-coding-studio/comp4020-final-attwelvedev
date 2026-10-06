@@ -19,6 +19,7 @@ const mine: MyOffer = {
   id: "o1",
   itemId: "i1",
   itemName: "milk",
+  note: "Porch",
   status: "offered",
   claimedBy: null,
   claimedAt: null,
@@ -148,14 +149,29 @@ describe("offerEvents: what never leaves where", () => {
     return { changes: changes.flatMap(offerEvents), a, b, c, note };
   }
 
-  it("sends the note only in offer.claim, on the claimer's channel", () => {
-    const { changes } = flow();
+  // The offering household may read its own note (the user wanted to view and
+  // edit it per item); the claimer reads it too. No one else, and never a community.
+  it("sends the note only to the offering household and the claiming household", () => {
+    const { changes, a } = flow();
     const withNote = changes.filter((r) => JSON.stringify(r.event).includes("UNIQUE-PICKUP-NOTE"));
     expect(withNote.length).toBeGreaterThan(0);
     for (const r of withNote) {
-      expect(r.event.type).toBe("offer.claim");
       expect(r.channel).toMatch(/^household:/);
+      if (r.event.type === "offer.mine") expect(r.channel).toBe(`household:${a.household.id}`);
+      else {
+        expect(r.event.type).toBe("offer.claim");
+        expect(r.channel).not.toBe(`household:${a.household.id}`);
+      }
     }
+  });
+
+  it("carries the offer's note in the offerer's offer.mine, including after an edit", () => {
+    const { changes, a } = flow();
+    const mineEvents = changes.filter((r) => r.event.type === "offer.mine");
+    expect(mineEvents.every((r) => r.channel === `household:${a.household.id}`)).toBe(true);
+    const notes = mineEvents.map((r) => (r.event.type === "offer.mine" ? r.event.offer.note : ""));
+    expect(notes).toContain("UNIQUE-PICKUP-NOTE");
+    expect(notes).toContain("UNIQUE-PICKUP-NOTE v2");
   });
 
   it("names the claimer's household only in the offerer's offer.mine", () => {

@@ -1,10 +1,17 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 
+export interface ToastAction {
+  label: string;
+  onAction: () => void;
+}
+
 export interface Toast {
   id: string;
   text: string;
   actionLabel?: string;
   onAction?: () => void;
+  // more than one button ("Undo", "Edit note"); used instead of actionLabel
+  actions?: ToastAction[];
 }
 
 const DEFAULT_MS = 8000;
@@ -68,20 +75,27 @@ function ToastItem({
     return () => window.clearTimeout(timer);
   }, [paused, toast.id, onDismiss, durationMs]);
 
+  const actions: ToastAction[] =
+    toast.actions ??
+    (toast.onAction && toast.actionLabel
+      ? [{ label: toast.actionLabel, onAction: toast.onAction }]
+      : []);
+
   return (
     <div class="toast" ref={root}>
       <span>{toast.text}</span>
-      {toast.onAction && (
+      {actions.map((action) => (
         <button
+          key={action.label}
           type="button"
           onClick={() => {
-            toast.onAction?.();
+            action.onAction();
             onDismiss(toast.id);
           }}
         >
-          {toast.actionLabel}
+          {action.label}
         </button>
-      )}
+      ))}
     </div>
   );
 }

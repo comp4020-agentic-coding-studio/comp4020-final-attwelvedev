@@ -4,6 +4,7 @@ import { MemberList } from "../../components/MemberList.tsx";
 import Base from "../../layouts/Base.astro";
 import { db } from "../../lib/db.ts";
 import { listMembers } from "../../lib/households.ts";
+import { offeringFor } from "../../lib/offers.ts";
 
 const { session, newInviteLink } = Astro.locals;
 if (!session) return Astro.redirect("/", 303);
@@ -12,6 +13,7 @@ if (!session) return Astro.redirect("/", 303);
 if (newInviteLink) Astro.response.headers.set("Cache-Control", "no-store");
 
 const members = listMembers(db, session.household.id);
+const pickupNote = offeringFor(db, session).defaultPickupNote ?? "";
 const onlyMe = members.length === 1;
 const inviteUrl = newInviteLink ? new URL(`/join/${newInviteLink.token}`, Astro.url).href : "";
 ---
@@ -46,6 +48,18 @@ const inviteUrl = newInviteLink ? new URL(`/join/${newInviteLink.token}`, Astro.
   <section class="stack" aria-labelledby="devices-heading">
     <h2 id="devices-heading">Your devices</h2>
     <p><a href="/household/devices">Add another device</a> (a phone, say) by link or QR code.</p>
+  </section>
+
+  <section class="stack" aria-labelledby="pickup-heading">
+    <h2 id="pickup-heading">Pickup note</h2>
+    <p class="muted">Each offer has its own note, which you can write or change when you offer and later from the pantry. This is the last one you used, so the next offer starts from it. Only your household and the one that claims an offer see its note.</p>
+    <form class="stack" method="post" action="/household/pickup-note">
+      <div class="field">
+        <label for="pickup-note">Last pickup note</label>
+        <input id="pickup-note" name="note" required maxlength="280" autocomplete="off" value={pickupNote} />
+      </div>
+      <button type="submit">Save pickup note</button>
+    </form>
   </section>
 
   <section class="stack" aria-labelledby="communities-heading">

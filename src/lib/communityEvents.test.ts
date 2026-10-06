@@ -75,6 +75,7 @@ describe("leftEvents with offer changes", () => {
         id: "o1",
         itemId: "i1",
         itemName: "milk",
+        note: "Porch",
         status: "withdrawn" as const,
         claimedBy: null,
         claimedAt: null,

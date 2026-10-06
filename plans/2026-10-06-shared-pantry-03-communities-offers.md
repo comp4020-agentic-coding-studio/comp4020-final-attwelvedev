@@ -26,7 +26,7 @@ second and without a reload.
 | `quantity_note` dropped | Nothing here writes it. Task 13 adds what offer-some needs |
 | New **Task 20** takes the "Offer from the pantry" half of Task 10 | The outline's Task 10 had no task touching `PantryList.tsx`, so no Offer button. A new global number is the sanctioned way to add a task (overview §5.2) |
 | Either side can Release | The spec §4.1 wireframes show Release on the claimer's card as well as the offerer's |
-| "Offer to…" appears beside Offer when the household is in 2+ communities | FR26's "untick to narrow" has no other home once the sheet only opens for the first offer |
+| ~~"Offer to…" beside Offer~~ → the "Send to" checklist is in the sheet whenever the household is in 2+ communities | The outline's separate button existed only because the sheet opened once. Amended 2026-10-07: every Offer opens the sheet (see the Corrections log) |
 | History page gains a Given filter and "to a neighbour" | FR34. No `given` rows existed before this phase |
 | `undoOutcome` refuses a `given` entry | Otherwise Undo would restore an item that has already left |
 | Create endpoints are `POST /communities/create` and `POST /offers/create` | An `.astro` page and a `.ts` endpoint at one path make the endpoint shadow the page (GET 404, checked 2026-10-07), so `POST /communities` and `POST /offers` could not sit beside their GET pages |
@@ -54,7 +54,7 @@ second and without a reload.
 | NFR | Part implemented here |
 | --- | --- |
 | NFR-Privacy | The pickup note reaches only the claiming household. No member name appears in any community payload or page. A neighbour never learns who claimed. **Enforced in `spec/`** |
-| NFR-Effortless | Offer (after the first), Claim, Collected, Release and Join are one tap; no dialog of any kind |
+| NFR-Effortless | Claim, Collected, Release and Join are one tap; offering takes the sheet and Post (a note per item, prefilled); no confirm dialog of any kind |
 | NFR-A11y | Sheet is a `<dialog>` (Esc closes, focus returns); claim results and errors use the existing `role=status` regions; no colour-only status. The throttled announcer for remote arrivals belongs to phase 05 (Tasks 14 and 16) |
 | NFR-Viewports | Feed and pages at 375 and 1280, no horizontal overflow |
 | NFR-Resources | One `EventSource` per page however many islands it has; the desktop rail hydrates only at desktop width |
@@ -225,7 +225,10 @@ Migration `0003` (Task 8) and `0004` (Task 9). Times are epoch ms.
 - `offers` also carries a **unique partial index** on `item_id` where `status`
   is `offered` or `claimed`: an item has at most one open offer, enforced by
   the database. Check the generated SQL contains the `WHERE`.
-- `households` gains nullable `default_pickup_note` (migration `0004`).
+- `households` gains nullable `default_pickup_note` (migration `0004`). Since
+  2026-10-07 it means the **last note used**: every offer saves its note there
+  so the next sheet starts from it. The column keeps its name; renaming it
+  needs a migration for nothing.
 
 ### 4.2 Rules
 
@@ -245,9 +248,10 @@ Migration `0003` (Task 8) and `0004` (Task 9). Times are epoch ms.
   - The item must be in the caller's household and not removed
     (`NotFoundError`), with no open offer (`ConflictError`, "Already
     offered").
-  - The note is the posted `note`, else the household default, trimmed, 1–280
-    characters (`ValidationError` otherwise). If the household has **no
-    default yet**, the posted note becomes it.
+  - The note is the posted `note`, trimmed, 1–280 characters
+    (`ValidationError` otherwise); a blank note is refused even when an earlier
+    one was saved, because notes change from item to item. The posted note
+    becomes the household's last-used note.
   - Targets are the posted community ids, each of which must be one of the
     household's communities; default is all of them; none at all is
     `ValidationError` ("Join a community first.").
@@ -291,7 +295,8 @@ export type OfferStatus = "offered" | "claimed" | "collected" | "withdrawn";
 export interface PublicOffer { id: string; itemName: string; fromName: string; communityIds: string[]; createdAt: number }
 export interface MyOffer {
   id: string; itemId: string; itemName: string; status: OfferStatus;
-  claimedBy: string | null; claimedAt: number | null;   // the claimer's display name; never a note
+  note: string;                                        // this offer's own note: its offerer may read and edit it
+  claimedBy: string | null; claimedAt: number | null;   // the claimer's display name
   communityIds: string[]; createdAt: number;
 }
 export interface ClaimedOffer {
@@ -315,8 +320,8 @@ export interface OfferChange {
 | `offer.posted` | `community:<id>` | `{ communityId, offer: PublicOffer }`. An upsert by `offer.id`: also used when an offer is re-offered after a Release | note, claimer, any household or member id of the offerer |
 | `offer.taken` | `community:<id>` | `{ communityId, offerId }` | claimer, note |
 | `offer.closed` | `community:<id>` | `{ communityId, offerId }` | |
-| `offer.mine` | `household:<offerer>` | `{ offer: MyOffer }`. A terminal `status` means drop it | note |
-| `offer.claim` | `household:<claimer>` | `{ offer: ClaimedOffer }`. The only place a note travels | |
+| `offer.mine` | `household:<offerer>` | `{ offer: MyOffer }`, with the offer's note. A terminal `status` means drop it | |
+| `offer.claim` | `household:<claimer>` | `{ offer: ClaimedOffer }`, with the note. With `offer.mine` on the offerer's own household channel, the only places a note travels | |
 | `membership.joined` / `membership.left` | `household:<id>` | `{ community: { id, name } }` / `{ communityId }` | |
 | `community.householdJoined` | `community:<id>` | `{ communityId, household: { id, displayName } }` | member names |
 | `community.householdLeft` | `community:<id>` | `{ communityId, householdId, creatorHouseholdId }` | |
@@ -358,7 +363,7 @@ An endpoint answers JSON when `Accept: application/json`, otherwise 303 (to
 | `POST /communities/:id/leave` | — | 303 → `/communities` | 404 not a member | 8 |
 | `POST /communities/:id/households/:householdId/remove` | — | 303 → `/communities/:id` | 403 caller's household isn't the creator · 400 own household · 404 | 8 |
 | `GET /events` | — | as before, plus `community:<id>` channels that follow joins and leaves | 401 | 8 |
-| `POST /offers/create` | form `itemId`, `note?`, `communityIds` (repeatable; default all) | 201 `{ offer: MyOffer }` | 400 · 404 · 409 already offered | 9 |
+| `POST /offers/create` | form `itemId`, `note` (required), `communityIds` (repeatable; default all) | 201 `{ offer: MyOffer }` | 400 · 404 · 409 already offered | 9 |
 | `POST /offers/:id/claim` | — | 200 `{ offer: ClaimedOffer }` (with the note) | 404 · 403 own offer · 409 "Someone claimed this first." | 9 |
 | `POST /offers/:id/collected` | — | 200 `{ offerId }` | 404 · 409 not claimed | 9 |
 | `POST /offers/:id/release` | — | 200 `{ offerId }` | 404 · 409 not claimed | 9 |
@@ -590,8 +595,9 @@ Tasks run 8 → 9 → 10 → 20. Task 20's number is out of sequence on purpose
       foreign community id, none joined, blank note with no default, over 280
       are `ValidationError`; another household's or removed item is
       `NotFoundError`; a second open offer is `ConflictError`, and inserting one
-      directly violates the partial index; the first note becomes the default,
-      a later different note does not replace it.
+      directly violates the partial index; every posted note becomes the
+      household's last-used note; a blank note is refused even after one was
+      saved (amended 2026-10-07, Task 20).
     - **Claim:** two claims in a row from different households give one success
       and one `ConflictError`; claiming your own offer is `ForbiddenError`; an
       offer in a community you are not in is `NotFoundError`; the claim carries
@@ -647,12 +653,13 @@ Tasks run 8 → 9 → 10 → 20. Task 20's number is out of sequence on purpose
   - Spec `spec/privacy.test.ts`, named after the NFR-Privacy bullets in spec
     §2.2 so a README claim can cite them. With three households (offerer,
     neighbour, claimer), each with an open `/events` stream, and an offer note
-    that differs from the household default:
-    - **Pickup notes go only to the claiming household:** the note appears in
-      the claimer's `POST …/claim` response, `/api/offers` and `offer.claim`
-      frames, and **nowhere else**: not in any other household's response, page
-      or stream frame, not on any community channel, and not in the offerer's
-      own frames or `/api/offers`.
+    that differs from the household's last-used note:
+    - **Pickup notes go only to the claiming household** (amended 2026-10-07:
+      and to the offering household, which wrote it): the note appears in the
+      claimer's `POST …/claim` response, `/api/offers` and `offer.claim` frames
+      and in the offerer's own `offer.mine` frames, `/api/offers` and
+      `/api/pantry`, and **nowhere else**: not in any other household's
+      response, page or stream frame, and not on any community channel.
     - **Member names stay in the household:** across `/communities/:id`,
       `/api/offers`, `/offers` and every community-channel frame, no member name
       appears; a neighbour's collection never puts their name in the offerer's
@@ -745,64 +752,97 @@ Tasks run 8 → 9 → 10 → 20. Task 20's number is out of sequence on purpose
   `pnpm check` green. The human review for this flow is on Task 20.
 - **Depends on:** Task 9.
 
-### Task 20: Offer from the pantry: Offer button, first-offer sheet, Undo and Edit note, default note
+### Task 20: Offer from the pantry: Offer sheet with a note per item, Undo, view and edit a note, last note used
 
-- [ ] Done
+- [x] Done
 
-- **Description:** The offering side. Each pantry row gains **Offer** (one tap
-  after the household's first). The first offer, or any offer made with
-  **Offer to…**, opens a sheet (a `<dialog>`) with the pickup note and, for 2+
-  communities, a "Send to" checklist. A toast follows every offer: "<item>
-  offered to N communities. Undo · Edit note" (Undo withdraws). An offered row
-  reads "Offered" and gets Withdraw; a claimed one reads "Claimed by <household>".
-  A household with no community sees a "Join a community to offer food to
-  neighbours" link instead of the buttons. The default pickup note is editable
-  on the household page. A neighbour's Collected shows on the pantry row as
-  "Given to a neighbour".
+- **Description:** The offering side. Each pantry row gains **Offer**, which
+  always opens a sheet (a `<dialog>`): the pickup note, filled with the last
+  note the household used and selected so typing replaces it, and, for 2+
+  communities, a "Send to" checklist (all ticked). **Post offer** (or Enter)
+  posts it; Esc cancels. A toast follows every offer: "<item> offered to N
+  communities. Undo · Edit note" (Undo withdraws; Edit note opens the note
+  sheet). An offered or claimed row reads "Offered" or "Claimed by <household>"
+  and gets **Note** (view and edit that offer's note, with Save) and
+  **Withdraw**. A household with no community sees a "Join a community to
+  offer food to neighbours" link instead of the buttons. The last note used is
+  also editable on the household page. A neighbour's Collected shows on the
+  pantry row as "Given to a neighbour".
+- **Amends Task 9** (changed 2026-10-07 after the user's review; see the
+  Corrections log): `MyOffer` gains `note`; `createOffer` always stores the
+  posted note as the household's last-used note and refuses a blank one; the
+  privacy invariant becomes "the note reaches only the offering and claiming
+  households". Touched: `src/lib/offers.ts`, `offers.test.ts`,
+  `offerEvents.test.ts`, `communityEvents.test.ts`, `offersState.test.ts`,
+  `spec/privacy.test.ts`. These test edits follow a deliberate rule change by
+  the user, not a weakened check.
 - **Files:**
   - `src/components/OfferSheet.tsx` (new), `src/components/PantryList.tsx`,
     `src/components/pantryState.ts` + `pantryState.test.ts`.
   - `src/styles/offers.css`, `src/styles/pantry.css`.
-  - `src/pages/household/index.astro`: a "Default pickup note" form (works with
+  - `src/pages/household/index.astro`: a "Last pickup note" form (works with
     scripts off).
-  - `spec/layout/offering.test.ts`.
+  - `spec/layout/offering.test.ts`, `spec/layout/offering-layout.test.ts`.
 - **Tests to write first (red):**
   - Unit `pantryState.test.ts`:
-    - `offers.snapshot` and `offer.mine` mark and unmark a row; a terminal status
-      clears the mark; both are idempotent.
+    - `offers.snapshot` and `offer.mine` mark and unmark a row and carry its
+      note; a terminal status clears the mark; both are idempotent.
+    - `offer.noted` shows an edited note at once; the same action with the old
+      note rolls it back; the server's `offer.mine` wins; it ignores a row
+      with no offer.
     - `event.removed` with outcome `given` gives the note "Given to a neighbour".
     - Offering is not allowed on a pending row.
   - Browser `spec/layout/offering.test.ts` (two or three contexts, 30 s each):
-    - **First offer:** Offer opens the sheet with the note field focused; Post
-      offer closes it, the row reads "Offered", and the neighbour's feed shows it
-      within 1 s. The note is saved as the default (the household page shows it).
-    - **One tap after the first:** a second Offer posts with a single click, no
-      sheet and no dialog event; the toast offers Undo and Edit note.
-    - **Undo** withdraws: the neighbour's feed drops it within 1 s. **Edit note**
-      changes the note: a neighbour who then claims sees the new text.
-    - **Offer to…** appears only with 2+ communities; unticking one means only
-      the ticked community's member sees the offer (A in X and Y, B in X, C in Y).
+    - **Every Offer opens the sheet:** the first one with an empty focused
+      note; the second prefilled with the previous note, selected; typing
+      replaces it; Enter posts; that offer carries the new text (a claimer
+      sees it) and the next sheet starts from it; the household page shows it
+      as the last pickup note.
+    - **Undo** withdraws: the neighbour's feed drops it within 1 s. **Edit
+      note** opens that offer's own note; saving changes what a claimer sees.
+    - **Note button:** an offered row's Note opens that offer's current note
+      (two offers, two different notes); Esc returns focus to the button;
+      editing before a claim gives the claimer the new text; editing after a
+      claim updates the claimer's page live.
+    - **Send to** is in the sheet only with 2+ communities (and there is no
+      separate "Offer to…" button); unticking one means only the ticked
+      community's member sees the offer (A in X and Y, B in X, C in Y).
     - **Auto-withdraw:** Used on an offered row removes it from the neighbour's
       feed within 1 s.
     - **Collected by the claimer:** the offerer's row drops within 1 s showing
       "Given to a neighbour", and History shows it under Given; the claimer's
       name appears nowhere in the offerer's pages.
     - **No community:** the hint link shows and there is no Offer button.
-    - **Keyboard and layout:** Esc closes the sheet and focus returns to the
-      Offer button; Enter in the note field posts; at PHONE and DESKTOP no
-      overflow and `axeViolations` is empty with the sheet open.
+    - **Keyboard and layout** (`offering-layout.test.ts`): Esc closes the sheet
+      and focus returns to the Offer button; Enter in the note field posts; at
+      PHONE and DESKTOP no overflow and `axeViolations` is empty with the offer
+      sheet and the note sheet open.
 - **Implementation (green):** `PantryList` takes `offering` from the snapshot
-  and handles `offer.mine`. Offer, Withdraw and Edit note are optimistic with
-  rollback and Retry like the phase 02 taps. The sheet is one component used in
-  three modes (first offer, Offer to…, Edit note).
+  and handles `offer.mine`. Offer, Withdraw and Save note are optimistic with
+  rollback and Retry like the phase 02 taps. The sheet is one component with
+  two modes (offer, note).
 - **Refactor:** none.
 - **Acceptance:** tests green at PHONE and DESKTOP; `pnpm check` green.
+- **Departures (recorded during execution):**
+  - The browser spec is two files, `offering.test.ts` (flows) and
+    `offering-layout.test.ts` (keyboard and layout), so they run in parallel,
+    as Task 10 did.
+  - `Toast` gains an optional `actions: { label, onAction }[]` so one toast can
+    hold Undo and Edit note; `actionLabel`/`onAction` still work.
+  - `PantryList` now uses `components/api.ts`'s `postJson` (arrays repeat a
+    field, for the community checklist) instead of its own copy.
+  - Rows also get an offer-state label, **Note** and **Withdraw** in place of
+    Offer; Used and Binned stay, so Used on an offered row auto-withdraws it.
+  - The sheet is shown from an effect, so a browser test waits for the note
+    field to be visible before reading it or pressing a key.
 - **Human review:** the user and a pod-mate try offer → claim → collect on a
   local build (`pnpm build && pnpm start`, so the tree can stay uncommitted
   until they accept), as two browser profiles or a second device reaching the
   server by its LAN address. This also covers the Task 10 feed. **Pass:** it is
   understandable without explanation; it is always clear who has the food and
-  where to collect it; nothing needed a second tap or a confirm.
+  where to collect it; offering takes one sheet and Post, and the note for one
+  item can be read and changed from its row; claim, collect and release take
+  one tap each, and nothing needed a confirm.
 - **Departures (execution, 2026-10-07):**
   - Browser specs are split into `spec/layout/offers.test.ts` (live flows) and
     `spec/layout/offers-layout.test.ts` (small screen, rail, empty states,
@@ -848,7 +888,7 @@ Tasks run 8 → 9 → 10 → 20. Task 20's number is out of sequence on purpose
 | FR36 (offer taps) | Task 20; (claim is server-decided, §4.5) |
 | FR18 hook | Task 9 (the offer refers to its item) |
 | NFR-Privacy (notes, member names, claimer) | Task 9 (`offerEvents.test.ts`, `spec/privacy.test.ts`), Task 8 (names in pages) |
-| NFR-Effortless | Task 10 (Claim, Collected, Release), Task 20 (Offer, Undo) |
+| NFR-Effortless | Task 10 (Claim, Collected, Release), Task 20 (Undo; Offer is a sheet and Post) |
 | NFR-A11y, NFR-Viewports | Tasks 10, 20 |
 | NFR-Resources (one stream, lazy rail) | Task 10 |
 | Human review (offer, claim, collect) | Task 20 |
@@ -856,3 +896,27 @@ Tasks run 8 → 9 → 10 → 20. Task 20's number is out of sequence on purpose
 ## 8. Risks / open questions
 
 None.
+
+## 9. Corrections log
+
+One line per redirect after the user saw something: what was expected, what
+they wanted, and why the first attempt missed.
+
+- **2026-10-07, Task 20 (before the human review).** Expected: after a
+  household's first offer, Offer posts in one tap with a remembered default
+  note (spec FR26–27; NFR-Effortless listed Offer). Wanted: every Offer opens
+  the sheet, prefilled with the previous note and editable before posting,
+  because notes change from item to item; and an offerer needs a button on
+  each of their offers to view and edit that item's note. Missed because the
+  spec put "no second tap" ahead of how people actually write pickup notes, and
+  the plan copied the spec's one-tap rule without asking whether one default
+  note fits every item. Consequences, all applied: `default_pickup_note` means
+  last used; `MyOffer` carries `note`; a blank note is refused; the privacy
+  invariant widens from "claimer only" to "offerer and claimer"; the separate
+  "Offer to…" button folds into the sheet's "Send to" checklist; spec FR26,
+  FR27, FR30, the effortless list, the wireframes and decision-log rows 9 and
+  21, and the overview's NFR and coverage lines were reworded to match.
+- **Open follow-up (not editable here):** accepted ADR 0004 says "Pickup notes
+  are only ever sent on the claiming household's stream". The offering
+  household's own stream now carries its own note too. An accepted ADR is never
+  edited, so this needs a superseding record from `brainstorm-feature`.

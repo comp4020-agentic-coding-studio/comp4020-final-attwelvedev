@@ -69,7 +69,7 @@ These are labels for the bullets in the spec's §2.2:
 
 | Label | Covers |
 | --- | --- |
-| **NFR-Effortless** | One field + Enter to add; one tap for each outcome and offer action; no confirm dialogs |
+| **NFR-Effortless** | One field + Enter to add; one tap for each outcome, claim, collect and release; offering takes a sheet and Post; no confirm dialogs |
 | **NFR-A11y** | Keyboard operability, colour independence, WCAG AA, reduced motion, live announcements |
 | **NFR-Viewports** | 375px and 1280px, including a resize mid-use |
 | **NFR-Privacy** | No location on the server; no EXIF; member names stay in the household; pickup note goes only to the claimer; logs redacted |
@@ -394,7 +394,7 @@ something to show. It is never a start gate.
 | FR23 discovery by location | Task 17 |
 | FR24 join instantly, link/code, several | Task 8 (link/code), Task 17 (listed) |
 | FR25 household names only, suffix | Task 8, Task 9 |
-| FR26 one-tap offer, some, targets | Task 9, Task 20 (offer some value reduction: Task 13) |
+| FR26 offer from a sheet, some, targets | Task 9, Task 20 (offer some value reduction: Task 13) |
 | FR27 pickup note default | Task 9, Task 20 |
 | FR28 lifecycle | Task 9 |
 | FR29 first-come, no self-claim | Task 9 |

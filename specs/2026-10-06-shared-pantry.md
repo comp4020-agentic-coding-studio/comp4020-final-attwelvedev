@@ -16,7 +16,7 @@ This app is a shared household pantry where upkeep is close to effortless:
 only a name is required, quantities and expiry are rough, labelled
 estimates, and the use/bin record builds itself as a side effect of normal
 taps. Because the pantry already knows what is about to go to waste, offering
-it to neighbours is one tap on data the household already has.
+it to neighbours takes one sheet and Post, on data the household already has.
 
 It continues two earlier projects by the same author:
 [MyKitchen](https://github.com/attwelveDev/MyKitchen) (Android/Firebase: shared
@@ -139,20 +139,22 @@ the week 10 crit.
 
 **Offers**
 
-26. Offer is one tap: the whole item by default, to all of the household's
-    communities by default (untick to narrow). "Offer some…" is secondary for
+26. Offer opens a sheet and posts from it: the whole item by default, to all
+    of the household's communities by default (untick to narrow). "Offer some…" is secondary for
     count and fill items; the remainder stays in the pantry with a reduced
     value.
-27. A pickup note is required. The household's first-ever offer opens a sheet
-    to write it; it is saved as the household default, and later offers are
-    one tap with a toast "Undo · Edit note".
+27. A pickup note is required and belongs to each offer, because notes change
+    from item to item. Every offer opens the sheet with the note field filled
+    with the last note used and selected, so it can be kept or overwritten
+    before posting; a toast "Undo · Edit note" follows. The household sees
+    each open offer's note and can view and edit it from the item's row.
 28. Lifecycle: offered → claimed → collected (item leaves the pantry as Given)
     or released / withdrawn (back to the pantry, no longer offered).
 29. Claims are first-come and decided by the server in a transaction; the
     loser sees "Someone claimed this first", not an error. A household cannot
     claim its own offer.
 30. The pickup note is revealed only to the claiming household (all its
-    members). The offerer sees "Claimed by Unit 9, 5 min ago".
+    members) and to the offering household that wrote it. The offerer sees "Claimed by Unit 9, 5 min ago".
 31. Either side can tap Collected. There is no claim expiry; the offerer can
     Release manually.
 32. Marking an offered item Used or Binned, or deleting it, withdraws its open
@@ -181,8 +183,8 @@ the week 10 crit.
 ### 2.2 Non-functional requirements
 
 - **"Effortless" (enforced in `spec/`):** add = one field + Enter; Used,
-  Binned, Offer (after the first), Claim, Collected, Release, Join = one tap
-  each; no confirm dialogs anywhere.
+  Binned, Claim, Collected, Release, Join = one tap each (offering takes the
+  sheet and Post); no confirm dialogs anywhere.
 - **Accessibility:** fully keyboard-operable (skip link; `/` focuses the add
   field; roving focus with ↑/↓ in the list; Enter/Space opens, Esc closes and
   returns focus; U/B/O act on the focused row; ARIA 1.2 combobox for the add
@@ -193,7 +195,7 @@ the week 10 crit.
   resize.
 - **Privacy (enforced where testable):** the server never receives or stores a
   user's location; uploaded photos carry no EXIF/GPS; member names never leave
-  the household; pickup notes are sent only to the claiming household; logs
+  the household; pickup notes are sent only to the claiming and offering households; logs
   never contain locations, pickup notes or photos.
 - **Resources:** fits a 256 MB shared-cpu machine; JS limited to a few Preact
   islands; icons are separately cached static files loaded lazily; Leaflet is
@@ -290,14 +292,14 @@ files (no transactions; claims need one).
 **Live updates (ADR 0004):** writes are ordinary HTTP requests; each open page
 holds one SSE stream scoped to its household and its communities; the server
 fans out in-process (safe: one machine). Pickup notes are only ever sent on
-the claiming household's stream. On reconnect, a fresh snapshot. Considered:
+the claiming and offering households' streams. On reconnect, a fresh snapshot. Considered:
 WebSockets (two-way not needed; extra server beside Astro) and fast polling
 (wasteful for ~1 s latency).
 
 **Offer lifecycle:**
 
 ```
-            Offer (1 tap)             Claim (first wins)          Collected (either side)
+            Offer (sheet+Post)         Claim (first wins)          Collected (either side)
  in pantry ───────────────▶ offered ─────────────────▶ claimed ─────────────────────────▶ given
      ▲                        │  ▲                        │                          (leaves pantry,
      │   Withdraw / item      │  │       Release          │                           history row)
@@ -514,7 +516,7 @@ Opening a match: tray closes, field clears, list scrolls to the item, its
 panel opens, focus moves into it. Live region (debounced 400ms): "2 matches.
 Down arrow to choose one, Enter adds a new item."
 
-**Offer sheet (first-ever offer only)**
+**Offer sheet (every offer)**
 
 ```
 ┌──────────────────────────────────────┐
@@ -527,7 +529,7 @@ Down arrow to choose one, Enter adds a new item."
 │ Pickup note (only the household that │
 │ claims it sees this)                 │
 │ [ Leave on Unit 4 doorstep after 5 ] │
-│ Saved as your household's default.   │
+│ Next offer starts from this note.    │
 │ Send to                              │
 │ [✓] Heathcote St Neighbours          │
 │ [✓] Lyneham Flats   +3 more ▾        │
@@ -536,9 +538,9 @@ Down arrow to choose one, Enter adds a new item."
 ```
 
 Without a photo: icon dish + "[ Add a photo ] Optional; neighbours like to
-see it." After the first offer, Offer posts immediately; toast "Spinach
+see it." Posting closes the sheet; toast "Spinach
 offered to 5 communities. Undo · Edit note"; the row shows "Offered" with a
-basil edge.
+basil edge and a Note button.
 
 **Offers feed (phone)**
 
@@ -627,7 +629,7 @@ Invite link variant: "Join Unit 4", one field, "Join Unit 4" button. Desktop:
 │ Add another of your devices  [ Show QR code ]  │
 │ Members: Sam (this device)  Alex  Priya        │
 │ Communities: Heathcote St Neighbours [ Leave ] │
-│ Default pickup note  [ Edit ]                  │
+│ Last pickup note  [ Edit ]                     │
 │ Passkey sign-in: coming later                  │
 ```
 
@@ -669,7 +671,7 @@ main list, and a trailing Used button on every row.
 | 6 | gap | Who counts as a person | Name + device cookie; device link; optional passkey (wk 12). Email rejected (service, secret, personal data) |
 | 7 | gap | Street formation | Location-discovered communities with a map, invite link/code always available; location never leaves the browser; radius matching rejected |
 | 8 | gap | Handover risks becoming chat | Pickup note + Collected; no messaging |
-| 9 | gap | Pickup note privacy | Revealed only to the claiming household |
+| 9 | gap | Pickup note privacy | Revealed only to the claiming household (and its writer, the offering household) |
 | 10 | gap | Multiple communities per household | Allowed; offers default to all, untick to narrow |
 | 11 | gap | Offerer identity to strangers | Household name only; suffix on clashes |
 | 12 | gap | Shelf-life data source | USDA FoodKeeper (MyKitchen CSV unreliable); licence to verify |
@@ -681,7 +683,7 @@ main list, and a trailing Used button on every row.
 | 18 | gap | Measure type selection, fill stops, concurrency | Guess from name; 5 stops + exact override; latest-wins per value; server-decided first claim |
 | 19 | gap | Member removal, creator succession, offers on leaving | Any member removes; earliest-joined household inherits; offers withdrawn |
 | 20 | contradiction | Phone "open row then Used" = 2 taps vs one-tap rule | Trailing Used button on every row |
-| 21 | contradiction | Required pickup note vs one-tap Offer | Remembered household default after first offer |
+| 21 | contradiction | Required pickup note vs one-tap Offer | Offer takes a sheet, note prefilled with the last one used (changed 2026-10-07 after the user's review; was a remembered default after the first offer) |
 | 22 | ambiguity | Present item set to "out" | Out = Used; no lingering out items (would become a shopping list) |
 | 23 | gap | Community search by suburb needs a geocoder | Search by name only |
 | 24 | ambiguity | "Location stays in browser" vs OSM tile requests | Copy: "never sent to our server"; map lazy-loaded |

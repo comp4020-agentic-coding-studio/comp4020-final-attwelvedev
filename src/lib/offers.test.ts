@@ -133,26 +133,38 @@ describe("createOffer", () => {
     expect(() => offer()).not.toThrow();
   });
 
-  it("saves the first note as the household default and never replaces it", () => {
+  // The user changed this rule after reviewing Task 20: notes differ from item
+  // to item, so the household's saved note is the last one posted, not the first.
+  it("saves every posted note as the household's last-used note", () => {
     const { db, a, milk } = setup();
-    const defaultNote = () =>
+    const lastUsed = () =>
       db.select().from(households).where(eq(households.id, a.household.id)).get()
         ?.defaultPickupNote;
-    expect(defaultNote()).toBeNull();
+    expect(lastUsed()).toBeNull();
     const first = createOffer(db, a, { itemId: milk.id, note: "  Porch, after 5 " });
-    expect(defaultNote()).toBe("Porch, after 5");
+    expect(lastUsed()).toBe("Porch, after 5");
     withdrawOffer(db, a, first.offer.id);
     createOffer(db, a, { itemId: milk.id, note: "Different" });
-    expect(defaultNote()).toBe("Porch, after 5");
+    expect(lastUsed()).toBe("Different");
   });
 
-  it("uses the default note when none is posted", () => {
-    const { db, a, b, milk, offer } = setup();
+  it("carries each offer's own note, to its offerer too", () => {
+    const { db, a, offer } = setup();
     const first = offer("Porch, after 5");
+    expect(first.offer.note).toBe("Porch, after 5");
     withdrawOffer(db, a, first.offer.id);
-    const second = createOffer(db, a, { itemId: milk.id });
-    const claim = claimOffer(db, b, second.offer.id);
-    expect(claim.claim?.offer.note).toBe("Porch, after 5");
+    const eggs = addItem(db, a, "eggs");
+    const second = createOffer(db, a, { itemId: eggs.id, note: "Side gate" });
+    expect(second.offer.note).toBe("Side gate");
+    expect(offeringFor(db, a).open.map((o) => o.note)).toEqual(["Side gate"]);
+    expect(offersSnapshotFor(db, a).mine.map((o) => o.note)).toEqual(["Side gate"]);
+  });
+
+  it("rejects a blank note even when an earlier note was saved", () => {
+    const { db, a, milk, offer } = setup();
+    withdrawOffer(db, a, offer("Porch, after 5").offer.id);
+    expect(() => createOffer(db, a, { itemId: milk.id })).toThrow(ValidationError);
+    expect(() => createOffer(db, a, { itemId: milk.id, note: "  " })).toThrow(ValidationError);
   });
 });
 
@@ -471,6 +483,7 @@ describe("notes", () => {
     const change = updateOfferNote(db, a, o.id, " New note ");
     expect(change.kind).toBe("note");
     expect(change.claim?.offer).toMatchObject({ note: "New note", status: "claimed" });
+    expect(change.offer.note).toBe("New note");
   });
 
   it("validates an edited note and refuses a closed offer", () => {

@@ -1,5 +1,5 @@
 import { randomInt } from "node:crypto";
-import type { Browser } from "playwright";
+import type { Browser, Page } from "playwright";
 import { DESKTOP, type Viewport } from "./browser.ts";
 import { type Client, client } from "./http.ts";
 import { type Person, startHousehold, streamOpen } from "./people.ts";
@@ -166,4 +166,42 @@ export async function trio(browser: Browser, baseUrl: string, viewport: Viewport
   await joinCommunityVia(other, baseUrl, code);
   for (const person of [offerer, claimer, other]) await openOffers(person, baseUrl);
   return { offerer, claimer, other, http: await httpFor(offerer, baseUrl) };
+}
+
+// A pantry row on `/`, not the same item's row in the offers rail beside it.
+export const pantryRow = (page: Page, name: string) =>
+  page.locator("ul.pantry li").filter({ hasText: name });
+
+// An offer row in the feed or rail.
+export const feedRow = (page: Page, name: string) =>
+  page.locator(".offers-feed .offer").filter({ hasText: name });
+
+// An offerer and a claimer in one community. The offerer sits on `/`; the
+// claimer watches `/offers`. With `primed` the offerer's household already has
+// a default pickup note (an offer made over HTTP before the page loads), so the
+// next Offer is one tap.
+export async function offerPair(
+  browser: Browser,
+  baseUrl: string,
+  opts: { viewport?: Viewport; primed?: boolean } = {},
+) {
+  const { viewport = DESKTOP, primed = false } = opts;
+  const offerer = await startHousehold(browser, baseUrl, {
+    name: "Sam",
+    household: "Unit 4",
+    viewport,
+  });
+  const claimer = await startHousehold(browser, baseUrl, {
+    name: "Quinn",
+    household: "House 9",
+    viewport,
+  });
+  const { code } = await startCommunity(offerer, baseUrl);
+  await joinCommunityVia(claimer, baseUrl, code);
+  await openOffers(claimer, baseUrl);
+  const http = await httpFor(offerer, baseUrl);
+  if (primed) await offerNamed(http, "starter", "Porch, after 5");
+  await offerer.page.goto(baseUrl);
+  await streamOpen(offerer.page);
+  return { offerer, claimer, http };
 }

@@ -95,3 +95,45 @@
 .new-offers button {
   pointer-events: auto;
 }
+
+/* the offer sheet: a native <dialog>, sized to the phone */
+.offer-sheet {
+  width: min(32rem, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 16px;
+  background: var(--surface);
+  color: inherit;
+  border: 1.5px solid var(--rim);
+  border-radius: 10px;
+}
+.offer-sheet::backdrop {
+  background: rgb(0 0 0 / 0.4);
+}
+.offer-sheet h2 {
+  margin: 0;
+}
+.offer-sheet fieldset {
+  margin: 0;
+  padding: 8px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+}
+.offer-sheet .check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+}
+.offer-sheet .check input {
+  width: auto;
+  min-height: 0;
+}
+.offer-sheet .msg:empty {
+  display: none;
+}
+.sheet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

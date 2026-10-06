@@ -8,11 +8,18 @@ export class HttpError extends Error {
   }
 }
 
-const formBody = (fields: Record<string, string>) => new URLSearchParams(fields).toString();
+// An array value repeats its field, as the offer sheet's community checklist needs.
+export type Fields = Record<string, string | string[]>;
+const formBody = (fields: Fields) =>
+  new URLSearchParams(
+    Object.entries(fields).flatMap(([key, value]) =>
+      (Array.isArray(value) ? value : [value]).map((v): [string, string] => [key, v]),
+    ),
+  ).toString();
 
 // A signed-out device is sent home. Any other failure throws an HttpError
 // carrying the server's `{ error }` message when there is one.
-export async function postJson<T>(path: string, fields: Record<string, string> = {}): Promise<T> {
+export async function postJson<T>(path: string, fields: Fields = {}): Promise<T> {
   const res = await fetch(path, {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" },
