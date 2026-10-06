@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed
+accepted
 
 ## Context
 
@@ -81,6 +81,9 @@ Fly's machine has 256 MB. Resident set size of the built server
 Passkeys add about 1.4 MB at idle and about 5.4 MB more once the server
 package has been loaded. The idle baseline is already about 250 MB on this
 machine; macOS counts shared libraries in RSS, so it is not the figure Fly's
-Linux machine will show. The deployed machine's own figure must be read
-(`flyctl ssh console -C "ps -o rss= -C node"` or the Fly metrics) before this
-ADR is accepted.
+Linux machine will show. Read on the deployed machine on 2026-10-07, right
+after the offers, privacy and communities specs had run against it, the whole
+machine showed 212 MB total and 111 MB available, so about 100 MB in use. (The
+container has no `ps`, so the node process's own figure wasn't readable; the
+machine-wide number includes it.) That leaves comfortable room under the
+256 MB limit, so passkeys are accepted on memory grounds.
