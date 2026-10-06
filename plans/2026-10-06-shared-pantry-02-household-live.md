@@ -692,8 +692,12 @@ member.
 - **Acceptance:** the tests above are green at PHONE and DESKTOP; axe is clean;
   `pnpm check` is green; every browser file is under 1000 lines
   (`spec/suite-size.test.ts`).
-- **Human review:** the user watches two real browsers side by side on the deployed
-  `fly.dev` URL, and joins the second from a phone by scanning the device QR.
+- **Human review:** the user watches two real browsers side by side on a local
+  build (`pnpm build && pnpm start`, so the tree can stay uncommitted until they
+  accept; the deploy hook refuses a dirty tree), and joins the second from a phone
+  by scanning the device QR, opening the dev server by its LAN address. Fly's proxy
+  not buffering the stream is proved separately, by the deployed `spec/live.test.ts`
+  run in §6.
   **Pass:** live changes feel immediate and calm: no flicker, no whole-list flash,
   focus stays put. A row shifting when a remote add arrives is expected until
   Task 14. This task is **not accepted** until the user says so.
