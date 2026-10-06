@@ -1,9 +1,32 @@
+# Project invariants
+
+<!-- PLACEHOLDER: fill in once the stack and first ADR are chosen, then delete
+     this comment. Concrete rules beat general ones, so name real paths and
+     commands. -->
+
+- **Persistence:** only `/data` survives a restart or redeploy (`fly.toml`).
+  Nothing important lives anywhere else.
+- **Run it:** TBD — the command that starts the app locally on `:8080`.
+- **Dependencies:** adding one needs a reason (and an ADR if it shapes the
+  app). The machine has 256 MB; check the cost before adding.
+- **Shape of the app:** TBD — the core interaction, what counts as a person,
+  what a visitor's trace is, and how a change reaches every open session.
+- **Naming and layout:** TBD — conventions the code should follow.
+
 # Working method
+
+## Corrections go into the harness
+
+When I correct the agent for something it could get wrong again, fix the
+cause, not just the instance: add a rule here, or a check in `spec/` or
+`pnpm check`, then log it in `PROCESS_LOG.md`. A repeated mistake is a missing
+sensor. A bug fix starts with a failing test that reproduces it.
 
 ## Before pushing
 
-- `pnpm check` (types and `spec/` tests) must be green. It runs against the
-  live app, so start it first (`APP_URL`, default `http://localhost:8080`).
+- `pnpm check` (types, lint/format and `spec/` tests) must be green. It runs
+  against the live app, so start it first (`APP_URL`, default
+  `http://localhost:8080`). `pnpm format` auto-fixes style.
 - Verify visual changes by running the app and checking a desktop width and a
   phone width — the render is the truth, not the source.
 
@@ -29,6 +52,21 @@ Never commit a key. `.env*`, `mise.local.toml` and `.claude/` stay in
 One commit per unit of work once `pnpm check` passes — no mega-commits, no
 bundling unrelated changes. Messages say what changed and why, not "fixed
 things".
+
+## Enforced by the harness, not just asked
+
+`harness/claude-settings.json` is the project's Claude Code config
+(`.claude/settings.json` is a gitignored symlink to it, so it is versioned
+while the rest of `.claude/` stays out of the repo).
+
+- **Hooks** (`harness/hooks/`): edits to the files the course fixes
+  (`fly.toml`, `spec/invariants.test.ts`, `spec/global-setup.ts`,
+  `.github/workflows/`, `.githooks/`) are blocked; `flyctl deploy` is blocked
+  from a dirty tree; edited files are auto-formatted with Biome.
+- **Permissions:** `pnpm`, read-only `git` and `flyctl status/logs` run
+  freely; `git push` and `flyctl deploy` ask first; force-push, hard reset,
+  `rm -rf`, destroying Fly apps/volumes and reading secrets files are denied.
+- If a block is wrong for a legitimate change, ask me — don't route around it.
 
 ## Decisions (ADRs)
 
