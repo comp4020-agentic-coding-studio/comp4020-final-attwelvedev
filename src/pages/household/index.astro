@@ -1,5 +1,6 @@
 ---
 import CopyLink from "../../components/CopyLink.astro";
+import { MemberList } from "../../components/MemberList.tsx";
 import Base from "../../layouts/Base.astro";
 import { db } from "../../lib/db.ts";
 import { listMembers } from "../../lib/households.ts";
@@ -20,25 +21,7 @@ const inviteUrl = newInviteLink ? new URL(`/join/${newInviteLink.token}`, Astro.
 
   <section class="stack" aria-labelledby="members-heading">
     <h2 id="members-heading">Members</h2>
-    <ul id="members" class="rows">
-      {
-        members.map((m) => (
-          <li>
-            <span class="who">
-              {m.name}
-              {m.id === session.member.id && <span class="muted"> (you)</span>}
-            </span>
-            {m.id !== session.member.id && (
-              <form method="post" action={`/household/members/${m.id}/remove`}>
-                <button type="submit">
-                  Remove<span class="sr-only"> {m.name}</span>
-                </button>
-              </form>
-            )}
-          </li>
-        ))
-      }
-    </ul>
+    <MemberList client:load initial={members.map((m) => ({ id: m.id, name: m.name }))} meId={session.member.id} />
   </section>
 
   <section class="stack" aria-labelledby="invite-heading">

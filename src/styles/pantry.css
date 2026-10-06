@@ -1,0 +1,82 @@
+/* The pantry island's markup isn't reached by an Astro page's scoped styles,
+   so its rules live here and the component imports them. */
+.pantry-island {
+  padding-bottom: 5rem; /* room for a toast over the last row */
+}
+.add label {
+  display: block;
+}
+.add input {
+  width: 100%;
+  min-height: 44px;
+  font: inherit;
+}
+.undo,
+.failure,
+.toast {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1.5px solid var(--rim);
+  border-radius: 10px;
+}
+.failure {
+  margin-top: 12px;
+}
+.failure > span,
+.toast > span {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+.pantry {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+}
+.pantry li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  padding: 6px 0;
+}
+.pantry .name {
+  flex: 1;
+  min-width: 0;
+}
+.pantry li[aria-busy="true"] {
+  opacity: 0.7;
+}
+.pantry li.gone .name {
+  text-decoration: line-through;
+  color: var(--ink-muted);
+}
+.pantry .note {
+  color: var(--ink-muted);
+}
+.connection {
+  margin: 12px 0 0;
+}
+.connection:empty {
+  display: none;
+}
+.toasts {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  max-width: 688px;
+  margin: 0 auto;
+  display: grid;
+  gap: 8px;
+  pointer-events: none;
+}
+.toasts .toast {
+  pointer-events: auto;
+}
+.toasts:empty {
+  display: none;
+}
