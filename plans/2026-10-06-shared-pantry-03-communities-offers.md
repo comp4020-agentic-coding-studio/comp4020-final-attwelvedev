@@ -671,7 +671,7 @@ Tasks run 8 → 9 → 10 → 20. Task 20's number is out of sequence on purpose
 
 ### Task 10: Offers feed: live arrivals, claim, collected and release, rail, community list
 
-- [ ] Done
+- [x] Done
 
 - **Description:** The receiving side of offers. A feed island lists offers in
   my communities, "Your offers" and "Offers you've claimed", with Claim,
@@ -803,6 +803,24 @@ Tasks run 8 → 9 → 10 → 20. Task 20's number is out of sequence on purpose
   server by its LAN address. This also covers the Task 10 feed. **Pass:** it is
   understandable without explanation; it is always clear who has the food and
   where to collect it; nothing needed a second tap or a confirm.
+- **Departures (execution, 2026-10-07):**
+  - Browser specs are split into `spec/layout/offers.test.ts` (live flows) and
+    `spec/layout/offers-layout.test.ts` (small screen, rail, empty states,
+    reconnect, layout), with the `trio` setup in `spec/neighbours.ts`, so the
+    two run in parallel (CLAUDE.md "Test speed").
+  - New `src/components/api.ts` (`postJson`, `getJson`, `HttpError`) so the feed
+    can read a 409's message. `PantryList.tsx` keeps its own copy until Task 20
+    touches it.
+  - `GET /communities/:id` answers JSON (`households`, `creatorHouseholdId`)
+    for `Accept: application/json`, so the live household list can refetch on
+    reconnect. It was not in the §4.4 table.
+  - `OffersFeed` takes `showConnection`; the rail passes false because the
+    pantry island beside it already shows the shared stream's state (two
+    "Reconnecting…" broke `live-sync.test.ts`).
+  - `spec/communities.test.ts` and `spec/privacy.test.ts` now read page markup
+    with inline scripts removed (`withoutScripts`): the Astro island bootstrap
+    spells "Sam" in `isSameNode`, which tripped the member-name checks once a
+    community page carried an island. Text and island props are still checked.
 - **Depends on:** Tasks 9 and 10.
 
 ## 6. Phase Definition of Done

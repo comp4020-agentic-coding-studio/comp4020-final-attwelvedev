@@ -4,12 +4,15 @@ import "../styles/tokens.css";
 
 interface Props {
   title: string;
+  // a desktop layout with room for the offers rail beside the pantry
+  wide?: boolean;
 }
 
-const { title } = Astro.props;
+const { title, wide = false } = Astro.props;
 const here = Astro.url.pathname;
 const NAV = [
   { href: "/", label: "Pantry" },
+  ...(Astro.locals.session ? [{ href: "/offers", label: "Offers" }] : []),
   { href: "/history", label: "History" },
   ...(Astro.locals.session ? [{ href: "/household", label: "Household" }] : []),
   { href: "/readme/", label: "About" },
@@ -28,11 +31,11 @@ const current = (href: string) => (href === "/" ? here === href : here.startsWit
   <body>
     <a class="skip" href="#main">Skip to content</a>
     <header>
-      <nav aria-label="Main">
+      <nav aria-label="Main" class={wide ? "wide" : undefined}>
         {NAV.map((l) => <a href={l.href} aria-current={current(l.href) ? "page" : undefined}>{l.label}</a>)}
       </nav>
     </header>
-    <main id="main">
+    <main id="main" class={wide ? "wide" : undefined}>
       <slot />
     </main>
     <footer>
@@ -74,6 +77,11 @@ const current = (href: string) => (href === "/" ? here === href : here.startsWit
   header nav a[aria-current="page"] {
     font-weight: 700;
     text-decoration: none;
+  }
+  main.wide,
+  main.wide + footer,
+  header nav.wide {
+    max-width: 1112px;
   }
   footer {
     max-width: 720px;

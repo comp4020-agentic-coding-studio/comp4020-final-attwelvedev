@@ -1,5 +1,5 @@
 import { describe, expect, inject, it } from "vitest";
-import type { Client } from "./http.ts";
+import { type Client, withoutScripts } from "./http.ts";
 import { act, claim, neighbourhood, offerNamed, openStreamFor } from "./neighbours.ts";
 import type { Frame, Stream } from "./sse.ts";
 
@@ -14,7 +14,6 @@ async function drain(stream: Stream): Promise<Frame[]> {
 }
 
 // Everything a household can read about the others: its pages, its JSON, its stream.
-// (When the Offers page lands in Task 10, "/offers" joins this list.)
 const PAGES = (communityId: string) => [
   "/",
   "/household",
@@ -22,6 +21,7 @@ const PAGES = (communityId: string) => [
   "/history?outcome=given",
   `/communities/${communityId}`,
   "/communities",
+  "/offers",
 ];
 const API = ["/api/pantry", "/api/offers"];
 
@@ -95,7 +95,7 @@ describe("Member names stay in the household", () => {
     const s = await scene();
     const names = ["Sam", "Priya", "Quinn"];
     for (const me of [s.offerer, s.neighbour, s.claimer]) {
-      const page = await (await me.get(`/communities/${s.communityId}`)).text();
+      const page = withoutScripts(await (await me.get(`/communities/${s.communityId}`)).text());
       const api = await (await me.get("/api/offers", asJson)).text();
       for (const name of names) {
         expect(page).not.toContain(name);

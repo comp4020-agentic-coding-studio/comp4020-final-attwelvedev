@@ -7,6 +7,15 @@ const EVENT_TYPES: LiveEvent["type"][] = [
   "item.restored",
   "member.joined",
   "member.removed",
+  "membership.joined",
+  "membership.left",
+  "community.householdJoined",
+  "community.householdLeft",
+  "offer.posted",
+  "offer.taken",
+  "offer.closed",
+  "offer.mine",
+  "offer.claim",
 ];
 
 const RECONNECTING_AFTER_MS = 3000;
@@ -20,8 +29,72 @@ export interface LiveHandlers {
   onUnauthorised(): void;
 }
 
-// Holds one EventSource on /events. `connected` is whether it is open now;
-// `reconnecting` turns true only after 3 s without it, so a blink doesn't
+interface Subscriber {
+  handlers: { current: LiveHandlers };
+  setConnected(connected: boolean): void;
+}
+
+// One EventSource per page however many islands use it, reference-counted:
+// the first subscriber opens it and the last one closes it. Every subscriber
+// hears every event, and each one's onOpen fires on every open (a late joiner
+// gets its own at once if the stream is already open).
+const subscribers = new Set<Subscriber>();
+let source: EventSource | null = null;
+let retry: number | undefined;
+let open = false;
+
+function connect() {
+  const es = new EventSource("/events");
+  source = es;
+  es.onopen = () => {
+    open = true;
+    for (const s of [...subscribers]) {
+      s.setConnected(true);
+      s.handlers.current.onOpen();
+    }
+  };
+  for (const type of EVENT_TYPES) {
+    es.addEventListener(type, (message) => {
+      const event = JSON.parse((message as MessageEvent<string>).data) as LiveEvent;
+      for (const s of [...subscribers]) s.handlers.current.onEvent(event);
+    });
+  }
+  es.onerror = () => {
+    open = false;
+    for (const s of [...subscribers]) s.setConnected(false);
+    // The browser retries a dropped stream itself. A CLOSED one is one it
+    // gave up on (a 401 or a bad status): find out which, then try again.
+    if (es.readyState !== EventSource.CLOSED || source !== es) return;
+    es.close();
+    fetch("/api/pantry", { headers: { Accept: "application/json" } })
+      .then((res) => {
+        if (res.status === 401)
+          for (const s of [...subscribers]) s.handlers.current.onUnauthorised();
+      })
+      .catch(() => {});
+    retry = window.setTimeout(connect, GIVE_UP_RETRY_MS);
+  };
+}
+
+function subscribe(subscriber: Subscriber) {
+  subscribers.add(subscriber);
+  if (!source) connect();
+  else if (open) {
+    subscriber.setConnected(true);
+    subscriber.handlers.current.onOpen();
+  }
+  return () => {
+    subscribers.delete(subscriber);
+    if (subscribers.size > 0) return;
+    window.clearTimeout(retry);
+    source?.close();
+    source = null;
+    open = false;
+  };
+}
+
+// Listens on the page's one /events stream. `connected` is whether it is open
+// now; `reconnecting` turns true only after 3 s without it, so a blink doesn't
 // flash a warning.
 export function useLiveStream(handlers: LiveHandlers): {
   connected: boolean;
@@ -32,45 +105,7 @@ export function useLiveStream(handlers: LiveHandlers): {
   const [connected, setConnected] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
 
-  useEffect(() => {
-    let source: EventSource | null = null;
-    let retry: number | undefined;
-    let stopped = false;
-
-    const open = () => {
-      const es = new EventSource("/events");
-      source = es;
-      es.onopen = () => {
-        setConnected(true);
-        latest.current.onOpen();
-      };
-      for (const type of EVENT_TYPES) {
-        es.addEventListener(type, (message) => {
-          latest.current.onEvent(JSON.parse((message as MessageEvent<string>).data));
-        });
-      }
-      es.onerror = () => {
-        setConnected(false);
-        // The browser retries a dropped stream itself. A CLOSED one is one it
-        // gave up on (a 401 or a bad status): find out which, then try again.
-        if (es.readyState !== EventSource.CLOSED || stopped) return;
-        es.close();
-        fetch("/api/pantry", { headers: { Accept: "application/json" } })
-          .then((res) => {
-            if (res.status === 401) latest.current.onUnauthorised();
-          })
-          .catch(() => {});
-        retry = window.setTimeout(open, GIVE_UP_RETRY_MS);
-      };
-    };
-
-    open();
-    return () => {
-      stopped = true;
-      window.clearTimeout(retry);
-      source?.close();
-    };
-  }, []);
+  useEffect(() => subscribe({ handlers: latest, setConnected }), []);
 
   useEffect(() => {
     if (connected) {

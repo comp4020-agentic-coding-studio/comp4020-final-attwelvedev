@@ -1,14 +1,17 @@
 ---
+import { OffersFeed } from "../components/OffersFeed.tsx";
 import { PantryList } from "../components/PantryList.tsx";
 import Base from "../layouts/Base.astro";
 import { db } from "../lib/db.ts";
 import { listHistory } from "../lib/items.ts";
+import { offersSnapshotFor } from "../lib/offers.ts";
 import { snapshotFor } from "../lib/snapshot.ts";
 
 const { session, firstRunError, addError } = Astro.locals;
 if (firstRunError || addError) Astro.response.status = 400;
 
 const snapshot = session ? snapshotFor(db, session) : null;
+const offers = session ? offersSnapshotFor(db, session) : null;
 const undoId = Astro.url.searchParams.get("undo");
 const undone =
   session && undoId
@@ -18,17 +21,26 @@ const undone =
 
 {
   session ? (
-    <Base title={session.household.name}>
-      <h1>{session.household.name}</h1>
+    <Base title={session.household.name} wide>
+      <div class="home">
+        <div class="home-main">
+          <h1>{session.household.name}</h1>
 
-      {undone && (
-        <form class="undo" method="post" action={`/history/${undone.id}/undo`} role="status">
-          <span>{undone.itemName} marked {undone.outcome}.</span>
-          <button type="submit">Undo</button>
-        </form>
-      )}
+          {undone && (
+            <form class="undo" method="post" action={`/history/${undone.id}/undo`} role="status">
+              <span>{undone.itemName} marked {undone.outcome}.</span>
+              <button type="submit">Undo</button>
+            </form>
+          )}
 
-      {snapshot && <PantryList client:load initial={snapshot} addError={addError} />}
+          {snapshot && <PantryList client:load initial={snapshot} addError={addError} />}
+        </div>
+        {offers && (
+          <div class="rail">
+            <OffersFeed client:media="(min-width: 1100px)" initial={offers} showConnection={false} />
+          </div>
+        )}
+      </div>
     </Base>
   ) : (
     <Base title="Start your pantry">

@@ -1,9 +1,11 @@
 ---
+import { CommunityHouseholds } from "../../components/CommunityHouseholds.tsx";
 import CopyLink from "../../components/CopyLink.astro";
 import Base from "../../layouts/Base.astro";
 import { getCommunity } from "../../lib/communities.ts";
 import { db } from "../../lib/db.ts";
 import { NotFoundError } from "../../lib/errors.ts";
+import { json, wantsJson } from "../../lib/http.ts";
 
 const { session, newCommunityLink } = Astro.locals;
 if (!session) return Astro.redirect("/", 303);
@@ -17,6 +19,16 @@ try {
 } catch (error) {
   if (!(error instanceof NotFoundError)) throw error;
   Astro.response.status = 404;
+}
+// The live list refetches this on every stream open, so a reconnect catches up.
+if (view && wantsJson(Astro.request.headers)) {
+  return json({
+    households: view.households.map((h) => ({
+      householdId: h.householdId,
+      displayName: h.displayName,
+    })),
+    creatorHouseholdId: view.community.creatorHouseholdId,
+  });
 }
 const linkUrl = newCommunityLink
   ? new URL(`/communities/join/${newCommunityLink.token}`, Astro.url).href
@@ -35,24 +47,15 @@ const linkUrl = newCommunityLink
 
       <section class="stack" aria-labelledby="households-heading">
         <h2 id="households-heading">Households</h2>
-        <ul id="community-households" class="rows">
-          {view.households.map((h) => (
-            <li>
-              <span class="who">
-                {h.displayName}
-                {h.householdId === session.household.id && <span class="muted"> (you)</span>}
-                {h.householdId === view.community.creatorHouseholdId && <span class="muted"> · creator</span>}
-              </span>
-              {view.isCreator && h.householdId !== session.household.id && (
-                <form method="post" action={`/communities/${view.community.id}/households/${h.householdId}/remove`}>
-                  <button type="submit">
-                    Remove<span class="sr-only"> {h.displayName}</span>
-                  </button>
-                </form>
-              )}
-            </li>
-          ))}
-        </ul>
+        <CommunityHouseholds
+          client:load
+          communityId={view.community.id}
+          myHouseholdId={session.household.id}
+          initial={{
+            households: view.households.map((h) => ({ householdId: h.householdId, displayName: h.displayName })),
+            creatorHouseholdId: view.community.creatorHouseholdId,
+          }}
+        />
       </section>
 
       <section class="stack" aria-labelledby="invite-heading">

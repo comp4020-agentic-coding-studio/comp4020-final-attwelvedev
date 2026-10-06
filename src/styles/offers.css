@@ -1,0 +1,97 @@
+/* The offers feed island's markup isn't reached by an Astro page's scoped
+   styles, so its rules live here and the component imports them. */
+.home {
+  display: block;
+}
+/* the rail is a desktop thing: below this width the Offers page is the way in */
+.rail {
+  display: none;
+}
+@media (min-width: 1100px) {
+  .home {
+    display: grid;
+    grid-template-columns: minmax(0, 720px) 360px;
+    gap: 32px;
+    align-items: start;
+  }
+  .rail {
+    display: block;
+    padding-top: 2.5rem; /* clear of the h1 beside it */
+  }
+}
+.offers-feed section + section {
+  margin-top: 24px;
+}
+.offer-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.offer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  padding: 8px 0;
+}
+.offer-body {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 10rem;
+}
+.offer .meta,
+.offer .pickup {
+  color: var(--ink-muted);
+}
+.offer .state {
+  font-weight: 700;
+}
+.offer .msg:empty {
+  display: none;
+}
+.offer.gone .name {
+  text-decoration: line-through;
+  color: var(--ink-muted);
+}
+.offer[aria-busy="true"] {
+  opacity: 0.7;
+}
+.offer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.offers-feed .failure {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1.5px solid var(--rim);
+  border-radius: 10px;
+}
+.offers-feed .failure > span {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+/* fixed, so showing it never moves the list the person is reading */
+.new-offers {
+  position: fixed;
+  top: 8px;
+  left: 0;
+  right: 0;
+  margin: 0;
+  text-align: center;
+  z-index: 2;
+  pointer-events: none;
+}
+.new-offers:empty {
+  display: none;
+}
+.new-offers button {
+  pointer-events: auto;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, inject, it } from "vitest";
-import { client, text } from "./http.ts";
+import { client, text, withoutScripts } from "./http.ts";
 import { createCommunity, joinCommunityByCode, newHousehold, ownAddress } from "./neighbours.ts";
 import { type Frame, openStream } from "./sse.ts";
 
@@ -33,8 +33,9 @@ describe("creating and joining by code", () => {
       const body = text(page);
       expect(body).toContain("Unit 4");
       expect(body).toContain("Flat 2");
-      expect(body).not.toContain("Sam");
-      expect(body).not.toContain("Priya");
+      const markup = withoutScripts(page); // text and island props, not the bootstrap code
+      expect(markup).not.toContain("Sam");
+      expect(markup).not.toContain("Priya");
     }
   });
 

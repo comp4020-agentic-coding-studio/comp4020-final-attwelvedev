@@ -69,3 +69,10 @@ export function client(
 export function text(html: string): string {
   return new JSDOM(html).window.document.body.textContent ?? "";
 }
+
+// A page's markup without its inline scripts: Astro's island bootstrap is a
+// minified script that happens to spell "Sam" (in isSameNode), so a check that
+// a name is absent from a page reads the markup and attributes, not that code.
+export function withoutScripts(html: string): string {
+  return html.replace(/<script\b[\s\S]*?<\/script>/g, "");
+}

@@ -1,5 +1,8 @@
 import { randomInt } from "node:crypto";
+import type { Browser } from "playwright";
+import { DESKTOP, type Viewport } from "./browser.ts";
 import { type Client, client } from "./http.ts";
+import { type Person, startHousehold, streamOpen } from "./people.ts";
 import { openStream, type Stream } from "./sse.ts";
 
 // HTTP helpers for the community and offer specs: each client is its own
@@ -97,3 +100,70 @@ export async function apiPantry(me: Client) {
 
 export const openStreamFor = (baseUrl: string, me: Client): Promise<Stream> =>
   openStream(baseUrl, me.cookie("pantry_device"));
+
+// Browser helpers: people from spec/people.ts doing the community steps through
+// the real forms. Offers are made over HTTP as the same person (`httpFor`), since
+// the Offer button belongs to Task 20.
+
+export async function startCommunity(
+  person: Person,
+  baseUrl: string,
+  name = "Elm Street",
+): Promise<{ id: string; code: string }> {
+  await person.page.goto(new URL("/communities", baseUrl).href);
+  await person.page.getByLabel("Community name").fill(name);
+  await person.page.getByLabel("Community name").press("Enter");
+  await person.page.waitForURL(/\/communities\/[^/]+$/);
+  const id = person.page.url().split("/").pop() ?? "";
+  const code = (await person.page.locator("#community-code").textContent()) ?? "";
+  return { id, code };
+}
+
+export async function joinCommunityVia(
+  person: Person,
+  baseUrl: string,
+  code: string,
+): Promise<string> {
+  await person.page.goto(new URL("/communities", baseUrl).href);
+  await person.page.getByLabel("Community code").fill(code);
+  await person.page.getByLabel("Community code").press("Enter");
+  await person.page.waitForURL(/\/communities\/[^/]+$/);
+  return person.page.url().split("/").pop() ?? "";
+}
+
+// An HTTP client signed in as this browser person.
+export async function httpFor(person: Person, baseUrl: string): Promise<Client> {
+  const cookies = await person.context.cookies(baseUrl);
+  const device = cookies.find((c) => c.name === "pantry_device")?.value ?? "";
+  return client(baseUrl, { headers: { cookie: `pantry_device=${device}`, ...ownAddress() } });
+}
+
+export async function openOffers(person: Person, baseUrl: string): Promise<void> {
+  await person.page.goto(new URL("/offers", baseUrl).href);
+  await streamOpen(person.page);
+}
+
+// Three households in one community, each looking at /offers: the offerer
+// (with an HTTP client for making offers), a claimer and a bystander.
+export async function trio(browser: Browser, baseUrl: string, viewport: Viewport = DESKTOP) {
+  const offerer = await startHousehold(browser, baseUrl, {
+    name: "Sam",
+    household: "Unit 4",
+    viewport,
+  });
+  const claimer = await startHousehold(browser, baseUrl, {
+    name: "Quinn",
+    household: "House 9",
+    viewport,
+  });
+  const other = await startHousehold(browser, baseUrl, {
+    name: "Priya",
+    household: "Flat 2",
+    viewport,
+  });
+  const { code } = await startCommunity(offerer, baseUrl);
+  await joinCommunityVia(claimer, baseUrl, code);
+  await joinCommunityVia(other, baseUrl, code);
+  for (const person of [offerer, claimer, other]) await openOffers(person, baseUrl);
+  return { offerer, claimer, other, http: await httpFor(offerer, baseUrl) };
+}
