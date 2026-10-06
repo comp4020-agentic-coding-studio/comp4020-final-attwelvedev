@@ -1,0 +1,52 @@
+/* Enamelware tokens (spec §4.1). Light = white enamel; dark = the navy rim as
+   the surface. Dark follows the system unless data-theme pins a choice. */
+:root {
+  --bg: #f4f7f8;
+  --surface: #ffffff;
+  --rim: #1e3d72;
+  --ink: #17243a;
+  --ink-muted: #566377;
+  --line: #d3dbe3;
+  --tape-fresh: #4a76b0;
+  --soon: #c27400;
+  --soon-text: #8c5200;
+  --past: #8e2453;
+  --basil: #36704a;
+  --unknown: #9aa5b3;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #13233f;
+    --surface: #1b2e50;
+    --rim: #a8c2ec;
+    --ink: #eef2f7;
+    --ink-muted: #a6b3c6;
+    --line: #2d4268;
+    --tape-fresh: #7fa6de;
+    --soon: #f2a63b;
+    --soon-text: #f2a63b;
+    --past: #e58ab0;
+    --basil: #86c99c;
+    --unknown: #5e7090;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #13233f;
+  --surface: #1b2e50;
+  --rim: #a8c2ec;
+  --ink: #eef2f7;
+  --ink-muted: #a6b3c6;
+  --line: #2d4268;
+  --tape-fresh: #7fa6de;
+  --soon: #f2a63b;
+  --soon-text: #f2a63b;
+  --past: #e58ab0;
+  --basil: #86c99c;
+  --unknown: #5e7090;
+  color-scheme: dark;
+}

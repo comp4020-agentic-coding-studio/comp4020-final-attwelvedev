@@ -1,0 +1,16 @@
+---
+// README.md, rendered: what this app is and what good looks like here,
+// published with the app. spec/readme.test.ts checks the whole of it is here.
+import * as readme from "../../README.md";
+import Base from "../layouts/Base.astro";
+
+const title = readme.getHeadings().find((h) => h.depth === 1)?.text ?? "README";
+
+// README images are committed to the repo and linked relatively (docs/x.png)
+// so they render on GitHub; the app serves them from public/ at the site root.
+const html = (await readme.compiledContent()).replace(/(src|href)="public\//g, '$1="/');
+---
+
+<Base title={title}>
+  <div class="readme-content" set:html={html} />
+</Base>

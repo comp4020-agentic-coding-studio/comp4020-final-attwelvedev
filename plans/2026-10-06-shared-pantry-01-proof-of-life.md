@@ -149,6 +149,8 @@ None.
 
 ### Task 1: Replace the placeholder with an Astro/Node app serving `/` and `/readme/`
 
+- [x] Done
+
 **Description:** Install the stack and build the Docker image. Serve a stub
 `/` (200) and `/readme/` rendering README.md in full. Add test helpers. This
 task changes no behaviour beyond what the placeholder already proved, but on
@@ -234,6 +236,8 @@ export function axeViolations(page: Page): Promise<string[]>;
 
 ### Task 2: First-run household creation with a hashed device-token session
 
+- [ ] Done
+
 **Description:**
 - `GET /` with no session shows the first-run form: Household name, Your
   name, and "Start pantry", with Enter submitting.
@@ -303,6 +307,8 @@ All exported signatures are exactly as in overview §4.2.
 **Depends on:** Task 1.
 
 ### Task 3: Add items by name, mark Used/Binned with undo, record history
+
+- [ ] Done
 
 **Description:**
 - `POST /items` adds an item with only a name. Duplicates are allowed.
@@ -377,6 +383,8 @@ actions.
 **Depends on:** Task 2.
 
 ### Task 4: History page, CLAUDE.md invariants, ADR acceptance, README check and the week 9 deploy
+
+- [ ] Done
 
 **Description:**
 - `GET /history` lists the outcome record with an outcome filter

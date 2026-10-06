@@ -1,10 +1,19 @@
 import { defineConfig } from "vitest/config";
 
-// Every test in spec/ runs against the running app, which spec/global-setup.ts
-// finds. Only spec/ runs: a test anywhere else needs adding to `include`.
+// `unit` tests sit beside the code and need no server. `spec` tests run
+// against the running app, which spec/global-setup.ts finds.
 export default defineConfig({
   test: {
-    include: ["spec/**/*.test.ts"],
-    globalSetup: ["./spec/global-setup.ts"],
+    projects: [
+      { extends: true, test: { name: "unit", include: ["src/**/*.test.ts"] } },
+      {
+        extends: true,
+        test: {
+          name: "spec",
+          include: ["spec/**/*.test.ts"],
+          globalSetup: ["./spec/global-setup.ts"],
+        },
+      },
+    ],
   },
 });
