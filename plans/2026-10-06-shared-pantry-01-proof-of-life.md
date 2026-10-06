@@ -384,7 +384,7 @@ actions.
 
 ### Task 4: History page, CLAUDE.md invariants, ADR acceptance, README check and the week 9 deploy
 
-- [ ] Done
+- [x] Done
 
 **Description:**
 - `GET /history` lists the outcome record with an outcome filter
@@ -471,14 +471,14 @@ actions.
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 1–4 complete; each committed with `pnpm check` green
-- [ ] `pnpm test` passes (app running via `pnpm build && pnpm start`)
-- [ ] `pnpm check` passes
-- [ ] Docker image boots with `--tmpfs /data` and serves `/` and `/readme/`
-- [ ] Deployed: `https://comp4020-final-attwelvedev.fly.dev` returns 200;
+- [x] Tasks 1–4 complete; each committed with `pnpm check` green
+- [x] `pnpm test` passes (app running via `pnpm build && pnpm start`)
+- [x] `pnpm check` passes
+- [x] Docker image boots with `--tmpfs /data` and serves `/` and `/readme/`
+- [x] Deployed: `https://comp4020-final-attwelvedev.fly.dev` returns 200;
       the spec suite passes against it; the persistence check passes
-- [ ] Task 4's human reviews accepted explicitly by the user
-- [ ] Tick phase 01 in overview §5 and commit
+- [x] Task 4's human reviews accepted explicitly by the user
+- [x] Tick phase 01 in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)
 
