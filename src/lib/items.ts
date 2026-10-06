@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
-import type { Db } from "./db.ts";
+import type { Db, Tx } from "./db.ts";
 import { NotFoundError, ValidationError } from "./errors.ts";
+import { addDays, utcToday } from "./expiry.ts";
+import type { Category, Measure } from "./guess.ts";
+import { guessItem } from "./guessServer.ts";
 import type { Session } from "./households.ts";
 import { type OfferChange, withdrawOpenOffersForItem } from "./offers.ts";
 import { history, items, members } from "./schema.ts";
@@ -9,12 +12,30 @@ import { history, items, members } from "./schema.ts";
 export { NotFoundError, ValidationError };
 
 export type Outcome = "used" | "binned" | "given";
+export type Unit = "g" | "kg" | "ml" | "L" | "count";
+export const UNITS: readonly Unit[] = ["g", "kg", "ml", "L", "count"];
+
 export interface Item {
   id: string;
   householdId: string;
   name: string;
   createdBy: string;
   createdAt: number;
+  category: Category;
+  iconKey: string | null;
+  measure: Measure;
+  fillStop: number; // 4 Full, 3 three quarters, 2 half, 1 a quarter, 0 Nearly out
+  count: number;
+  exactAmount: number | null;
+  exactUnit: Unit | null;
+  estimatedExpiry: string | null; // YYYY-MM-DD
+  exactExpiry: string | null; // YYYY-MM-DD, wins over the estimate
+  // who last set each group, and when; both null means Guessed, a time with no
+  // member means the member has since left
+  valueSetBy: string | null;
+  valueSetAt: number | null;
+  expirySetBy: string | null;
+  expirySetAt: number | null;
 }
 export interface HistoryEntry {
   id: string;
@@ -45,25 +66,73 @@ function toItem(row: ItemRow): Item {
     name: row.name,
     createdBy: row.createdBy ?? "",
     createdAt: row.createdAt,
+    category: row.category,
+    iconKey: row.iconKey,
+    measure: row.measure,
+    fillStop: row.fillStop,
+    count: row.count,
+    exactAmount: row.exactAmount,
+    exactUnit: row.exactUnit,
+    estimatedExpiry: row.estimatedExpiry,
+    exactExpiry: row.exactExpiry,
+    valueSetBy: row.valueSetBy,
+    valueSetAt: row.valueSetAt,
+    expirySetBy: row.expirySetBy,
+    expirySetAt: row.expirySetAt,
   };
 }
 
-export function addItem(db: Db, session: Session, name: string): Item {
+// The one place an item row is made: its measure, category, icon and estimate
+// come from the name's guess, counted from `today`. Nobody has set anything yet,
+// so both attributions stay empty (Guessed).
+export function insertItem(
+  tx: Db | Tx,
+  input: {
+    householdId: string;
+    createdBy: string | null;
+    name: string;
+    today: string;
+    at?: number;
+  },
+): Item {
+  const guess = guessItem(input.name);
+  const row: ItemRow = {
+    id: randomUUID(),
+    householdId: input.householdId,
+    name: input.name,
+    createdBy: input.createdBy,
+    createdAt: input.at ?? Date.now(),
+    removedAt: null,
+    category: guess.category,
+    iconKey: guess.iconKey,
+    measure: guess.measure,
+    fillStop: 4,
+    count: 1,
+    exactAmount: null,
+    exactUnit: null,
+    estimatedExpiry: guess.shelfDays === null ? null : addDays(input.today, guess.shelfDays),
+    exactExpiry: null,
+    valueSetBy: null,
+    valueSetAt: null,
+    expirySetBy: null,
+    expirySetAt: null,
+  };
+  tx.insert(items).values(row).run();
+  return toItem(row);
+}
+
+export function addItem(db: Db, session: Session, name: string, today = utcToday()): Item {
   const trimmed = name.trim();
   if (!trimmed) throw new ValidationError("Name can't be blank.");
   if (trimmed.length > MAX_NAME) {
     throw new ValidationError(`Name must be ${MAX_NAME} characters or fewer.`);
   }
-  const row: ItemRow = {
-    id: randomUUID(),
+  return insertItem(db, {
     householdId: session.household.id,
-    name: trimmed,
     createdBy: session.member.id,
-    createdAt: Date.now(),
-    removedAt: null,
-  };
-  db.insert(items).values(row).run();
-  return toItem(row);
+    name: trimmed,
+    today,
+  });
 }
 
 export function listPantry(db: Db, householdId: string): Item[] {

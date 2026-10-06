@@ -49,6 +49,41 @@ export const items = sqliteTable("items", {
   createdBy: text("created_by").references(() => members.id, { onDelete: "set null" }),
   createdAt: integer("created_at").notNull(),
   removedAt: integer("removed_at"),
+  // What the item is: guessed from its name when added, changeable. Every
+  // column has a default so the rows already on the volume migrate untouched.
+  category: text("category", {
+    enum: [
+      "dairy",
+      "produce",
+      "grains",
+      "tins",
+      "meat",
+      "frozen",
+      "condiments",
+      "drinks",
+      "snacks",
+      "other",
+    ],
+  })
+    .notNull()
+    .default("other"),
+  iconKey: text("icon_key"),
+  measure: text("measure", { enum: ["fill", "count", "have"] })
+    .notNull()
+    .default("have"),
+  fillStop: integer("fill_stop").notNull().default(4), // 4 Full ... 0 Nearly out
+  count: integer("count").notNull().default(1),
+  exactAmount: real("exact_amount"),
+  exactUnit: text("exact_unit", { enum: ["g", "kg", "ml", "L", "count"] }),
+  estimatedExpiry: text("estimated_expiry"), // YYYY-MM-DD
+  exactExpiry: text("exact_expiry"), // YYYY-MM-DD, wins over the estimate
+  // Who last set a group and when. The value group is measure, stop, count and
+  // exact amount; the expiry group is both dates. No stamp means Guessed; a
+  // stamp with no member means the member has since left.
+  valueSetBy: text("value_set_by").references(() => members.id, { onDelete: "set null" }),
+  valueSetAt: integer("value_set_at"),
+  expirySetBy: text("expiry_set_by").references(() => members.id, { onDelete: "set null" }),
+  expirySetAt: integer("expiry_set_at"),
 });
 
 // item_id and item_name are copied, not referenced: the record outlives the

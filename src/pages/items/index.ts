@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { db } from "../../lib/db.ts";
+import { cleanToday } from "../../lib/expiry.ts";
 import { cleanRid, failure, json, wantsJson } from "../../lib/http.ts";
 import { addItem, ValidationError } from "../../lib/items.ts";
 import { householdChannel, publish } from "../../lib/live.ts";
@@ -12,7 +13,12 @@ export const POST: APIRoute = async (context) => {
   // a clone, so the body is still unread if the page has to be rewritten below
   const form = await context.request.clone().formData();
   try {
-    const item = addItem(db, session, String(form.get("name") ?? ""));
+    const item = addItem(
+      db,
+      session,
+      String(form.get("name") ?? ""),
+      cleanToday(form.get("today")),
+    );
     const rid = cleanRid(form.get("rid"));
     publish(householdChannel(session.household.id), {
       type: "item.added",

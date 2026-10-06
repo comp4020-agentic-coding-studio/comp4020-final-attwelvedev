@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Item } from "../lib/items.ts";
 import type { MyOffer } from "../lib/offers.ts";
+import { testItem } from "../lib/testItem.ts";
 import {
   type Action,
   initialState,
@@ -9,13 +10,8 @@ import {
   visibleRows,
 } from "./pantryState.ts";
 
-const item = (id: string, name: string, createdAt: number): Item => ({
-  id,
-  householdId: "h",
-  name,
-  createdBy: "m",
-  createdAt,
-});
+const item = (id: string, name: string, createdAt: number): Item =>
+  testItem({ id, name, createdAt });
 const milk = item("milk", "milk", 30);
 const eggs = item("eggs", "eggs", 20);
 const bread = item("bread", "bread", 10);
@@ -49,6 +45,30 @@ describe("snapshot", () => {
 });
 
 describe("optimistic add", () => {
+  it("builds the temporary item with neutral defaults", () => {
+    const s = run(initialState([]), { type: "add.pending", rid: "r1", name: "tea", at: 40 });
+    expect(s.rows[0].item).toEqual({
+      id: "pending:r1",
+      householdId: "",
+      name: "tea",
+      createdBy: "",
+      createdAt: 40,
+      category: "other",
+      iconKey: null,
+      measure: "have",
+      fillStop: 4,
+      count: 1,
+      exactAmount: null,
+      exactUnit: null,
+      estimatedExpiry: null,
+      exactExpiry: null,
+      valueSetBy: null,
+      valueSetAt: null,
+      expirySetBy: null,
+      expirySetAt: null,
+    });
+  });
+
   it("puts a pending row first, and confirming swaps it for the real item in place", () => {
     let s = run(initialState([milk]), { type: "add.pending", rid: "r1", name: "tea", at: 40 });
     expect(names(s)).toEqual(["tea", "milk"]);

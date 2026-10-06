@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { householdChannel, type LiveEvent, publish, subscribe, subscriberCount } from "./live.ts";
+import { testItem } from "./testItem.ts";
 
 const added = (name: string): LiveEvent => ({
   type: "item.added",
-  item: { id: name, householdId: "h", name, createdBy: "m", createdAt: 1 },
+  item: testItem({ id: name, name }),
   by: { id: "m", name: "Sam" },
 });
 

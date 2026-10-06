@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type LiveEvent, publish, subscriberCount } from "./live.ts";
 import { eventFrame, eventStream } from "./sse.ts";
+import { testItem } from "./testItem.ts";
 
 const decoder = new TextDecoder();
 const added = (name: string): LiveEvent => ({
   type: "item.added",
-  item: { id: "i", householdId: "h", name, createdBy: "m", createdAt: 1 },
+  item: testItem({ name }),
   by: { id: "m", name: "Sam" },
 });
 const removedSelf: LiveEvent = {

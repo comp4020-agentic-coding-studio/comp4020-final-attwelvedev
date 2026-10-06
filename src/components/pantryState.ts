@@ -139,6 +139,20 @@ export function pantryReducer(state: PantryState, action: Action): PantryState {
         name: action.name,
         createdBy: "",
         createdAt: action.at,
+        // neutral until the client guess is wired in
+        category: "other",
+        iconKey: null,
+        measure: "have",
+        fillStop: 4,
+        count: 1,
+        exactAmount: null,
+        exactUnit: null,
+        estimatedExpiry: null,
+        exactExpiry: null,
+        valueSetBy: null,
+        valueSetAt: null,
+        expirySetBy: null,
+        expirySetAt: null,
       };
       return { ...state, rows: [{ item, pending: { rid: action.rid } }, ...rows] };
     }

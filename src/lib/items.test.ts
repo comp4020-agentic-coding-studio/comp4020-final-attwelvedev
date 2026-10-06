@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { openDb } from "./db.ts";
+import { addDays, utcToday } from "./expiry.ts";
+import { guessItem } from "./guessServer.ts";
 import { createHousehold, type Session } from "./households.ts";
 import {
   addItem,
+  insertItem,
   listHistory,
   listPantry,
   NotFoundError,
@@ -41,6 +44,96 @@ describe("addItem", () => {
     addItem(db, session, "Milk");
     addItem(db, session, "Milk");
     expect(listPantry(db, session.household.id).map((i) => i.name)).toEqual(["Milk", "Milk"]);
+  });
+});
+
+describe("addItem guesses", () => {
+  it("applies the guess for milk, with the estimate counted from today", () => {
+    const { db, session } = setup();
+    const guess = guessItem("milk");
+    const item = addItem(db, session, "milk", "2026-10-07");
+    expect(item.measure).toBe(guess.measure);
+    expect(item.category).toBe(guess.category);
+    expect(item.iconKey).toBe(guess.iconKey);
+    expect(item.fillStop).toBe(4);
+    expect(item.count).toBe(1);
+    expect(guess.shelfDays).not.toBeNull();
+    expect(item.estimatedExpiry).toBe(addDays("2026-10-07", guess.shelfDays as number));
+    expect(item.exactExpiry).toBeNull();
+    expect(item.exactAmount).toBeNull();
+    expect(item.exactUnit).toBeNull();
+  });
+
+  it("counts eggs", () => {
+    const { db, session } = setup();
+    expect(addItem(db, session, "Eggs").measure).toBe("count");
+  });
+
+  it("treats an unknown food as Have, other, no icon and no estimate", () => {
+    const { db, session } = setup();
+    const item = addItem(db, session, "mystery thing");
+    expect(item).toMatchObject({
+      measure: "have",
+      category: "other",
+      iconKey: null,
+      estimatedExpiry: null,
+    });
+  });
+
+  it("leaves both attributions empty (Guessed) and keeps the creator", () => {
+    const { db, session } = setup();
+    const item = addItem(db, session, "milk");
+    expect(item).toMatchObject({
+      valueSetBy: null,
+      valueSetAt: null,
+      expirySetBy: null,
+      expirySetAt: null,
+      createdBy: session.member.id,
+    });
+  });
+
+  it("uses today's UTC date when none is given", () => {
+    const { db, session } = setup();
+    const shelfDays = guessItem("milk").shelfDays as number;
+    const item = addItem(db, session, "milk");
+    expect([-1, 0, 1].map((d) => addDays(utcToday(), shelfDays + d))).toContain(
+      item.estimatedExpiry,
+    );
+  });
+
+  it("returns the new fields from listPantry", () => {
+    const { db, session } = setup();
+    const added = addItem(db, session, "milk", "2026-10-07");
+    expect(listPantry(db, session.household.id)).toEqual([added]);
+  });
+});
+
+describe("insertItem", () => {
+  it("makes a no-creator item read as createdBy '' and show in the pantry", () => {
+    const { db, session } = setup();
+    const item = insertItem(db, {
+      householdId: session.household.id,
+      createdBy: null,
+      name: "rice",
+      today: "2026-10-07",
+    });
+    expect(item.createdBy).toBe("");
+    expect(listPantry(db, session.household.id).map((i) => i.id)).toEqual([item.id]);
+  });
+
+  it("runs inside a transaction", () => {
+    const { db, session } = setup();
+    const item = db.transaction((tx) =>
+      insertItem(tx, {
+        householdId: session.household.id,
+        createdBy: session.member.id,
+        name: "rice",
+        today: "2026-10-07",
+        at: 5,
+      }),
+    );
+    expect(item.createdAt).toBe(5);
+    expect(listPantry(db, session.household.id)).toHaveLength(1);
   });
 });
 

@@ -26,7 +26,26 @@ describe("GET /api/pantry", () => {
     expect(snap.members.map((m: { name: string }) => m.name)).toEqual(["Sam"]);
     expect(snap.items.map((i: { name: string }) => i.name)).toEqual(["milk"]);
     expect(Object.keys(snap.items[0]).sort()).toEqual(
-      ["createdAt", "createdBy", "householdId", "id", "name"].sort(),
+      [
+        "category",
+        "count",
+        "createdAt",
+        "createdBy",
+        "estimatedExpiry",
+        "exactAmount",
+        "exactExpiry",
+        "exactUnit",
+        "expirySetAt",
+        "expirySetBy",
+        "fillStop",
+        "householdId",
+        "iconKey",
+        "id",
+        "measure",
+        "name",
+        "valueSetAt",
+        "valueSetBy",
+      ].sort(),
     );
   });
 

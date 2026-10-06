@@ -718,7 +718,7 @@ green and committed.
 
 ### Task 13: The item model: columns, expiry buckets, and the guess applied on add
 
-- [ ] Done
+- [x] Done
 
 - **Description:** Items carry a measure, category, icon key, amounts and two
   expiry dates, all defaulted by `guess(name)` when added, and `bucketFor` turns
@@ -812,6 +812,13 @@ green and committed.
 - **Human review:** none. Nothing visible changes, and the guess quality was
   accepted in Task 12.
 - **Depends on:** Task 12 (done at `6704cba`).
+- **Found in execution:** drizzle-kit drops `ON DELETE set null` from an `ADD COLUMN`
+  reference, which made deleting a member who had set a value fail with a foreign
+  key error. `0006` was hand-edited (user-approved 2026-10-07) to add it back;
+  `migrations.test.ts` pins it. `0007` has no foreign-key column added by
+  `ADD COLUMN` except `portion_of`: check the same thing there.
+- **Found in execution:** `spec/api.test.ts` pinned an item's exact keys; updated
+  to the new set.
 
 ### Task 21: Value, measure and expiry writes with attribution and live updates
 
