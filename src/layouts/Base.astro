@@ -6,6 +6,12 @@ interface Props {
 }
 
 const { title } = Astro.props;
+const here = Astro.url.pathname;
+const NAV = [
+  { href: "/", label: "Pantry" },
+  { href: "/history", label: "History" },
+  { href: "/readme/", label: "About" },
+];
 ---
 
 <!doctype html>
@@ -17,6 +23,11 @@ const { title } = Astro.props;
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>
+    <header>
+      <nav aria-label="Main">
+        {NAV.map((l) => <a href={l.href} aria-current={here === l.href ? "page" : undefined}>{l.label}</a>)}
+      </nav>
+    </header>
     <main id="main">
       <slot />
     </main>
@@ -43,6 +54,22 @@ const { title } = Astro.props;
     margin: 0 auto;
     padding: 16px;
     overflow-wrap: anywhere;
+  }
+  header nav {
+    display: flex;
+    gap: 16px;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 16px;
+  }
+  header nav a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  header nav a[aria-current="page"] {
+    font-weight: 700;
+    text-decoration: none;
   }
   footer {
     max-width: 720px;

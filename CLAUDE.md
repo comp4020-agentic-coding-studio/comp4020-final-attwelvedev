@@ -6,12 +6,20 @@
 
 - **Persistence:** only `/data` survives a restart or redeploy (`fly.toml`).
   Nothing important lives anywhere else.
-- **Run it:** TBD — the command that starts the app locally on `:8080`.
+- **Run it:** `pnpm install && pnpm build && pnpm start` serves on `:8080`
+  (DB at `./.data/app.db`; set `DATABASE_PATH` to move it). `pnpm dev` is
+  for hot reload.
 - **Dependencies:** adding one needs a reason (and an ADR if it shapes the
   app). The machine has 256 MB; check the cost before adding.
-- **Shape of the app:** TBD — the core interaction, what counts as a person,
-  what a visitor's trace is, and how a change reaches every open session.
-- **Naming and layout:** TBD — conventions the code should follow.
+- **Shape of the app:** a household pantry where adding is one field + Enter
+  and every outcome is one tap with Undo, never a confirm dialog. A person is
+  a member of one household, identified by a hashed device token (ADR 0002).
+  State is SQLite on `/data` (ADR 0003). Live sync is SSE (ADR 0004, from
+  phase 02). See `specs/2026-10-06-shared-pantry.md`.
+- **Naming and layout:** domain services in `src/lib/` take `db` first and
+  never touch requests. Endpoints in `src/pages/` stay thin. Unit tests sit
+  beside the code; promises to users get `spec/<area>.test.ts`; browser
+  checks get one `spec/layout/<area>.test.ts` per area.
 
 # Working method
 
