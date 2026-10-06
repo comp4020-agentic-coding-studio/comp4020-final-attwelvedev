@@ -1,7 +1,7 @@
 # Shared pantry with neighbourhood offers — Plan overview
 
 - **Date:** 2026-10-06
-- **Status:** Approved (phase 01 detailed; phases 02–06 outlined — see §0)
+- **Status:** Approved (phases 01–02 detailed; phases 03–06 outlined — see §0)
 - **Requirements confirmed by user:** yes — 2026-10-06
 - **Tier:** Architecture
 
@@ -13,7 +13,7 @@ Files in this set:
 | --- | --- |
 | `plans/2026-10-06-shared-pantry-00-overview.md` | this file |
 | `plans/2026-10-06-shared-pantry-01-proof-of-life.md` | **full** — ready to execute |
-| `plans/2026-10-06-shared-pantry-02-household-live.md` | outline |
+| `plans/2026-10-06-shared-pantry-02-household-live.md` | **full** — ready to execute |
 | `plans/2026-10-06-shared-pantry-03-communities-offers.md` | outline |
 | `plans/2026-10-06-shared-pantry-04-logging-item-model.md` | outline |
 | `plans/2026-10-06-shared-pantry-05-visual-pantry.md` | outline |
@@ -23,7 +23,7 @@ Files in this set:
   (`specs/2026-10-06-shared-pantry.md`). It needs nothing else.
 - Task numbers are global (Task 1–19) across all files.
 - A phase is ticked in §5 once its phase Definition of Done is met.
-- **Outlined phases** (02–06) already fix their tasks, files, interfaces and
+- **Outlined phases** (03–06) already fix their tasks, files, interfaces and
   acceptance criteria. Before executing one, re-run `plan-feature` Phases 2–4
   on that file against the code that exists by then: verify the signatures,
   write the red tests per task, and set its Status to `Approved`. The user
@@ -270,7 +270,13 @@ deletes the history row.
 | `POST /history/:id/undo` | — | 303 → `/` | 404 if unknown or in another household | 3 |
 | `GET /history[?outcome=used\|binned\|given]` | — | 200 | 303 → `/` without a session | 4 |
 | `GET /readme/` | — | 200: README.md rendered in full | — | 1 |
-| *(Task 5 onward)* invite, join, device link, `GET /events` (SSE), JSON variants via `Accept: application/json`, communities, offers | — | — | — | 5–19 |
+| `GET /join`, `POST /join/code`, `GET /join/:token`, `POST /join/:token/accept` | form `code`/`memberName`, or `memberName` | 303 → `/` with the device cookie | 400 · 404 · 409 signed in · 429 throttled (failed joins) | 5 |
+| `GET /household`, `POST /household/invite-link`, `POST /household/members/:id/remove`, `POST /household/leave` | — | 200 / 303 (see phase 02 §4) | 303 → `/` without a session · 404 | 5 |
+| `GET /household/devices`, `POST /household/device-link`, `GET /device/:token`, `POST /device/:token/accept` | — | 200 / 303 with the device cookie | 404 · 409 signed in | 5 |
+| `GET /events` | — | 200 `text/event-stream`, household channel | 401 without a session | 6 |
+| `GET /api/pantry` | — | 200 `Snapshot` | 401 | 6 |
+| `POST /items`, `POST /items/:id/outcome`, `POST /history/:id/undo` with `Accept: application/json` | as above | 201/200 JSON | 400/404/401 `{ error }` | 6 |
+| *(Task 8 onward)* communities, offers | — | — | — | 8–19 |
 
 ## 5. Phases
 
