@@ -12,6 +12,9 @@
       "!spec/invariants.test.ts",
       "!spec/global-setup.ts",
       "!scripts/check-evidence.ts",
+      "!scripts/data",
+      "!src/data/foodkeeper.json",
+      "!src/data/guess-client.json",
       "!harness"
     ]
   },

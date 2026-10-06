@@ -1,0 +1,132 @@
+{
+  "categoryMap": {
+    "Baby Food": "other",
+    "Baked Goods": "grains",
+    "Beverages": "drinks",
+    "Condiments, Sauces & Canned Goods": "condiments",
+    "Dairy Products & Eggs": "dairy",
+    "Food Purchased Frozen": "frozen",
+    "Grains, Beans & Pasta": "grains",
+    "Meat": "meat",
+    "Poultry": "meat",
+    "Produce": "produce",
+    "Seafood": "meat",
+    "Shelf Stable Foods": "condiments",
+    "Vegetarian Proteins": "other",
+    "Deli & Prepared Foods": "other"
+  },
+  "entries": [
+    {
+      "keywords": ["milk"],
+      "category": "dairy",
+      "measure": "fill",
+      "shelfDays": 7,
+      "iconKey": "milk"
+    },
+    {
+      "keywords": ["egg"],
+      "category": "dairy",
+      "measure": "count",
+      "shelfDays": 21,
+      "iconKey": "egg"
+    },
+    {
+      "keywords": ["cumin"],
+      "category": "condiments",
+      "measure": "have",
+      "shelfDays": 1095,
+      "iconKey": "cumin"
+    },
+    {
+      "keywords": ["bread"],
+      "category": "grains",
+      "measure": "fill",
+      "shelfDays": 7,
+      "iconKey": "bread"
+    },
+    {
+      "keywords": ["olive oil"],
+      "category": "condiments",
+      "measure": "have",
+      "shelfDays": 180,
+      "iconKey": "olive-oil"
+    },
+    {
+      "keywords": ["juice", "orange juice", "apple juice"],
+      "category": "drinks",
+      "measure": "fill",
+      "shelfDays": 7,
+      "iconKey": "juice"
+    },
+    {
+      "keywords": ["yoghurt", "yogurt"],
+      "category": "dairy",
+      "measure": "fill",
+      "shelfDays": 14,
+      "iconKey": "yoghurt"
+    },
+    {
+      "keywords": ["mince", "minced meat"],
+      "category": "meat",
+      "measure": "fill",
+      "shelfDays": 2,
+      "iconKey": "mince"
+    },
+    {
+      "keywords": ["tinned", "canned", "baked bean", "tinned tomato", "canned tomato"],
+      "category": "tins",
+      "measure": "fill",
+      "shelfDays": 730,
+      "iconKey": "tin"
+    },
+    {
+      "keywords": ["frozen"],
+      "category": "frozen",
+      "measure": "fill",
+      "shelfDays": 180,
+      "iconKey": "frozen"
+    },
+    {
+      "keywords": ["biscuit", "cookie"],
+      "category": "snacks",
+      "measure": "fill",
+      "shelfDays": 120,
+      "iconKey": "biscuit"
+    },
+    {
+      "keywords": ["chip", "crisp"],
+      "category": "snacks",
+      "measure": "fill",
+      "shelfDays": 90,
+      "iconKey": "chips"
+    },
+    {
+      "keywords": ["spinach"],
+      "category": "produce",
+      "measure": "count",
+      "shelfDays": 5,
+      "iconKey": "spinach"
+    },
+    {
+      "keywords": ["lemon"],
+      "category": "produce",
+      "measure": "count",
+      "shelfDays": 21,
+      "iconKey": "lemon"
+    },
+    {
+      "keywords": ["vegemite"],
+      "category": "condiments",
+      "measure": "have",
+      "shelfDays": 730,
+      "iconKey": "vegemite"
+    },
+    {
+      "keywords": ["tofu"],
+      "category": "other",
+      "measure": "count",
+      "shelfDays": 7,
+      "iconKey": "tofu"
+    }
+  ]
+}

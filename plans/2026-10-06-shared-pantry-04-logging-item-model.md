@@ -265,7 +265,8 @@ export function makeGuesser(table: GuessTable): (name: string) => Guess;
 - **`normaliseName`:** lowercase, trim, replace any non-letter run with one
   space, and singularise each word: `ies`→`y`, `ves`→`f` only for the word
   list `loaves, halves, leaves`, `es` after `s x z ch sh`, else drop a
-  trailing `s` unless the word ends `ss`. `"Eggs "` → `"egg"`,
+  trailing `s` unless the word ends `ss`, `us` or `is`; `oes`→`o` first
+  (found in execution: the stated rules gave `tomatoe` and `hummu`). `"Eggs "` → `"egg"`,
   `"Tomatoes"` → `"tomato"`, `"Cheese"` → `"cheese"` (no change).
 - **Matching:** build a `Map` from each normalised keyword to its entry (first
   entry wins on a duplicate keyword). For a name, try every contiguous run of
@@ -401,7 +402,7 @@ first. Task 13 follows phase 03 and Task 12.
 
 ### Task 12: FoodKeeper-backed guessing of category, measure, shelf life and icon key
 
-- [ ] Done
+- [x] Done
 
 - **Description:** A pure `guess(name)` and the generated data behind it, for
   Task 13 to apply on add and for the client to run optimistically. No schema,
@@ -410,7 +411,10 @@ first. Task 13 follows phase 03 and Task 12.
   - `scripts/data/foodkeeper-en.json` (new, the raw file from §2.4, committed;
     if it is over 1.5 MB, leave it untracked, record its sha256 in
     `src/data/FOODKEEPER.md`, and add it to `.gitignore`).
-  - `biome.json`: add `"!scripts/data"` to `files.includes`.
+  - `biome.json`: add `"!scripts/data"` to `files.includes`, and the two
+    generated files `"!src/data/foodkeeper.json"` and
+    `"!src/data/guess-client.json"` (found in execution: Biome would
+    pretty-print them and the build would then rewrite them).
   - `scripts/build-foodkeeper.ts` (new, thin CLI: read raw and overrides,
     call `buildTable` and `shrink`, write the two JSON files).
   - `src/lib/foodkeeperTable.ts` (new) + `foodkeeperTable.test.ts`:
