@@ -1,20 +1,29 @@
 # Process overview
 
-<!-- TEMPLATE: replace everything in this file with your own account, this
-     comment included --- `pnpm check:evidence` fails while it's still here. -->
+This is a household pantry app. Adding an item is one field and Enter, and every outcome is one tap with Undo, never a confirm dialog. A person belongs to one household and is identified by a hashed device token. Households can offer surplus items to each other, and open pages update live.
 
-How you got from the brief to the harness, agentic workflow and stack behind
-this app, told however suits the work. The
-[final project brief](https://comp.anu.edu.au/courses/comp4020-agentic-coding-studio/assessments/final-project/#what-you-submit)
-says what it covers and how long it runs.
+## Stack
 
-Markers follow the links you give them; they don't trawl the repo for evidence
-you didn't point at. A link to the record is one whose text is the commit hash,
-and it can sit anywhere in a sentence:
-[`a1b2c3d`](https://github.com/YOUR-ORG/YOUR-REPO/commit/a1b2c3d) for one
-commit, or
-[`a1b2c3d...e4f5a6b`](https://github.com/YOUR-ORG/YOUR-REPO/compare/a1b2c3d...e4f5a6b)
-for a range.
+I chose Astro on Node with Preact islands and SQLite ([ADR 0001](doc/adr/0001-astro-node-preact-sqlite-stack.md)). The target is a 256 MB Fly machine, so every dependency has to justify its memory. Only `/data` survives a redeploy, so the database and photos live there ([ADR 0003](doc/adr/0003-sqlite-and-photos-on-data-volume.md)). Identity is a hashed device token belonging to a household member, not a password account ([ADR 0002](doc/adr/0002-household-member-with-device-tokens.md)). Live sync uses server-sent events ([ADR 0004](doc/adr/0004-server-sent-events-for-live-updates.md)) because the stream is one-way. The evidence is a spec asserting that a housemate sees a change within 1000 ms.
 
-`pnpm check:evidence` checks that this comment is gone and that every commit you
-link exists in this repo. Whether the account is any good is the marker's call.
+## Workflow
+
+Work goes brainstorm, plan, execute. Each feature gets a TDD plan, and the executor reviews it against the real codebase before touching code, stopping to ask when plan and code disagree. Mid-phase ideas go to a backlog sorted at the phase boundary, so they can't hijack the phase. `pnpm check` (types, lint, and `spec/` tests against the live app) must be green before each commit, and each commit is one unit of work.
+
+The harness is versioned in the repo. Hooks block edits to course-fixed files and refuse a deploy from a dirty tree. Pushes and deploys ask first. `CLAUDE.md` holds rules that bind later phases. When I correct the agent, I fix the cause in the harness, not the instance.
+
+## Moments that mattered
+
+**A review rule nobody could satisfy.** Task 7 told me to watch two real browsers on the deployed URL before accepting it. Two of my own rules blocked that: a task with a human review mustn't be committed before I accept it, and the deploy hook refuses a dirty tree. The review could only happen after the commit it was meant to gate. The agent stopped and asked rather than picking a way round. The obvious fix was to commit anyway and tick the box later, as phase 01 had quietly done. Instead I held the review on a local build, which shows what I wanted to judge: live changes feeling calm and focus staying put. What a local build can't show is whether Fly's proxy buffers the stream, so that moved into the phase's Definition of Done as `spec/live.test.ts` run against the deployed app. I made the same correction in the plan ([`099c444`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-attwelvedev/commit/099c444)), the `execute-plan` skill ([`8f8d656`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-attwelvedev/commit/8f8d656)) and the `plan-feature` skill and template ([`59248b8`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-attwelvedev/commit/59248b8)). A review that needs a deployed copy is now a plan conflict to raise before work starts. I knew it was right because I did the two-browser review locally and accepted Task 7 ([`abb66d5`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-attwelvedev/commit/abb66d5)), and the three documents now agree.
+
+**A plan gap a link preview would have exposed.** Device links redeem only on POST, because chat apps prefetch links and a prefetch would burn a single-use token. The same plan said the confirm page reads "Sign in as Sam on this device", but its only service, `redeemDeviceLink`, uses the link up. Following it literally meant showing no name or redeeming on GET. The agent noticed while building the page, added `previewDeviceLink` (reads without redeeming) and wrote the signature back into the phase file. I kept the decision and let the interface list give way. A spec opens the link as a fresh client, asserts `GET /` is still the first-run form, that a POST accepts it, and that a second accept is a 404 ([`76c33de`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-attwelvedev/commit/76c33de)).
+
+**Failing specs fixed without touching the assertion.** My rule is that a failing test is resolved by fixing the code or stopping, never by loosening the test. "Leave clears the cookie" failed because the spec's cookie jar honoured only `Max-Age=0`, while Astro expires the cookie with a past `Expires`. I checked the real headers, then taught the jar to honour `Expires` as browsers do ([`76c33de`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-attwelvedev/commit/76c33de)). "A new member shows within 1000 ms" failed on a locator clash with screen-reader text in the Remove button. The member had appeared in about 580 ms, so I narrowed the locator and left the bound alone ([`a15219d`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-attwelvedev/commit/a15219d)). Dropping the cookie check or widening the timeout would have hidden real behaviour. Each time I confirmed the app's behaviour first, from headers and from the measured 580 ms.
+
+**Publish after the commit, as a rule.** The obvious design publishes live events from inside the service, next to the write. I chose the reverse: services return their change and the endpoint publishes after the commit. Publishing inside a transaction can announce a change that then rolls back, and it ties domain code to the live hub, which unit tests would have to fake. I wrote this into `CLAUDE.md` so offers, which add many more publish calls, inherit it, along with the rule that a broken stream never fails the request that triggered it ([`450f735`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-attwelvedev/commit/450f735)). A hub unit test shows a throwing subscriber doesn't stop the others. A spec aborts a stream mid-session and the next write still succeeds. The live specs show a housemate hears an add within 1000 ms while a third household hears nothing.
+
+**Using the offer flow overturned a settled rule.** The plan said the first offer opens a note sheet, later offers post in one tap, and the first note stays as the default. It passed every check. In use I saw it was wrong: a pickup note describes one item ("left of the green door, after 6"), so a remembered default is wrong more often than right, and one tap sends it anyway. I changed the rules, not just the UI. Every Offer now opens the sheet prefilled with the last note, each offered or claimed row has a Note button, and the offering household sees its own note. Two tests encoded the old rules, so I had the agent restate them rather than delete them, and log it in the plan's corrections. The privacy spec still fails if a note reaches a third household. The change contradicted accepted ADR 0004, which I didn't edit; a superseding record does ([ADR 0006](doc/adr/0006-pickup-notes-reach-offerer-and-claimer-only.md)). I knew it held because each changed behaviour had a red test before its code, the full check passed with 455 tests, and I walked offer, claim and collect on a local build with a second browser profile ([`42655e7`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-attwelvedev/commit/42655e7)).
+
+## Takeaway
+
+Checks catch what I thought to test, and using the app catches the rest. When I find the rest, the fix goes into a plan, a skill, `CLAUDE.md` or a spec, so the agent can't repeat it.
