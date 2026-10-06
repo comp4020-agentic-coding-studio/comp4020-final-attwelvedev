@@ -1,4 +1,5 @@
-import { integer, primaryKey, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
+import { integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 // Times are epoch milliseconds. A device token is stored only as its hash.
 
@@ -7,6 +8,8 @@ export const households = sqliteTable("households", {
   name: text("name").notNull(),
   inviteCode: text("invite_code").notNull().unique(),
   createdAt: integer("created_at").notNull(),
+  // what an offer's note starts as; the first note posted becomes it
+  defaultPickupNote: text("default_pickup_note"),
 });
 
 export const members = sqliteTable("members", {
@@ -120,3 +123,47 @@ export const communityLinks = sqliteTable("community_links", {
   createdAt: integer("created_at").notNull(),
   expiresAt: integer("expires_at").notNull(),
 });
+
+// An item has at most one open (offered or claimed) offer, enforced by the
+// partial unique index. claimed_community_id fixes the display names both
+// sides see for the life of a claim. The note reaches only the claimer.
+export const offers = sqliteTable(
+  "offers",
+  {
+    id: text("id").primaryKey(),
+    itemId: text("item_id")
+      .notNull()
+      .references(() => items.id, { onDelete: "cascade" }),
+    householdId: text("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    pickupNote: text("pickup_note").notNull(),
+    status: text("status", { enum: ["offered", "claimed", "collected", "withdrawn"] }).notNull(),
+    claimedByHouseholdId: text("claimed_by_household_id").references(() => households.id, {
+      onDelete: "set null",
+    }),
+    claimedCommunityId: text("claimed_community_id").references(() => communities.id, {
+      onDelete: "set null",
+    }),
+    claimedAt: integer("claimed_at"),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("offers_one_open_per_item")
+      .on(t.itemId)
+      .where(sql`${t.status} in ('offered', 'claimed')`),
+  ],
+);
+
+export const offerTargets = sqliteTable(
+  "offer_targets",
+  {
+    offerId: text("offer_id")
+      .notNull()
+      .references(() => offers.id, { onDelete: "cascade" }),
+    communityId: text("community_id")
+      .notNull()
+      .references(() => communities.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.offerId, t.communityId] })],
+);

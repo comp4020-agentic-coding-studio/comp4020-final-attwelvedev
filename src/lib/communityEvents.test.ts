@@ -19,6 +19,7 @@ const leave: CommunityLeave = {
   householdId: "h2",
   communityDeleted: false,
   creatorHouseholdId: "h1",
+  offerChanges: [],
 };
 
 describe("joinedEvents", () => {
@@ -63,5 +64,35 @@ describe("leftEvents", () => {
   it("carries no member name", () => {
     const text = JSON.stringify([...joinedEvents(join), ...leftEvents(leave)]);
     expect(text).not.toMatch(/memberName|member"/);
+  });
+});
+
+describe("leftEvents with offer changes", () => {
+  it("emits the offer events first, then the membership pair", () => {
+    const change = {
+      kind: "closed" as const,
+      offer: {
+        id: "o1",
+        itemId: "i1",
+        itemName: "milk",
+        status: "withdrawn" as const,
+        claimedBy: null,
+        claimedAt: null,
+        communityIds: [],
+        createdAt: 1,
+      },
+      offererHouseholdId: "h2",
+      communities: [{ id: "c1", fromName: "Unit 4" }],
+      claim: null,
+    };
+    const types = leftEvents({ ...leave, offerChanges: [change] }).map(
+      (r) => `${r.channel} ${r.event.type}`,
+    );
+    expect(types).toEqual([
+      "household:h2 offer.mine",
+      "community:c1 offer.closed",
+      "household:h2 membership.left",
+      "community:c1 community.householdLeft",
+    ]);
   });
 });

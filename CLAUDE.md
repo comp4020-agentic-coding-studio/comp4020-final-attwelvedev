@@ -22,7 +22,9 @@
   checks get one `spec/layout/<area>.test.ts` per area.
 - **Live changes:** services return their change; endpoints publish to
   `src/lib/live.ts` after the commit, never inside a transaction. A broken
-  stream must never fail the request that triggered it.
+  stream must never fail the request that triggered it. Offer payloads are
+  built only by `offerEvents` (`src/lib/offerEvents.ts`); an endpoint never
+  constructs an `offer.*` event.
 
 # Working method
 

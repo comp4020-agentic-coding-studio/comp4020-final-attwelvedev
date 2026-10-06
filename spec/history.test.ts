@@ -68,3 +68,20 @@ describe("history", () => {
     expect(await (await me.get("/")).text()).toMatch(/<a[^>]*href="\/history"/);
   });
 });
+
+describe("history of given items", () => {
+  it('has a Given filter that reads "to a neighbour" and never names the claimer', async () => {
+    const { neighbourhood, offerNamed, claim, act } = await import("./neighbours.ts");
+    const { offerer, claimer } = await neighbourhood(baseUrl);
+    const { offerId } = await offerNamed(offerer, "milk");
+    await claim(claimer, offerId);
+    await act(claimer, offerId, "collected");
+    const all = text(await (await offerer.get("/history")).text());
+    expect(all).toContain("milk given to a neighbour");
+    const given = text(await (await offerer.get("/history?outcome=given")).text());
+    expect(given).toContain("milk");
+    expect(given).not.toContain("Quinn");
+    expect(given).not.toContain("House 9");
+    expect(text(await (await offerer.get("/history?outcome=used")).text())).not.toContain("milk");
+  });
+});

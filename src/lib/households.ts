@@ -30,6 +30,15 @@ export const INVITE_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const DEVICE_LINK_TTL_MS = 10 * 60 * 1000;
 
 const MAX_NAME = 60;
+
+// A Household is these columns only: the pickup note is offers' business and
+// must not ride along in every session.
+const householdColumns = {
+  id: households.id,
+  name: households.name,
+  inviteCode: households.inviteCode,
+  createdAt: households.createdAt,
+};
 const SEEN_EVERY_MS = 60 * 60 * 1000;
 
 export function cleanName(raw: string, label: string): string {
@@ -101,7 +110,7 @@ export function joinByCode(
   const memberName = cleanName(input.memberName, "Your name");
   return db.transaction((tx) => {
     const household = tx
-      .select()
+      .select(householdColumns)
       .from(households)
       .where(eq(households.inviteCode, normaliseCode(input.code)))
       .get();
@@ -133,7 +142,7 @@ export function createInviteLink(
 
 export function previewInviteLink(db: Db, token: string, now = Date.now()): Household | null {
   const row = db
-    .select({ household: households })
+    .select({ household: householdColumns })
     .from(inviteLinks)
     .innerJoin(households, eq(households.id, inviteLinks.householdId))
     .where(and(eq(inviteLinks.tokenHash, hashToken(token)), gt(inviteLinks.expiresAt, now)))
@@ -194,7 +203,7 @@ export function redeemDeviceLink(
   return db.transaction((tx) => {
     const tokenHash = hashToken(token);
     const row = tx
-      .select({ member: members, household: households })
+      .select({ member: members, household: householdColumns })
       .from(deviceLinks)
       .innerJoin(members, eq(members.id, deviceLinks.memberId))
       .innerJoin(households, eq(households.id, members.householdId))
@@ -268,7 +277,7 @@ export function sessionForToken(db: Db, token: string): Session | null {
   const row = db
     .select({
       member: members,
-      household: households,
+      household: householdColumns,
       lastSeenAt: deviceTokens.lastSeenAt,
     })
     .from(deviceTokens)

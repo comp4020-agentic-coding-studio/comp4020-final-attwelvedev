@@ -1,4 +1,5 @@
 import type { Item, Outcome } from "./items.ts";
+import type { ClaimedOffer, MyOffer, PublicOffer } from "./offers.ts";
 
 // An in-process pub/sub: one machine, one Node process (ADR 0004), so a change
 // reaches every open stream without a broker. A restart drops every stream and
@@ -34,7 +35,13 @@ export type LiveEvent =
       communityId: string;
       householdId: string;
       creatorHouseholdId: string | null;
-    };
+    }
+  // built only by offerEvents (src/lib/offerEvents.ts), which decides who may hear what
+  | { type: "offer.posted"; communityId: string; offer: PublicOffer }
+  | { type: "offer.taken"; communityId: string; offerId: string }
+  | { type: "offer.closed"; communityId: string; offerId: string }
+  | { type: "offer.mine"; offer: MyOffer }
+  | { type: "offer.claim"; offer: ClaimedOffer };
 
 export const householdChannel = (householdId: string): string => `household:${householdId}`;
 

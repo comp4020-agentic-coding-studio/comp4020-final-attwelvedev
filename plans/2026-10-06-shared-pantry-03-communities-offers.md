@@ -534,7 +534,7 @@ Tasks run 8 → 9 → 10 → 20. Task 20's number is out of sequence on purpose
 
 ### Task 9: Offers domain: offer, claim race, collect as given, release, withdraw, scoped payloads
 
-- [ ] Done
+- [x] Done
 
 - **Description:** The offers service, its endpoints, the scoped event builder
   and the places that must react to offers: `recordOutcome` (auto-withdraw),
@@ -727,6 +727,8 @@ Tasks run 8 → 9 → 10 → 20. Task 20's number is out of sequence on purpose
     - **Layout:** at PHONE and DESKTOP, `/offers` has no horizontal overflow and
       `axeViolations` is empty; a wrapped 2-line name does not overflow; no
       dialog opens at any step.
+  - `spec/privacy.test.ts` (Task 9) lists the pages it reads in `PAGES`; add
+    `/offers` to it once the page exists, so the privacy claims cover the feed.
   - Browser `spec/layout/communities.test.ts`: when a second household joins, an
     open community page lists it within 1 s; when the creator removes it, the
     other page drops it within 1 s, and the removed household's open offers feed

@@ -7,7 +7,7 @@ export interface Client {
   get(path: string, headers?: Record<string, string>): Promise<Response>; // follows no redirects
   post(
     path: string,
-    fields?: Record<string, string>,
+    fields?: Record<string, string | string[]>,
     headers?: Record<string, string>,
   ): Promise<Response>; // form-encoded, Origin = baseUrl
   cookie(name: string): string | undefined;
@@ -55,7 +55,12 @@ export function client(
           origin,
           ...headers,
         },
-        body: new URLSearchParams(fields).toString(),
+        // an array repeats its field, as a form with several ticked boxes does
+        body: new URLSearchParams(
+          Object.entries(fields).flatMap(([name, value]) =>
+            [value].flat().map((v) => [name, v] as [string, string]),
+          ),
+        ).toString(),
       }),
     cookie: (name) => jar.get(name),
   };

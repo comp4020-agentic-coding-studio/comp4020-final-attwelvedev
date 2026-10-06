@@ -34,3 +34,22 @@ describe("snapshotFor", () => {
     expect(JSON.stringify(snap)).not.toContain("Zed");
   });
 });
+
+describe("snapshotFor offering", () => {
+  it("lists the household's communities, its default note and its open offers", async () => {
+    const { createCommunity } = await import("./communities.ts");
+    const { createOffer } = await import("./offers.ts");
+    const db = openDb(":memory:");
+    const sam = createHousehold(db, { householdName: "Unit 4", memberName: "Sam" });
+    const empty = snapshotFor(db, sam).offering;
+    expect(empty).toEqual({ communities: [], defaultPickupNote: null, open: [] });
+
+    const elm = createCommunity(db, sam, "Elm Street");
+    const milk = addItem(db, sam, "milk");
+    const { offer } = createOffer(db, sam, { itemId: milk.id, note: "Porch" });
+    const snap = snapshotFor(db, sam);
+    expect(snap.offering.communities).toEqual([{ id: elm.id, name: "Elm Street" }]);
+    expect(snap.offering.defaultPickupNote).toBe("Porch");
+    expect(snap.offering.open).toEqual([offer]);
+  });
+});

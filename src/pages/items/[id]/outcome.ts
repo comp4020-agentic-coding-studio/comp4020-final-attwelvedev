@@ -2,7 +2,8 @@ import type { APIRoute } from "astro";
 import { db } from "../../../lib/db.ts";
 import { failure, json, wantsJson } from "../../../lib/http.ts";
 import { NotFoundError, recordOutcome } from "../../../lib/items.ts";
-import { householdChannel, publish } from "../../../lib/live.ts";
+import { householdChannel, publish, publishAll } from "../../../lib/live.ts";
+import { offerEvents } from "../../../lib/offerEvents.ts";
 
 export const POST: APIRoute = async (context) => {
   const { session } = context.locals;
@@ -23,6 +24,7 @@ export const POST: APIRoute = async (context) => {
       historyId: entry.id,
       by: { id: session.member.id, name: session.member.name },
     });
+    publishAll(entry.offerChanges.flatMap(offerEvents));
     return asJson
       ? json({ historyId: entry.id, itemId: entry.itemId, itemName: entry.itemName, outcome })
       : context.redirect(`/?undo=${encodeURIComponent(entry.id)}`, 303);

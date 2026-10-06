@@ -10,6 +10,7 @@ const FILTERS: { label: string; outcome?: Outcome }[] = [
   { label: "All" },
   { label: "Used", outcome: "used" },
   { label: "Binned", outcome: "binned" },
+  { label: "Given", outcome: "given" },
 ];
 const asked = Astro.url.searchParams.get("outcome");
 const filter = FILTERS.find((f) => f.outcome === asked)?.outcome;
@@ -40,7 +41,7 @@ const when = (at: number) =>
       <ul class="history">
         {entries.map((entry) => (
           <li>
-            <strong>{entry.itemName}</strong> {entry.outcome}
+            <strong>{entry.itemName}</strong> {entry.outcome === "given" ? "given to a neighbour" : entry.outcome}
             {entry.memberName ? <> by {entry.memberName}</> : entry.memberId && <> by a former member</>}
             <br />
             <time datetime={new Date(entry.at).toISOString()}>{when(entry.at)}</time>

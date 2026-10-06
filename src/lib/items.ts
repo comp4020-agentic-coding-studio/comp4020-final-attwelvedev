@@ -3,6 +3,7 @@ import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import type { Db } from "./db.ts";
 import { NotFoundError, ValidationError } from "./errors.ts";
 import type { Session } from "./households.ts";
+import { type OfferChange, withdrawOpenOffersForItem } from "./offers.ts";
 import { history, items, members } from "./schema.ts";
 
 export { NotFoundError, ValidationError };
@@ -80,7 +81,7 @@ export function recordOutcome(
   session: Session,
   itemId: string,
   outcome: "used" | "binned",
-): HistoryEntry {
+): HistoryEntry & { offerChanges: OfferChange[] } {
   return db.transaction((tx) => {
     const item = tx
       .select()
@@ -117,7 +118,8 @@ export function recordOutcome(
         at: entry.at,
       })
       .run();
-    return entry;
+    // an item that is used or binned is no longer on offer
+    return { ...entry, offerChanges: withdrawOpenOffersForItem(tx, item.id) };
   });
 }
 
@@ -128,7 +130,8 @@ export function undoOutcome(db: Db, session: Session, historyId: string): Item {
       .from(history)
       .where(and(eq(history.id, historyId), eq(history.householdId, session.household.id)))
       .get();
-    if (!entry) throw new NotFoundError("No such record.");
+    // a given item has left the house: Undo would bring back food a neighbour took
+    if (!entry || entry.outcome === "given") throw new NotFoundError("No such record.");
     const item = tx.select().from(items).where(eq(items.id, entry.itemId)).get();
     if (!item) throw new NotFoundError("That item is gone.");
 

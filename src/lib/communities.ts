@@ -4,6 +4,7 @@ import { newCode, normaliseCode } from "./codes.ts";
 import type { Db, Tx } from "./db.ts";
 import { ForbiddenError, NotFoundError, ValidationError } from "./errors.ts";
 import { cleanName, type Session } from "./households.ts";
+import { type OfferChange, retargetOnLeave } from "./offers.ts";
 import { communities, communityHouseholds, communityLinks } from "./schema.ts";
 import { hashToken, newLinkToken } from "./session.ts";
 
@@ -33,6 +34,8 @@ export interface CommunityLeave {
   householdId: string;
   communityDeleted: boolean;
   creatorHouseholdId: string | null;
+  // what leaving did to the household's offers and claims here
+  offerChanges: OfferChange[];
 }
 
 export const COMMUNITY_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -247,6 +250,8 @@ function leave(tx: Tx, communityId: string, householdId: string): CommunityLeave
     .where(eq(communities.id, communityId))
     .get();
   if (!community) throw new NotFoundError("No such community.");
+  // before the membership row goes: the display name there is still needed
+  const offerChanges = retargetOnLeave(tx, householdId, communityId);
   tx.delete(communityHouseholds)
     .where(
       and(
@@ -264,14 +269,26 @@ function leave(tx: Tx, communityId: string, householdId: string): CommunityLeave
   const summary = { id: community.id, name: community.name };
   if (!next) {
     tx.delete(communities).where(eq(communities.id, communityId)).run();
-    return { community: summary, householdId, communityDeleted: true, creatorHouseholdId: null };
+    return {
+      community: summary,
+      householdId,
+      communityDeleted: true,
+      creatorHouseholdId: null,
+      offerChanges,
+    };
   }
   let creatorHouseholdId = community.creator;
   if (creatorHouseholdId === householdId) {
     creatorHouseholdId = next.householdId;
     tx.update(communities).set({ creatorHouseholdId }).where(eq(communities.id, communityId)).run();
   }
-  return { community: summary, householdId, communityDeleted: false, creatorHouseholdId };
+  return {
+    community: summary,
+    householdId,
+    communityDeleted: false,
+    creatorHouseholdId,
+    offerChanges,
+  };
 }
 
 export function leaveCommunity(db: Db, session: Session, communityId: string): CommunityLeave {
