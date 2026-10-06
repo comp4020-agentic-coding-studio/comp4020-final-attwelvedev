@@ -20,6 +20,9 @@
   never touch requests. Endpoints in `src/pages/` stay thin. Unit tests sit
   beside the code; promises to users get `spec/<area>.test.ts`; browser
   checks get one `spec/layout/<area>.test.ts` per area.
+- **Live changes:** services return their change; endpoints publish to
+  `src/lib/live.ts` after the commit, never inside a transaction. A broken
+  stream must never fail the request that triggered it.
 
 # Working method
 

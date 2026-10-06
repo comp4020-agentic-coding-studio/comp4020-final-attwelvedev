@@ -3,6 +3,7 @@ import { deviceCookieOptions } from "../../lib/cookie.ts";
 import { db } from "../../lib/db.ts";
 import { joinByCode, ValidationError } from "../../lib/households.ts";
 import { NotFoundError } from "../../lib/items.ts";
+import { householdChannel, publish } from "../../lib/live.ts";
 import { DEVICE_COOKIE } from "../../lib/session.ts";
 import { joinThrottle, throttleKey } from "../../lib/throttle.ts";
 
@@ -21,12 +22,16 @@ export const POST: APIRoute = async (context) => {
   if (context.locals.session) return fail("You're already in a household.", 409);
 
   try {
-    const { deviceToken } = joinByCode(db, { code, memberName });
+    const { deviceToken, member, household } = joinByCode(db, { code, memberName });
     context.cookies.set(
       DEVICE_COOKIE,
       deviceToken,
       deviceCookieOptions(context.url, context.request.headers.get("x-forwarded-proto")),
     );
+    publish(householdChannel(household.id), {
+      type: "member.joined",
+      member: { id: member.id, name: member.name },
+    });
     return context.redirect("/", 303);
   } catch (error) {
     if (error instanceof NotFoundError) {

@@ -526,7 +526,7 @@ member.
 
 ### Task 6: In-process live hub, the `/events` SSE stream, the snapshot and JSON variants
 
-- [ ] Done
+- [x] Done
 
 - **Description:** Add the hub, the SSE stream, `GET /api/pantry` and the JSON
   variants of the three item endpoints. Wire `publish` into every write after it
