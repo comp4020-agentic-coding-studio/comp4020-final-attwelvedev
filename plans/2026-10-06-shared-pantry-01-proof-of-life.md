@@ -308,7 +308,7 @@ All exported signatures are exactly as in overview §4.2.
 
 ### Task 3: Add items by name, mark Used/Binned with undo, record history
 
-- [ ] Done
+- [x] Done
 
 **Description:**
 - `POST /items` adds an item with only a name. Duplicates are allowed.

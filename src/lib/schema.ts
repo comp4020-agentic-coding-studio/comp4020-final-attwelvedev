@@ -26,3 +26,30 @@ export const deviceTokens = sqliteTable("device_tokens", {
   createdAt: integer("created_at").notNull(),
   lastSeenAt: integer("last_seen_at").notNull(),
 });
+
+// An item with removed_at set is out of the pantry. Undo clears it and
+// deletes the history row.
+export const items = sqliteTable("items", {
+  id: text("id").primaryKey(),
+  householdId: text("household_id")
+    .notNull()
+    .references(() => households.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  createdBy: text("created_by").references(() => members.id, { onDelete: "set null" }),
+  createdAt: integer("created_at").notNull(),
+  removedAt: integer("removed_at"),
+});
+
+// item_id and item_name are copied, not referenced: the record outlives the
+// item row, and the member can leave without erasing what they did.
+export const history = sqliteTable("history", {
+  id: text("id").primaryKey(),
+  householdId: text("household_id")
+    .notNull()
+    .references(() => households.id, { onDelete: "cascade" }),
+  itemId: text("item_id").notNull(),
+  itemName: text("item_name").notNull(),
+  outcome: text("outcome", { enum: ["used", "binned", "given"] }).notNull(),
+  memberId: text("member_id"),
+  at: integer("at").notNull(),
+});

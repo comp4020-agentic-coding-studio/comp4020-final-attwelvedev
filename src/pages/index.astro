@@ -1,15 +1,57 @@
 ---
 import Base from "../layouts/Base.astro";
+import { db } from "../lib/db.ts";
+import { listHistory, listPantry } from "../lib/items.ts";
 
-const { session, firstRunError } = Astro.locals;
-if (firstRunError) Astro.response.status = 400;
+const { session, firstRunError, addError } = Astro.locals;
+if (firstRunError || addError) Astro.response.status = 400;
+
+const pantry = session ? listPantry(db, session.household.id) : [];
+const undoId = Astro.url.searchParams.get("undo");
+const undone =
+  session && undoId
+    ? listHistory(db, session.household.id).find((h) => h.id === undoId)
+    : undefined;
 ---
 
 {
   session ? (
     <Base title={session.household.name}>
       <h1>{session.household.name}</h1>
-      <p>Nothing here yet. Add the first thing in your pantry.</p>
+
+      {undone && (
+        <form class="undo" method="post" action={`/history/${undone.id}/undo`} role="status">
+          <span>{undone.itemName} marked {undone.outcome}.</span>
+          <button type="submit">Undo</button>
+        </form>
+      )}
+
+      <form class="add" method="post" action="/items">
+        {addError && <p role="alert">{addError}</p>}
+        <label for="name">Add an item</label>
+        <input id="name" name="name" required maxlength="120" autocomplete="off" autofocus={pantry.length === 0} />
+      </form>
+
+      {pantry.length === 0 ? (
+        <p>Nothing here yet. Add the first thing in your pantry.</p>
+      ) : (
+        <ul class="pantry">
+          {pantry.map((item) => (
+            <li>
+              <span class="name">{item.name}</span>
+              {(["used", "binned"] as const).map((outcome) => (
+                <form method="post" action={`/items/${item.id}/outcome`}>
+                  <input type="hidden" name="outcome" value={outcome} />
+                  <button type="submit">
+                    {outcome === "used" ? "Used" : "Binned"}
+                    <span class="sr-only"> {item.name}</span>
+                  </button>
+                </form>
+              ))}
+            </li>
+          ))}
+        </ul>
+      )}
     </Base>
   ) : (
     <Base title="Start your pantry">
@@ -29,3 +71,52 @@ if (firstRunError) Astro.response.status = 400;
     </Base>
   )
 }
+
+<style>
+  .add label {
+    display: block;
+  }
+  .add input {
+    width: 100%;
+    min-height: 44px;
+    font: inherit;
+  }
+  .undo {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--surface);
+    border: 1.5px solid var(--rim);
+    border-radius: 10px;
+  }
+  .pantry {
+    list-style: none;
+    margin: 16px 0 0;
+    padding: 0;
+  }
+  .pantry li {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    border-bottom: 1px solid var(--line);
+    padding: 6px 0;
+  }
+  .name {
+    flex: 1;
+    min-width: 0;
+  }
+  button {
+    min-height: 44px;
+    min-width: 44px;
+    font: inherit;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+</style>
