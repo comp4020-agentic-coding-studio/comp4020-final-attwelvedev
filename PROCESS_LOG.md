@@ -99,3 +99,30 @@ How I knew it held: the hub unit test shows a throwing subscriber doesn't stop
 the others or make `publish` throw; a spec aborts a stream mid-session and the
 next write still succeeds; and the live specs show a housemate hears an add
 within the 1000 ms bound while a third household hears nothing.
+
+## 2026-10-07 — Reviewing the offer flow changed a rule the spec had settled
+
+42655e7
+
+Task 20's plan said the household's first offer opens a note sheet and every
+later offer posts in one tap, with the first note kept as the default. It passed
+every check I had. Using it, I saw the rule was wrong: a pickup note describes
+one item ("left of the green door, after 6"), so a remembered default would be
+the wrong text more often than the right one, and a one-tap post would send it
+anyway. I also wanted my own offers to show which note each one carries.
+
+The obvious response was to tweak the UI and leave the rules alone. I changed
+the rules instead: every Offer opens the sheet prefilled with the last note,
+editable before posting; each offered or claimed row has a Note button; the
+offering household sees its own note. Two tests then encoded the old rules
+(first note becomes the default; the offerer's page never contains the note), so
+I had the agent restate them as the new rules, not delete them, and say so in
+the plan's corrections log. The privacy spec still fails if a note reaches a
+third household or a community channel.
+
+The change also contradicted accepted ADR 0004 ("notes only on the claimer's
+stream"). I did not edit it; a superseding record is queued.
+
+How I knew it held: red unit and browser tests for each changed behaviour before
+the code, then the full check green (455 tests) and a walk through the offer,
+claim and collect flow on a local build with a second browser profile.
