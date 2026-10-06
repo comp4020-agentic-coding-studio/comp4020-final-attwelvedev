@@ -132,6 +132,15 @@ For each task, in order:
    diff, the rendered page, the rewritten copy) to the user and get an
    explicit accept or reject before treating the task as done — silence or
    moving on to the next task is not acceptance.
+   **Do the review on a local build** (the project's build-and-start command),
+   not on a deployed copy, unless the task's own **Human review:** line says
+   it needs the deployed app. A deploy usually needs a clean, committed tree,
+   and a task with a **Human review:** line mustn't be committed until accepted,
+   so a deployed review can never happen first. Anything that only the deployed
+   app can prove (a proxy, TLS, the real domain) belongs in the phase's
+   Definition of Done as a post-deploy check, not in the review. If a plan's
+   **Human review:** line demands the deployed app anyway, that's a plan
+   conflict: raise it in Phase 1, don't work around it.
 5. **Record.** Tick the task in the plan file, and commit according to the
    project's stated convention (in this repo: one commit per task once the check
    command is green, with a message saying what changed and why). If the project
