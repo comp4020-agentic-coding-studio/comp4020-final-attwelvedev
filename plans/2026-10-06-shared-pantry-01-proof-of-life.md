@@ -236,7 +236,7 @@ export function axeViolations(page: Page): Promise<string[]>;
 
 ### Task 2: First-run household creation with a hashed device-token session
 
-- [ ] Done
+- [x] Done
 
 **Description:**
 - `GET /` with no session shows the first-run form: Household name, Your
