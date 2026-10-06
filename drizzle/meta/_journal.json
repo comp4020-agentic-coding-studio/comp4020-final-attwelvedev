@@ -15,6 +15,13 @@
       "when": 1791287560440,
       "tag": "0001_bored_blockbuster",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1791291584368,
+      "tag": "0002_nappy_blonde_phantom",
+      "breakpoints": true
     }
   ]
 }

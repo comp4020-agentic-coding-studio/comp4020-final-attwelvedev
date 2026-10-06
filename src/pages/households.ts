@@ -1,9 +1,8 @@
 import type { APIRoute } from "astro";
+import { deviceCookieOptions } from "../lib/cookie.ts";
 import { db } from "../lib/db.ts";
 import { createHousehold, ValidationError } from "../lib/households.ts";
 import { DEVICE_COOKIE } from "../lib/session.ts";
-
-const FOUR_HUNDRED_DAYS = 400 * 24 * 60 * 60;
 
 export const POST: APIRoute = async (context) => {
   // a clone, so the body is still unread if the page has to be rewritten below
@@ -13,16 +12,11 @@ export const POST: APIRoute = async (context) => {
 
   try {
     const { deviceToken } = createHousehold(db, { householdName, memberName });
-    const secure =
-      context.url.protocol === "https:" ||
-      context.request.headers.get("x-forwarded-proto") === "https";
-    context.cookies.set(DEVICE_COOKIE, deviceToken, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure,
-      path: "/",
-      maxAge: FOUR_HUNDRED_DAYS,
-    });
+    context.cookies.set(
+      DEVICE_COOKIE,
+      deviceToken,
+      deviceCookieOptions(context.url, context.request.headers.get("x-forwarded-proto")),
+    );
     return context.redirect("/", 303);
   } catch (error) {
     if (!(error instanceof ValidationError)) throw error;

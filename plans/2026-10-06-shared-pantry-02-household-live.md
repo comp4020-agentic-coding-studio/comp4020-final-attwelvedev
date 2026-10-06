@@ -285,6 +285,7 @@ export function createInviteLink(db: Db, session: Session, now?: number): { toke
 export function previewInviteLink(db: Db, token: string, now?: number): Household | null;
 export function joinByLink(db: Db, input: { token: string; memberName: string }, now?: number): Session & { deviceToken: string };
 export function createDeviceLink(db: Db, session: Session, now?: number): { token: string; expiresAt: number };
+export function previewDeviceLink(db: Db, token: string, now?: number): Member | null;   // who the link would sign in as; doesn't use it up (added while executing Task 5: D3's confirm page names the member)
 export function redeemDeviceLink(db: Db, token: string, now?: number): Session & { deviceToken: string };
 export function listMembers(db: Db, householdId: string): Member[];   // oldest first
 export function removeMember(db: Db, session: Session, memberId: string): { member: Member; householdDeleted: boolean };
@@ -302,6 +303,7 @@ export interface FailureThrottle {
 }
 export function failureThrottle(opts: { limit: number; windowMs: number }): FailureThrottle;
 export const joinThrottle: FailureThrottle;      // limit 10, windowMs 60_000
+export function throttleKey(headers: Headers, clientAddress: string): string;   // Fly-Client-IP, else the socket address (added while executing Task 5)
 
 // src/lib/cookie.ts (Task 5)
 export function deviceCookieOptions(url: URL, forwardedProto: string | null): {
@@ -392,6 +394,8 @@ member.
 ## 5. Task breakdown
 
 ### Task 5: Invites, joining, device links, leaving and removing members
+
+- [x] Done
 
 - **Description:** Build the household flows from the HTTP table: join by code
   and by link, the household settings page, device link and QR, leave, remove.
@@ -522,6 +526,8 @@ member.
 
 ### Task 6: In-process live hub, the `/events` SSE stream, the snapshot and JSON variants
 
+- [ ] Done
+
 - **Description:** Add the hub, the SSE stream, `GET /api/pantry` and the JSON
   variants of the three item endpoints. Wire `publish` into every write after it
   commits: the three item endpoints, and the Task 5 join, remove and leave
@@ -590,6 +596,8 @@ member.
 - **Depends on:** Task 5.
 
 ### Task 7: Pantry island with optimistic updates, rollback, Undo toast and connection status
+
+- [ ] Done
 
 - **Description:** Turn the pantry into a Preact island hydrated over the server
   render. Add a live household member list. The no-JS forms still work because the

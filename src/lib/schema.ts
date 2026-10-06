@@ -53,3 +53,26 @@ export const history = sqliteTable("history", {
   memberId: text("member_id"),
   at: integer("at").notNull(),
 });
+
+// Invite links are minted on demand, stored as hashes and reusable until they
+// expire, so the page can show one only once.
+export const inviteLinks = sqliteTable("invite_links", {
+  tokenHash: text("token_hash").primaryKey(),
+  householdId: text("household_id")
+    .notNull()
+    .references(() => households.id, { onDelete: "cascade" }),
+  createdBy: text("created_by").references(() => members.id, { onDelete: "set null" }),
+  createdAt: integer("created_at").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+});
+
+// A device link signs one more device in as an existing member, once.
+export const deviceLinks = sqliteTable("device_links", {
+  tokenHash: text("token_hash").primaryKey(),
+  memberId: text("member_id")
+    .notNull()
+    .references(() => members.id, { onDelete: "cascade" }),
+  createdAt: integer("created_at").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  usedAt: integer("used_at"),
+});

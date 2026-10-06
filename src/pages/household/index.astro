@@ -1,0 +1,81 @@
+---
+import CopyLink from "../../components/CopyLink.astro";
+import Base from "../../layouts/Base.astro";
+import { db } from "../../lib/db.ts";
+import { listMembers } from "../../lib/households.ts";
+
+const { session, newInviteLink } = Astro.locals;
+if (!session) return Astro.redirect("/", 303);
+
+// A freshly minted link is on the page: never cache it.
+if (newInviteLink) Astro.response.headers.set("Cache-Control", "no-store");
+
+const members = listMembers(db, session.household.id);
+const onlyMe = members.length === 1;
+const inviteUrl = newInviteLink ? new URL(`/join/${newInviteLink.token}`, Astro.url).href : "";
+---
+
+<Base title={`${session.household.name} household`}>
+  <h1>{session.household.name}</h1>
+
+  <section class="stack" aria-labelledby="members-heading">
+    <h2 id="members-heading">Members</h2>
+    <ul id="members" class="rows">
+      {
+        members.map((m) => (
+          <li>
+            <span class="who">
+              {m.name}
+              {m.id === session.member.id && <span class="muted"> (you)</span>}
+            </span>
+            {m.id !== session.member.id && (
+              <form method="post" action={`/household/members/${m.id}/remove`}>
+                <button type="submit">
+                  Remove<span class="sr-only"> {m.name}</span>
+                </button>
+              </form>
+            )}
+          </li>
+        ))
+      }
+    </ul>
+  </section>
+
+  <section class="stack" aria-labelledby="invite-heading">
+    <h2 id="invite-heading">Invite someone</h2>
+    <p>
+      Invite code: <strong id="invite-code" class="code">{session.household.inviteCode}</strong>
+    </p>
+    <p class="muted">Anyone with the code can join, from the Join page.</p>
+    {
+      newInviteLink ? (
+        <div class="notice stack">
+          <CopyLink id="invite-link" label="Invite link" value={inviteUrl} />
+          <p class="muted">This link works for 7 days. It is shown once, so copy it now.</p>
+        </div>
+      ) : null
+    }
+    <form method="post" action="/household/invite-link">
+      <button type="submit">Create an invite link</button>
+    </form>
+  </section>
+
+  <section class="stack" aria-labelledby="devices-heading">
+    <h2 id="devices-heading">Your devices</h2>
+    <p><a href="/household/devices">Add another device</a> (a phone, say) by link or QR code.</p>
+  </section>
+
+  <section class="stack" aria-labelledby="leave-heading">
+    <h2 id="leave-heading">Leave</h2>
+    <p>
+      {
+        onlyMe
+          ? "You're the last member: leaving deletes this household and its pantry."
+          : "Leaving signs you out. The household and its pantry stay for the others."
+      }
+    </p>
+    <form method="post" action="/household/leave">
+      <button type="submit">Leave {session.household.name}</button>
+    </form>
+  </section>
+</Base>

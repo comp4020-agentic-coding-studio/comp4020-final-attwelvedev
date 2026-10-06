@@ -1,0 +1,42 @@
+---
+import Base from "../../layouts/Base.astro";
+import { db } from "../../lib/db.ts";
+import { previewInviteLink } from "../../lib/households.ts";
+
+// The token is in the path: never cache this page, and let the logger record
+// the route pattern, not the path.
+Astro.response.headers.set("Cache-Control", "no-store");
+
+const { session, joinError } = Astro.locals;
+const token = Astro.params.token ?? "";
+const household = previewInviteLink(db, token);
+if (!household) Astro.response.status = 404;
+else if (joinError) Astro.response.status = joinError.status;
+if (joinError?.status === 429) Astro.response.headers.set("Retry-After", "60");
+---
+
+{
+  !household ? (
+    <Base title="Invite link not found">
+      <h1>That invite link doesn't work</h1>
+      <p>It may have expired, or been typed wrongly. Ask for a new link, or <a href="/join">enter an invite code</a>.</p>
+    </Base>
+  ) : session ? (
+    <Base title="Already in a household">
+      <h1>You're already in {session.household.name}</h1>
+      <p>A device is part of one household at a time, so this link hasn't changed anything.</p>
+    </Base>
+  ) : (
+    <Base title={`Join ${household.name}`}>
+      <h1>Join {household.name}</h1>
+      <form class="stack" method="post" action={`/join/${token}/accept`}>
+        {joinError && <p role="alert">{joinError.message}</p>}
+        <div class="field">
+          <label for="memberName">Your name</label>
+          <input id="memberName" name="memberName" required maxlength="60" autocomplete="name" value={joinError?.memberName ?? ""} />
+        </div>
+        <button type="submit">Join {household.name}</button>
+      </form>
+    </Base>
+  )
+}

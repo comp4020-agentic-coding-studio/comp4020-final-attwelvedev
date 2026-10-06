@@ -11,3 +11,9 @@ export function newDeviceToken(): string {
 export function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
+
+// Invite and device links carry 128 bits, enough that guessing one is
+// hopeless; only the hash is stored.
+export function newLinkToken(): string {
+  return randomBytes(16).toString("base64url");
+}

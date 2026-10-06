@@ -41,7 +41,7 @@ const when = (at: number) =>
         {entries.map((entry) => (
           <li>
             <strong>{entry.itemName}</strong> {entry.outcome}
-            {entry.memberName && <> by {entry.memberName}</>}
+            {entry.memberName ? <> by {entry.memberName}</> : entry.memberId && <> by a former member</>}
             <br />
             <time datetime={new Date(entry.at).toISOString()}>{when(entry.at)}</time>
           </li>

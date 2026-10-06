@@ -1,0 +1,35 @@
+---
+import CopyLink from "../../components/CopyLink.astro";
+import Base from "../../layouts/Base.astro";
+import { qrSvg } from "../../lib/qr.ts";
+
+const { session, newDeviceLink } = Astro.locals;
+if (!session) return Astro.redirect("/", 303);
+
+// A freshly minted link and its QR are on the page: never cache them.
+if (newDeviceLink) Astro.response.headers.set("Cache-Control", "no-store");
+
+const deviceUrl = newDeviceLink ? new URL(`/device/${newDeviceLink.token}`, Astro.url).href : "";
+---
+
+<Base title="Add a device">
+  <h1>Add a device</h1>
+  <div class="stack">
+    <p>
+      Sign in as <strong>{session.member.name}</strong> on another device, such as your phone. You'll get a link and a QR code that works once, for 10 minutes.
+    </p>
+    {
+      newDeviceLink ? (
+        <div class="notice stack">
+          <CopyLink id="device-link" label="Device link" value={deviceUrl} />
+          <div class="qr" role="img" aria-label="QR code for the device link" set:html={qrSvg(deviceUrl)} />
+          <p class="muted">Scan the code, or open the link, on the other device. It stops working after 10 minutes or one use.</p>
+        </div>
+      ) : null
+    }
+    <form method="post" action="/household/device-link">
+      <button type="submit">Create a device link</button>
+    </form>
+    <p><a href="/household">Back to the household</a></p>
+  </div>
+</Base>

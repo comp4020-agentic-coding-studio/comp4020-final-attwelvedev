@@ -1,4 +1,5 @@
 ---
+import "../styles/pages.css";
 import "../styles/tokens.css";
 
 interface Props {
@@ -10,8 +11,11 @@ const here = Astro.url.pathname;
 const NAV = [
   { href: "/", label: "Pantry" },
   { href: "/history", label: "History" },
+  ...(Astro.locals.session ? [{ href: "/household", label: "Household" }] : []),
   { href: "/readme/", label: "About" },
 ];
+// a section is current on its sub-pages too (/household/devices)
+const current = (href: string) => (href === "/" ? here === href : here.startsWith(href));
 ---
 
 <!doctype html>
@@ -25,7 +29,7 @@ const NAV = [
     <a class="skip" href="#main">Skip to content</a>
     <header>
       <nav aria-label="Main">
-        {NAV.map((l) => <a href={l.href} aria-current={here === l.href ? "page" : undefined}>{l.label}</a>)}
+        {NAV.map((l) => <a href={l.href} aria-current={current(l.href) ? "page" : undefined}>{l.label}</a>)}
       </nav>
     </header>
     <main id="main">
