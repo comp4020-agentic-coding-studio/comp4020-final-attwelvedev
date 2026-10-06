@@ -90,6 +90,20 @@ while the rest of `.claude/` stays out of the repo).
   `rm -rf`, destroying Fly apps/volumes and reading secrets files are denied.
 - If a block is wrong for a legitimate change, ask me — don't route around it.
 
+## Logging
+
+`src/middleware.ts` writes one JSON line per request to stdout (read it with
+`flyctl logs`): who (a hashed device), what (`ACTIONS` in
+`src/lib/requestLog.ts`), when. `/stats` shows the same activity as counts.
+A log line is the app's account of what users did, so:
+
+- Never log a field that is not in `redact`'s allowlist (`src/lib/log.ts`).
+  Add to it on purpose, with a reason.
+- Never log a raw path, name, note, location, photo, token or cookie. The line
+  carries the route *pattern*; invite and device links hold tokens in the path.
+- A new POST endpoint needs an `ACTIONS` entry; a test fails without one.
+  Add detail from anywhere in a request with `logDetail({ via: "code" })`.
+
 ## Decisions (ADRs)
 
 Decisions that are expensive to reverse, or that someone will ask about

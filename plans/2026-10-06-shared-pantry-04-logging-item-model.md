@@ -313,7 +313,7 @@ first. Task 13 follows phase 03 and Task 12.
 
 ### Task 11: Structured, redacted server logging with a live stats view
 
-- [ ] Done
+- [x] Done
 
 - **Description:** Log one JSON line per request to stdout with who/what/when,
   redacted by allowlist, and serve a live aggregate view at `/stats`, so the

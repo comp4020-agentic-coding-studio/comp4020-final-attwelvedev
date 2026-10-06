@@ -4,6 +4,7 @@ import { db } from "../../lib/db.ts";
 import { joinByCode, ValidationError } from "../../lib/households.ts";
 import { NotFoundError } from "../../lib/items.ts";
 import { householdChannel, publish } from "../../lib/live.ts";
+import { logDetail } from "../../lib/log.ts";
 import { DEVICE_COOKIE } from "../../lib/session.ts";
 import { joinThrottle, throttleKey } from "../../lib/throttle.ts";
 
@@ -23,6 +24,7 @@ export const POST: APIRoute = async (context) => {
 
   try {
     const { deviceToken, member, household } = joinByCode(db, { code, memberName });
+    logDetail({ via: "code" });
     context.cookies.set(
       DEVICE_COOKIE,
       deviceToken,

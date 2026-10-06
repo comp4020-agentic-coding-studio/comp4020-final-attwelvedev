@@ -1,0 +1,103 @@
+---
+import Base from "../layouts/Base.astro";
+import { stats } from "../lib/stats.ts";
+
+// Aggregate only, and public on purpose: counts, and the last 30 actions as an
+// anonymous device code, an action name and a status. The script below redraws
+// it from /stats.json; without scripts this first render stays.
+Astro.response.headers.set("Cache-Control", "no-store");
+const s = stats.snapshot();
+const time = (ts: string) => ts.slice(11, 19);
+---
+
+<Base title="Activity">
+  <h1>Activity</h1>
+  <p>What people are doing in this app right now. Counts since the server started; no names or food.</p>
+
+  <dl class="totals">
+    <div><dt>Requests</dt><dd id="requests">{s.requests}</dd></div>
+    <div><dt>Errors</dt><dd id="errors">{s.errors}</dd></div>
+    <div><dt>Devices in the last 5 minutes</dt><dd id="devices">{s.activeDevices}</dd></div>
+  </dl>
+
+  <h2>By action</h2>
+  <ul class="rows" id="actions">
+    {Object.entries(s.actions).sort((a, b) => b[1] - a[1]).map(([action, n]) => <li><span>{action}</span> <strong>{n}</strong></li>)}
+  </ul>
+
+  <h2>Latest</h2>
+  <p id="empty" hidden={s.recent.length > 0}>Nothing yet.</p>
+  <ol class="rows" id="recent" aria-live="off">
+    {s.recent.map((r) => <li><time>{time(r.ts)}</time> <span>{r.who ?? "no device"}</span> <span>{r.action}</span> <span>{r.status}</span></li>)}
+  </ol>
+</Base>
+
+<style>
+  .totals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px 32px;
+    margin: 0 0 24px;
+  }
+  .totals dt {
+    font-size: 0.875rem;
+  }
+  .totals dd {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 600;
+  }
+  #recent li > * {
+    overflow-wrap: anywhere;
+  }
+</style>
+
+<script is:inline>
+  (function () {
+    var text = function (id, value) {
+      document.getElementById(id).textContent = String(value);
+    };
+    var row = function (parts) {
+      var li = document.createElement("li");
+      parts.forEach(function (part, i) {
+        if (i) li.append(" ");
+        var el = document.createElement(part.tag || "span");
+        el.textContent = part.text;
+        li.append(el);
+      });
+      return li;
+    };
+    function draw(s) {
+      text("requests", s.requests);
+      text("errors", s.errors);
+      text("devices", s.activeDevices);
+      var actions = document.getElementById("actions");
+      actions.replaceChildren.apply(
+        actions,
+        Object.entries(s.actions)
+          .sort(function (a, b) { return b[1] - a[1]; })
+          .map(function (e) { return row([{ text: e[0] }, { tag: "strong", text: e[1] }]); }),
+      );
+      var recent = document.getElementById("recent");
+      recent.replaceChildren.apply(
+        recent,
+        s.recent.map(function (r) {
+          return row([
+            { tag: "time", text: r.ts.slice(11, 19) },
+            { text: r.who || "no device" },
+            { text: r.action },
+            { text: r.status },
+          ]);
+        }),
+      );
+      document.getElementById("empty").hidden = s.recent.length > 0;
+    }
+    function poll() {
+      fetch("/stats.json", { cache: "no-store" })
+        .then(function (res) { return res.json(); })
+        .then(draw)
+        .catch(function () {});
+    }
+    setInterval(poll, 2000);
+  })();
+</script>

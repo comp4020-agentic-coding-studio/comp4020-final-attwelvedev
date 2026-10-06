@@ -3,6 +3,7 @@ import { db } from "../../../lib/db.ts";
 import { failure, json, wantsJson } from "../../../lib/http.ts";
 import { NotFoundError, recordOutcome } from "../../../lib/items.ts";
 import { householdChannel, publish, publishAll } from "../../../lib/live.ts";
+import { logDetail } from "../../../lib/log.ts";
 import { offerEvents } from "../../../lib/offerEvents.ts";
 
 export const POST: APIRoute = async (context) => {
@@ -16,6 +17,7 @@ export const POST: APIRoute = async (context) => {
   }
   try {
     const entry = recordOutcome(db, session, context.params.id ?? "", outcome);
+    logDetail({ outcome });
     publish(householdChannel(session.household.id), {
       type: "item.removed",
       itemId: entry.itemId,
