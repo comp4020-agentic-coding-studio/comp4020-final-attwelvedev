@@ -291,7 +291,7 @@ something to show. It is never a start gate.
 | --- | --- | --- | --- | --- | --- | --- |
 | 01 | `…-01-proof-of-life.md` | 1–4 | — | Week 9 crit | Deployed at `https://comp4020-final-attwelvedev.fly.dev`; first run, add by name, Used/Binned with undo, history; README served; `pnpm check` green. Human review of the first screens and the README | [x] |
 | 02 | `…-02-household-live.md` | 5–7 | 01 | Week 10 crit | Invites, device links and member removal; SSE live sync under 1 s across two browsers; pantry island with optimistic updates and rollback | [x] |
-| 03 | `…-03-communities-offers.md` | 8–10, 20 | 02 | Week 10 crit | Communities joined by link or code; offer, claim, collect, release; scoped payloads; live offers feed | [ ] |
+| 03 | `…-03-communities-offers.md` | 8–10, 20 | 02 | Week 10 crit | Communities joined by link or code; offer, claim, collect, release; scoped payloads; live offers feed | [x] |
 | 04 | `…-04-logging-item-model.md` | 11–13 | Tasks 11–12: 01 only. Task 13: 03 (offer-some needs Task 9) | Week 11 crit (logging) | Structured, redacted server logs; FoodKeeper guesses; measure types, estimates and moving buckets | [ ] |
 | 05 | `…-05-visual-pantry.md` | 14–16 | 04 | Before 9 Nov (aim for week 12) | The Enamelware pantry view (tape, panel, trailing Used, keyboard model); images and photos; search combobox. Human review of the visual design | [ ] |
 | 06 | `…-06-discovery-passkeys-polish.md` | 17–19 | 03, 05 (Task 18: only Task 5) | 9 Nov, noon (submission) | Map discovery and community areas; passkeys; accessibility and viewport pass | [ ] |
