@@ -46,16 +46,6 @@ describe("creating and joining by code", () => {
     await joinCommunityByCode(second, code);
     expect(text(await (await first.get(`/communities/${id}`)).text())).toContain("Unit 4 · 2");
   });
-
-  it("answers 429 with Retry-After after ten wrong codes", async () => {
-    const me = await newHousehold(baseUrl);
-    for (let i = 0; i < 10; i++) {
-      expect((await joinCommunityByCode(me, "NOPE-00")).status).toBe(400);
-    }
-    const blocked = await joinCommunityByCode(me, "NOPE-00");
-    expect(blocked.status).toBe(429);
-    expect(blocked.headers.get("retry-after")).toBe("60");
-  });
 });
 
 describe("joining by link", () => {

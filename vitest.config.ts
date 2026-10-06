@@ -11,6 +11,10 @@ export default defineConfig({
         test: {
           name: "spec",
           include: ["spec/**/*.test.ts"],
+          // Multi-household setups take several round trips each; against the
+          // deployed app (Sydney) that is more than vitest's default 5 s. The
+          // 1 s live-sync bounds are assertions in the specs, not this timeout.
+          testTimeout: 30_000,
           globalSetup: ["./spec/global-setup.ts"],
         },
       },

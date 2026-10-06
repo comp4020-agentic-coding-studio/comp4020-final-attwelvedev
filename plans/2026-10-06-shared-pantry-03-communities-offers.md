@@ -870,7 +870,7 @@ Tasks run 8 → 9 → 10 → 20. Task 20's number is out of sequence on purpose
 - [ ] Task 20 human review accepted by the user
 - [ ] Deployed before the week 10 crit; the offers and privacy specs pass
       against the deployed app
-      (`APP_URL=https://comp4020-final-attwelvedev.fly.dev pnpm exec vitest run --project spec spec/offers.test.ts spec/privacy.test.ts spec/communities.test.ts`),
+      (`APP_URL=https://comp4020-final-attwelvedev.fly.dev pnpm exec vitest run --project spec spec/offers.test.ts spec/privacy.test.ts spec/communities.test.ts`), then `spec/throttle.test.ts` alone a minute later: Fly overwrites `fly-client-ip`, so the throttle test blocks the runner's address for a minute and would fail the others if run beside them,
       proving Fly's proxy streams community channels too
 - [ ] The multi-browser flow (create or join, offer, claim, collect) is checked
       on the deployed URL
