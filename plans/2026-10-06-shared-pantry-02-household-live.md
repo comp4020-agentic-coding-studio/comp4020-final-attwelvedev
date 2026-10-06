@@ -718,12 +718,12 @@ member.
 ## 6. Phase Definition of Done
 
 - [x] Tasks 5–7 complete, each committed with `pnpm check` green
-- [ ] `pnpm build && pnpm start &` then `pnpm test` passes
-- [ ] Deployed; the user's two real browsers verified live on the fly.dev URL
+- [x] `pnpm build && pnpm start &` then `pnpm test` passes
+- [x] Deployed; the user's two real browsers verified live on the fly.dev URL
 - [x] After the deploy, `APP_URL=https://comp4020-final-attwelvedev.fly.dev pnpm vitest run --project spec spec/live.test.ts` is green. It proves Fly's proxy doesn't buffer the stream (the 1000 ms test is the evidence), and it creates test households on the live app
 - [x] ADRs 0002 and 0004 accepted, with the user's yes
 - [x] Task 7 human review accepted by the user
-- [ ] Tick phase 02 in overview §5
+- [x] Tick phase 02 in overview §5
 
 The week 10 crit also needs "one recorded decision about behaviour with several
 people present". That text is the user's to write (overview §3, "User-authored").
