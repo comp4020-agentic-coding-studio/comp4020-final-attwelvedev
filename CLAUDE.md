@@ -22,6 +22,15 @@ cause, not just the instance: add a rule here, or a check in `spec/` or
 `pnpm check`, then log it in `PROCESS_LOG.md`. A repeated mistake is a missing
 sensor. A bug fix starts with a failing test that reproduces it.
 
+## Ideas mid-phase go to the backlog
+
+When a new feature idea or spec-level issue comes up partway through a phase,
+don't act on it. Add one dated line to `specs/backlog.md` and finish the
+current phase first. At each phase boundary, I sort the backlog with
+`/brainstorm-feature` and record where each idea went. Plain bugs skip the
+backlog: fix them now, starting with a failing test (above). The full rules
+are in §5.2 of `plans/2026-10-06-shared-pantry-00-overview.md`.
+
 ## Before pushing
 
 - `pnpm check` (types, lint/format and `spec/` tests) must be green. It runs
