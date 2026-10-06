@@ -1,7 +1,7 @@
 # Shared pantry with neighbourhood offers — Plan overview
 
 - **Date:** 2026-10-06
-- **Status:** Approved (phases 01–02 detailed; phases 03–06 outlined — see §0)
+- **Status:** Approved (phases 01–05b detailed; phase 06 outlined — see §0)
 - **Requirements confirmed by user:** yes — 2026-10-06
 - **Tier:** Architecture
 
@@ -16,15 +16,17 @@ Files in this set:
 | `plans/2026-10-06-shared-pantry-02-household-live.md` | **full** — ready to execute |
 | `plans/2026-10-06-shared-pantry-03-communities-offers.md` | outline |
 | `plans/2026-10-06-shared-pantry-04-logging-item-model.md` | Tasks 11–12 done; **full** for Tasks 13, 21, 22 — ready to execute |
-| `plans/2026-10-06-shared-pantry-05-visual-pantry.md` | outline |
+| `plans/2026-10-06-shared-pantry-05a-pantry-view.md` | **full** — re-planned 2026-10-07, ready to execute |
+| `plans/2026-10-06-shared-pantry-05b-images-search.md` | **full** — re-planned 2026-10-07, ready to execute |
 | `plans/2026-10-06-shared-pantry-06-discovery-passkeys-polish.md` | outline |
 
 - A session reads **this overview + exactly one phase file + the spec's §2**
   (`specs/2026-10-06-shared-pantry.md`). It needs nothing else.
-- Task numbers are global (Task 1–19, plus Task 20 added to phase 03 and Tasks
-  21–22 added to phase 04 on 2026-10-07) across all files.
+- Task numbers are global (Task 1–19, plus Task 20 added to phase 03, Tasks
+  21–22 added to phase 04, and Tasks 23–25 (05a) and 26 (05b) split out of
+  Task 14 and Task 15 on 2026-10-07) across all files.
 - A phase is ticked in §5 once its phase Definition of Done is met.
-- **Outlined phases** (03–06) already fix their tasks, files, interfaces and
+- **Outlined phases** (only 06 now; 03–05b were re-planned in full) already fix their tasks, files, interfaces and
   acceptance criteria. Before executing one, re-run `plan-feature` Phases 2–4
   on that file against the code that exists by then: verify the signatures,
   write the red tests per task, and set its Status to `Approved`. The user
@@ -293,8 +295,9 @@ something to show. It is never a start gate.
 | 02 | `…-02-household-live.md` | 5–7 | 01 | Week 10 crit | Invites, device links and member removal; SSE live sync under 1 s across two browsers; pantry island with optimistic updates and rollback | [x] |
 | 03 | `…-03-communities-offers.md` | 8–10, 20 | 02 | Week 10 crit | Communities joined by link or code; offer, claim, collect, release; scoped payloads; live offers feed | [x] |
 | 04 | `…-04-logging-item-model.md` | 11–13, 21–22 | Tasks 11–12: 01 only. Tasks 13, 21, 22: 03 and Task 12 (Offer some builds on Task 9) | Week 11 crit (logging) | Structured, redacted server logs; FoodKeeper guesses; measure types, estimates and moving buckets in the data and API (no UI yet); Offer some and live offer values | [ ] |
-| 05 | `…-05-visual-pantry.md` | 14–16 | 04 | Before 9 Nov (aim for week 12) | The Enamelware pantry view (tape, panel, trailing Used, keyboard model); images and photos; search combobox. Human review of the visual design | [ ] |
-| 06 | `…-06-discovery-passkeys-polish.md` | 17–19 | 03, 05 (Task 18: only Task 5) | 9 Nov, noon (submission) | Map discovery and community areas; passkeys; accessibility and viewport pass | [ ] |
+| 05a | `…-05a-pantry-view.md` | 14, 23–25 | 04 | Before 9 Nov (aim for week 12) | The Enamelware shell and font, grouped rows with the shelf-life tape and trailing Used, the item panel (slider, stepper, measure, expiry, attribution), the keyboard model and announcer. Human review of the look, the panel and the keyboard model | [ ] |
+| 05b | `…-05b-images-search.md` | 15, 26, 16 | 05a | Before 9 Nov (aim for week 12) | Icons and letter tiles, optional photos (browser re-encode, server refusal of metadata, sweep), photos on offers; the add field as a search combobox. Human review of icons, the photo flow and search | [ ] |
+| 06 | `…-06-discovery-passkeys-polish.md` | 17–19 | 03, 05a, 05b (Task 18: only Task 5) | 9 Nov, noon (submission) | Map discovery and community areas; passkeys; accessibility and viewport pass | [ ] |
 
 ### 5.1 Starting early and running work in parallel
 
@@ -379,39 +382,39 @@ something to show. It is never a start gate.
 | FR8 leave or remove member, revoke | Task 5 |
 | FR9 last member leaves → delete | Task 5 (offers part: Task 9) |
 | FR10 add by name + Enter, optimistic | Task 3 (server), Task 7 (optimistic) |
-| FR11 measure types and guessing | Task 12 (guess), Task 13 (model, applied on add), Task 21 (change the measure), Task 14 (controls) |
-| FR12 estimates, attribution, latest-wins | Task 13 (columns), Task 21 (writes), Task 14 (display) |
-| FR13 expiry buckets, moving, FoodKeeper | Task 12, Task 13 (buckets, estimate on add), Task 21 (set bucket or exact date), Task 14 |
+| FR11 measure types and guessing | Task 12 (guess), Task 13 (model, applied on add), Task 21 (change the measure), Task 24 (controls) |
+| FR12 estimates, attribution, latest-wins | Task 13 (columns), Task 21 (writes), Task 24 (display) |
+| FR13 expiry buckets, moving, FoodKeeper | Task 12, Task 13 (buckets, estimate on add), Task 21 (set bucket or exact date), Task 23 (headings), Task 24 (picker) |
 | FR14 outcomes, one tap, undo, history | Task 3 (server + no-JS undo), Task 7 (toast) |
 | FR15 duplicates allowed | Task 3 |
 | FR16 image resolution chain | Task 15 |
-| FR17 optional photo, client re-encode | Task 15 |
-| FR18 photo lifetime | Task 15 (offer carry-over: Task 9 schema hook) |
-| FR19 failed upload | Task 15 |
+| FR17 optional photo, client re-encode | Task 26 |
+| FR18 photo lifetime | Task 26 (sweep an hour after the item leaves, ADR 0007; offer carry-over via `OfferValue.photoKey`) |
+| FR19 failed upload | Task 26 |
 | FR20 search combobox | Task 16 |
-| FR21 main pantry view | Task 3 (basic list), Task 14 (full design) |
+| FR21 main pantry view | Task 3 (basic list), Task 14 (shell), Task 23 (rows), Task 24 (panel), Task 25 (keys) |
 | FR22 community creation, roles | Task 8 (name, roles), Task 17 (area circle) |
 | FR23 discovery by location | Task 17 |
 | FR24 join instantly, link/code, several | Task 8 (link/code), Task 17 (listed) |
 | FR25 household names only, suffix | Task 8, Task 9 |
-| FR26 offer from a sheet, some, targets | Task 9, Task 20, Task 22 (offer some: portion split and merge; sheet control: Task 14) |
+| FR26 offer from a sheet, some, targets | Task 9, Task 20, Task 22 (offer some: portion split and merge; sheet control: Task 24) |
 | FR27 pickup note default | Task 9, Task 20 |
 | FR28 lifecycle | Task 9 |
 | FR29 first-come, no self-claim | Task 9 |
 | FR30 note only to claimer | Task 9 |
 | FR31 either side Collected, manual Release | Task 9, Task 10 |
-| FR32 auto-withdraw, live update, past-estimate | Task 9 (auto-withdraw), Task 22 (live values on offers), Task 14 (past-estimate display) |
+| FR32 auto-withdraw, live update, past-estimate | Task 9 (auto-withdraw), Task 22 (live values on offers), Task 23 (past-estimate display) |
 | FR33 leaving withdraws and releases | Task 8, Task 9 |
 | FR34 history list and filter | Task 3 (records), Task 4 (page), Task 9 (Given filter and wording) |
 | FR35 live within ~1 s | Task 6, Task 7, Task 10 (offers, community lists) |
 | FR36 optimistic + rollback | Task 7, Task 20 (offer taps) |
 | FR37 reconnect snapshot, status | Task 6, Task 7 |
 | FR38 survives restarts and redeploys | Task 2 (DB on `DATABASE_PATH`), Task 4 (deploy and restart check) |
-| NFR-Effortless | Task 3, Task 4 (one-field add), Task 7, Task 10, Task 14 |
-| NFR-A11y | Task 4 (baseline axe/keyboard), Task 14, Task 16, Task 19 |
-| NFR-Viewports | Task 4, Task 14, Task 19 |
-| NFR-Privacy | Task 2 (hashed tokens), Task 9 (scoped payloads), Task 11 (log redaction), Task 15 (EXIF), Task 17 (no location in requests) |
-| NFR-Resources | Task 1 (image), Task 14 (font), Task 15 (lazy icons), Task 17 (lazy map) |
+| NFR-Effortless | Task 3, Task 4 (one-field add), Task 7, Task 10, Tasks 23–25 |
+| NFR-A11y | Task 4 (baseline axe/keyboard), Task 14 (contrast on), Task 23, Task 25 (keys, announcer), Task 16 (combobox), Task 19 |
+| NFR-Viewports | Task 4, Tasks 14, 23, 24, Task 19 |
+| NFR-Privacy | Task 2 (hashed tokens), Task 9 (scoped payloads), Task 11 (log redaction), Task 26 (EXIF, photo key scope), Task 17 (no location in requests) |
+| NFR-Resources | Task 1 (image), Task 14 (font), Task 15 (lazy icons), Task 26 (thumbnails, size cap), Task 17 (lazy map) |
 | NFR-Abuse | Task 5 (unguessable invite token, throttling) |
 | NFR-Course | Task 1 (`/`, `/readme/`), Task 11 (logging) |
 

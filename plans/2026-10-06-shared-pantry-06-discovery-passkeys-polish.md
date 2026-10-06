@@ -7,7 +7,7 @@
 - **Requirements confirmed by user:** yes — 2026-10-06
 - **Part of:** `plans/2026-10-06-shared-pantry-00-overview.md`. It leans on
   §3 and §4. The design source is spec §4.1, for the Find a community screen.
-- **Depends on phases:** 03 (communities) and 05 (visual system). Task 18
+- **Depends on phases:** 03 (communities) and 05a, 05b (visual system). Task 18
   (passkeys) needs only Task 5, so it can run early (overview §5.1).
 
 ## 1. Summary
