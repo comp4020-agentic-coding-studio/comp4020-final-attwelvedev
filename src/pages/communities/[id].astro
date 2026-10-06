@@ -1,0 +1,86 @@
+---
+import CopyLink from "../../components/CopyLink.astro";
+import Base from "../../layouts/Base.astro";
+import { getCommunity } from "../../lib/communities.ts";
+import { db } from "../../lib/db.ts";
+import { NotFoundError } from "../../lib/errors.ts";
+
+const { session, newCommunityLink } = Astro.locals;
+if (!session) return Astro.redirect("/", 303);
+
+// A freshly minted link is on the page: never cache it.
+if (newCommunityLink) Astro.response.headers.set("Cache-Control", "no-store");
+
+let view: ReturnType<typeof getCommunity> | null = null;
+try {
+  view = getCommunity(db, session.household.id, Astro.params.id ?? "");
+} catch (error) {
+  if (!(error instanceof NotFoundError)) throw error;
+  Astro.response.status = 404;
+}
+const linkUrl = newCommunityLink
+  ? new URL(`/communities/join/${newCommunityLink.token}`, Astro.url).href
+  : "";
+---
+
+{
+  !view ? (
+    <Base title="Community not found">
+      <h1>That community isn't one of yours</h1>
+      <p>It may not exist, or {session.household.name} may have left it. <a href="/communities">See your communities</a>.</p>
+    </Base>
+  ) : (
+    <Base title={view.community.name}>
+      <h1>{view.community.name}</h1>
+
+      <section class="stack" aria-labelledby="households-heading">
+        <h2 id="households-heading">Households</h2>
+        <ul id="community-households" class="rows">
+          {view.households.map((h) => (
+            <li>
+              <span class="who">
+                {h.displayName}
+                {h.householdId === session.household.id && <span class="muted"> (you)</span>}
+                {h.householdId === view.community.creatorHouseholdId && <span class="muted"> · creator</span>}
+              </span>
+              {view.isCreator && h.householdId !== session.household.id && (
+                <form method="post" action={`/communities/${view.community.id}/households/${h.householdId}/remove`}>
+                  <button type="submit">
+                    Remove<span class="sr-only"> {h.displayName}</span>
+                  </button>
+                </form>
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section class="stack" aria-labelledby="invite-heading">
+        <h2 id="invite-heading">Invite a household</h2>
+        <p>
+          Community code: <strong id="community-code" class="code">{view.community.joinCode}</strong>
+        </p>
+        <p class="muted">Anyone with a household can join with the code, from the Communities page.</p>
+        {
+          newCommunityLink ? (
+            <div class="notice stack">
+              <CopyLink id="community-link" label="Community link" value={linkUrl} />
+              <p class="muted">This link works for 7 days. It is shown once, so copy it now.</p>
+            </div>
+          ) : null
+        }
+        <form method="post" action={`/communities/${view.community.id}/join-link`}>
+          <button type="submit">Create a community link</button>
+        </form>
+      </section>
+
+      <section class="stack" aria-labelledby="leave-heading">
+        <h2 id="leave-heading">Leave</h2>
+        <p>Leaving takes {session.household.name} out of this community, and withdraws what it offered here.</p>
+        <form method="post" action={`/communities/${view.community.id}/leave`}>
+          <button type="submit">Leave {view.community.name}</button>
+        </form>
+      </section>
+    </Base>
+  )
+}

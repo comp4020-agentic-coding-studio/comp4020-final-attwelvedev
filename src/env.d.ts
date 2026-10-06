@@ -10,6 +10,10 @@ declare namespace App {
     // set by POST /household/invite-link and /household/device-link so the page
     // can show the raw token once; only its hash is stored
     newInviteLink?: { token: string; expiresAt: number };
+    // set by the community endpoints when they re-render /communities
+    communityError?: { message: string; status: number; name?: string; code?: string };
+    // set by POST /communities/:id/join-link, shown once like newInviteLink
+    newCommunityLink?: { token: string; expiresAt: number };
     newDeviceLink?: { token: string; expiresAt: number };
   }
 }

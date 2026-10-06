@@ -6,6 +6,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 
 export type Db = BetterSQLite3Database;
+export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 // Migrations run when a database is opened, on whatever machine holds the
 // volume: there's no separate machine to run them from. The flow: edit

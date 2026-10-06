@@ -1,0 +1,63 @@
+---
+import Base from "../../layouts/Base.astro";
+import { listMyCommunities } from "../../lib/communities.ts";
+import { db } from "../../lib/db.ts";
+
+const { session, communityError } = Astro.locals;
+if (!session) return Astro.redirect("/", 303);
+
+if (communityError) {
+  Astro.response.status = communityError.status;
+  if (communityError.status === 429) Astro.response.headers.set("Retry-After", "60");
+}
+const mine = listMyCommunities(db, session.household.id);
+---
+
+<Base title="Communities">
+  <h1>Communities</h1>
+
+  <section class="stack" aria-labelledby="mine-heading">
+    <h2 id="mine-heading">Your communities</h2>
+    {
+      mine.length === 0 ? (
+        <p class="muted">{session.household.name} isn't in a community yet. Start one, or join one with its code.</p>
+      ) : (
+        <ul class="rows">
+          {mine.map((c) => (
+            <li>
+              <span class="who">
+                <a href={`/communities/${c.id}`}>{c.name}</a>
+                <span class="muted"> · {c.households} {c.households === 1 ? "household" : "households"}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </section>
+
+  <section class="stack" aria-labelledby="create-heading">
+    <h2 id="create-heading">Start a community</h2>
+    <form class="stack" method="post" action="/communities/create">
+      {communityError && !communityError.code && <p role="alert">{communityError.message}</p>}
+      <div class="field">
+        <label for="name">Community name</label>
+        <input id="name" name="name" required maxlength="60" autocomplete="off" value={communityError?.name ?? ""} />
+      </div>
+      <button type="submit">Start community</button>
+    </form>
+  </section>
+
+  <section class="stack" aria-labelledby="join-heading">
+    <h2 id="join-heading">Join with a code</h2>
+    <form class="stack" method="post" action="/communities/join/code">
+      {communityError?.code !== undefined && <p role="alert">{communityError.message}</p>}
+      <p class="muted">Ask someone in the community for its code, like KETTLE-42.</p>
+      <div class="field">
+        <label for="code">Community code</label>
+        <input id="code" name="code" required autocomplete="off" autocapitalize="characters" value={communityError?.code ?? ""} />
+      </div>
+      <button type="submit">Join</button>
+    </form>
+  </section>
+</Base>

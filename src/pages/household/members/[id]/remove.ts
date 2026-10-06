@@ -1,8 +1,9 @@
 import type { APIRoute } from "astro";
+import { leftEvents } from "../../../../lib/communityEvents.ts";
 import { db } from "../../../../lib/db.ts";
 import { removeMember } from "../../../../lib/households.ts";
 import { NotFoundError } from "../../../../lib/items.ts";
-import { householdChannel, publish } from "../../../../lib/live.ts";
+import { householdChannel, publish, publishAll } from "../../../../lib/live.ts";
 import { DEVICE_COOKIE } from "../../../../lib/session.ts";
 
 export const POST: APIRoute = (context) => {
@@ -10,12 +11,13 @@ export const POST: APIRoute = (context) => {
   if (!session) return context.redirect("/", 303);
 
   try {
-    const { member } = removeMember(db, session, context.params.id ?? "");
+    const { member, communityLeaves } = removeMember(db, session, context.params.id ?? "");
     publish(householdChannel(session.household.id), {
       type: "member.removed",
       member: { id: member.id, name: member.name },
       by: { id: session.member.id, name: session.member.name },
     });
+    publishAll(communityLeaves.flatMap(leftEvents));
     // removing yourself is leaving: your own tokens are gone too
     if (member.id === session.member.id) {
       context.cookies.delete(DEVICE_COOKIE, { path: "/" });

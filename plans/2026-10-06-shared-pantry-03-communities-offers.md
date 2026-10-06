@@ -414,7 +414,7 @@ Tasks run 8 → 9 → 10 → 20. Task 20's number is out of sequence on purpose
 
 ### Task 8: Communities: create, join by code or link, leave, remove, succession, live membership
 
-- [ ] Done
+- [x] Done
 
 - **Description:** Build communities end to end except offers. A household
   creates a community by name and is its first member; any household joins by

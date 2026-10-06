@@ -266,7 +266,11 @@ describe("removeMember", () => {
   it("deletes the member and their device tokens, keeping the rest", () => {
     const { db, sam, alex } = twoMembers();
     const result = removeMember(db, sam, alex.member.id);
-    expect(result).toEqual({ member: alex.member, householdDeleted: false });
+    expect(result).toEqual({
+      member: alex.member,
+      householdDeleted: false,
+      communityLeaves: [],
+    });
     expect(sessionForToken(db, alex.deviceToken)).toBeNull();
     expect(sessionForToken(db, sam.deviceToken)).not.toBeNull();
     expect(listMembers(db, sam.household.id).map((m) => m.name)).toEqual(["Sam"]);
@@ -345,7 +349,11 @@ describe("removing or leaving as the last member", () => {
     const { token } = createInviteLink(db, sam, NOW);
     const alex = joinByLink(db, { token, memberName: "Alex" }, NOW);
     const result = leaveHousehold(db, alex);
-    expect(result).toEqual({ member: alex.member, householdDeleted: false });
+    expect(result).toEqual({
+      member: alex.member,
+      householdDeleted: false,
+      communityLeaves: [],
+    });
     expect(listMembers(db, sam.household.id).map((m) => m.name)).toEqual(["Sam"]);
   });
 });

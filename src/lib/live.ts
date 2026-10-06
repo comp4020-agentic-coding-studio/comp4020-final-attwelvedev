@@ -21,9 +21,31 @@ export type LiveEvent =
     }
   | { type: "item.restored"; item: Item; by: Actor }
   | { type: "member.joined"; member: { id: string; name: string } }
-  | { type: "member.removed"; member: { id: string; name: string }; by: Actor };
+  | { type: "member.removed"; member: { id: string; name: string }; by: Actor }
+  | { type: "membership.joined"; community: { id: string; name: string } }
+  | { type: "membership.left"; communityId: string }
+  | {
+      type: "community.householdJoined";
+      communityId: string;
+      household: { id: string; displayName: string };
+    }
+  | {
+      type: "community.householdLeft";
+      communityId: string;
+      householdId: string;
+      creatorHouseholdId: string | null;
+    };
 
 export const householdChannel = (householdId: string): string => `household:${householdId}`;
+
+export const communityChannel = (communityId: string): string => `community:${communityId}`;
+
+// An event and where it goes: what a service's event builder returns, so the
+// endpoint only has to publishAll it after the commit.
+export interface Routed {
+  channel: string;
+  event: LiveEvent;
+}
 
 const channels = new Map<string, Set<(e: LiveEvent) => void>>();
 
@@ -48,6 +70,10 @@ export function publish(channel: string, e: LiveEvent): void {
       // that stream is dead; its own abort handler unsubscribes it
     }
   }
+}
+
+export function publishAll(list: Routed[]): void {
+  for (const { channel, event } of list) publish(channel, event);
 }
 
 export function subscriberCount(channel: string): number {

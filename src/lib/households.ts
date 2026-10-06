@@ -1,6 +1,8 @@
-import { randomInt, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { and, asc, count, eq, gt, isNull } from "drizzle-orm";
-import type { Db } from "./db.ts";
+import { newCode, normaliseCode } from "./codes.ts";
+import { type CommunityLeave, leaveAllCommunities } from "./communities.ts";
+import type { Db, Tx } from "./db.ts";
 import { NotFoundError, ValidationError } from "./errors.ts";
 import { deviceLinks, deviceTokens, households, inviteLinks, members } from "./schema.ts";
 import { hashToken, newDeviceToken, newLinkToken } from "./session.ts";
@@ -30,75 +32,7 @@ export const DEVICE_LINK_TTL_MS = 10 * 60 * 1000;
 const MAX_NAME = 60;
 const SEEN_EVERY_MS = 60 * 60 * 1000;
 
-// Kitchen words for invite codes like KETTLE-42: easy to say aloud.
-const WORDS = [
-  "APRON",
-  "BASIL",
-  "BASKET",
-  "BOWL",
-  "BREAD",
-  "BROTH",
-  "BUTTER",
-  "CARROT",
-  "CELERY",
-  "CHIVES",
-  "CLOVE",
-  "COLANDER",
-  "CUMIN",
-  "CUP",
-  "CURRY",
-  "DILL",
-  "DISH",
-  "DOUGH",
-  "EGGS",
-  "FENNEL",
-  "FLOUR",
-  "FORK",
-  "GARLIC",
-  "GINGER",
-  "GRATER",
-  "HONEY",
-  "JAR",
-  "JAM",
-  "KALE",
-  "KETTLE",
-  "KNIFE",
-  "LADLE",
-  "LEMON",
-  "LENTIL",
-  "MAPLE",
-  "MINT",
-  "MUFFIN",
-  "MUG",
-  "NOODLE",
-  "NUTMEG",
-  "OATS",
-  "OLIVE",
-  "ONION",
-  "OVEN",
-  "PASTA",
-  "PEPPER",
-  "PLATE",
-  "PORRIDGE",
-  "RADISH",
-  "RICE",
-  "SAGE",
-  "SALT",
-  "SAUCE",
-  "SPATULA",
-  "SPOON",
-  "STEW",
-  "SUGAR",
-  "TEAPOT",
-  "THYME",
-  "TOAST",
-  "TONGS",
-  "WHISK",
-  "YEAST",
-  "ZESTER",
-];
-
-function cleanName(raw: string, label: string): string {
+export function cleanName(raw: string, label: string): string {
   const name = raw.trim();
   if (!name) throw new ValidationError(`${label} can't be blank.`);
   if (name.length > MAX_NAME) {
@@ -106,20 +40,6 @@ function cleanName(raw: string, label: string): string {
   }
   return name;
 }
-
-function newInviteCode(db: Db): string {
-  for (;;) {
-    const code = `${WORDS[randomInt(WORDS.length)]}-${String(randomInt(100)).padStart(2, "0")}`;
-    const taken = db
-      .select({ id: households.id })
-      .from(households)
-      .where(eq(households.inviteCode, code))
-      .get();
-    if (!taken) return code;
-  }
-}
-
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 // Inserts a member and the first device token for them. Shared by creating a
 // household and joining one, so both sign a person in the same way.
@@ -159,20 +79,19 @@ export function createHousehold(
     const household: Household = {
       id: randomUUID(),
       name: householdName,
-      inviteCode: newInviteCode(tx),
+      inviteCode: newCode(
+        (code) =>
+          !!tx
+            .select({ id: households.id })
+            .from(households)
+            .where(eq(households.inviteCode, code))
+            .get(),
+      ),
       createdAt: now,
     };
     tx.insert(households).values(household).run();
     return insertMember(tx, household, memberName, now);
   });
-}
-
-// "kettle-42", " KETTLE 42 " and "KETTLE-42" are the same code.
-function normaliseCode(raw: string): string {
-  return raw
-    .trim()
-    .toUpperCase()
-    .replace(/[\s_-]+/g, "-");
 }
 
 export function joinByCode(
@@ -306,11 +225,14 @@ export function listMembers(db: Db, householdId: string): Member[] {
 // Deleting the member cascades to their device tokens and device links, so
 // their next request is simply signed out. If they were the last member the
 // household goes too, with its items, history and links.
-export function removeMember(
-  db: Db,
-  session: Session,
-  memberId: string,
-): { member: Member; householdDeleted: boolean } {
+export interface MemberRemoval {
+  member: Member;
+  householdDeleted: boolean;
+  // the communities a deleted household left, for the endpoint to publish
+  communityLeaves: CommunityLeave[];
+}
+
+export function removeMember(db: Db, session: Session, memberId: string): MemberRemoval {
   return db.transaction((tx) => {
     const member = tx
       .select()
@@ -325,16 +247,16 @@ export function removeMember(
       .where(eq(members.householdId, session.household.id))
       .get();
     const householdDeleted = (left?.n ?? 0) === 0;
-    if (householdDeleted)
+    let communityLeaves: CommunityLeave[] = [];
+    if (householdDeleted) {
+      communityLeaves = leaveAllCommunities(tx, session.household.id);
       tx.delete(households).where(eq(households.id, session.household.id)).run();
-    return { member, householdDeleted };
+    }
+    return { member, householdDeleted, communityLeaves };
   });
 }
 
-export function leaveHousehold(
-  db: Db,
-  session: Session,
-): { member: Member; householdDeleted: boolean } {
+export function leaveHousehold(db: Db, session: Session): MemberRemoval {
   return removeMember(db, session, session.member.id);
 }
 

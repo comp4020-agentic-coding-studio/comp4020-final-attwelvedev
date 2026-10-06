@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, primaryKey, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 // Times are epoch milliseconds. A device token is stored only as its hash.
 
@@ -75,4 +75,48 @@ export const deviceLinks = sqliteTable("device_links", {
   createdAt: integer("created_at").notNull(),
   expiresAt: integer("expires_at").notNull(),
   usedAt: integer("used_at"),
+});
+
+// A community is a set of households that can see each other's offers. The
+// creator is a household, and the role passes on when it leaves. The centre and
+// radius stay empty until communities get a map area.
+export const communities = sqliteTable("communities", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  joinCode: text("join_code").notNull().unique(),
+  creatorHouseholdId: text("creator_household_id")
+    .notNull()
+    .references(() => households.id),
+  createdAt: integer("created_at").notNull(),
+  centreLat: real("centre_lat"),
+  centreLng: real("centre_lng"),
+  radiusM: integer("radius_m"),
+});
+
+// display_name is the household's name, suffixed when another household in the
+// community already shows it. It is fixed when the household joins.
+export const communityHouseholds = sqliteTable(
+  "community_households",
+  {
+    communityId: text("community_id")
+      .notNull()
+      .references(() => communities.id, { onDelete: "cascade" }),
+    householdId: text("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    joinedAt: integer("joined_at").notNull(),
+    displayName: text("display_name").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.communityId, t.householdId] })],
+);
+
+// Like invite_links: minted on demand, stored hashed, reusable until they expire.
+export const communityLinks = sqliteTable("community_links", {
+  tokenHash: text("token_hash").primaryKey(),
+  communityId: text("community_id")
+    .notNull()
+    .references(() => communities.id, { onDelete: "cascade" }),
+  createdBy: text("created_by").references(() => members.id, { onDelete: "set null" }),
+  createdAt: integer("created_at").notNull(),
+  expiresAt: integer("expires_at").notNull(),
 });

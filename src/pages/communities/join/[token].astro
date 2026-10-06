@@ -1,0 +1,45 @@
+---
+import Base from "../../../layouts/Base.astro";
+import { communityIdsFor, previewCommunityLink } from "../../../lib/communities.ts";
+import { db } from "../../../lib/db.ts";
+
+// The token is in the path: never cache this page.
+Astro.response.headers.set("Cache-Control", "no-store");
+
+const { session, communityError } = Astro.locals;
+const token = Astro.params.token ?? "";
+const community = previewCommunityLink(db, token);
+if (!community) Astro.response.status = 404;
+else if (communityError) Astro.response.status = communityError.status;
+if (communityError?.status === 429) Astro.response.headers.set("Retry-After", "60");
+const alreadyIn =
+  !!community && !!session && communityIdsFor(db, session.household.id).includes(community.id);
+---
+
+{
+  !community ? (
+    <Base title="Community link not found">
+      <h1>That community link doesn't work</h1>
+      <p>It may have expired, or been typed wrongly. Ask for a new link, or <a href="/communities">enter a community code</a>.</p>
+    </Base>
+  ) : !session ? (
+    <Base title="Start a household first">
+      <h1>Start a household first</h1>
+      <p>Communities are joined by households. <a href="/">Start your pantry</a>, then open this link again.</p>
+    </Base>
+  ) : alreadyIn ? (
+    <Base title={`Already in ${community.name}`}>
+      <h1>{session.household.name} is already in {community.name}</h1>
+      <p><a href={`/communities/${community.id}`}>Open the community</a>.</p>
+    </Base>
+  ) : (
+    <Base title={`Join ${community.name}`}>
+      <h1>Join {community.name}</h1>
+      <form class="stack" method="post" action={`/communities/join/${token}/accept`}>
+        {communityError && <p role="alert">{communityError.message}</p>}
+        <p>{session.household.name} will join {community.name}.</p>
+        <button type="submit">Join {community.name}</button>
+      </form>
+    </Base>
+  )
+}
