@@ -54,6 +54,8 @@ describe("pantry in a browser", () => {
     await page.context().close();
   });
 
+  // 12 sequential POSTs take a few seconds against a remote app (APP_URL), which is
+  // past vitest default 5 s timeout.
   describe.each([
     ["phone", PHONE],
     ["desktop", DESKTOP],
@@ -73,6 +75,6 @@ describe("pantry in a browser", () => {
       expect(await horizontalOverflow(page)).toBe(0);
       expect(await axeViolations(page)).toEqual([]);
       await page.context().close();
-    });
+    }, 30_000);
   });
 });
