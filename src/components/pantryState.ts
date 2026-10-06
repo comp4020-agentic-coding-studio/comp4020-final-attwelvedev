@@ -56,6 +56,7 @@ export type Action =
   | { type: "event.added"; item: Item; rid?: string }
   | { type: "event.removed"; itemId: string; outcome: Outcome; byName: string; mine: boolean }
   | { type: "event.restored"; item: Item }
+  | { type: "event.updated"; item: Item }
   | { type: "offers.snapshot"; open: MyOffer[] }
   | { type: "offer.mine"; offer: MyOffer }
   | { type: "offer.noted"; itemId: string; note: string }
@@ -115,6 +116,36 @@ function swapPending(rows: Row[], rid: string, item: Item): Row[] | null {
   // a real row for this item can already exist (the echo beat the response)
   const without = rows.filter((r, i) => i === index || r.item.id !== item.id);
   return without.map((r) => (r.pending?.rid === rid ? { item } : r));
+}
+
+// Each group of an item (value, expiry) carries the time it was last set. An
+// echo of an earlier write must not undo a later one, so a group is only taken
+// when its stamp is not older than the row's (never set counts as 0).
+function mergeUpdated(current: Item, incoming: Item): Item {
+  const value = (incoming.valueSetAt ?? 0) >= (current.valueSetAt ?? 0);
+  const expiry = (incoming.expirySetAt ?? 0) >= (current.expirySetAt ?? 0);
+  return {
+    ...incoming,
+    ...(value
+      ? {}
+      : {
+          measure: current.measure,
+          fillStop: current.fillStop,
+          count: current.count,
+          exactAmount: current.exactAmount,
+          exactUnit: current.exactUnit,
+          valueSetBy: current.valueSetBy,
+          valueSetAt: current.valueSetAt,
+        }),
+    ...(expiry
+      ? {}
+      : {
+          estimatedExpiry: current.estimatedExpiry,
+          exactExpiry: current.exactExpiry,
+          expirySetBy: current.expirySetBy,
+          expirySetAt: current.expirySetAt,
+        }),
+  };
 }
 
 export function pantryReducer(state: PantryState, action: Action): PantryState {
@@ -209,6 +240,15 @@ export function pantryReducer(state: PantryState, action: Action): PantryState {
       }
       return { ...state, rows: insertByCreatedAt(rows, { item: action.item }) };
     }
+
+    case "event.updated":
+      return {
+        ...state,
+        rows: mapRow(rows, action.item.id, (r) => ({
+          ...r,
+          item: mergeUpdated(r.item, action.item),
+        })),
+      };
 
     case "offers.snapshot": {
       const open = new Map(action.open.map((o) => [o.itemId, asRowOffer(o)]));

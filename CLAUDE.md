@@ -25,6 +25,10 @@
   stream must never fail the request that triggered it. Offer payloads are
   built only by `offerEvents` (`src/lib/offerEvents.ts`); an endpoint never
   constructs an `offer.*` event.
+- **Item values are estimates:** an item's amount and expiry each carry who set
+  them and when (`valueSet*`, `expirySet*`); both null means *Guessed*. The latest
+  write wins per group. Item events are built by `itemEvents.ts`, not by the
+  endpoint.
 
 # Working method
 

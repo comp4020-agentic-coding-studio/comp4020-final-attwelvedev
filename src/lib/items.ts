@@ -59,7 +59,7 @@ const newestFirst = (at: Parameters<typeof desc>[0], table: "items" | "history")
 
 type ItemRow = typeof items.$inferSelect;
 
-function toItem(row: ItemRow): Item {
+export function toItem(row: ItemRow): Item {
   return {
     id: row.id,
     householdId: row.householdId,

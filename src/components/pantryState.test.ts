@@ -369,3 +369,69 @@ describe("offers on rows", () => {
     }
   });
 });
+
+describe("event.updated", () => {
+  const base = testItem({ id: "milk", name: "milk", createdAt: 30 });
+
+  it("replaces the matching row's item and ignores an unknown id", () => {
+    const s = initialState([base, eggs]);
+    const updated = { ...base, fillStop: 2, valueSetAt: 100, valueSetBy: "a" };
+    const after = run(s, { type: "event.updated", item: updated });
+    expect(after.rows[0].item).toEqual(updated);
+    expect(after.rows[1].item).toEqual(eggs);
+    expect(run(s, { type: "event.updated", item: { ...base, id: "nope" } })).toEqual(s);
+  });
+
+  it("keeps the row's other state (an offer, a note)", () => {
+    const s = initialState([base]);
+    s.rows[0] = { ...s.rows[0], offering: true };
+    const after = run(s, {
+      type: "event.updated",
+      item: { ...base, fillStop: 1, valueSetAt: 5 },
+    });
+    expect(after.rows[0].offering).toBe(true);
+  });
+
+  it("lets a stale echo lose per group, while still taking the newer group", () => {
+    const row = { ...base, fillStop: 1, valueSetAt: 200, valueSetBy: "sam", expirySetAt: 50 };
+    const s = initialState([row]);
+    const echo = {
+      ...base,
+      fillStop: 3,
+      valueSetAt: 100,
+      valueSetBy: "alex",
+      estimatedExpiry: "2026-11-01",
+      expirySetAt: 300,
+      expirySetBy: "alex",
+    };
+    const item = run(s, { type: "event.updated", item: echo }).rows[0].item;
+    expect(item).toMatchObject({ fillStop: 1, valueSetBy: "sam", valueSetAt: 200 });
+    expect(item).toMatchObject({ estimatedExpiry: "2026-11-01", expirySetBy: "alex" });
+
+    const reverse = initialState([
+      { ...base, estimatedExpiry: "2026-12-01", expirySetAt: 400, expirySetBy: "sam" },
+    ]);
+    const kept = run(reverse, {
+      type: "event.updated",
+      item: {
+        ...base,
+        estimatedExpiry: "2026-11-01",
+        expirySetAt: 300,
+        fillStop: 2,
+        valueSetAt: 90,
+      },
+    }).rows[0].item;
+    expect(kept).toMatchObject({ estimatedExpiry: "2026-12-01", expirySetBy: "sam", fillStop: 2 });
+  });
+
+  it("treats a null stamp as older than any write, and is idempotent", () => {
+    const s = initialState([base]);
+    const write = { ...base, count: 4, valueSetAt: 10, valueSetBy: "a" };
+    const once = run(s, { type: "event.updated", item: write });
+    const twice = run(once, { type: "event.updated", item: write });
+    expect(once.rows[0].item).toMatchObject({ count: 4, valueSetAt: 10 });
+    expect(twice).toEqual(once);
+    const guessedAgain = run(once, { type: "event.updated", item: base });
+    expect(guessedAgain.rows[0].item.count).toBe(4);
+  });
+});

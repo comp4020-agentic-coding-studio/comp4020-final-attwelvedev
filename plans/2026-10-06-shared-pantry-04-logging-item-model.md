@@ -822,7 +822,7 @@ green and committed.
 
 ### Task 21: Value, measure and expiry writes with attribution and live updates
 
-- [ ] Done
+- [x] Done
 
 - **Description:** Three endpoints change an item's amount, measure and expiry.
   Each write stamps who and when, the latest wins per group, and every other

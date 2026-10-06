@@ -21,6 +21,7 @@ export type LiveEvent =
       by: Actor;
     }
   | { type: "item.restored"; item: Item; by: Actor }
+  | { type: "item.updated"; item: Item; by: Actor }
   | { type: "member.joined"; member: { id: string; name: string } }
   | { type: "member.removed"; member: { id: string; name: string }; by: Actor }
   | { type: "membership.joined"; community: { id: string; name: string } }

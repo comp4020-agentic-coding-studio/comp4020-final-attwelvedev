@@ -276,6 +276,8 @@ export function PantryList({ initial, addError }: { initial: Snapshot; addError?
         }
       } else if (e.type === "item.restored") {
         dispatch({ type: "event.restored", item: e.item });
+      } else if (e.type === "item.updated") {
+        dispatch({ type: "event.updated", item: e.item });
       } else if (e.type === "offer.mine") {
         dispatch({ type: "offer.mine", offer: e.offer });
       } else if (e.type === "membership.joined") {

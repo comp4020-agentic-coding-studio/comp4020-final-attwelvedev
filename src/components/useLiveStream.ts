@@ -5,6 +5,7 @@ const EVENT_TYPES: LiveEvent["type"][] = [
   "item.added",
   "item.removed",
   "item.restored",
+  "item.updated",
   "member.joined",
   "member.removed",
   "membership.joined",
