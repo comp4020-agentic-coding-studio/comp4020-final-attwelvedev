@@ -15,14 +15,14 @@ Files in this set:
 | `plans/2026-10-06-shared-pantry-01-proof-of-life.md` | **full** — ready to execute |
 | `plans/2026-10-06-shared-pantry-02-household-live.md` | **full** — ready to execute |
 | `plans/2026-10-06-shared-pantry-03-communities-offers.md` | outline |
-| `plans/2026-10-06-shared-pantry-04-logging-item-model.md` | outline |
+| `plans/2026-10-06-shared-pantry-04-logging-item-model.md` | Tasks 11–12 done; **full** for Tasks 13, 21, 22 — ready to execute |
 | `plans/2026-10-06-shared-pantry-05-visual-pantry.md` | outline |
 | `plans/2026-10-06-shared-pantry-06-discovery-passkeys-polish.md` | outline |
 
 - A session reads **this overview + exactly one phase file + the spec's §2**
   (`specs/2026-10-06-shared-pantry.md`). It needs nothing else.
-- Task numbers are global (Task 1–19, plus Task 20 added to phase 03 on
-  2026-10-07) across all files.
+- Task numbers are global (Task 1–19, plus Task 20 added to phase 03 and Tasks
+  21–22 added to phase 04 on 2026-10-07) across all files.
 - A phase is ticked in §5 once its phase Definition of Done is met.
 - **Outlined phases** (03–06) already fix their tasks, files, interfaces and
   acceptance criteria. Before executing one, re-run `plan-feature` Phases 2–4
@@ -292,7 +292,7 @@ something to show. It is never a start gate.
 | 01 | `…-01-proof-of-life.md` | 1–4 | — | Week 9 crit | Deployed at `https://comp4020-final-attwelvedev.fly.dev`; first run, add by name, Used/Binned with undo, history; README served; `pnpm check` green. Human review of the first screens and the README | [x] |
 | 02 | `…-02-household-live.md` | 5–7 | 01 | Week 10 crit | Invites, device links and member removal; SSE live sync under 1 s across two browsers; pantry island with optimistic updates and rollback | [x] |
 | 03 | `…-03-communities-offers.md` | 8–10, 20 | 02 | Week 10 crit | Communities joined by link or code; offer, claim, collect, release; scoped payloads; live offers feed | [x] |
-| 04 | `…-04-logging-item-model.md` | 11–13 | Tasks 11–12: 01 only. Task 13: 03 (offer-some needs Task 9) | Week 11 crit (logging) | Structured, redacted server logs; FoodKeeper guesses; measure types, estimates and moving buckets | [ ] |
+| 04 | `…-04-logging-item-model.md` | 11–13, 21–22 | Tasks 11–12: 01 only. Tasks 13, 21, 22: 03 and Task 12 (Offer some builds on Task 9) | Week 11 crit (logging) | Structured, redacted server logs; FoodKeeper guesses; measure types, estimates and moving buckets in the data and API (no UI yet); Offer some and live offer values | [ ] |
 | 05 | `…-05-visual-pantry.md` | 14–16 | 04 | Before 9 Nov (aim for week 12) | The Enamelware pantry view (tape, panel, trailing Used, keyboard model); images and photos; search combobox. Human review of the visual design | [ ] |
 | 06 | `…-06-discovery-passkeys-polish.md` | 17–19 | 03, 05 (Task 18: only Task 5) | 9 Nov, noon (submission) | Map discovery and community areas; passkeys; accessibility and viewport pass | [ ] |
 
@@ -379,9 +379,9 @@ something to show. It is never a start gate.
 | FR8 leave or remove member, revoke | Task 5 |
 | FR9 last member leaves → delete | Task 5 (offers part: Task 9) |
 | FR10 add by name + Enter, optimistic | Task 3 (server), Task 7 (optimistic) |
-| FR11 measure types and guessing | Task 12 (guess), Task 13 (model), Task 14 (controls) |
-| FR12 estimates, attribution, latest-wins | Task 13, Task 14 |
-| FR13 expiry buckets, moving, FoodKeeper | Task 12, Task 13, Task 14 |
+| FR11 measure types and guessing | Task 12 (guess), Task 13 (model, applied on add), Task 21 (change the measure), Task 14 (controls) |
+| FR12 estimates, attribution, latest-wins | Task 13 (columns), Task 21 (writes), Task 14 (display) |
+| FR13 expiry buckets, moving, FoodKeeper | Task 12, Task 13 (buckets, estimate on add), Task 21 (set bucket or exact date), Task 14 |
 | FR14 outcomes, one tap, undo, history | Task 3 (server + no-JS undo), Task 7 (toast) |
 | FR15 duplicates allowed | Task 3 |
 | FR16 image resolution chain | Task 15 |
@@ -394,13 +394,13 @@ something to show. It is never a start gate.
 | FR23 discovery by location | Task 17 |
 | FR24 join instantly, link/code, several | Task 8 (link/code), Task 17 (listed) |
 | FR25 household names only, suffix | Task 8, Task 9 |
-| FR26 offer from a sheet, some, targets | Task 9, Task 20 (offer some value reduction: Task 13) |
+| FR26 offer from a sheet, some, targets | Task 9, Task 20, Task 22 (offer some: portion split and merge; sheet control: Task 14) |
 | FR27 pickup note default | Task 9, Task 20 |
 | FR28 lifecycle | Task 9 |
 | FR29 first-come, no self-claim | Task 9 |
 | FR30 note only to claimer | Task 9 |
 | FR31 either side Collected, manual Release | Task 9, Task 10 |
-| FR32 auto-withdraw, live update, past-estimate | Task 9 (past-estimate display: Task 14) |
+| FR32 auto-withdraw, live update, past-estimate | Task 9 (auto-withdraw), Task 22 (live values on offers), Task 14 (past-estimate display) |
 | FR33 leaving withdraws and releases | Task 8, Task 9 |
 | FR34 history list and filter | Task 3 (records), Task 4 (page), Task 9 (Given filter and wording) |
 | FR35 live within ~1 s | Task 6, Task 7, Task 10 (offers, community lists) |

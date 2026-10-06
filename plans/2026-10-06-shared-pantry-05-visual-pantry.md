@@ -61,6 +61,11 @@ Overview §4.2, plus these, copied verbatim from phases 02–04 at phase start:
 - `bucketFor()`
 - the item value, measure and expiry endpoints
 
+The exact signatures, endpoint table and the list of what this phase must still
+build (send `today`, swap the pending row's defaults for the client guess,
+attribution wording, and the "Offer some…" control posting `portion`) are in
+`plans/2026-10-06-shared-pantry-04-logging-item-model.md` §4.3.
+
 ## 4. Approach
 
 The visual design follows spec §4.1 exactly.
@@ -110,7 +115,7 @@ The visual design follows spec §4.1 exactly.
 - **Human review:** the user compares the deployed screens against the spec
   §4.1 wireframes on a phone and a desktop. **Pass:** it matches the agreed
   direction and reads as Enamelware, not generic.
-- **Depends on:** Task 13.
+- **Depends on:** Tasks 13 and 21 (Task 22 for the "Offer some…" sheet control).
 
 ### Task 15: Item images: icon set, category fallback, letter tile, optional photos
 
