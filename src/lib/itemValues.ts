@@ -3,7 +3,15 @@ import type { Db } from "./db.ts";
 import { estimateFor, isCalendarDate, type SettableBucket } from "./expiry.ts";
 import type { Measure } from "./guess.ts";
 import type { Session } from "./households.ts";
-import { type Item, NotFoundError, toItem, UNITS, type Unit, ValidationError } from "./items.ts";
+import {
+  type ItemUpdate,
+  NotFoundError,
+  toItem,
+  UNITS,
+  type Unit,
+  ValidationError,
+} from "./items.ts";
+import { valueChangesFor } from "./offers.ts";
 import { items } from "./schema.ts";
 
 // Writes to what an item is: its amount, its measure and its expiry. Each
@@ -96,7 +104,7 @@ function update(
   session: Session,
   itemId: string,
   change: (row: ItemRow) => Partial<ItemRow>,
-): Item {
+): ItemUpdate {
   return db.transaction((tx) => {
     const row = tx
       .select()
@@ -112,7 +120,7 @@ function update(
     if (!row) throw new NotFoundError("No such item.");
     const set = change(row);
     tx.update(items).set(set).where(eq(items.id, row.id)).run();
-    return toItem({ ...row, ...set });
+    return { item: toItem({ ...row, ...set }), offerChanges: valueChangesFor(tx, row.id) };
   });
 }
 
@@ -121,7 +129,12 @@ const valueStamp = (session: Session) => ({
   valueSetAt: Date.now(),
 });
 
-export function setValue(db: Db, session: Session, itemId: string, change: ValueChange): Item {
+export function setValue(
+  db: Db,
+  session: Session,
+  itemId: string,
+  change: ValueChange,
+): ItemUpdate {
   return update(db, session, itemId, (row) => {
     const needs: Measure = change.kind === "count" ? "count" : "fill";
     if (row.measure !== needs)
@@ -141,7 +154,7 @@ export function setValue(db: Db, session: Session, itemId: string, change: Value
 }
 
 // The other measures' columns are kept, so switching back restores them.
-export function setMeasure(db: Db, session: Session, itemId: string, measure: Measure): Item {
+export function setMeasure(db: Db, session: Session, itemId: string, measure: Measure): ItemUpdate {
   return update(db, session, itemId, () => ({ measure, ...valueStamp(session) }));
 }
 
@@ -151,7 +164,7 @@ export function setExpiry(
   itemId: string,
   change: ExpiryChange,
   today: string,
-): Item {
+): ItemUpdate {
   return update(db, session, itemId, () => {
     const stamp = { expirySetBy: session.member.id, expirySetAt: Date.now() };
     switch (change.kind) {

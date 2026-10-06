@@ -10,6 +10,7 @@ import { openDb } from "./db.ts";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "./errors.ts";
 import { createHousehold, removeMember, type Session } from "./households.ts";
 import { addItem, listHistory, listPantry, recordOutcome, undoOutcome } from "./items.ts";
+import { setExpiry, setMeasure, setValue } from "./itemValues.ts";
 import {
   claimOffer,
   collectOffer,
@@ -184,6 +185,7 @@ describe("claimOffer", () => {
         note: "Porch, after 5",
         status: "claimed",
         claimedAt: expect.any(Number),
+        value: expect.objectContaining({ measure: "fill", category: "dairy" }),
       },
     });
     expect(won.communities.map((cm) => cm.id)).toEqual([x.id]);
@@ -534,6 +536,7 @@ describe("offersSnapshotFor", () => {
       fromName: "Unit 4",
       communityIds: [x.id],
       createdAt: expect.any(Number),
+      value: expect.objectContaining({ measure: "fill", category: "dairy" }),
     });
 
     const forC = offersSnapshotFor(db, c);
@@ -578,5 +581,252 @@ describe("offeringFor", () => {
     });
     const { offer: o } = offer("Porch");
     expect(offeringFor(db, a)).toMatchObject({ defaultPickupNote: "Porch", open: [{ id: o.id }] });
+  });
+});
+
+// Offer some: a portion of a count or fill item becomes its own item.
+describe("Offer some", () => {
+  function some() {
+    const s = setup();
+    const eggs = addItem(s.db, s.a, "eggs");
+    setValue(s.db, s.a, eggs.id, { kind: "count", count: 6 });
+    // setup()'s milk is in the pantry too, so tests read the rows they mean
+    const rows = (name: string) =>
+      listPantry(s.db, s.a.household.id).filter((i) => i.name === name);
+    const offerSome = (itemId: string, portion: number, note = "Porch") =>
+      createOffer(s.db, s.a, { itemId, note, portion });
+    const withdraw = (offerId: string) => withdrawOffer(s.db, s.a, offerId);
+    const offerRow = (id: string) =>
+      s.db.select({ id: offers.id }).from(offers).where(eq(offers.id, id)).get();
+    return { ...s, eggs, rows, offerSome, withdraw, offerRow };
+  }
+
+  it("splits a count: the portion carries the offer, the original keeps the rest", () => {
+    const { a, eggs, rows, offerSome } = some();
+    const change = offerSome(eggs.id, 3);
+    const [portion, original] = rows("eggs");
+    expect(portion).toMatchObject({ name: "eggs", count: 3, createdAt: eggs.createdAt });
+    expect(original).toMatchObject({ id: eggs.id, count: 3 });
+    expect(change.offer.itemId).toBe(portion.id);
+    expect(portion.valueSetBy).toBe(a.member.id);
+    expect(original.valueSetBy).toBe(a.member.id);
+    expect(change.split).toEqual({
+      remainder: original,
+      portion,
+      by: { id: a.member.id, name: a.member.name },
+    });
+    expect(change.merge).toBeNull();
+  });
+
+  it("splits a fill in quarters", () => {
+    const { db, a, milk, rows } = some();
+    createOffer(db, a, { itemId: milk.id, note: "Porch", portion: 1 });
+    const [portion, original] = rows("milk");
+    expect(portion.fillStop).toBe(1);
+    expect(original.fillStop).toBe(3);
+  });
+
+  it("copies the item's guess, dates and attribution to the portion", () => {
+    const { db, a, milk, rows } = some();
+    setExpiry(db, a, milk.id, { kind: "date", date: "2026-12-25" }, "2026-10-07");
+    createOffer(db, a, { itemId: milk.id, note: "Porch", portion: 2 });
+    const [portion, original] = rows("milk");
+    expect(portion).toMatchObject({
+      category: original.category,
+      iconKey: original.iconKey,
+      measure: original.measure,
+      exactExpiry: "2026-12-25",
+      estimatedExpiry: original.estimatedExpiry,
+      expirySetBy: a.member.id,
+      createdBy: original.createdBy,
+    });
+  });
+
+  it.each([0, 6, 7, -1, 2.5])("refuses a count portion of %s and changes nothing", (portion) => {
+    const { eggs, rows, offerSome } = some();
+    const before = rows("eggs");
+    expect(() => offerSome(eggs.id, portion)).toThrow(ValidationError);
+    expect(rows("eggs")).toEqual(before);
+  });
+
+  it("refuses fill portions out of range, on a quarter fill, a have item and an exact amount", () => {
+    const { db, a, milk, rows } = some();
+    const ask = (itemId: string, portion: number) =>
+      createOffer(db, a, { itemId, note: "Porch", portion });
+    for (const portion of [0, 4]) expect(() => ask(milk.id, portion)).toThrow(ValidationError);
+    const odd = addItem(db, a, "mystery thing");
+    expect(() => ask(odd.id, 1)).toThrow(ValidationError);
+    setValue(db, a, milk.id, { kind: "exact", amount: 500, unit: "ml" });
+    expect(() => ask(milk.id, 1)).toThrow(ValidationError);
+    setValue(db, a, milk.id, { kind: "fill", stop: 1 });
+    expect(() => ask(milk.id, 1)).toThrow(ValidationError);
+    expect(rows("milk")).toHaveLength(1);
+  });
+
+  it("is atomic: a household in no community is not split", () => {
+    const { db, household } = some();
+    const loner = household("Loner");
+    const item = addItem(db, loner, "eggs");
+    setValue(db, loner, item.id, { kind: "count", count: 6 });
+    expect(() => createOffer(db, loner, { itemId: item.id, note: "Hi", portion: 2 })).toThrow(
+      ValidationError,
+    );
+    const lonerRows = listPantry(db, loner.household.id);
+    expect(lonerRows).toHaveLength(1);
+    expect(lonerRows[0].count).toBe(6);
+  });
+
+  it("does not split an item that already has an open offer", () => {
+    const { db, a, milk, rows } = some();
+    createOffer(db, a, { itemId: milk.id, note: "Porch" }); // the whole milk
+    expect(() => createOffer(db, a, { itemId: milk.id, note: "Gate", portion: 1 })).toThrow(
+      ConflictError,
+    );
+    expect(rows("milk")).toHaveLength(1);
+    expect(rows("milk")[0].fillStop).toBe(4);
+  });
+
+  it("folds the portion back when its offer is withdrawn", () => {
+    const { eggs, rows, offerSome, withdraw, offerRow } = some();
+    const change = offerSome(eggs.id, 3);
+    const stamp = rows("eggs")[1].valueSetAt;
+    const portionId = change.offer.itemId;
+    const closed = withdraw(change.offer.id);
+    expect(rows("eggs")).toHaveLength(1);
+    expect(rows("eggs")[0]).toMatchObject({ id: eggs.id, count: 6, valueSetAt: stamp });
+    expect(closed.kind).toBe("closed");
+    expect(closed.merge).toMatchObject({ portionId, remainder: { id: eggs.id, count: 6 } });
+    expect(offerRow(change.offer.id)).toBeUndefined();
+  });
+
+  it("folds a fill back: 3 and 1 make 4", () => {
+    const { db, a, milk, rows, withdraw } = some();
+    const change = createOffer(db, a, { itemId: milk.id, note: "Porch", portion: 1 });
+    withdraw(change.offer.id);
+    expect(rows("milk")).toEqual([expect.objectContaining({ id: milk.id, fillStop: 4 })]);
+  });
+
+  describe("does not fold back", () => {
+    it("when the original was used", () => {
+      const { db, a, eggs, rows, offerSome, withdraw } = some();
+      const change = offerSome(eggs.id, 3);
+      recordOutcome(db, a, eggs.id, "used");
+      expect(withdraw(change.offer.id).merge).toBeNull();
+      expect(rows("eggs").map((i) => i.id)).toEqual([change.offer.itemId]);
+    });
+
+    it("when either measure was changed", () => {
+      const { db, a, eggs, rows, offerSome, withdraw } = some();
+      const change = offerSome(eggs.id, 3);
+      setMeasure(db, a, eggs.id, "have");
+      expect(withdraw(change.offer.id).merge).toBeNull();
+      expect(rows("eggs")).toHaveLength(2);
+    });
+
+    it("when either has an exact amount", () => {
+      const { db, a, milk, rows, withdraw } = some();
+      const change = createOffer(db, a, { itemId: milk.id, note: "Porch", portion: 1 });
+      setValue(db, a, milk.id, { kind: "exact", amount: 500, unit: "ml" });
+      expect(withdraw(change.offer.id).merge).toBeNull();
+      expect(rows("milk")).toHaveLength(2);
+    });
+
+    it("when the fill sum would pass 4", () => {
+      const { db, a, milk, rows, withdraw } = some();
+      const change = createOffer(db, a, { itemId: milk.id, note: "Porch", portion: 2 });
+      setValue(db, a, milk.id, { kind: "fill", stop: 4 });
+      expect(withdraw(change.offer.id).merge).toBeNull();
+      expect(rows("milk")).toHaveLength(2);
+    });
+
+    it("when the original has an offer of its own", () => {
+      const { db, a, eggs, rows, offerSome, withdraw } = some();
+      const change = offerSome(eggs.id, 3);
+      createOffer(db, a, { itemId: eggs.id, note: "Gate" });
+      expect(withdraw(change.offer.id).merge).toBeNull();
+      expect(rows("eggs")).toHaveLength(2);
+    });
+  });
+
+  it("folds back when the household leaves the offer's only community", () => {
+    const { db, a, x, eggs, rows, offerSome } = some();
+    offerSome(eggs.id, 3);
+    const leave = leaveCommunity(db, a, x.id);
+    expect(leave.offerChanges[0].merge).toMatchObject({ remainder: { id: eggs.id, count: 6 } });
+    expect(rows("eggs")).toHaveLength(1);
+  });
+
+  it("never merges a collected, used or binned portion", () => {
+    const s = some();
+    const collected = s.offerSome(s.eggs.id, 3);
+    claimOffer(s.db, s.b, collected.offer.id);
+    const { change, entry } = collectOffer(s.db, s.b, collected.offer.id);
+    expect(change.merge).toBeNull();
+    expect(entry.outcome).toBe("given");
+    expect(s.rows("eggs").map((i) => [i.id, i.count])).toEqual([[s.eggs.id, 3]]);
+
+    const used = s.offerSome(s.eggs.id, 1, "Gate");
+    const result = recordOutcome(s.db, s.a, used.offer.itemId, "used");
+    expect(result.offerChanges.every((c) => c.merge === null)).toBe(true);
+    expect(s.rows("eggs").map((i) => [i.id, i.count])).toEqual([[s.eggs.id, 2]]);
+  });
+});
+
+describe("values on offers", () => {
+  it("gives one valued change on an open offer, reflecting the write", () => {
+    const { db, a, milk, offer } = setup();
+    const posted = offer();
+    const update = setValue(db, a, milk.id, { kind: "fill", stop: 1 });
+    expect(update.item.fillStop).toBe(1);
+    expect(update.offerChanges).toHaveLength(1);
+    expect(update.offerChanges[0]).toMatchObject({
+      kind: "valued",
+      offer: { id: posted.offer.id, status: "offered" },
+      value: { measure: "fill", fillStop: 1 },
+      claim: null,
+      split: null,
+      merge: null,
+    });
+    expect(update.offerChanges[0].communities.length).toBeGreaterThan(0);
+  });
+
+  it("carries the new value to the claimer of a claimed offer, and to no community", () => {
+    const { db, a, b, milk, offer } = setup();
+    const posted = offer();
+    claimOffer(db, b, posted.offer.id);
+    const [change] = setValue(db, a, milk.id, { kind: "fill", stop: 2 }).offerChanges;
+    expect(change.kind).toBe("valued");
+    expect(change.communities).toEqual([]);
+    expect(change.claim).toEqual({
+      householdId: b.household.id,
+      offer: expect.objectContaining({
+        status: "claimed",
+        value: expect.objectContaining({ fillStop: 2 }),
+      }),
+    });
+  });
+
+  it("is empty for an item with no open offer", () => {
+    const { db, a, milk } = setup();
+    expect(setValue(db, a, milk.id, { kind: "fill", stop: 2 }).offerChanges).toEqual([]);
+    expect(setMeasure(db, a, milk.id, "count").offerChanges).toEqual([]);
+    expect(setExpiry(db, a, milk.id, { kind: "clearDate" }, "2026-10-07").offerChanges).toEqual([]);
+  });
+
+  it("is on every offer snapshot row, incoming and claimed", () => {
+    const { db, a, b, milk, offer } = setup();
+    setExpiry(db, a, milk.id, { kind: "date", date: "2026-12-25" }, "2026-10-07");
+    setValue(db, a, milk.id, { kind: "fill", stop: 3 });
+    const posted = offer();
+    const expected = {
+      category: "dairy",
+      measure: "fill",
+      fillStop: 3,
+      count: 1,
+      exactExpiry: "2026-12-25",
+    };
+    expect(offersSnapshotFor(db, b).incoming[0].value).toMatchObject(expected);
+    claimOffer(db, b, posted.offer.id);
+    expect(offersSnapshotFor(db, b).claimed[0].value).toMatchObject(expected);
   });
 });

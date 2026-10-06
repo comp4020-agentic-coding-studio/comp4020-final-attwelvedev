@@ -59,7 +59,7 @@ export async function addPantryItem(me: Client, name: string): Promise<string> {
 export function offerItem(
   me: Client,
   itemId: string,
-  fields: { note?: string; communityIds?: string[] } = {},
+  fields: { note?: string; communityIds?: string[]; portion?: string } = {},
 ): Promise<Response> {
   return me.post("/offers/create", { itemId, ...fields }, asJson);
 }

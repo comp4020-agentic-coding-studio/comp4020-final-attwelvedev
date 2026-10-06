@@ -12,6 +12,12 @@ import { history, items, members } from "./schema.ts";
 export { NotFoundError, ValidationError };
 
 export type Outcome = "used" | "binned" | "given";
+// An item write, and what it did to the item's open offer for the endpoint to publish.
+export interface ItemUpdate {
+  item: Item;
+  offerChanges: OfferChange[];
+}
+
 export type Unit = "g" | "kg" | "ml" | "L" | "count";
 export const UNITS: readonly Unit[] = ["g", "kg", "ml", "L", "count"];
 
@@ -116,6 +122,7 @@ export function insertItem(
     valueSetAt: null,
     expirySetBy: null,
     expirySetAt: null,
+    portionOf: null,
   };
   tx.insert(items).values(row).run();
   return toItem(row);

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ClaimedOffer, MyOffer, PublicOffer } from "../lib/offers.ts";
+import { testValue } from "../lib/testItem.ts";
 import {
   initialOffersState,
   type OffersAction,
@@ -19,6 +20,7 @@ const pub = (
   fromName,
   communityIds,
   createdAt,
+  value: testValue(),
 });
 const mine = (
   id: string,
@@ -42,6 +44,7 @@ const claimed = (id: string, status: ClaimedOffer["status"] = "claimed"): Claime
   note: "Porch",
   status,
   claimedAt: 9,
+  value: testValue(),
 });
 
 const communities = [{ id: "x", name: "Elm" }];
@@ -314,5 +317,30 @@ describe("taps with rollback", () => {
     const base = run(empty(), { type: "offer.mine", offer: mine("a", "claimed", "Flat 2") });
     const once = run(base, { type: "tap.pending", offerId: "a", kind: "release" });
     expect(run(once, { type: "tap.pending", offerId: "a", kind: "withdraw" })).toEqual(once);
+  });
+});
+
+describe("offer values", () => {
+  it("offer.updated replaces an incoming row's value and keeps taken and busy", () => {
+    let s = run(empty(), { type: "offer.posted", offer: pub("o1", "Unit 4", 5) });
+    s = run(s, { type: "claim.pending", offerId: "o1" }, { type: "offer.taken", offerId: "o1" });
+    const value = testValue({ measure: "count", count: 4 });
+    s = run(s, { type: "offer.updated", offer: { ...pub("o1", "Unit 4", 5), value } });
+    expect(s.incoming[0].offer.value).toEqual(value);
+    expect(s.incoming[0]).toMatchObject({ taken: true });
+    expect(s.incoming[0].offer.fromName).toBe("Unit 4");
+  });
+
+  it("offer.updated for an unknown offer is a no-op", () => {
+    const s = empty();
+    expect(run(s, { type: "offer.updated", offer: pub("nope", "Unit 4", 5) })).toEqual(s);
+  });
+
+  it("offer.claim with a new value replaces the claimed row's value", () => {
+    let s = run(empty(), { type: "offer.claim", offer: claimed("o1") });
+    const value = testValue({ measure: "fill", fillStop: 1 });
+    s = run(s, { type: "offer.claim", offer: { ...claimed("o1"), value } });
+    expect(s.claimed).toHaveLength(1);
+    expect(s.claimed[0].value).toEqual(value);
   });
 });

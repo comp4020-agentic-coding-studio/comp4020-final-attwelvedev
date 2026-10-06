@@ -157,3 +157,52 @@ describe("A neighbour never learns who claimed", () => {
     }
   });
 });
+
+// What an item is travels with an offer; who said so never does.
+describe("An item's setter stays in its household", () => {
+  it("names Sam, and carries no setter key, in anything a neighbour or claimer receives", async () => {
+    const { offerer, neighbour, claimer, communityId } = await neighbourhood(baseUrl);
+    const sam = (await (await offerer.get("/api/pantry", asJson)).json()) as { me: { id: string } };
+    const streams = [
+      await openStreamFor(baseUrl, neighbour),
+      await openStreamFor(baseUrl, claimer),
+    ];
+
+    const eggs = (await (await offerer.post("/items", { name: "eggs" }, asJson)).json()) as {
+      item: { id: string };
+    };
+    await offerer.post(`/items/${eggs.item.id}/measure`, { measure: "count" }, asJson);
+    await offerer.post(`/items/${eggs.item.id}/value`, { count: "6" }, asJson);
+    await offerer.post(`/items/${eggs.item.id}/expiry`, { date: "2026-12-25" }, asJson);
+    const offered = await offerer.post(
+      "/offers/create",
+      { itemId: eggs.item.id, note: "Porch", portion: "3" },
+      asJson,
+    );
+    const { offer } = (await offered.json()) as { offer: { id: string } };
+    await claim(claimer, offer.id);
+    const portionId = (await (await offerer.get("/api/pantry", asJson)).json()) as {
+      offering: { open: { itemId: string }[] };
+    };
+    await offerer.post(`/items/${portionId.offering.open[0].itemId}/value`, { count: "2" }, asJson);
+
+    const frames = [];
+    for (const stream of streams) frames.push(...(await drain(stream)));
+    for (const stream of streams) stream.close();
+
+    const seenBy = [
+      await everythingSeenBy(neighbour, communityId),
+      await everythingSeenBy(claimer, communityId),
+    ];
+    const everything = [...seenBy.flat(), JSON.stringify(frames)];
+    for (const body of everything) {
+      expect(body).not.toContain(sam.me.id);
+      expect(body).not.toContain("valueSetBy");
+      expect(body).not.toContain("expirySetBy");
+    }
+    // the JSON and the streams never name Sam either (pages are swept for ids above)
+    for (const body of [...seenBy.flatMap((list) => list.slice(-2)), JSON.stringify(frames)]) {
+      expect(body).not.toContain("Sam");
+    }
+  });
+});

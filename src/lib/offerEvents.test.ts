@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { createCommunity, joinCommunityByCode } from "./communities.ts";
 import { openDb } from "./db.ts";
 import { createHousehold, type Session } from "./households.ts";
-import { addItem } from "./items.ts";
+import { addItem, type Item } from "./items.ts";
+import { setValue } from "./itemValues.ts";
 import { collectedEvents, offerEvents } from "./offerEvents.ts";
 import {
   claimOffer,
@@ -14,6 +15,7 @@ import {
   updateOfferNote,
   withdrawOffer,
 } from "./offers.ts";
+import { testItem, testValue } from "./testItem.ts";
 
 const mine: MyOffer = {
   id: "o1",
@@ -30,6 +32,7 @@ const communities = [
   { id: "c1", fromName: "Unit 4" },
   { id: "c2", fromName: "Unit 4 · 2" },
 ];
+const value = testValue({ measure: "fill", fillStop: 2, category: "dairy" });
 const claim = {
   householdId: "hB",
   offer: {
@@ -39,9 +42,18 @@ const claim = {
     note: "SECRET-NOTE",
     status: "claimed" as const,
     claimedAt: 9,
+    value,
   },
 };
-const base = { offer: mine, offererHouseholdId: "hA", communities, claim: null };
+const base = {
+  offer: mine,
+  offererHouseholdId: "hA",
+  communities,
+  claim: null,
+  value,
+  split: null,
+  merge: null,
+};
 const shape = (change: OfferChange) =>
   offerEvents(change).map((r) => `${r.channel} ${r.event.type}`);
 
@@ -102,6 +114,7 @@ describe("offerEvents: channels and order", () => {
           fromName: "Unit 4",
           communityIds: ["c1"],
           createdAt: 5,
+          value,
         },
       },
       {
@@ -113,9 +126,80 @@ describe("offerEvents: channels and order", () => {
           fromName: "Unit 4 · 2",
           communityIds: ["c2"],
           createdAt: 5,
+          value,
         },
       },
     ]);
+  });
+});
+
+describe("offerEvents: Offer some and values", () => {
+  const by = { id: "mA", name: "Sam" };
+  const remainder: Item = testItem({ id: "orig", householdId: "hA", count: 3 });
+  const portion: Item = testItem({ id: "part", householdId: "hA", count: 3 });
+
+  it("a split: item.updated, item.added (no rid), then offer.mine, on the household first", () => {
+    const routed = offerEvents({
+      ...base,
+      kind: "posted",
+      split: { remainder, portion, by },
+    });
+    expect(routed.slice(0, 3).map((r) => `${r.channel} ${r.event.type}`)).toEqual([
+      "household:hA item.updated",
+      "household:hA item.added",
+      "household:hA offer.mine",
+    ]);
+    expect(routed[0].event).toEqual({ type: "item.updated", item: remainder, by });
+    expect(routed[1].event).toEqual({ type: "item.added", item: portion, by });
+    expect(routed[3].event.type).toBe("offer.posted");
+  });
+
+  it("a merge ends with item.merged", () => {
+    const routed = offerEvents({
+      ...base,
+      kind: "closed",
+      merge: { portionId: "part", remainder },
+    });
+    expect(shape({ ...base, kind: "closed" })).not.toContain("household:hA item.merged");
+    const last = routed[routed.length - 1];
+    expect(last.channel).toBe("household:hA");
+    expect(last.event).toEqual({ type: "item.merged", itemId: "part", item: remainder });
+  });
+
+  it("a valued change on an offered offer is offer.updated per community, with the value only", () => {
+    const routed = offerEvents({ ...base, kind: "valued" });
+    expect(routed.map((r) => `${r.channel} ${r.event.type}`)).toEqual([
+      "community:c1 offer.updated",
+      "community:c2 offer.updated",
+    ]);
+    expect(routed[1].event).toEqual({
+      type: "offer.updated",
+      communityId: "c2",
+      offer: {
+        id: "o1",
+        itemName: "milk",
+        fromName: "Unit 4 · 2",
+        communityIds: ["c2"],
+        createdAt: 5,
+        value,
+      },
+    });
+    const text = JSON.stringify(routed);
+    for (const secret of ["hA", "valueSetBy", "Porch", "SECRET"])
+      expect(text).not.toContain(secret);
+  });
+
+  it("a valued change on a claimed offer is offer.claim to the claimer and nothing else", () => {
+    const routed = offerEvents({ ...base, kind: "valued", communities: [], claim });
+    expect(routed.map((r) => `${r.channel} ${r.event.type}`)).toEqual(["household:hB offer.claim"]);
+    expect(routed[0].event).toMatchObject({ offer: { value } });
+  });
+
+  it("offer.posted carries the value", () => {
+    const posted = offerEvents({ ...base, kind: "posted" }).find(
+      (r) => r.event.type === "offer.posted",
+    );
+    expect(posted?.event).toMatchObject({ offer: { value } });
   });
 });
 
@@ -239,5 +323,41 @@ describe("collectedEvents", () => {
     const [routed] = collectedEvents({ ...entry, memberId: null, memberName: null }, false);
     expect(routed.channel).toBe("household:hA");
     expect(routed.event).toMatchObject({ by: { id: "", name: "a neighbour" } });
+  });
+});
+
+describe("offerEvents: setters stay inside the household", () => {
+  it("no community or claimer event carries who set a value, or the offerer's member id", () => {
+    const db = openDb(":memory:");
+    const household = (name: string): Session =>
+      createHousehold(db, { householdName: name, memberName: `${name} person` });
+    const a = household("Unit 4");
+    const b = household("Flat 2");
+    const x = createCommunity(db, a, "Elm Street");
+    joinCommunityByCode(db, b, x.joinCode);
+    const eggs = addItem(db, a, "eggs");
+    setValue(db, a, eggs.id, { kind: "count", count: 6 });
+
+    const changes: OfferChange[] = [];
+    const posted = createOffer(db, a, { itemId: eggs.id, note: "Porch", portion: 3 });
+    changes.push(posted);
+    changes.push(...setValue(db, a, posted.offer.itemId, { kind: "count", count: 2 }).offerChanges);
+    changes.push(claimOffer(db, b, posted.offer.id));
+    changes.push(...setValue(db, a, posted.offer.itemId, { kind: "count", count: 1 }).offerChanges);
+    changes.push(releaseOffer(db, b, posted.offer.id));
+    changes.push(withdrawOffer(db, a, posted.offer.id));
+
+    const outward = changes
+      .flatMap(offerEvents)
+      .filter(
+        (r) => r.channel.startsWith("community:") || r.channel === `household:${b.household.id}`,
+      );
+    expect(outward.length).toBeGreaterThan(0);
+    for (const r of outward) {
+      const text = JSON.stringify(r.event);
+      for (const forbidden of ["valueSetBy", "expirySetBy", "createdBy", a.member.id]) {
+        expect(text).not.toContain(forbidden);
+      }
+    }
   });
 });

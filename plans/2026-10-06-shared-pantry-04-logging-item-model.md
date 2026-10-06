@@ -3,8 +3,8 @@
 - **Date:** 2026-10-06 (Tasks 11–12 re-planned against the phase 02 code at
   `364c91e` on 2026-10-07; Task 13 re-planned and split into Tasks 13, 21 and 22
   against the code at `43c6d87` on 2026-10-07)
-- **Status:** Tasks 11–12 are **done** (`b267898`, `6704cba`). **Tasks 13, 21 and
-  22: Approved.**
+- **Status:** Tasks 11–12 are **done** (`b267898`, `6704cba`); Tasks 13, 21 and 22
+  are **done** (see `git log`). The post-deploy checks in §6 remain.
 - **Requirements confirmed by user:** yes — 2026-10-06; Tasks 13, 21 and 22
   re-confirmed 2026-10-07 (split into three, Offer some splits into a new item
   and merges back on withdraw, data and API only, the attribution, date and
@@ -952,7 +952,7 @@ green and committed.
 
 ### Task 22: Offer some, and values on live offers
 
-- [ ] Done
+- [x] Done
 
 - **Description:** An offer can cover part of a count or fill item: the portion
   becomes its own item that carries the offer, and withdrawing the offer folds it
@@ -1103,14 +1103,18 @@ green and committed.
 - **Human review:** none. Everything is data and events with automated checks.
 - **Depends on:** Task 21 (the writers it extends), Task 9 and Task 20 (done at
   `9cca7c9` and `42655e7`).
+- **Found in execution:** `0007` had the same drizzle-kit gap as `0006` (no `ON DELETE
+  set null` on the `ADD COLUMN` reference) and was hand-edited the same way;
+  `migrations.test.ts` pins it. `valueOf` was renamed `offerValueOf` (Biome refuses
+  to shadow the global).
 
 ## 6. Phase Definition of Done
 
 - [x] Tasks 11–12 complete, each committed with `pnpm check` green
 - [x] Task 11 human review accepted
 - [x] Task 12 human review accepted
-- [ ] Tasks 13, 21 and 22 complete, each committed with `pnpm check` green
-- [ ] `pnpm test` passes with the app running (`pnpm build && pnpm start`)
+- [x] Tasks 13, 21 and 22 complete, each committed with `pnpm check` green
+- [x] `pnpm test` passes with the app running (`pnpm build && pnpm start`)
 - [ ] After the deploy, the machine boots with migrations `0006` and `0007`
       applied over the existing volume: `mise exec -- flyctl logs -a
       comp4020-final-attwelvedev` shows no migration error, and an existing

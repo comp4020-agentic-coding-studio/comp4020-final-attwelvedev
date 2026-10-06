@@ -3,14 +3,14 @@ import { openDb } from "./db.ts";
 import { bucketFor } from "./expiry.ts";
 import { createHousehold, createInviteLink, joinByLink } from "./households.ts";
 import { addItem, listPantry, NotFoundError, recordOutcome, ValidationError } from "./items.ts";
-import {
-  parseExpiryChange,
-  parseMeasure,
-  parseValueChange,
-  setExpiry,
-  setMeasure,
-  setValue,
-} from "./itemValues.ts";
+import * as values from "./itemValues.ts";
+import { parseExpiryChange, parseMeasure, parseValueChange } from "./itemValues.ts";
+
+// the writers return an ItemUpdate; these tests are about the item
+const setValue = (...args: Parameters<typeof values.setValue>) => values.setValue(...args).item;
+const setMeasure = (...args: Parameters<typeof values.setMeasure>) =>
+  values.setMeasure(...args).item;
+const setExpiry = (...args: Parameters<typeof values.setExpiry>) => values.setExpiry(...args).item;
 
 function setup() {
   const db = openDb(":memory:");

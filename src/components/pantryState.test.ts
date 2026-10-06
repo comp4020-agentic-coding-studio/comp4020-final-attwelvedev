@@ -435,3 +435,36 @@ describe("event.updated", () => {
     expect(guessedAgain.rows[0].item.count).toBe(4);
   });
 });
+
+describe("event.merged", () => {
+  const original = testItem({ id: "orig", name: "eggs", createdAt: 20, count: 3 });
+  const portion = testItem({ id: "part", name: "eggs", createdAt: 20, count: 3 });
+
+  it("removes the portion's row and replaces the original's item", () => {
+    const s = initialState([portion, original, milk]);
+    const merged = { ...original, count: 6 };
+    const after = run(s, { type: "event.merged", itemId: "part", item: merged });
+    expect(after.rows.map((r) => r.item.id)).toEqual(["orig", "milk"]);
+    expect(after.rows[0].item.count).toBe(6);
+  });
+
+  it("is a no-op for an unknown portion id", () => {
+    const s = initialState([original]);
+    expect(
+      run(s, { type: "event.merged", itemId: "nope", item: { ...original, count: 9 } }),
+    ).toEqual(s);
+  });
+});
+
+describe("a portion arriving as event.added", () => {
+  it("is inserted next to its original, before it", () => {
+    const original = testItem({ id: "orig", name: "eggs", createdAt: 20, count: 3 });
+    const portion = testItem({ id: "part", name: "eggs", createdAt: 20, count: 3 });
+    const s = run(
+      initialState([milk, original, bread]),
+      { type: "event.added", item: portion },
+      { type: "event.added", item: portion },
+    );
+    expect(s.rows.map((r) => r.item.id)).toEqual(["milk", "part", "orig", "bread"]);
+  });
+});

@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { Db, Tx } from "./db.ts";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "./errors.ts";
+import type { Category, Measure } from "./guess.ts";
 import type { Session } from "./households.ts";
-import type { HistoryEntry } from "./items.ts";
+import { type HistoryEntry, type Item, toItem, type Unit } from "./items.ts";
 import {
   communities,
   communityHouseholds,
@@ -16,6 +17,20 @@ import {
 
 export type OfferStatus = "offered" | "claimed" | "collected" | "withdrawn";
 
+// What an item is, for the neighbours and the claimer: its amount and dates,
+// never who said so (no valueSetBy or expirySetBy, no member id).
+export interface OfferValue {
+  category: Category;
+  iconKey: string | null;
+  measure: Measure;
+  fillStop: number;
+  count: number;
+  exactAmount: number | null;
+  exactUnit: Unit | null;
+  estimatedExpiry: string | null;
+  exactExpiry: string | null;
+}
+
 // What a neighbour sees: no note, no claimer, no id of the offering household.
 export interface PublicOffer {
   id: string;
@@ -23,6 +38,7 @@ export interface PublicOffer {
   fromName: string;
   communityIds: string[];
   createdAt: number;
+  value: OfferValue;
 }
 // The offerer's view. It carries the offer's own note so the household can read
 // and edit it per item; no neighbour's view ever does.
@@ -45,12 +61,28 @@ export interface ClaimedOffer {
   note: string;
   status: "claimed" | "released" | "collected" | "withdrawn";
   claimedAt: number;
+  value: OfferValue;
+}
+// Offer some made a new item from part of one: both rows as they now stand, for
+// the household's own events.
+export interface ItemSplit {
+  remainder: Item;
+  portion: Item;
+  by: { id: string; name: string };
+}
+// A withdrawn portion folded back into its original, which now holds the sum.
+export interface ItemMerge {
+  portionId: string;
+  remainder: Item;
 }
 // One change to one offer as a self-contained value, so its events can be built
 // with no database read (a deleted household's offers are gone after the commit).
 export interface OfferChange {
-  kind: "posted" | "taken" | "closed" | "note";
+  kind: "posted" | "taken" | "closed" | "note" | "valued";
   offer: MyOffer; // the offerer's view after the change
+  value: OfferValue; // what the item is, for the events neighbours and the claimer hear
+  split: ItemSplit | null; // set when this offer was made from part of an item
+  merge: ItemMerge | null; // set when withdrawing folded a portion back
   offererHouseholdId: string;
   communities: { id: string; fromName: string }[]; // where neighbours hear of it, in announce order
   claim: { householdId: string; offer: ClaimedOffer } | null; // the claim this change touched
@@ -84,6 +116,15 @@ interface OfferRow {
   claimedCommunityId: string | null;
   claimedAt: number | null;
   createdAt: number;
+  category: Category;
+  iconKey: string | null;
+  measure: Measure;
+  fillStop: number;
+  count: number;
+  exactAmount: number | null;
+  exactUnit: Unit | null;
+  estimatedExpiry: string | null;
+  exactExpiry: string | null;
 }
 
 const offerColumns = {
@@ -97,7 +138,28 @@ const offerColumns = {
   claimedCommunityId: offers.claimedCommunityId,
   claimedAt: offers.claimedAt,
   createdAt: offers.createdAt,
+  category: items.category,
+  iconKey: items.iconKey,
+  measure: items.measure,
+  fillStop: items.fillStop,
+  count: items.count,
+  exactAmount: items.exactAmount,
+  exactUnit: items.exactUnit,
+  estimatedExpiry: items.estimatedExpiry,
+  exactExpiry: items.exactExpiry,
 };
+
+const offerValueOf = (row: OfferRow): OfferValue => ({
+  category: row.category,
+  iconKey: row.iconKey,
+  measure: row.measure,
+  fillStop: row.fillStop,
+  count: row.count,
+  exactAmount: row.exactAmount,
+  exactUnit: row.exactUnit,
+  estimatedExpiry: row.estimatedExpiry,
+  exactExpiry: row.exactExpiry,
+});
 
 // Oldest community first, ties by id: the order events are announced in, and
 // the order that decides which display name a neighbour sees.
@@ -170,6 +232,7 @@ function claimedOf(tx: Reader, row: OfferRow, status: ClaimedOffer["status"]): C
     note: row.pickupNote,
     status,
     claimedAt: row.claimedAt ?? 0,
+    value: offerValueOf(row),
   };
 }
 
@@ -177,7 +240,11 @@ function changeOf(
   tx: Reader,
   offerId: string,
   kind: OfferChange["kind"],
-  extra: { communities?: Target[]; claim?: OfferChange["claim"] } = {},
+  extra: {
+    communities?: Target[];
+    claim?: OfferChange["claim"];
+    split?: ItemSplit;
+  } = {},
 ): OfferChange {
   const row = readOffer(tx, offerId);
   if (!row) throw new NotFoundError("No such offer.");
@@ -185,6 +252,9 @@ function changeOf(
   return {
     kind,
     offer: myOfferOf(tx, row, targets),
+    value: offerValueOf(row),
+    split: extra.split ?? null,
+    merge: null,
     offererHouseholdId: row.householdId,
     communities: extra.communities ?? targets,
     claim: extra.claim ?? null,
@@ -213,12 +283,12 @@ function communitiesOf(tx: Reader, householdId: string): { id: string; name: str
 export function createOffer(
   db: Db,
   session: Session,
-  input: { itemId: string; note?: string; communityIds?: string[] },
+  input: { itemId: string; note?: string; communityIds?: string[]; portion?: number },
 ): OfferChange {
   return db.transaction((tx) => {
     const householdId = session.household.id;
     const item = tx
-      .select({ id: items.id })
+      .select()
       .from(items)
       .where(
         and(
@@ -252,11 +322,15 @@ export function createOffer(
       .where(eq(households.id, householdId))
       .run();
 
+    // the split runs after every refusal above, so a refused offer never splits
+    const split =
+      input.portion === undefined ? undefined : splitItem(tx, session, item, input.portion);
+
     const id = randomUUID();
     tx.insert(offers)
       .values({
         id,
-        itemId: item.id,
+        itemId: split ? split.portion.id : item.id,
         householdId,
         pickupNote: note,
         status: "offered",
@@ -265,8 +339,81 @@ export function createOffer(
       .run();
     for (const communityId of targets)
       tx.insert(offerTargets).values({ offerId: id, communityId }).run();
-    return changeOf(tx, id, "posted");
+    return changeOf(tx, id, "posted", { split });
   });
+}
+
+// Offer some: part of a count or fill item becomes its own item (a portion
+// that carries the offer) and the original keeps the rest. Both rows are
+// stamped as set by the offering member just now.
+function splitItem(
+  tx: Tx,
+  session: Session,
+  item: typeof items.$inferSelect,
+  portion: number,
+): ItemSplit {
+  const whole = Number.isInteger(portion);
+  let left: Partial<typeof items.$inferSelect>;
+  let part: Partial<typeof items.$inferSelect>;
+  if (item.measure === "count" && whole && portion >= 1 && portion <= item.count - 1) {
+    left = { count: item.count - portion };
+    part = { count: portion };
+  } else if (
+    item.measure === "fill" &&
+    item.exactAmount === null &&
+    whole &&
+    portion >= 1 &&
+    portion <= item.fillStop - 1
+  ) {
+    left = { fillStop: item.fillStop - portion };
+    part = { fillStop: portion };
+  } else {
+    throw new ValidationError("That isn't an amount you can split off.");
+  }
+  const stamp = { valueSetBy: session.member.id, valueSetAt: Date.now() };
+  tx.update(items)
+    .set({ ...left, ...stamp })
+    .where(eq(items.id, item.id))
+    .run();
+  const row = { ...item, id: randomUUID(), ...part, ...stamp, portionOf: item.id };
+  tx.insert(items).values(row).run();
+  return {
+    remainder: toItem({ ...item, ...left, ...stamp }),
+    portion: toItem(row),
+    by: { id: session.member.id, name: session.member.name },
+  };
+}
+
+// Withdrawing a portion's offer folds it back into the original when that is
+// still sensible: the original is in the pantry with no offer of its own, both
+// are counts or both fills with no exact amount, and the sum fits. Called after
+// the offer's status is updated, and before nothing else deletes the portion
+// row (its offer rows cascade), so the `closed` change is built first.
+function mergePortionBack(tx: Tx, itemId: string): ItemMerge | null {
+  const portion = tx.select().from(items).where(eq(items.id, itemId)).get();
+  if (!portion || portion.removedAt !== null || portion.portionOf === null) return null;
+  const original = tx.select().from(items).where(eq(items.id, portion.portionOf)).get();
+  if (!original || original.removedAt !== null) return null;
+  if (original.measure !== portion.measure) return null;
+  if (original.exactAmount !== null || portion.exactAmount !== null) return null;
+  const hasOffer = tx
+    .select({ id: offers.id })
+    .from(offers)
+    .where(and(eq(offers.itemId, original.id), inArray(offers.status, [...OPEN])))
+    .get();
+  if (hasOffer) return null;
+
+  let sum: Partial<typeof items.$inferSelect>;
+  if (original.measure === "count" && original.count + portion.count <= 999) {
+    sum = { count: original.count + portion.count };
+  } else if (original.measure === "fill" && original.fillStop + portion.fillStop <= 4) {
+    sum = { fillStop: original.fillStop + portion.fillStop };
+  } else {
+    return null;
+  }
+  tx.update(items).set(sum).where(eq(items.id, original.id)).run();
+  tx.delete(items).where(eq(items.id, portion.id)).run();
+  return { portionId: portion.id, remainder: toItem({ ...original, ...sum }) };
 }
 
 // The caller as a side of the offer: the offerer, the claimer, or neither
@@ -377,7 +524,9 @@ export function withdrawOffer(db: Db, session: Session, offerId: string): OfferC
     if (row.status !== "offered" && row.status !== "claimed") {
       throw new ConflictError("That offer is already closed.");
     }
-    return withdrawRow(tx, row);
+    const change = withdrawRow(tx, row);
+    const merge = mergePortionBack(tx, row.itemId);
+    return merge ? { ...change, merge } : change;
   });
 }
 
@@ -471,6 +620,27 @@ export function withdrawOpenOffersForItem(tx: Tx, itemId: string): OfferChange[]
     .map(({ id }) => withdrawRow(tx, requireOffer(tx, id)));
 }
 
+// Called by the item writers inside their transaction: what an open offer on
+// the item now shows. A claimed offer is told to its claimer alone; the
+// neighbours' copy is gone from their feed already.
+export function valueChangesFor(tx: Tx, itemId: string): OfferChange[] {
+  const open = tx
+    .select({ id: offers.id })
+    .from(offers)
+    .where(and(eq(offers.itemId, itemId), inArray(offers.status, [...OPEN])))
+    .get();
+  if (!open) return [];
+  const row = requireOffer(tx, open.id);
+  if (row.status === "claimed" && row.claimedByHouseholdId) {
+    const claim = {
+      householdId: row.claimedByHouseholdId,
+      offer: claimedOf(tx, row, "claimed"),
+    };
+    return [changeOf(tx, row.id, "valued", { communities: [], claim })];
+  }
+  return [changeOf(tx, row.id, "valued")];
+}
+
 // Called by leaving a community, before the household's membership row goes
 // (its display name there is still needed). Covers the leaver's own open
 // offers and the claims it made through that community.
@@ -506,7 +676,9 @@ export function retargetOnLeave(tx: Tx, householdId: string, communityId: string
           ? { householdId: row.claimedByHouseholdId, offer: claimedOf(tx, row, "withdrawn") }
           : null;
       tx.update(offers).set({ status: "withdrawn" }).where(eq(offers.id, id)).run();
-      changes.push(changeOf(tx, id, "closed", { communities: [left], claim }));
+      const closed = changeOf(tx, id, "closed", { communities: [left], claim });
+      const merge = mergePortionBack(tx, row.itemId);
+      changes.push(merge ? { ...closed, merge } : closed);
     } else if (row.status === "claimed" && row.claimedCommunityId === communityId) {
       const claim = row.claimedByHouseholdId
         ? { householdId: row.claimedByHouseholdId, offer: claimedOf(tx, row, "released") }
@@ -587,6 +759,7 @@ export function offersSnapshotFor(db: Db, session: Session): OffersSnapshot {
         fromName: shared[0]?.fromName ?? "",
         communityIds: shared.map((t) => t.id),
         createdAt: row.createdAt,
+        value: offerValueOf(row),
       });
     }
   }

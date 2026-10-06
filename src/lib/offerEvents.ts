@@ -8,14 +8,28 @@ import type { OfferChange } from "./offers.ts";
 //   - the claimer's name appears only in the offerer's offer.mine
 //   - community channels get the offer's name and the display name it is
 //     shown under, never a household or member id
-// Order for one change: offer.mine, offer.claim, then the community events in
-// announce order. A feed relies on offer.mine arriving first so a household's
-// own offer is never shown as someone else's.
+//   - what an item is (amount, dates) travels with an offer, never who set it
+// Order for one change: for Offer some the household's item.updated (the
+// remainder) and item.added (the portion), so the portion's row exists before
+// offer.mine names it; then offer.mine, offer.claim, the community events in
+// announce order; and last item.merged when a withdrawn portion folded back. A
+// feed relies on offer.mine arriving first so a household's own offer is never
+// shown as someone else's. A value change sends no offer.mine: the household's
+// item events already carry it.
 export function offerEvents(change: OfferChange): Routed[] {
   const { offer } = change;
-  const routed: Routed[] = [
-    { channel: householdChannel(change.offererHouseholdId), event: { type: "offer.mine", offer } },
-  ];
+  const household = householdChannel(change.offererHouseholdId);
+  const routed: Routed[] = [];
+  if (change.split) {
+    const { remainder, portion, by } = change.split;
+    routed.push(
+      { channel: household, event: { type: "item.updated", item: remainder, by } },
+      { channel: household, event: { type: "item.added", item: portion, by } },
+    );
+  }
+  if (change.kind !== "valued") {
+    routed.push({ channel: household, event: { type: "offer.mine", offer } });
+  }
   if (change.claim) {
     routed.push({
       channel: householdChannel(change.claim.householdId),
@@ -37,6 +51,23 @@ export function offerEvents(change: OfferChange): Routed[] {
             fromName: community.fromName,
             communityIds: [communityId],
             createdAt: offer.createdAt,
+            value: change.value,
+          },
+        },
+      });
+    } else if (change.kind === "valued") {
+      routed.push({
+        channel,
+        event: {
+          type: "offer.updated",
+          communityId,
+          offer: {
+            id: offer.id,
+            itemName: offer.itemName,
+            fromName: community.fromName,
+            communityIds: [communityId],
+            createdAt: offer.createdAt,
+            value: change.value,
           },
         },
       });
@@ -45,6 +76,12 @@ export function offerEvents(change: OfferChange): Routed[] {
     } else if (change.kind === "closed") {
       routed.push({ channel, event: { type: "offer.closed", communityId, offerId: offer.id } });
     }
+  }
+  if (change.merge) {
+    routed.push({
+      channel: household,
+      event: { type: "item.merged", itemId: change.merge.portionId, item: change.merge.remainder },
+    });
   }
   return routed;
 }

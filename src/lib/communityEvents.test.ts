@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Community, CommunityJoin, CommunityLeave } from "./communities.ts";
 import { joinedEvents, leftEvents } from "./communityEvents.ts";
+import { testValue } from "./testItem.ts";
 
 const community: Community = {
   id: "c1",
@@ -85,6 +86,9 @@ describe("leftEvents with offer changes", () => {
       offererHouseholdId: "h2",
       communities: [{ id: "c1", fromName: "Unit 4" }],
       claim: null,
+      value: testValue(),
+      split: null,
+      merge: null,
     };
     const types = leftEvents({ ...leave, offerChanges: [change] }).map(
       (r) => `${r.channel} ${r.event.type}`,

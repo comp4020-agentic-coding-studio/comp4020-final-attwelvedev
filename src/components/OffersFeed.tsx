@@ -123,6 +123,14 @@ export function OffersFeed({
           } else dispatch({ type: "offer.posted", offer: e.offer });
           break;
         }
+        case "offer.updated":
+          // an offer still held behind the "new offer" pill is edited in place too
+          setHeld((all) => {
+            const held = all.get(e.offer.id);
+            return held ? new Map(all).set(held.id, { ...held, value: e.offer.value }) : all;
+          });
+          dispatch({ type: "offer.updated", offer: e.offer });
+          break;
         case "offer.taken":
           unhold(e.offerId);
           dispatch({ type: "offer.taken", offerId: e.offerId });

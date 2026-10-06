@@ -22,6 +22,8 @@ export type LiveEvent =
     }
   | { type: "item.restored"; item: Item; by: Actor }
   | { type: "item.updated"; item: Item; by: Actor }
+  // a withdrawn portion folded back: `itemId` is the portion's row, `item` the original now
+  | { type: "item.merged"; itemId: string; item: Item }
   | { type: "member.joined"; member: { id: string; name: string } }
   | { type: "member.removed"; member: { id: string; name: string }; by: Actor }
   | { type: "membership.joined"; community: { id: string; name: string } }
@@ -39,6 +41,7 @@ export type LiveEvent =
     }
   // built only by offerEvents (src/lib/offerEvents.ts), which decides who may hear what
   | { type: "offer.posted"; communityId: string; offer: PublicOffer }
+  | { type: "offer.updated"; communityId: string; offer: PublicOffer }
   | { type: "offer.taken"; communityId: string; offerId: string }
   | { type: "offer.closed"; communityId: string; offerId: string }
   | { type: "offer.mine"; offer: MyOffer }

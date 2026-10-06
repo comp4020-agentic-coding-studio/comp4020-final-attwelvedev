@@ -57,6 +57,7 @@ export type Action =
   | { type: "event.removed"; itemId: string; outcome: Outcome; byName: string; mine: boolean }
   | { type: "event.restored"; item: Item }
   | { type: "event.updated"; item: Item }
+  | { type: "event.merged"; itemId: string; item: Item }
   | { type: "offers.snapshot"; open: MyOffer[] }
   | { type: "offer.mine"; offer: MyOffer }
   | { type: "offer.noted"; itemId: string; note: string }
@@ -249,6 +250,18 @@ export function pantryReducer(state: PantryState, action: Action): PantryState {
           item: mergeUpdated(r.item, action.item),
         })),
       };
+
+    case "event.merged": {
+      if (!has(rows, action.itemId)) return state;
+      return {
+        ...state,
+        rows: mapRow(
+          rows.filter((r) => r.item.id !== action.itemId),
+          action.item.id,
+          (r) => ({ ...r, item: mergeUpdated(r.item, action.item) }),
+        ),
+      };
+    }
 
     case "offers.snapshot": {
       const open = new Map(action.open.map((o) => [o.itemId, asRowOffer(o)]));

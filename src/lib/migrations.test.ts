@@ -69,3 +69,35 @@ describe("migration 0006 (the item model)", () => {
     });
   });
 });
+
+describe("migration 0007 (portions)", () => {
+  it("keeps an item that predates it, with no portion", () => {
+    const client = new Database(":memory:");
+    applyThrough(client, 0, 6);
+    client.exec("PRAGMA foreign_keys = OFF");
+    client
+      .prepare("INSERT INTO items (id, household_id, name, created_at) VALUES (?, ?, ?, ?)")
+      .run("i1", "h1", "old milk", 1);
+
+    applyThrough(client, 7, 7);
+
+    expect(client.prepare("SELECT name, portion_of FROM items WHERE id = 'i1'").get()).toEqual({
+      name: "old milk",
+      portion_of: null,
+    });
+  });
+
+  // drizzle-kit drops ON DELETE from an ADD COLUMN reference; 0007 was edited by hand
+  it("clears portion_of when the original row is deleted", () => {
+    const client = new Database(":memory:");
+    client.pragma("foreign_keys = ON");
+    applyThrough(client, 0, 7);
+    client.exec(`INSERT INTO households (id, name, invite_code, created_at) VALUES ('h', 'H', 'C', 1);
+      INSERT INTO items (id, household_id, name, created_at) VALUES ('a', 'h', 'x', 1);
+      INSERT INTO items (id, household_id, name, created_at, portion_of) VALUES ('p', 'h', 'x', 1, 'a')`);
+    client.exec("DELETE FROM items WHERE id = 'a'");
+    expect(client.prepare("SELECT portion_of FROM items WHERE id = 'p'").get()).toEqual({
+      portion_of: null,
+    });
+  });
+});

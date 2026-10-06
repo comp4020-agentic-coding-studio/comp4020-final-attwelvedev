@@ -6,19 +6,23 @@ import { updatedEvents } from "../../../lib/itemEvents.ts";
 import { parseExpiryChange, setExpiry } from "../../../lib/itemValues.ts";
 import { publishAll } from "../../../lib/live.ts";
 import { logDetail } from "../../../lib/log.ts";
+import { offerEvents } from "../../../lib/offerEvents.ts";
 
 export const POST: APIRoute = (context) =>
   withSession(context, async (session, asJson) => {
     const form = await context.request.formData();
     const change = parseExpiryChange(form);
-    const item = setExpiry(
+    const update = setExpiry(
       db,
       session,
       context.params.id ?? "",
       change,
       cleanToday(form.get("today")),
     );
-    publishAll(updatedEvents(item, { id: session.member.id, name: session.member.name }));
+    publishAll([
+      ...updatedEvents(update.item, { id: session.member.id, name: session.member.name }),
+      ...update.offerChanges.flatMap(offerEvents),
+    ]);
     logDetail({ kind: change.kind === "clearDate" ? "clear" : change.kind });
-    return asJson ? json({ item }) : context.redirect("/", 303);
+    return asJson ? json({ item: update.item }) : context.redirect("/", 303);
   });

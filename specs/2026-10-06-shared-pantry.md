@@ -77,7 +77,8 @@ the week 10 crit.
     - Unknown foods default to Have.
 12. Every value is an estimate, shown with who set it and how long ago
     ("Sam's estimate, 2 h ago"). The latest write wins, per value. Anyone can
-    correct it in one tap.
+    correct it in one tap. A value nobody has set reads "Guessed"; one set by
+    a member who has since left reads "a former member".
 13. Expiry is a bucket: Use soon / This week / This month / Long-lasting /
     Unknown. It is stored as an estimated date, so the bucket moves on its own
     as time passes. Defaults come from USDA FoodKeeper matched by name. An
@@ -142,7 +143,11 @@ the week 10 crit.
 26. Offer opens a sheet and posts from it: the whole item by default, to all
     of the household's communities by default (untick to narrow). "Offer some…" is secondary for
     count and fill items; the remainder stays in the pantry with a reduced
-    value.
+    value. The portion becomes its own item and carries the offer; withdrawing
+    the offer folds it back into the original when that is still in the pantry
+    with no offer of its own, the measures match, neither has an exact amount
+    and the sum fits. Fill splits are in quarters; Have items and fill items
+    with an exact amount cannot be split.
 27. A pickup note is required and belongs to each offer, because notes change
     from item to item. Every offer opens the sheet with the note field filled
     with the last note used and selected, so it can be kept or overwritten

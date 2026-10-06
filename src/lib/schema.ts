@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnySQLiteColumn,
   blob,
   integer,
   primaryKey,
@@ -84,6 +85,11 @@ export const items = sqliteTable("items", {
   valueSetAt: integer("value_set_at"),
   expirySetBy: text("expiry_set_by").references(() => members.id, { onDelete: "set null" }),
   expirySetAt: integer("expiry_set_at"),
+  // The item this one was split from by Offer some; a withdrawn offer folds it
+  // back. Server-side only: the client never sees it.
+  portionOf: text("portion_of").references((): AnySQLiteColumn => items.id, {
+    onDelete: "set null",
+  }),
 });
 
 // item_id and item_name are copied, not referenced: the record outlives the

@@ -1,0 +1,1 @@
+ALTER TABLE `items` ADD `portion_of` text REFERENCES items(id) ON DELETE set null;

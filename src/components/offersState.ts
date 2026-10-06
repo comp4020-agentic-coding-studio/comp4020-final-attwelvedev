@@ -25,6 +25,7 @@ export interface OffersState {
 export type OffersAction =
   | { type: "snapshot"; snapshot: OffersSnapshot }
   | { type: "offer.posted"; offer: PublicOffer }
+  | { type: "offer.updated"; offer: PublicOffer }
   | { type: "offer.taken"; offerId: string }
   | { type: "offer.closed"; communityId: string; offerId: string }
   | { type: "offer.mine"; offer: MyOffer }
@@ -138,6 +139,13 @@ export function offersReducer(state: OffersState, action: OffersAction): OffersS
         },
       }));
     }
+
+    // an edit to the item: only what it is changes, the row keeps its state
+    case "offer.updated":
+      return patchIncoming(state, action.offer.id, (row) => ({
+        ...row,
+        offer: { ...row.offer, value: action.offer.value },
+      }));
 
     case "offer.taken":
       return patchIncoming(state, action.offerId, (row) => ({
