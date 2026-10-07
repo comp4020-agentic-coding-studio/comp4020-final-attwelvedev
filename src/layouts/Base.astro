@@ -1,5 +1,7 @@
 ---
+import fontUrl from "../assets/fonts/atkinson-hyperlegible-next-latin.woff2?url";
 import "../styles/pages.css";
+import "../styles/shell.css";
 import "../styles/tokens.css";
 
 interface Props {
@@ -10,12 +12,13 @@ interface Props {
 
 const { title, wide = false } = Astro.props;
 const here = Astro.url.pathname;
+const session = Astro.locals.session;
+// About lives in the footer; the tabs are the places a household goes daily
 const NAV = [
   { href: "/", label: "Pantry" },
-  ...(Astro.locals.session ? [{ href: "/offers", label: "Offers" }] : []),
+  ...(session ? [{ href: "/offers", label: "Offers" }] : []),
   { href: "/history", label: "History" },
-  ...(Astro.locals.session ? [{ href: "/household", label: "Household" }] : []),
-  { href: "/readme/", label: "About" },
+  ...(session ? [{ href: "/household", label: "Household" }] : []),
 ];
 // a section is current on its sub-pages too (/household/devices)
 const current = (href: string) => (href === "/" ? here === href : here.startsWith(href));
@@ -27,18 +30,23 @@ const current = (href: string) => (href === "/" ? here === href : here.startsWit
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
+    <link rel="preload" href={fontUrl} as="font" type="font/woff2" crossorigin />
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>
-    <header>
-      <nav aria-label="Main" class={wide ? "wide" : undefined}>
-        {NAV.map((l) => <a href={l.href} aria-current={current(l.href) ? "page" : undefined}>{l.label}</a>)}
-      </nav>
+    <header class="band">
+      <div class={wide ? "band-inner wide" : "band-inner"}>
+        <p class="brand">{session ? session.household.name : "Shared pantry"}</p>
+        <nav aria-label="Main" class="tabs">
+          {NAV.map((l) => <a href={l.href} aria-current={current(l.href) ? "page" : undefined}>{l.label}</a>)}
+        </nav>
+      </div>
     </header>
     <main id="main" class={wide ? "wide" : undefined}>
       <slot />
     </main>
-    <footer>
+    <footer class={wide ? "wide" : undefined}>
+      <p class="help">Keyboard: Tab and Shift+Tab move, Enter and Space press.</p>
       <a href="/readme/">About</a>
     </footer>
   </body>
@@ -53,58 +61,20 @@ const current = (href: string) => (href === "/" ? here === href : here.startsWit
     background: var(--bg);
     color: var(--ink);
     font-family: var(--font);
-    font-size: 16px;
+    font-size: var(--t-16);
     line-height: 1.5;
+    font-variant-numeric: tabular-nums;
   }
   main {
     max-width: 720px;
     margin: 0 auto;
-    padding: 16px;
+    padding: var(--s-4);
     overflow-wrap: anywhere;
   }
-  header nav {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0 16px;
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 0 16px;
-  }
-  header nav a {
-    display: inline-flex;
-    align-items: center;
-    min-height: 44px;
-  }
-  header nav a[aria-current="page"] {
-    font-weight: 700;
-    text-decoration: none;
-  }
-  main.wide,
-  main.wide + footer,
-  header nav.wide {
+  main.wide {
     max-width: 1112px;
-  }
-  footer {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 16px;
   }
   a {
     color: var(--rim);
-  }
-  :focus-visible {
-    outline: 3px solid var(--rim);
-    outline-offset: 2px;
-  }
-  .skip {
-    position: absolute;
-    left: -999px;
-  }
-  .skip:focus {
-    left: 16px;
-    top: 16px;
-    background: var(--surface);
-    padding: 8px;
-    z-index: 1;
   }
 </style>

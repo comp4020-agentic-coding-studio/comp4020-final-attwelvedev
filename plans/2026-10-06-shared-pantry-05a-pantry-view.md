@@ -256,7 +256,7 @@ it in the Corrections log of the task.
 
 ### Task 14: App shell, self-hosted font, real contrast
 
-- [ ] Not started
+- [x] Done
 
 - **Description:** Every page gets the Enamelware shell: a top band with the
   household name and, from 720 px, the tabs inline; below 720 px the tabs are a
@@ -307,14 +307,24 @@ it in the Corrections log of the task.
   contrast, then fix whatever axe reports (token tweaks go in the Corrections log).
 - **Refactor:** none expected.
 - **Acceptance:**
-  - [ ] The three red groups above pass at both viewports and both colour schemes
-  - [ ] Font file ≤ 45 000 bytes; `OFL.txt` committed
-  - [ ] Every existing browser spec still passes (nav `About` is not used by
+  - [x] The three red groups above pass at both viewports and both colour schemes
+  - [x] Font file ≤ 45 000 bytes; `OFL.txt` committed
+  - [x] Every existing browser spec still passes (nav `About` is not used by
         any: checked by `grep -rn About spec` returning nothing)
-  - [ ] `pnpm check` green
+  - [x] `pnpm check` green
 - **Human review:** none here; Task 23 carries the look review.
 - **Depends on:** none.
-- **Corrections log:** *(empty at plan time)*
+- **Corrections log:**
+  - No token needed adjusting: every spec §4.1 colour passed axe contrast in
+    light and dark as written.
+  - Finding: a `GET` of the hashed font returns `max-age=31536000, immutable`
+    (a `HEAD` shows `max-age=0`; the adapter treats them differently), so the
+    test's `immutable` branch is the one that holds.
+  - `pnpm check` was red on `offers.test.ts` before this task, on the clean
+    previous commit too. Cause was a stale claim response overriding the live
+    stream; fixed first in 4748811 (see `PROCESS_LOG.md`), not by loosening it.
+  - The footer help line is the short Task 14 wording; Task 25 replaces it with
+    the full key list.
 
 ### Task 23: Grouped rows: buckets, shelf-life tape, value glyph, trailing Used
 

@@ -21,8 +21,13 @@ export async function launch(): Promise<Browser> {
   }
 }
 
-export async function openPage(browser: Browser, url: string, viewport: Viewport): Promise<Page> {
-  const context = await browser.newContext({ viewport });
+export async function openPage(
+  browser: Browser,
+  url: string,
+  viewport: Viewport,
+  options: { colorScheme?: "light" | "dark" } = {},
+): Promise<Page> {
+  const context = await browser.newContext({ viewport, colorScheme: options.colorScheme });
   const page = await context.newPage();
   await page.goto(url, { waitUntil: "networkidle" });
   return page;
@@ -34,15 +39,13 @@ export function horizontalOverflow(page: Page): Promise<number> {
   );
 }
 
-// Colour contrast is off until real colours land (Task 14); everything else
-// axe checks applies from the start.
+// Colour contrast is checked, so run it in both colour schemes.
 export async function axeViolations(page: Page): Promise<string[]> {
   await page.addScriptTag({ content: (await import("axe-core")).default.source });
   return page.evaluate(async () => {
     const axe = (window as unknown as { axe: typeof import("axe-core") }).axe;
     const results = await axe.run(document, {
       rules: {
-        "color-contrast": { enabled: false },
         "link-in-text-block": { enabled: false },
       },
     });

@@ -1,3 +1,22 @@
+/* The one typeface: Atkinson Hyperlegible Next, a Latin subset served from our
+   own origin (src/assets/fonts/FONT.md). The fallback is Arial scaled to its
+   metrics, so the swap moves nothing. */
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  src: url("../assets/fonts/atkinson-hyperlegible-next-latin.woff2") format("woff2");
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Atkinson fallback";
+  src: local("Arial");
+  size-adjust: 99.4%;
+  ascent-override: 99%;
+  descent-override: 31.8%;
+  line-gap-override: 0%;
+}
+
 /* Enamelware tokens (spec §4.1). Light = white enamel; dark = the navy rim as
    the surface. Dark follows the system unless data-theme pins a choice. */
 :root {
@@ -13,7 +32,21 @@
   --past: #8e2453;
   --basil: #36704a;
   --unknown: #9aa5b3;
-  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font: "Atkinson Hyperlegible Next", "Atkinson fallback", system-ui, sans-serif;
+  --t-13: 13px;
+  --t-16: 16px;
+  --t-19: 19px;
+  --t-23: 23px;
+  --t-28: 28px;
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --r-btn: 10px;
+  --r-panel: 14px;
+  --r-sheet: 20px;
   color-scheme: light;
 }
 
