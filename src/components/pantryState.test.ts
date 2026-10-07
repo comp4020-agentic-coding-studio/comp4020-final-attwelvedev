@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Guess } from "../lib/guess.ts";
 import type { Item } from "../lib/items.ts";
 import type { MyOffer } from "../lib/offers.ts";
 import { testItem } from "../lib/testItem.ts";
@@ -16,6 +17,18 @@ const milk = item("milk", "milk", 30);
 const eggs = item("eggs", "eggs", 20);
 const bread = item("bread", "bread", 10);
 
+// the guess for a name nothing is known about, counted from a fixed day
+const TODAY = "2026-10-07";
+const NO_GUESS: Guess = { category: "other", measure: "have", shelfDays: null, iconKey: null };
+const addTea = {
+  type: "add.pending",
+  rid: "r1",
+  name: "tea",
+  at: 40,
+  guess: NO_GUESS,
+  today: TODAY,
+} as const;
+
 const run = (state: PantryState, ...actions: Action[]) => actions.reduce(pantryReducer, state);
 const names = (state: PantryState) => state.rows.map((r) => r.item.name);
 const shown = (state: PantryState) => visibleRows(state).map((r) => r.item.name);
@@ -28,11 +41,7 @@ describe("snapshot", () => {
 
   it("keeps pending rows and rows hidden by an optimistic remove", () => {
     let s = initialState([milk, eggs]);
-    s = run(
-      s,
-      { type: "add.pending", rid: "r1", name: "tea", at: 40 },
-      { type: "remove.pending", itemId: "eggs" },
-    );
+    s = run(s, addTea, { type: "remove.pending", itemId: "eggs" });
     s = run(s, { type: "snapshot", items: [milk, eggs, bread] });
     expect(names(s)).toEqual(["tea", "milk", "eggs", "bread"]);
     expect(shown(s)).toEqual(["tea", "milk", "bread"]);
@@ -45,8 +54,25 @@ describe("snapshot", () => {
 });
 
 describe("optimistic add", () => {
+  it("builds the temporary item from the client's guess, counted from today", () => {
+    const s = run(initialState([]), {
+      ...addTea,
+      name: "milk",
+      guess: { measure: "fill", category: "dairy", shelfDays: 7, iconKey: "milk" },
+    });
+    expect(s.rows[0].item).toMatchObject({
+      measure: "fill",
+      category: "dairy",
+      iconKey: "milk",
+      estimatedExpiry: "2026-10-14",
+      exactExpiry: null,
+      valueSetAt: null,
+      expirySetAt: null,
+    });
+  });
+
   it("builds the temporary item with neutral defaults", () => {
-    const s = run(initialState([]), { type: "add.pending", rid: "r1", name: "tea", at: 40 });
+    const s = run(initialState([]), addTea);
     expect(s.rows[0].item).toEqual({
       id: "pending:r1",
       householdId: "",
@@ -70,7 +96,7 @@ describe("optimistic add", () => {
   });
 
   it("puts a pending row first, and confirming swaps it for the real item in place", () => {
-    let s = run(initialState([milk]), { type: "add.pending", rid: "r1", name: "tea", at: 40 });
+    let s = run(initialState([milk]), addTea);
     expect(names(s)).toEqual(["tea", "milk"]);
     expect(s.rows[0].pending).toEqual({ rid: "r1" });
     s = run(s, { type: "add.confirmed", rid: "r1", item: item("tea-id", "tea", 41) });
@@ -79,17 +105,17 @@ describe("optimistic add", () => {
   });
 
   it("an item.added event carrying that rid does the same", () => {
-    const s = run(
-      initialState([milk]),
-      { type: "add.pending", rid: "r1", name: "tea", at: 40 },
-      { type: "event.added", item: item("tea-id", "tea", 41), rid: "r1" },
-    );
+    const s = run(initialState([milk]), addTea, {
+      type: "event.added",
+      item: item("tea-id", "tea", 41),
+      rid: "r1",
+    });
     expect(s.rows.map((r) => r.item.id)).toEqual(["tea-id", "milk"]);
   });
 
   it("leaves one row whether the confirm or the echo comes first", () => {
     const real = item("tea-id", "tea", 41);
-    const pending = { type: "add.pending", rid: "r1", name: "tea", at: 40 } as const;
+    const pending = addTea;
     const confirm = { type: "add.confirmed", rid: "r1", item: real } as const;
     const echo = { type: "event.added", item: real, rid: "r1" } as const;
     expect(names(run(initialState([]), pending, confirm, echo))).toEqual(["tea"]);
@@ -97,11 +123,7 @@ describe("optimistic add", () => {
   });
 
   it("a rollback removes the pending row", () => {
-    const s = run(
-      initialState([milk]),
-      { type: "add.pending", rid: "r1", name: "tea", at: 40 },
-      { type: "add.rolledBack", rid: "r1" },
-    );
+    const s = run(initialState([milk]), addTea, { type: "add.rolledBack", rid: "r1" });
     expect(names(s)).toEqual(["milk"]);
   });
 });
@@ -348,11 +370,7 @@ describe("offers on rows", () => {
   });
 
   it("does not allow offering a pending row", () => {
-    const s = run(
-      initialState([]),
-      { type: "add.pending", rid: "r1", name: "tea", at: 40 },
-      { type: "offer.pending", itemId: "pending:r1" },
-    );
+    const s = run(initialState([]), addTea, { type: "offer.pending", itemId: "pending:r1" });
     expect(s.rows[0].offering).toBeUndefined();
   });
 

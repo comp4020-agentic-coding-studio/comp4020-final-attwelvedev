@@ -1,4 +1,4 @@
-import type { Browser } from "playwright";
+import type { Browser, Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 import { axeViolations, DESKTOP, horizontalOverflow, launch, PHONE } from "../browser.ts";
 import { offerPair, pantryRow } from "../neighbours.ts";
@@ -37,6 +37,13 @@ describe("the offer sheet, by keyboard", () => {
   }, 30_000);
 });
 
+// Below 900 px the Binned/Offer/Note cluster is in the row's open panel.
+async function openRowOnPhone(page: Page, name: string, viewport: { width: number }) {
+  if (viewport.width >= 900) return;
+  const main = pantryRow(page, name).locator(".row-main");
+  if ((await main.getAttribute("aria-expanded")) !== "true") await main.click();
+}
+
 describe("the offer sheet, laid out", () => {
   for (const [label, viewport] of [
     ["a phone", PHONE],
@@ -48,6 +55,7 @@ describe("the offer sheet, laid out", () => {
       await addItem(page, "a very long item name that wraps onto more than one line on a phone");
       await addItem(page, "soup");
       await pantryRow(page, "soup").waitFor();
+      await openRowOnPhone(page, "soup", viewport);
       await pantryRow(page, "soup")
         .getByRole("button", { name: "Offer soup", exact: true })
         .click();
@@ -63,6 +71,7 @@ describe("the offer sheet, laid out", () => {
       expect(await axeViolations(page)).toEqual([]);
 
       // the Note button on the offered row opens the sheet with that offer's note
+      await openRowOnPhone(page, "soup", viewport);
       await pantryRow(page, "soup").getByRole("button", { name: "Note soup", exact: true }).click();
       await page.getByLabel("Pickup note").waitFor();
       expect(await page.getByLabel("Pickup note").inputValue()).toBe("Porch, after 5");

@@ -328,7 +328,7 @@ it in the Corrections log of the task.
 
 ### Task 23: Grouped rows: buckets, shelf-life tape, value glyph, trailing Used
 
-- [ ] Not started
+- [x] Done (look accepted by the user 2026-10-07)
 
 - **Description:** The pantry list is grouped under sticky bucket headings
   (Past estimate first, Unknown last), soonest first within a bucket. Each
@@ -440,9 +440,9 @@ it in the Corrections log of the task.
 - **Refactor:** delete the old flat-list CSS; keep `.offer-state` text "Offered" /
   "Claimed by …" (specs read it).
 - **Acceptance:**
-  - [ ] Unit and browser tests above pass; every existing browser spec passes
-  - [ ] Axe clean with contrast, both schemes, both viewports, at 80 items
-  - [ ] `pnpm check` green
+  - [x] Unit and browser tests above pass; every existing browser spec passes
+  - [x] Axe clean with contrast, both schemes, both viewports, at 80 items
+  - [x] `pnpm check` green
 - **Human review:** the user runs `pnpm build && pnpm start`, adds a dozen items
   (some with `exactExpiry` via the API) and looks at the pantry on a phone-width
   window and a desktop window, light and dark, against the spec §4.1 wireframes.
@@ -450,7 +450,20 @@ it in the Corrections log of the task.
   visible, no generic card UI) and the user says so explicitly. This task is not
   accepted until they do.
 - **Depends on:** Task 14.
-- **Corrections log:** *(empty at plan time)*
+- **Corrections log:**
+  - Judgement call, not a correction: below 900 px the Binned/Offer/Note cluster
+    is hidden until the row is open, but `offering-layout.test.ts` clicked `Offer
+    soup` at phone width and Task 24 (which owns opening) comes later. To keep the
+    check green I pulled the bare tap-to-open toggle (`openId`, `aria-expanded`,
+    `data-open`) forward into this task, with no panel in it, and made that spec's
+    phone path open the row first (`openRowOnPhone`). No assertion was loosened.
+    Task 24 builds the panel inside the same `<li>`.
+  - Also pulled forward: `spec/items.ts` (`makeItem`, `makeMany`) for browser specs
+    that need a known pantry; Tasks 24 and 25 reuse it.
+  - The hold-back and the scroll guard were each switched off in turn to confirm
+    their specs go red (3 failures), then restored.
+  - Added to the add field (not in the plan): Enamelware styling for `.add input`,
+    since the dark scheme showed the browser's default grey box.
 
 ### Task 24: The item panel: slider, stepper, measure, expiry, attribution
 

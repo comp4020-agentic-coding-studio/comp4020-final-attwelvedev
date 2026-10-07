@@ -3,6 +3,7 @@ import { OffersFeed } from "../components/OffersFeed.tsx";
 import { PantryList } from "../components/PantryList.tsx";
 import Base from "../layouts/Base.astro";
 import { db } from "../lib/db.ts";
+import { utcToday } from "../lib/expiry.ts";
 import { listHistory } from "../lib/items.ts";
 import { offersSnapshotFor } from "../lib/offers.ts";
 import { snapshotFor } from "../lib/snapshot.ts";
@@ -33,7 +34,7 @@ const undone =
             </form>
           )}
 
-          {snapshot && <PantryList client:load initial={snapshot} addError={addError} />}
+          {snapshot && <PantryList client:load initial={snapshot} addError={addError} today={utcToday()} />}
         </div>
         {offers && (
           <div class="rail">

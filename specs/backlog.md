@@ -14,6 +14,7 @@ first.
 <!-- - YYYY-MM-DD — one line: the idea, and what prompted it -->
 
 - 2026-10-07 — when a claimed offer is Collected, the claiming household's pantry should gain that item (name only, no offerer or note); today the item only leaves the offerer's pantry as Given. Raised while reviewing Task 20; touches the item model (phase 04, Task 13) and the privacy rules.
+- 2026-10-07 — the measure guess is wrong for most meat and fish: every `meat` entry in `src/data/guess-client.json` is `fill` (all 63), so beef, fish, chicken and pork show a fullness jar. Meat is bought as a pack or a weight, so `have` or `count` fits better; the category-to-measure default lives in the phase 04 table build (`scripts/build-foodkeeper.ts`, `keyword-overrides.json`). Raised while reviewing Task 23; correctable in one tap once Task 24's Measured-by switch lands.
 
 ## Decided
 

@@ -1,3 +1,5 @@
+import { addDays } from "../lib/expiry.ts";
+import type { Guess } from "../lib/guess.ts";
 import type { Item, Outcome } from "../lib/items.ts";
 import type { MyOffer } from "../lib/offers.ts";
 
@@ -47,7 +49,7 @@ export interface PantryState {
 
 export type Action =
   | { type: "snapshot"; items: Item[] }
-  | { type: "add.pending"; rid: string; name: string; at: number }
+  | { type: "add.pending"; rid: string; name: string; at: number; guess: Guess; today: string }
   | { type: "add.confirmed"; rid: string; item: Item }
   | { type: "add.rolledBack"; rid: string }
   | { type: "remove.pending"; itemId: string }
@@ -171,15 +173,16 @@ export function pantryReducer(state: PantryState, action: Action): PantryState {
         name: action.name,
         createdBy: "",
         createdAt: action.at,
-        // neutral until the client guess is wired in
-        category: "other",
-        iconKey: null,
-        measure: "have",
+        // what the server will guess from the same name, so the row doesn't jump
+        category: action.guess.category,
+        iconKey: action.guess.iconKey,
+        measure: action.guess.measure,
         fillStop: 4,
         count: 1,
         exactAmount: null,
         exactUnit: null,
-        estimatedExpiry: null,
+        estimatedExpiry:
+          action.guess.shelfDays === null ? null : addDays(action.today, action.guess.shelfDays),
         exactExpiry: null,
         valueSetBy: null,
         valueSetAt: null,

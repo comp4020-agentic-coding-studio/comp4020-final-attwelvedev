@@ -1,0 +1,47 @@
+/* The shelf-life tape: a 4 px bar on a row's bottom edge. Its length is the share
+   of shelf life left (--frac, set by the component); its pattern and colour
+   carry the bucket, so the meaning never rests on colour alone. */
+.tape {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  pointer-events: none;
+}
+.tape-bar {
+  display: block;
+  height: 100%;
+  width: calc(var(--frac, 1) * 100%);
+}
+/* This month and long-lasting: solid blue */
+.tape[data-bucket="long-lasting"] .tape-bar,
+.tape[data-bucket="this-month"] .tape-bar {
+  background: var(--tape-fresh);
+}
+/* This week: dashed marmalade */
+.tape[data-bucket="this-week"] .tape-bar {
+  background: repeating-linear-gradient(90deg, var(--soon) 0 10px, transparent 10px 15px);
+}
+/* Use soon: diagonal hatch, marmalade */
+.tape[data-bucket="use-soon"] .tape-bar {
+  background: repeating-linear-gradient(135deg, var(--soon) 0 2px, transparent 2px 4px);
+}
+/* Past estimate: a stub with a torn, zigzag end, beetroot */
+.tape[data-bucket="past"] .tape-bar {
+  background: var(--past);
+  clip-path: polygon(
+    0 0,
+    calc(100% - 6px) 0,
+    100% 25%,
+    calc(100% - 6px) 50%,
+    100% 75%,
+    calc(100% - 6px) 100%,
+    0 100%
+  );
+}
+/* Unknown: full length, dotted, faint */
+.tape[data-bucket="unknown"] .tape-bar {
+  background:
+    radial-gradient(circle, var(--unknown) 0 1px, transparent 1.5px) 0 0 / 6px 4px repeat-x;
+}
