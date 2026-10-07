@@ -126,3 +126,25 @@ stream"). I did not edit it; a superseding record is queued.
 How I knew it held: red unit and browser tests for each changed behaviour before
 the code, then the full check green (455 tests) and a walk through the offer,
 claim and collect flow on a local build with a second browser profile.
+
+## 2026-10-07 — A "flaky" spec was a real race, found by looking at the event order
+
+4748811
+
+`pnpm check` was red on one offers spec while I was part-way through the Enamelware
+shell. The obvious move was to commit the shell and call the spec flaky, or to
+raise its 1000 ms timeout. I told the agent to fix it first. It checked the clean
+previous commit in a throwaway worktree (5 of 6 runs failed there too, so the shell
+was not the cause), then logged the claimer page's live events and responses. The
+stream delivered claimed, released and the re-post inside one millisecond, and the
+claim's own HTTP response was handled after them, so `claim.won` resurrected a
+claim the offerer had already released. A real user releasing quickly would have
+seen the same stale "Pickup:" row.
+
+The fix is in the reducer, not the test: a claim now stays "unanswered" until the
+stream speaks for it, and only an unanswered claim accepts the response. The
+failing reducer test came first and failed for that reason; a control test keeps
+the stream-silent case working. The one existing test the first attempt broke (an
+`offer.taken` before the response) is what showed a "row is busy" rule was too
+narrow. How I knew it held: the spec went from about 1 pass in 6 to 6 of 6, then
+the full check was green at 657 tests. Not weakened: the 1000 ms waits are unchanged.
