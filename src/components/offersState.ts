@@ -20,6 +20,9 @@ export interface OffersState {
   claimed: ClaimedOffer[]; // most recently claimed first
   // taps waiting for the server; `prev` is what a release by the offerer overwrote
   taps: Record<string, { kind: TapKind; prev?: MyOffer }>;
+  // my own claims whose response hasn't been handled and which the stream hasn't
+  // yet spoken for: only these may still be settled by that response
+  claiming: Record<string, true>;
 }
 
 export type OffersAction =
@@ -46,6 +49,7 @@ export function initialOffersState(snapshot: OffersSnapshot): OffersState {
     mine: snapshot.mine,
     claimed: snapshot.claimed,
     taps: {},
+    claiming: {},
   };
 }
 
@@ -80,7 +84,7 @@ function insertNewestFirst<T>(list: T[], item: T, at: (t: T) => number): T[] {
   return index === -1 ? [...list, item] : [...list.slice(0, index), item, ...list.slice(index)];
 }
 
-const without = (taps: OffersState["taps"], id: string) => {
+const without = <T>(taps: Record<string, T>, id: string) => {
   const { [id]: _gone, ...rest } = taps;
   return rest;
 };
@@ -180,14 +184,23 @@ export function offersReducer(state: OffersState, action: OffersAction): OffersS
       };
     }
 
-    case "offer.claim":
-    case "claim.won": {
+    case "claim.won":
+      // The response to my own claim can be handled after the stream has already
+      // said more (claimed, then released). Only a claim the stream hasn't spoken
+      // for takes it; otherwise the stream's account is newer and stands.
+      if (!state.claiming[action.offer.id]) return state;
+      return offersReducer(state, { type: "offer.claim", offer: action.offer });
+
+    case "offer.claim": {
       const others = state.claimed.filter((c) => c.id !== action.offer.id);
       const incoming = state.incoming.filter((r) => r.offer.id !== action.offer.id);
-      if (action.offer.status !== "claimed") return { ...state, incoming, claimed: others };
+      const claiming = without(state.claiming, action.offer.id);
+      if (action.offer.status !== "claimed")
+        return { ...state, incoming, claiming, claimed: others };
       return {
         ...state,
         incoming,
+        claiming,
         claimed: insertNewestFirst(others, action.offer, (c) => c.claimedAt),
       };
     }
@@ -199,26 +212,34 @@ export function offersReducer(state: OffersState, action: OffersAction): OffersS
       };
 
     case "claim.pending":
-      return patchIncoming(state, action.offerId, (row) => ({
-        ...row,
-        busy: true,
-        message: undefined,
-      }));
+      return patchIncoming(
+        { ...state, claiming: { ...state.claiming, [action.offerId]: true } },
+        action.offerId,
+        (row) => ({ ...row, busy: true, message: undefined }),
+      );
 
     case "claim.lost":
-      return patchIncoming(state, action.offerId, (row) => ({
-        ...row,
-        busy: undefined,
-        taken: true,
-        message: action.message,
-      }));
+      return patchIncoming(
+        { ...state, claiming: without(state.claiming, action.offerId) },
+        action.offerId,
+        (row) => ({
+          ...row,
+          busy: undefined,
+          taken: true,
+          message: action.message,
+        }),
+      );
 
     case "claim.failed":
-      return patchIncoming(state, action.offerId, (row) => ({
-        ...row,
-        busy: undefined,
-        message: action.message,
-      }));
+      return patchIncoming(
+        { ...state, claiming: without(state.claiming, action.offerId) },
+        action.offerId,
+        (row) => ({
+          ...row,
+          busy: undefined,
+          message: action.message,
+        }),
+      );
 
     case "tap.pending": {
       if (state.taps[action.offerId]) return state;

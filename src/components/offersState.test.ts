@@ -249,6 +249,30 @@ describe("claiming", () => {
     expect(visibleOffers(s).claimed).toEqual([claimed("a")]);
   });
 
+  it("won after the live stream already released the claim does not bring it back", () => {
+    // the stream can deliver claimed, released and the re-post before the claim's own response is handled
+    const s = run(
+      withA(),
+      { type: "claim.pending", offerId: "a" },
+      { type: "offer.claim", offer: claimed("a") },
+      { type: "offer.claim", offer: claimed("a", "released") },
+      { type: "offer.posted", offer: pub("a", "A", 1) },
+      { type: "claim.won", offer: claimed("a") },
+    );
+    expect(visibleOffers(s).claimed).toEqual([]);
+    expect(ids(s)).toEqual(["a"]);
+  });
+
+  it("won while the stream is silent still moves the offer to claimed", () => {
+    // the row is still busy: nothing newer has been heard
+    const s = run(
+      withA(),
+      { type: "claim.pending", offerId: "a" },
+      { type: "claim.won", offer: claimed("a") },
+    );
+    expect(visibleOffers(s).claimed).toEqual([claimed("a")]);
+  });
+
   it("failed clears busy and keeps the offer claimable, with a message", () => {
     const s = run(
       withA(),
