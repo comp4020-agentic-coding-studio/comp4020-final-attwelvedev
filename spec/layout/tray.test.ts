@@ -11,14 +11,18 @@ let browser: Browser;
 // screens takes seconds, and these tests only read the tray or send harmless
 // messages. `afterEach` puts the screens back as they were found.
 let table: Table;
+// Starting Chrome and seating three players takes a few seconds here and well
+// over ten on a CI runner, so the hooks get the 30 s a test would have had.
+const HOOK_MS = 30_000;
 beforeAll(async () => {
   browser = await launch();
   table = await playRoom(browser, baseUrl);
-});
+}, HOOK_MS);
 afterAll(async () => {
-  for (const page of table.pages) await leaveGameAndClose(page, baseUrl);
-  await browser.close();
-});
+  // table is unset when setup itself failed: close the browser, hide nothing
+  for (const page of table?.pages ?? []) await leaveGameAndClose(page, baseUrl);
+  await browser?.close();
+}, HOOK_MS);
 
 // Leaves nothing open and nothing cooling down, so the next test starts clean:
 // a sheet or the settings panel left open would change what its keys do, and a
