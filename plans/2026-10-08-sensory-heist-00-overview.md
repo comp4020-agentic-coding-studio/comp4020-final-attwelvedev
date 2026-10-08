@@ -216,7 +216,7 @@ hard-codes a colour.
 | Phase | File | Tasks | Needs | Ends with | Done |
 | --- | --- | --- | --- | --- | --- |
 | 01 | `…-01-pivot-lobbies.md` | 1–4 | — | Pantry archived and gone; socket server live; create/join/seats live in ~1 s across sessions; home + lobby UI at both viewports (**Human review**, Task 4); deployed | [x] |
-| 02 | `…-02-sim-one-room.md` | 5–8 | 01 | Loading Dock playable by 3 people with per-role views; perception spec green; deployed — **week 10 crit (real-time)** (**Human review**, Task 8) | [ ] |
+| 02 | `…-02-sim-one-room.md` | 5–8 | 01 | Loading Dock playable by 3 people with per-role views; perception spec green; deployed — **week 10 crit (real-time)** (**Human review**, Task 8) | [x] (crit-9 write-up still owed by the user) |
 | 03 | `…-03-channels.md` | 9–10 | 02 | Say/Sound/Show with server-enforced rules and cooldowns; TTS to Can't see; captions (**Human review**, Task 10) | [ ] |
 | 04 | `…-04-game-logging.md` | 11 | 03 | Game events logged and live on `/stats`; deployed — **week 11 crit** | [ ] |
 | 05 | `…-05-hazards-rooms.md` | 12–14 | 04 | Guards, cameras, lasers, checkpoints, loot, flips, audio cues; rooms 2–3; role rotation (**Human review**, Task 14) | [ ] |
