@@ -199,3 +199,29 @@ deleted that weak browser test rather than keep false coverage.
 
 The door fix changed a rule in the plan (§4.2), so the plan was edited and the
 change logged in its Corrections log instead of being patched silently.
+
+## 2026-10-08 — A review round became specs, and sharing a room found a bug the isolated tests hid
+
+e242193
+
+The Task 10 review (the comms tray, on a local build with three sessions)
+produced about a dozen corrections: faces too small and draggable, captions
+inconsistent, a key hint styled unlike its neighbours, a label wrapping
+mid-word at 375 px, sound switches offered to a player who can't hear. The
+obvious move was to fix each by eye. I had the agent turn each into a check
+first, so none can come back: computed styles for the draggable faces and the
+key hint (the hint must equal the tray's own), DOM ranges that fail if any
+soundboard word breaks across lines on the phone viewport, and a spec that the
+deaf player's three settings are disabled and explained. Each one failed before
+its fix, which is how I knew it was testing the thing and not passing by default.
+
+Then the full check had crept from 36 s to 76 s. Per-file timing showed one spec
+file, the tray, at 71 s because every test built its own three-session room. I
+chose to share one room, with a reset after each test, rather than split the
+file. That exposed a real bug the isolated tests had hidden: after using
+Stamps, Show reopened on the Stamps tab, so "3 then 1" sent a stamp instead of
+the first face. I wrote that as a failing test before changing the app. The file
+now takes 13 s and the full check 42 s.
+
+Not checked: I haven't long-pressed the touch controls on a physical phone, so
+that fix is covered by style and event specs only.
