@@ -6,7 +6,7 @@
 - **Part of:** `plans/2026-10-08-sensory-heist-00-overview.md`. Read it first,
   especially §3 (layering: `src/game/` is pure), §4.1, §4.2, §4.3, §4.4.
 - **Depends on phases:** 01.
-- **Progress:** Tasks 5–8 done (Task 8 accepted by the user 2026-10-08). Left: deploy, crit-9 reflection, tick in overview §5.
+- **Progress:** Tasks 5–8 done (Task 8 accepted by the user 2026-10-08). Deployed. Left: crit-9 reflection (the user), tick in overview §5.
 
 ## 1. Summary
 
@@ -463,7 +463,7 @@ responsive; the three-plate door needs all three people.
 - [x] Tasks 5–8 complete, tests passing, Task 8 accepted by the user
 - [x] `pnpm test:unit` and `pnpm lint:rooms` pass
 - [x] `pnpm build && pnpm start`, then `pnpm check` and `pnpm check:evidence` pass
-- [ ] Deployed (ask first); `APP_URL=https://<app>.fly.dev pnpm vitest run --project spec` green, including `spec/perception.test.ts` and `spec/game.test.ts` (views ≥ 15/s through Fly's proxy)
+- [x] Deployed 2026-10-08 (59/59 specs green on fly.dev); `APP_URL=https://<app>.fly.dev pnpm vitest run --project spec` green, including `spec/perception.test.ts` and `spec/game.test.ts` (views ≥ 15/s through Fly's proxy)
 - [ ] Before the week 10 crit: the user writes the "one decision about several people at once" (suggested: per-role perception filtering, ADR 0007, or seat-held rejoin) in `README.md`/`PROCESS.md` and `reflections/crit-9.md` — the agent may suggest, the user drafts
 - [ ] Tick this phase in overview §5 and commit
 
