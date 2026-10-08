@@ -1,6 +1,6 @@
 import type { PlayerInput, Seat, Vec } from "../types.ts";
 import { blockedAt, circleHitsTile, crateAt, crateTouching, indexOf, tileKey } from "./collide.ts";
-import { type PlayerState, SPEED_TPS, TICK_MS, type World } from "./world.ts";
+import { type PlayerState, SPEED_TPS, STAMP_LIFE_MS, TICK_MS, type World } from "./world.ts";
 
 const PUSH_MS = 200;
 const BISECT = 8;
@@ -114,6 +114,11 @@ function updateExit(world: World) {
 
 // Mutates and returns `world`. No clock, no randomness: the same worlds and
 // inputs give the same result. A seat with no input does not move.
+function ageStamps(world: World, dtMs: number): void {
+  for (const s of world.stamps) s.ageMs += dtMs;
+  world.stamps = world.stamps.filter((s) => s.ageMs < STAMP_LIFE_MS);
+}
+
 export function step(
   world: World,
   inputs: Partial<Record<Seat, PlayerInput>>,
@@ -129,5 +134,6 @@ export function step(
   updatePlates(world);
   updateDoors(world);
   updateExit(world);
+  ageStamps(world, dtMs);
   return world;
 }

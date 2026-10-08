@@ -1,9 +1,11 @@
+import type { Stamp } from "../channels.ts";
 import type { Room } from "../rooms/format.ts";
 import type { PlayerInput, Seat, Vec } from "../types.ts";
 
 export const TICK_MS = 50;
 export const SPEED_TPS = 4;
 export const RADIUS = 0.4;
+export const STAMP_LIFE_MS = 8000;
 
 export type RoomStatus = "playing" | "cleared";
 
@@ -21,11 +23,21 @@ export interface CrateState {
   tile: Vec;
 }
 
+// A stamp a player dropped: it fades (and is removed) STAMP_LIFE_MS after it lands.
+export interface StampState {
+  key: string; // unique within the world, so views can tell two of the same stamp apart
+  id: Stamp;
+  pos: Vec;
+  ageMs: number;
+}
+
 export interface World {
   room: Room;
   tick: number;
   players: [PlayerState, PlayerState, PlayerState];
   crates: CrateState[];
+  stamps: StampState[];
+  nextStamp: number;
   doorOpen: Record<string, boolean>;
   pressed: Record<string, boolean>;
   status: RoomStatus;
@@ -66,9 +78,15 @@ export function createWorld(room: Room): World {
     crates: room.objects
       .filter((o) => o.kind === "crate")
       .map((o) => ({ id: o.id, tile: { ...(o.tiles[0] as Vec) } })),
+    stamps: [],
+    nextStamp: 1,
     doorOpen,
     pressed,
     status: "playing",
     events: [],
   };
+}
+
+export function addStamp(world: World, id: Stamp, pos: Vec): void {
+  world.stamps.push({ key: `S${world.nextStamp++}`, id, pos: { ...pos }, ageMs: 0 });
 }

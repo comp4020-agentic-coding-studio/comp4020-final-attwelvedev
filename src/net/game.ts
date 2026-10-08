@@ -1,8 +1,15 @@
+import {
+  type ChannelMessage,
+  type CooldownState,
+  cleanText,
+  type Outgoing,
+  route,
+} from "../game/channels.ts";
 import { type RoleView, viewFor } from "../game/perception.ts";
 import type { Room } from "../game/rooms/format.ts";
 import { step } from "../game/sim/step.ts";
-import { createWorld, TICK_MS, type World } from "../game/sim/world.ts";
-import { type PlayerInput, ROLES, type Role, type Seat } from "../game/types.ts";
+import { addStamp, createWorld, TICK_MS, type World } from "../game/sim/world.ts";
+import { type Family, type PlayerInput, ROLES, type Role, type Seat } from "../game/types.ts";
 import { LobbyError, type LobbyState } from "./lobbies.ts";
 
 export interface CrewMember {
@@ -20,6 +27,7 @@ export interface Game {
   ready: Set<Seat>;
   inputs: Partial<Record<Seat, PlayerInput>>;
   startedAt: number;
+  cooldowns: CooldownState;
 }
 
 // Seat i gets ROLES[(i + roomIndex) % 3], so everyone plays every role across three rooms.
@@ -43,6 +51,7 @@ export function startGame(lobby: LobbyState, rooms: Room[]): Game {
     ready: new Set(),
     inputs: {},
     startedAt: Date.now(),
+    cooldowns: { until: {} },
   };
 }
 
@@ -84,4 +93,70 @@ export function tickGame(
     views.set(seat, viewFor(game.world, seat, game.roles[seat], full.has(seat)));
   }
   return { views, cleared: game.world.status === "cleared" };
+}
+
+// What a client may ask to send. A stamp has no position here: the server puts it
+// at the sender's tile. Text that is empty once cleaned is not a message (null).
+export type ChannelRequest =
+  | { t: "say"; kind: "callout"; callout: Extract<Outgoing, { kind: "callout" }>["callout"] }
+  | { t: "say"; kind: "text"; text: string }
+  | { t: "sound"; clip: string }
+  | { t: "show"; kind: "face"; id: string }
+  | { t: "show"; kind: "stamp"; id: Extract<Outgoing, { kind: "stamp" }>["id"] };
+
+export type Relayed =
+  | {
+      ok: true;
+      message: ChannelMessage;
+      receivers: Seat[];
+      cooldown: { family: Family; until: number; stamp?: true } | null;
+    }
+  | { ok: false; code: "cant-send" | "cooldown"; until?: number }
+  | null; // nothing to send
+
+// The only way a channel message leaves the server: through `route`, which
+// decides who may send it, who receives it and whether it is too soon. A
+// stamp also lands in the world, where Can't hear and Can't speak see it fade.
+export function relay(
+  game: Game,
+  lobby: LobbyState,
+  from: Seat,
+  req: ChannelRequest,
+  now: number,
+): Relayed {
+  const pos = game.world.players[from].pos;
+  let out: Outgoing;
+  if (req.t === "say") {
+    if (req.kind === "callout") {
+      out = { family: "say", kind: "callout", callout: req.callout };
+    } else {
+      const text = cleanText(req.text);
+      if (text === null) return null;
+      out = { family: "say", kind: "text", text };
+    }
+  } else if (req.t === "sound") {
+    out = { family: "sound", clip: req.clip };
+  } else if (req.kind === "face") {
+    out = { family: "show", kind: "face", id: req.id };
+  } else {
+    const at = { x: Math.floor(pos.x) + 0.5, y: Math.floor(pos.y) + 0.5 };
+    out = { family: "show", kind: "stamp", id: req.id, at };
+  }
+  const result = route(game.roles, from, out, game.cooldowns, now);
+  if (!result.ok) return result;
+  if (result.cooldownKey) game.cooldowns.until[result.cooldownKey] = result.until;
+  if (out.family === "show" && out.kind === "stamp") addStamp(game.world, out.id, out.at);
+  const stamp = out.family === "show" && out.kind === "stamp";
+  return {
+    ok: true,
+    message: {
+      ...out,
+      from: { seat: from, role: game.roles[from], nickname: lobby.seats[from]?.nickname ?? "Bot" },
+      sentAt: now,
+    },
+    receivers: result.receivers,
+    cooldown: result.cooldownKey
+      ? { family: out.family, until: result.until, ...(stamp ? { stamp: true as const } : {}) }
+      : null,
+  };
 }

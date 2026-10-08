@@ -1,13 +1,31 @@
 // The socket's wire format: JSON text frames `{ t: string, ... }` (binary
 // frames are voice only, from phase 08). Widened by later tasks; the table of
 // every message is in plans/2026-10-08-sensory-heist-00-overview.md §4.3.
+import {
+  CALLOUTS,
+  type Callout,
+  type ChannelMessage,
+  STAMPS,
+  type Stamp,
+} from "../game/channels.ts";
 import type { EntityView, RoleView, SoundCue } from "../game/perception.ts";
-import type { PlayerInput, Role, Seat } from "../game/types.ts";
+import type { Family, PlayerInput, Role, Seat } from "../game/types.ts";
 import type { CrewMember } from "./game.ts";
 import type { ErrorCode, LobbyState, LobbySummary } from "./lobbies.ts";
 
 // Clients import their types from here only (they never reach into lobbies.ts).
-export type { CrewMember, EntityView, ErrorCode, LobbyState, LobbySummary, RoleView, SoundCue };
+export type {
+  Callout,
+  ChannelMessage,
+  CrewMember,
+  EntityView,
+  ErrorCode,
+  LobbyState,
+  LobbySummary,
+  RoleView,
+  SoundCue,
+  Stamp,
+};
 
 export type ClientMsg =
   | { t: "ping"; at: number }
@@ -19,7 +37,12 @@ export type ClientMsg =
   | { t: "lobby.start" } // host
   | { t: "ready" }
   | { t: "room.restart" } // host: everyone back to spawn, doors and crates reset
-  | ({ t: "input" } & PlayerInput);
+  | ({ t: "input" } & PlayerInput)
+  | { t: "say"; kind: "callout"; callout: Callout }
+  | { t: "say"; kind: "text"; text: string }
+  | { t: "sound"; clip: string }
+  | { t: "show"; kind: "face"; id: string }
+  | { t: "show"; kind: "stamp"; id: Stamp }; // the server places it at the sender's tile
 
 export type ServerMsg =
   | { t: "welcome"; who: string }
@@ -29,9 +52,13 @@ export type ServerMsg =
   | { t: "left" } // answers lobby.leave, so the page can navigate once the server has acted
   | { t: "error"; code: ErrorCode; message: string }
   | { t: "reveal"; room: string; index: number; role: Role; crew: CrewMember[] }
-  | { t: "view"; view: RoleView };
+  | { t: "view"; view: RoleView }
+  | ({ t: "msg" } & ChannelMessage) // only ever sent to a seat whose role receives the family
+  | { t: "cooldown"; family: Family; until: number; stamp?: true }; // stamp: the 1 s stamp clock, not the face clock
 
 const MAX_FRAME = 8 * 1024;
+const CLIP_ID = /^[a-z0-9-]{1,24}$/;
+const FACE_ID = /^f(0[1-9]|1[0-2])$/;
 
 // Anything malformed, unknown or oversized is null: the caller drops it and
 // keeps the socket open, so one bad frame never ends a game.
@@ -78,6 +105,28 @@ export function parseClientMsg(raw: string): ClientMsg | null {
       const clamp = (n: number) => Math.max(-1, Math.min(1, n));
       return { t: "input", seq: m.seq as number, move: { x: clamp(x), y: clamp(y) }, act: m.act };
     }
+    case "say":
+      if (m.kind === "callout") {
+        return (CALLOUTS as readonly unknown[]).includes(m.callout)
+          ? { t: "say", kind: "callout", callout: m.callout as Callout }
+          : null;
+      }
+      return m.kind === "text" && typeof m.text === "string"
+        ? { t: "say", kind: "text", text: m.text }
+        : null;
+    case "sound":
+      return typeof m.clip === "string" && CLIP_ID.test(m.clip)
+        ? { t: "sound", clip: m.clip }
+        : null;
+    case "show":
+      if (m.kind === "face") {
+        return typeof m.id === "string" && FACE_ID.test(m.id)
+          ? { t: "show", kind: "face", id: m.id }
+          : null;
+      }
+      return m.kind === "stamp" && (STAMPS as readonly unknown[]).includes(m.id)
+        ? { t: "show", kind: "stamp", id: m.id as Stamp }
+        : null;
     default:
       return null;
   }

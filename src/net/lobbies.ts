@@ -29,7 +29,9 @@ export type ErrorCode =
   | "bad-team-name"
   | "not-host"
   | "need-three"
-  | "throttled";
+  | "throttled"
+  | "cooldown"
+  | "cant-send";
 export class LobbyError extends Error {
   code: ErrorCode;
   constructor(code: ErrorCode, message: string) {

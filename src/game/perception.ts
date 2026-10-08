@@ -1,11 +1,13 @@
+import type { Stamp } from "./channels.ts";
 import { type RoomStatus, TICK_MS, type World } from "./sim/world.ts";
 import type { Role, Seat, Vec } from "./types.ts";
 
 export interface EntityView {
   id: string;
-  kind: "player" | "crate" | "door" | "plate" | "exit";
+  kind: "player" | "crate" | "door" | "plate" | "exit" | "stamp";
   pos: Vec;
-  state?: "open" | "closed" | "pressed" | "up";
+  state?: "open" | "closed" | "pressed" | "up" | Stamp; // a stamp's state is which stamp it is
+  age?: number; // ms since a stamp landed
   seat?: Seat;
   role?: Role;
   facing?: Vec;
@@ -65,6 +67,9 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
     } else if (o.kind === "exit") {
       for (const t of o.tiles) out.push({ id: o.id, kind: "exit", pos: centre(t) });
     }
+  }
+  for (const s of world.stamps) {
+    out.push({ id: s.key, kind: "stamp", pos: s.pos, state: s.id, age: s.ageMs });
   }
   return out;
 }

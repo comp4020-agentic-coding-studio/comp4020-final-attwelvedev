@@ -86,3 +86,50 @@ describe("parseClientMsg game messages", () => {
     expect(parseClientMsg(raw)).toBeNull();
   });
 });
+
+describe("parseClientMsg: channels", () => {
+  it("parses a callout, text, a sound, a face and a stamp", () => {
+    expect(parseClientMsg('{"t":"say","kind":"callout","callout":"left"}')).toEqual({
+      t: "say",
+      kind: "callout",
+      callout: "left",
+    });
+    expect(parseClientMsg('{"t":"say","kind":"text","text":"door is east"}')).toEqual({
+      t: "say",
+      kind: "text",
+      text: "door is east",
+    });
+    expect(parseClientMsg('{"t":"sound","clip":"airhorn"}')).toEqual({
+      t: "sound",
+      clip: "airhorn",
+    });
+    expect(parseClientMsg('{"t":"show","kind":"face","id":"f07"}')).toEqual({
+      t: "show",
+      kind: "face",
+      id: "f07",
+    });
+    expect(parseClientMsg('{"t":"show","kind":"stamp","id":"key"}')).toEqual({
+      t: "show",
+      kind: "stamp",
+      id: "key",
+    });
+  });
+
+  it.each([
+    ["an unknown callout", '{"t":"say","kind":"callout","callout":"dance"}'],
+    ["non-string text", '{"t":"say","kind":"text","text":5}'],
+    ["an unknown say kind", '{"t":"say","kind":"shout","text":"x"}'],
+    ["a non-string clip", '{"t":"sound","clip":3}'],
+    ["a clip id with a path in it", '{"t":"sound","clip":"../x"}'],
+    ["a face out of range", '{"t":"show","kind":"face","id":"f13"}'],
+    ["a face not an id", '{"t":"show","kind":"face","id":"smile"}'],
+    ["an unknown stamp", '{"t":"show","kind":"stamp","id":"skull"}'],
+  ])("returns null for %s", (_name, raw) => {
+    expect(parseClientMsg(raw)).toBeNull();
+  });
+
+  it("never reads a stamp position from the client", () => {
+    const raw = '{"t":"show","kind":"stamp","id":"x","at":{"x":1,"y":1}}';
+    expect(parseClientMsg(raw)).toEqual({ t: "show", kind: "stamp", id: "x" });
+  });
+});

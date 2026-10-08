@@ -10,7 +10,7 @@ import { DEVICE_COOKIE } from "../lib/session.ts";
 import { joinThrottle } from "../lib/throttle.ts";
 import { createHub } from "./broadcast.ts";
 import { normaliseLobbyCode } from "./codes.ts";
-import { applyInput, crewOf, type Game, restartGame, startGame, tickGame } from "./game.ts";
+import { applyInput, crewOf, type Game, relay, restartGame, startGame, tickGame } from "./game.ts";
 import {
   createLobby,
   createRegistry,
@@ -182,6 +182,32 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         restartGame(running.game);
         running.full = new Set([0, 1, 2]);
         runIfReady(code, running);
+        return;
+      }
+      case "say":
+      case "sound":
+      case "show": {
+        const code = registry.byDevice.get(who);
+        const running = code ? games.get(code) : undefined;
+        const lobby = code ? registry.lobbies.get(code) : undefined;
+        const seat = code ? seatOfDevice(code, who) : null;
+        if (!running || !lobby || seat === null) return;
+        const sent = relay(running.game, lobby, seat, msg, Date.now());
+        if (sent === null) return;
+        if (!sent.ok) {
+          const wait = sent.until ? Math.ceil((sent.until - Date.now()) / 1000) : 0;
+          throw new LobbyError(
+            sent.code,
+            sent.code === "cooldown"
+              ? `Wait ${wait} s before sending that again.`
+              : "Your role can't send that.",
+          );
+        }
+        for (const receiver of sent.receivers) {
+          const to = lobby.seats[receiver]?.who;
+          if (to) hub.sendTo(to, { t: "msg", ...sent.message });
+        }
+        if (sent.cooldown) send(socket, { t: "cooldown", ...sent.cooldown });
         return;
       }
       case "input": {

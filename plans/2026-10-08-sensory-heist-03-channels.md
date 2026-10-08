@@ -135,7 +135,9 @@ nothing within 1.5 s; mute sends `say` → `error cant-send`; mute plays a
 sound → blind receives, deaf doesn't; sound again at once → `error cooldown`;
 deaf drops a stamp → mute receives it with `at`, blind receives nothing.
 
-**Implementation (green).** Route in the pure module; `attach.ts` builds
+**Implementation (green).** The client's `show` stamp message carries only
+`{ kind: "stamp", id }`; the server fills `at` from the sender's tile (decided
+at execution, 2026-10-08; overview §4.3 has no `at`). Route in the pure module; `attach.ts` builds
 `ChannelMessage` with the sender's nickname and sends `{ t: "msg", ... }` to
 each receiver seat; on success it also sends the sender `{ t: "cooldown" }`.
 Stamps are also added to the world as fading entities visible to deaf and
@@ -148,6 +150,8 @@ mute (extend `EntityView.kind` with `"stamp"`, with `state` = stamp id and an
 `msg` without going through `route`.
 
 **Depends on:** Task 7.
+
+**Status:** [x] done 2026-10-08 (unit + `spec/channels.test.ts` green, `pnpm check` green).
 
 ### Task 10: The comms tray, speech for Can't see, captions, and credited assets
 
@@ -219,3 +223,7 @@ intelligible on the blind device.
 ## 8. Risks / open questions
 
 None.
+
+## 9. Corrections log
+
+- 2026-10-08 — Review: Task 10's faces (`f01`–`f12`) and clips are supplied by the user (with source URL and licence), not sourced by Claude; the plan didn't name them.
