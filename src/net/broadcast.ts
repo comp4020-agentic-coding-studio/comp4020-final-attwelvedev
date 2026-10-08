@@ -83,5 +83,6 @@ function closed(code: string): LobbyState {
     phase: "done",
     seats: [empty(), empty(), empty()],
     spectators: [],
+    createdAt: 0,
   };
 }

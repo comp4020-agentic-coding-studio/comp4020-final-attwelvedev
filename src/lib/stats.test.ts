@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { GameLine } from "./gameLog.ts";
 import type { RequestLine } from "./requestLog.ts";
 import { createStats, sharedStats } from "./stats.ts";
 
@@ -87,5 +88,55 @@ describe("stats", () => {
 describe("sharedStats", () => {
   it("returns the same object twice, so every module instance counts into one", () => {
     expect(sharedStats()).toBe(sharedStats());
+  });
+});
+
+describe("game stats", () => {
+  const game = (event: GameLine["event"], detail?: GameLine["detail"]): GameLine => ({
+    ts: new Date(T0).toISOString(),
+    kind: "game",
+    event,
+    who: "aaaaaaaa",
+    lobby: "bbbbbbbb",
+    ...(detail ? { detail } : {}),
+  });
+
+  it("counts events by name and channel use by role and family", () => {
+    const stats = createStats(T0);
+    stats.recordGame(game("lobby.create"));
+    stats.recordGame(game("channel.send", { family: "say", role: "deaf", kind: "callout" }));
+    stats.recordGame(game("channel.send", { family: "say", role: "deaf", kind: "text" }));
+    stats.recordGame(game("channel.send", { family: "show", role: "mute", kind: "face" }));
+    stats.recordGame(game("channel.refused", { family: "sound", reason: "cooldown" }));
+    const { game: g } = stats.snapshot(T0);
+    expect(g.events).toEqual({ "lobby.create": 1, "channel.send": 3, "channel.refused": 1 });
+    expect(g.channelsByRole).toEqual({ deaf: { say: 2 }, mute: { show: 1 } });
+  });
+
+  it("merges the live provider's counts, and is all zero without one", () => {
+    const stats = createStats(T0);
+    expect(stats.snapshot(T0).game).toMatchObject({
+      lobbiesOpen: 0,
+      gamesPlaying: 0,
+      playersConnected: 0,
+      events: {},
+      channelsByRole: {},
+    });
+    stats.setLiveProvider(() => ({ lobbiesOpen: 2, gamesPlaying: 1, playersConnected: 5 }));
+    expect(stats.snapshot(T0).game).toMatchObject({
+      lobbiesOpen: 2,
+      gamesPlaying: 1,
+      playersConnected: 5,
+    });
+  });
+
+  it("reports the server's memory as a positive number of MB", () => {
+    expect(createStats(T0).snapshot(T0).game.rssMb).toBeGreaterThan(0);
+  });
+
+  it("does not count game lines as requests", () => {
+    const stats = createStats(T0);
+    stats.recordGame(game("socket.open"));
+    expect(stats.snapshot(T0).requests).toBe(0);
   });
 });

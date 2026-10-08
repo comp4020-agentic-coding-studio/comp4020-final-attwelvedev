@@ -31,6 +31,7 @@ describe("the stats view", () => {
         "actions",
         "activeDevices",
         "errors",
+        "game",
         "now",
         "perMinute",
         "recent",

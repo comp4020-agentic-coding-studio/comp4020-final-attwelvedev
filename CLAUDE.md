@@ -117,6 +117,14 @@ A log line is the app's account of what users did, so:
   The line carries the route *pattern*; lobby codes sit in the path.
 - A new POST endpoint needs an `ACTIONS` entry; a test fails without one.
   Add detail from anywhere in a request with `logDetail({ via: "code" })`.
+- Everything players do over the socket is a `game` line too
+  (`src/lib/gameLog.ts`): `{ ts, kind: "game", event, who, lobby, detail? }`.
+  `lobby` is a hash of the code and creation time, never the code. Log a new
+  event with `logGame`, one line per discrete event and never per tick; its
+  `GameEvent` name is added to the union. Never put chat text, callout or clip
+  choices, face or stamp ids, nicknames, team names or codes in `detail`: log
+  the *kind* of thing (`family`, `role`, `kind`), not its content. `/stats`
+  shows the same events as counts, plus lobbies, games, players and memory now.
 
 ## Decisions (ADRs)
 

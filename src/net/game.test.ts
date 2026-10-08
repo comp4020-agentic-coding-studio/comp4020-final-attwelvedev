@@ -19,6 +19,7 @@ const lobby = (...who: (string | null)[]): LobbyState => ({
   phase: "open",
   seats: [seat(who[0] ?? null), seat(who[1] ?? null), seat(who[2] ?? null)],
   spectators: [],
+  createdAt: 0,
 });
 
 describe("rolesFor", () => {

@@ -8,17 +8,47 @@ import { sharedStats } from "../lib/stats.ts";
 Astro.response.headers.set("Cache-Control", "no-store");
 const s = sharedStats().snapshot();
 const time = (ts: string) => ts.slice(11, 19);
+const ROLES = ["blind", "deaf", "mute"];
+const ROLE_NAME: Record<string, string> = {
+  blind: "Can't see",
+  deaf: "Can't hear",
+  mute: "Can't speak",
+};
+const FAMILIES = ["say", "sound", "show"];
+const { game } = s;
 ---
 
 <Base title="Activity">
   <h1>Activity</h1>
   <p>What people are doing in this app right now. Counts since the server started; no names or messages.</p>
 
+  <h2>Right now</h2>
+  <dl class="totals">
+    <div><dt>Lobbies open</dt><dd id="lobbies">{game.lobbiesOpen}</dd></div>
+    <div><dt>Games playing</dt><dd id="games">{game.gamesPlaying}</dd></div>
+    <div><dt>Players connected</dt><dd id="players">{game.playersConnected}</dd></div>
+    <div><dt>Server memory (MB)</dt><dd id="memory">{game.rssMb}</dd></div>
+  </dl>
+
+  <h2>Since the server started</h2>
   <dl class="totals">
     <div><dt>Requests</dt><dd id="requests">{s.requests}</dd></div>
     <div><dt>Errors</dt><dd id="errors">{s.errors}</dd></div>
     <div><dt>Devices in the last 5 minutes</dt><dd id="devices">{s.activeDevices}</dd></div>
   </dl>
+
+  <h2>Game events</h2>
+  <ul class="rows" id="events">
+    {Object.entries(game.events).sort((a, b) => b[1] - a[1]).map(([event, n]) => <li><span>{event}</span> <strong>{n}</strong></li>)}
+  </ul>
+
+  <h2>Channels by role</h2>
+  <table>
+    <thead><tr><th scope="col">Role</th>{FAMILIES.map((f) => <th scope="col">{f}</th>)}</tr></thead>
+    <tbody id="channels">
+      {ROLES.map((role) => <tr><th scope="row">{ROLE_NAME[role]}</th>{FAMILIES.map((f) => <td>{game.channelsByRole[role]?.[f] ?? 0}</td>)}</tr>)}
+    </tbody>
+  </table>
 
   <h2>By action</h2>
   <ul class="rows" id="actions">
@@ -47,6 +77,15 @@ const time = (ts: string) => ts.slice(11, 19);
     font-size: 1.75rem;
     font-weight: 600;
   }
+  table {
+    border-collapse: collapse;
+    margin: 0 0 24px;
+  }
+  th,
+  td {
+    padding: 4px 16px 4px 0;
+    text-align: left;
+  }
   #recent li > * {
     overflow-wrap: anywhere;
   }
@@ -67,7 +106,39 @@ const time = (ts: string) => ts.slice(11, 19);
       });
       return li;
     };
+    var ROLES = [["blind", "Can't see"], ["deaf", "Can't hear"], ["mute", "Can't speak"]];
+    var FAMILIES = ["say", "sound", "show"];
+    function cell(tag, value, scope) {
+      var el = document.createElement(tag);
+      if (scope) el.scope = scope;
+      el.textContent = String(value);
+      return el;
+    }
     function draw(s) {
+      var g = s.game;
+      text("lobbies", g.lobbiesOpen);
+      text("games", g.gamesPlaying);
+      text("players", g.playersConnected);
+      text("memory", g.rssMb);
+      var events = document.getElementById("events");
+      events.replaceChildren.apply(
+        events,
+        Object.entries(g.events)
+          .sort(function (a, b) { return b[1] - a[1]; })
+          .map(function (e) { return row([{ text: e[0] }, { tag: "strong", text: e[1] }]); }),
+      );
+      var channels = document.getElementById("channels");
+      channels.replaceChildren.apply(
+        channels,
+        ROLES.map(function (r) {
+          var tr = document.createElement("tr");
+          tr.append(cell("th", r[1], "row"));
+          FAMILIES.forEach(function (f) {
+            tr.append(cell("td", (g.channelsByRole[r[0]] || {})[f] || 0));
+          });
+          return tr;
+        }),
+      );
       text("requests", s.requests);
       text("errors", s.errors);
       text("devices", s.activeDevices);

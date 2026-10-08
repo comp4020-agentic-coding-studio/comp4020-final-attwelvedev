@@ -14,6 +14,7 @@ export interface LobbyState {
   phase: LobbyPhase;
   seats: [SeatState, SeatState, SeatState];
   spectators: { who: string; nickname: string }[];
+  createdAt: number; // ms since epoch; with the code, the basis of the lobby's log key
 }
 export interface LobbySummary {
   code: string;
@@ -84,6 +85,7 @@ export function createLobby(reg: Registry, who: string, nickname: string): Lobby
     phase: "open",
     seats: [{ who, nickname: nick, connected: true, bot: false }, emptySeat(), emptySeat()],
     spectators: [],
+    createdAt: Date.now(),
   };
   reg.lobbies.set(code, lobby);
   reg.byDevice.set(who, code);

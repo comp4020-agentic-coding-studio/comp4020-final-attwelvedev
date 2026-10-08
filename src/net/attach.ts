@@ -5,8 +5,10 @@ import type { Room } from "../game/rooms/format.ts";
 import { loadRooms } from "../game/rooms/load.ts";
 import { TICK_MS } from "../game/sim/world.ts";
 import type { Seat } from "../game/types.ts";
+import { type GameEvent, lobbyKey, logGame } from "../lib/gameLog.ts";
 import { anon } from "../lib/requestLog.ts";
 import { DEVICE_COOKIE } from "../lib/session.ts";
+import { sharedStats } from "../lib/stats.ts";
 import { joinThrottle } from "../lib/throttle.ts";
 import { createHub } from "./broadcast.ts";
 import { normaliseLobbyCode } from "./codes.ts";
@@ -17,6 +19,7 @@ import {
   expireIdle,
   joinLobby,
   LobbyError,
+  type LobbyState,
   leaveLobby,
   openLobbies,
   setConnected,
@@ -50,6 +53,29 @@ const roomList = (): Room[] => {
   rooms ??= loadRooms();
   return rooms;
 };
+
+// One game line, keyed to the lobby (never its code). `detail` is redacted by
+// logGame, so only allowlisted fields can reach the log.
+const record = (
+  event: GameEvent,
+  who: string | null,
+  lobby: LobbyState | undefined,
+  detail?: Record<string, unknown>,
+): void =>
+  logGame({
+    event,
+    who,
+    lobbyKey: lobby ? lobbyKey(lobby.code, lobby.createdAt) : null,
+    detail,
+  });
+const lobbyOf = (who: string): LobbyState | undefined =>
+  registry.lobbies.get(registry.byDevice.get(who) ?? "");
+
+sharedStats().setLiveProvider(() => ({
+  lobbiesOpen: openLobbies(registry).length,
+  gamesPlaying: games.size,
+  playersConnected: hub.socketsOf.size,
+}));
 
 const seatOfDevice = (code: string, who: string): Seat | null => {
   const at = registry.lobbies.get(code)?.seats.findIndex((s) => s.who === who) ?? -1;
@@ -90,6 +116,10 @@ function tick(code: string): void {
   if (cleared && running.timer) {
     clearInterval(running.timer);
     running.timer = null;
+    record("room.clear", null, lobby, {
+      room: running.game.world.room.id,
+      ms: Date.now() - running.game.startedAt,
+    });
   }
 }
 
@@ -118,6 +148,7 @@ function deviceToken(req: IncomingMessage): string | null {
 
 function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
   const { change, send } = hub;
+  let refused = false; // a refused channel message is logged as channel.refused, not lobby.error
   try {
     switch (msg.t) {
       case "ping":
@@ -129,6 +160,7 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         return;
       case "lobby.create":
         change(who, () => createLobby(registry, who, msg.nickname));
+        record("lobby.create", who, lobbyOf(who));
         return;
       case "lobby.join": {
         if (joinThrottle.blocked(who)) {
@@ -144,12 +176,16 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
           );
         }
         change(who, () => joinLobby(registry, code, who, msg.nickname, msg.as));
+        record("lobby.join", who, lobbyOf(who), { kind: msg.as });
         return;
       }
-      case "lobby.leave":
+      case "lobby.leave": {
+        const was = lobbyOf(who);
         change(who, () => leaveLobby(registry, who));
+        if (was) record("lobby.leave", who, was);
         send(socket, { t: "left" });
         return;
+      }
       case "lobby.team":
         change(who, () => setTeamName(registry, who, msg.name));
         return;
@@ -161,6 +197,8 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         games.set(lobby.code, { game, full: new Set([0, 1, 2]), timer: null });
         for (const seat of [0, 1, 2] as const) sendReveal(lobby.code, seat);
         hub.broadcast(lobby);
+        record("game.start", who, lobby, { bots: lobby.seats.filter((s) => s.bot).length });
+        record("room.start", null, lobby, { room: game.world.room.id });
         return;
       }
       case "ready": {
@@ -180,6 +218,7 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
           throw new LobbyError("not-host", "Only the host can do that.");
         }
         restartGame(running.game);
+        record("room.start", who, registry.lobbies.get(code), { room: running.game.world.room.id });
         running.full = new Set([0, 1, 2]);
         runIfReady(code, running);
         return;
@@ -194,7 +233,10 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         if (!running || !lobby || seat === null) return;
         const sent = relay(running.game, lobby, seat, msg, Date.now());
         if (sent === null) return;
+        const family = msg.t;
         if (!sent.ok) {
+          record("channel.refused", who, lobby, { family, reason: sent.code });
+          refused = true;
           const wait = sent.until ? Math.ceil((sent.until - Date.now()) / 1000) : 0;
           throw new LobbyError(
             sent.code,
@@ -203,6 +245,12 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
               : "Your role can't send that.",
           );
         }
+        record("channel.send", who, lobby, {
+          family,
+          role: sent.message.from.role,
+          // the kind of thing sent, never what it said
+          kind: "kind" in sent.message ? sent.message.kind : "clip",
+        });
         for (const receiver of sent.receivers) {
           const to = lobby.seats[receiver]?.who;
           if (to) hub.sendTo(to, { t: "msg", ...sent.message });
@@ -221,6 +269,7 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
     }
   } catch (error) {
     if (!(error instanceof LobbyError)) throw error;
+    if (!refused) record("lobby.error", who, lobbyOf(who), { reason: error.code });
     send(socket, { t: "error", code: error.code, message: error.message });
   } finally {
     reapGames();
@@ -260,12 +309,14 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
   socket.on("close", () => {
     hub.watchers.delete(socket);
     sockets.delete(socket);
+    record("socket.close", who, lobbyOf(who));
     if (sockets.size > 0) return;
     hub.socketsOf.delete(who);
     const gone = setConnected(registry, who, false);
     if (gone) hub.broadcast(gone);
   });
   hub.send(socket, { t: "welcome", who });
+  record("socket.open", who, lobbyOf(who));
 });
 
 // Server pings every 15 s and drops a socket that misses two in a row, so a

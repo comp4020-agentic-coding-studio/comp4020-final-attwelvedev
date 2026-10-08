@@ -1,4 +1,12 @@
+import type { GameLine } from "./gameLog.ts";
 import { isLogged, type RequestLine } from "./requestLog.ts";
+
+// What the socket server knows right now and the stats can't count up from lines.
+export interface LiveCounts {
+  lobbiesOpen: number;
+  gamesPlaying: number;
+  playersConnected: number;
+}
 
 export interface StatsSnapshot {
   since: number;
@@ -9,6 +17,11 @@ export interface StatsSnapshot {
   activeDevices: number;
   perMinute: { minute: number; n: number }[];
   recent: { ts: string; who: string | null; action: string; status: number }[];
+  game: LiveCounts & {
+    events: Record<string, number>;
+    channelsByRole: Record<string, Record<string, number>>;
+    rssMb: number;
+  };
 }
 
 const RING = 200;
@@ -27,8 +40,26 @@ export function createStats(since = Date.now()) {
   const ring: StatsSnapshot["recent"] = [];
   const minutes = new Map<number, number>();
   const seen = new Map<string, number>();
+  const events: Record<string, number> = {};
+  const channelsByRole: Record<string, Record<string, number>> = {};
+  let live: () => LiveCounts = () => ({ lobbiesOpen: 0, gamesPlaying: 0, playersConnected: 0 });
 
   return {
+    recordGame(line: GameLine): void {
+      events[line.event] = (events[line.event] ?? 0) + 1;
+      const { role, family } = line.detail ?? {};
+      if (line.event === "channel.send" && typeof role === "string" && typeof family === "string") {
+        const byFamily = channelsByRole[role] ?? {};
+        byFamily[family] = (byFamily[family] ?? 0) + 1;
+        channelsByRole[role] = byFamily;
+      }
+    },
+
+    // The socket module registers this once; the Astro page never imports it.
+    setLiveProvider(fn: () => LiveCounts): void {
+      live = fn;
+    },
+
     record(line: RequestLine): void {
       if (!isLogged(line.route)) return;
       const at = Date.parse(line.ts);
@@ -62,6 +93,14 @@ export function createStats(since = Date.now()) {
           return { minute: m, n: minutes.get(m) ?? 0 };
         }),
         recent: ring.slice(-RECENT).reverse(),
+        game: {
+          ...live(),
+          events: { ...events },
+          channelsByRole: Object.fromEntries(
+            Object.entries(channelsByRole).map(([role, byFamily]) => [role, { ...byFamily }]),
+          ),
+          rssMb: Math.round(process.memoryUsage.rss() / (1024 * 1024)),
+        },
       };
     },
   };
