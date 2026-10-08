@@ -30,6 +30,14 @@
 - **Perception:** the server sends each client only what its role perceives
   (ADR 0007). Never add a field to a view or message without checking it
   against the role tables in `src/game/types.ts`.
+- **Sensory parity:** whatever happens in a room reaches every role through
+  something that role can perceive: Can't see and Can't speak hear it (and it
+  is captioned), Can't hear sees it, in the same tick. Every sound the game can
+  make has a row in `src/game/parity.test.ts`; a new `SoundCue` kind with no row
+  or no caption fails the typecheck, and a row that cannot show both halves
+  fails the test. The alarm is the one deliberate exception (it silences the
+  other cues for those who hear). New effect or state for the sighted: add it
+  to `detectFx` (`src/client/fx.ts`) or to the view, and add the sound with it.
 - **Rooms:** one file per room, `rooms/NN-slug.room` (JSON metadata, a `---`
   line, then a text grid; format in the phase 02 plan §4.1). Rooms are linted
   by `pnpm lint:rooms` (part of `pnpm check`, and run by a hook on every room

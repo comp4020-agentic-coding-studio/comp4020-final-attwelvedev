@@ -225,3 +225,51 @@ now takes 13 s and the full check 42 s.
 
 Not checked: I haven't long-pressed the touch controls on a physical phone, so
 that fix is covered by style and event specs only.
+
+## 2026-10-09 — A checkpoint one player could bank for everyone
+
+9459be1
+
+The phase 05 plan said a checkpoint is reached "when any player's centre enters
+it". In the first playtest of the dark corridor I found that one player could
+run through blind, reach the next flag, and every player respawned there from
+then on: a challenge built for three people was beaten by one lucky runner.
+
+The obvious fix was to patch that corridor (more hazards, a longer run). I
+changed the rule instead, because the corridor wasn't the problem: any section
+with a flag at the end had the same hole. A checkpoint is now set only when all
+three players are within 1.5 tiles of it at once, the same shape as the exit.
+Being caught still costs the whole team, so the lone runner gains nothing and
+risks everyone.
+
+I had the agent write the tests first: one player, two players, a player 1.6
+tiles away, and three players who each visited at different times all fail to
+set a flag; three together set it. Four of those failed before the change. A
+solve test now also proves the scripted team can set every flag in rooms 2 and 3,
+so I can't move a flag somewhere the team can't gather. The flag draws three
+small pips so a team that isn't getting it can see who is missing.
+
+Not checked: the 1.5-tile radius is a guess; I haven't seen whether three real
+people on a phone find it easy to stand close enough.
+
+## 2026-10-09 — "Everything has a sound" became a test that can fail
+
+9459be1
+
+In review I noticed that most of what a player can touch made no sound: plates,
+crates, the checkpoint filling up, the sequence door, hiding, the exit. I said the
+game should have a sound and a visual for everything interactable, and that the
+parity between what Can't see hears and what Can't hear sees is the promise worth
+writing down.
+
+The obvious fix was to add the missing sounds and move on. I had the agent turn
+the promise into the harness first: a table with one row per sound, typed against
+the list of sounds so a new sound without a row fails to compile, and a test per
+row that builds a real situation and checks the sound reaches Can't see, a visible
+change reaches Can't hear in the same tick, and a caption exists. It went red for
+ten sounds before any was built, which is how I knew it was testing the thing. The
+rule also went into `CLAUDE.md`, so the next session is bound by it.
+
+The test only proves the information is sent to each role, not that a person can
+tell two sounds apart, so I log that as unchecked until a playtest.
+

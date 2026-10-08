@@ -106,7 +106,7 @@ From Task 11: `logGame({ event, who, lobbyKey, detail })`, `GameEvent`
 | Char | Object | Metadata (keyed by id) |
 | --- | --- | --- |
 | `G` | guard `G1…` | `{ "patrol": [[x,y],…], "speedTps": 1.5, "sightTiles": 6, "fovDeg": 70 }` |
-| `C` | camera `C1…` | `{ "zone": [x0,y0,x1,y1], "periodS": 6, "watchingS": 3, "offsetS": 0 }` |
+| `C` | camera `C1…` | `{ "facingDeg": 90, "fovDeg": 90, "range": 8, "periodS": 6, "watchingS": 3, "offsetS": 0 }` (a cone like a guard's; changed 2026-10-09 from a rectangular `zone`) |
 | `L` | laser emitter `L1…` | `{ "dir": "right"\|"left"\|"up"\|"down", "onS": 2, "offS": 2, "offsetS": 0 }` (beam runs to the first wall) |
 | `h` | hide spot | — (a player centred on it is invisible to guards and cameras) |
 | `K` | checkpoint `K1…` | — (numbered in reading order) |
@@ -126,14 +126,18 @@ Flips: `"flips": [{ "kind": "dark", "zone": [x0,y0,x1,y1] }, { "kind": "alarm", 
   the three nearest floor tiles, crates and loot restored to the snapshot
   taken when that checkpoint was reached. Emits `{ kind: "caught", by: id }`
   and logs `caught`.
-- **Checkpoint:** reached when any player's centre enters it; snapshot taken.
+- **Checkpoint:** reached when **all three players are within 1.5 tiles of its
+  centre at the same moment** (changed 2026-10-09, see the Corrections log);
+  snapshot taken.
 - **Loot:** collected on touch; `World` gains `loot: number`, `lootTotal`.
 - **Dark zone:** for deaf and mute views, nothing inside the zone (tiles,
   entities, including other players) is sent; their own avatar is sent only
   as a dim ring when inside. Blind is unaffected (they never see anyway).
-- **Alarm:** while active, blind and mute views get `sounds` = only
-  `{ kind: "alarm" }`; deaf unaffected (they hear nothing anyway). Visual:
-  steady red border + banner with a 1 Hz intensity pulse.
+- **Alarm:** set off by its trigger plate (never by being caught). While active:
+  blind and mute views get `sounds` = only `{ kind: "alarm" }`; deaf unaffected
+  (they hear nothing anyway); **every camera watches non-stop and guards walk
+  1.5× faster** (changed 2026-10-09). Being caught clears it: a retry starts
+  clean. Visual: steady red border + banner with a 1 Hz intensity pulse.
 - **Audio cues for blind and mute** (`SoundCue.kind` widens): `guard`
   (footsteps of guards, panned, gain by distance), `camera` (servo whir when a
   camera in range starts watching), `laser` (hum within 3 tiles while on),
@@ -295,9 +299,9 @@ for a whole beat, and the flips each handed a different role the lead.
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 12–14 complete, tests passing, Task 14 accepted by the user
-- [ ] `pnpm test:unit` and `pnpm lint:rooms` pass
-- [ ] `pnpm build && pnpm start`, then `pnpm check` and `pnpm check:evidence` pass
+- [x] Tasks 12–14 complete, tests passing, Task 14 accepted by the user
+- [x] `pnpm test:unit` and `pnpm lint:rooms` pass
+- [x] `pnpm build && pnpm start`, then `pnpm check` and `pnpm check:evidence` pass
 - [ ] Deployed (ask first); `spec/heist.test.ts` green against fly.dev
 - [ ] Tick this phase in overview §5 and commit
 
@@ -324,4 +328,85 @@ harmless: `World` also has `stamps`/`nextStamp`, `Game` has `cooldowns`,
 
 ## 9. Corrections log
 
-(none yet)
+- 2026-10-09, Task 14 review (checkpoints): expected a checkpoint to be "reached
+  when any player's centre enters it" (§4.2, as planned); the user found that in
+  the dark corridor one player could run blind, reach the next flag, and bank
+  the whole section for everyone. Wanted: a checkpoint is set only when **all
+  three players are within 1.5 tiles of the flag at the same moment**. The
+  planned rule made a team challenge solvable by one person, the opposite of the
+  three-station design (FR10). Now `CHECKPOINT_RADIUS` in `world.ts`; flags show
+  how many players are at them; the solve test proves the scripted team sets
+  every flag.
+- 2026-10-09, Task 14 review (alarm): expected the alarm to cost something (it
+  only silenced cues, so the team could stand still and wait it out). Wanted it
+  to bite, but not by firing when the team is caught: the teleport back starts a
+  fresh attempt, and an alarm from the previous one is not causal. Now only the
+  plate sets it off; while it rings cameras watch non-stop and guards are 1.5×
+  faster; being caught clears it. A lint rule rejects an alarm trigger that is
+  not a plate (so `"caught"` is an error).
+- 2026-10-09, Task 14 review (realism: cameras, guards, line of sight): expected,
+  as planned, a camera that watches a rectangle and a guard whose facing flips
+  instantly at the end of its patrol; the user found both unrealistic and asked
+  for the guard's cone to be blocked by walls and cover like real sight. Now:
+  cameras are cones (`facingDeg`, `fovDeg`, `range`) on the same on/off timing,
+  blocked by walls, closed doors and hide spots; guards swing round at
+  `turnDegPerS` (default 180) and stand still while they do, so their cone sweeps
+  across the end of the lane and their footsteps stop; and a hide spot is real
+  cover (it blocks sight both in the rules and in the drawn cone, via
+  `src/client/cone.ts`), not only a tile that hides whoever stands on it. The
+  sweep made two waiting spots in Room 3 and the Room 2 plates dangerous to stand
+  on, found by testing how long a team can wait at each; the plates moved east and
+  Room 3's guard sees 3 tiles, and `solve.test.ts` now checks a 16 s wait at every
+  place a team has to wait. A pivoting camera (sweeping, with a slim gap) was
+  discussed and parked in the backlog.
+- 2026-10-09, Task 14 review (a bug): on the cleared screen the "Sure? Restart
+  room" button's text vanished on hover (dark text on a dark fill): the older
+  `.btn:hover` rule (same specificity, later in the file) repainted the fill but
+  not the text. Fixed, and a spec now reads the shipped stylesheet in a real
+  browser and requires AA contrast (4.5) for every button look, resting and
+  hovered (`spec/layout/buttons.test.ts`), so a new button style can't repeat it.
+- 2026-10-09, Task 14 review (how far sounds carry, and captions): expected,
+  as built, plate clicks and team tones to play at full volume anywhere in the
+  room; the user noticed a plate on the far side was audible and asked whether
+  falloff should apply to every sound. Now it splits on whether the sound is in
+  the room: sounds the world makes fade with distance, each with its own range
+  (plate 8 tiles, plate release 6, hiding 6, the rest 12), so Can't see learns
+  what is near and is told the rest; sounds the game makes to the team (flag and
+  exit tones, the sequence, loot, checkpoint, cleared, caught, the alarm) carry
+  everywhere. Parity means every event has a sound and a sight, not that every
+  sound is heard from everywhere; the parity test says so. Two caption fixes in
+  the same review: cue captions were sampled from the newest view only, so a
+  one-tick sound (a camera starting to watch) was almost never shown, and are
+  now held 2 s after they were last heard (`hearCues`/`heardCues`); and captions
+  now start ON for Can't see as well, because their whole game is sound and a
+  muted phone or a loud showcase hall would leave them with nothing.
+- 2026-10-09, Task 14 review (more sounds, and parity): expected the Task 13
+  set of cues to be enough; the user pointed out that much of what a player can
+  touch is silent (plates, crates, the checkpoint filling up, the sequence,
+  hiding, the exit) and that a sensory game needs sound and sight for
+  everything interactable. Added: `plate`, `plate-up`, `crate`, `flag` (rises
+  with how many are within reach), `exit` (same), `seq-ok`, `seq-wrong`,
+  `seq-open`, `hide`, `cleared`, each captioned, each with a visible
+  counterpart for Can't hear (plate and exit states, hidden avatars, the sign's
+  flash, and small fading effects drawn from consecutive views in
+  `src/client/fx.ts`). The user's point that parity is the testable promise
+  became `src/game/parity.test.ts`: one row per sound, heard by Can't see, seen
+  by Can't hear in the same tick, captioned; a missing row or caption fails the
+  build. Deferred to phase 07 polish: ambience, music, menu sounds.
+- 2026-10-09, Task 14 review (own footsteps): expected, as planned, that a
+  player hears only other players' footsteps; the user wanted Can't see and
+  Can't speak to hear their own too, as in other games, with the worry that
+  Can't see could not tell their steps from someone else's. Now: your own steps
+  are a `step` cue (centred, low and soft, never captioned), other players keep
+  the panned `footsteps` cue; pushing at a wall, door or crate and getting
+  nowhere is a `bump` cue (heard only by you, captioned "[you bump into
+  something]") and a player pressed against something makes no footsteps for
+  anyone. `PlayerState.blocked` carries the fact from the simulation.
+- 2026-10-09, Task 14 review (signs): expected a sequence door's sign to be
+  enough ("7 > 1 > 4"); the user found the plates were unlabelled and the 5 s
+  window invisible. Wanted: plate numbers on the plates, and quiet progress on
+  the sign (done digits green, a draining line). The plan specified the sign but
+  not how a player matches it to the floor or learns the time limit.
+- 2026-10-09, Task 14 review (cameras): expected the small box in a camera's
+  zone to read as a camera; the user could not tell what it was. Now an eye-like
+  camera facing its zone (open with rays when watching, shut when idle).
