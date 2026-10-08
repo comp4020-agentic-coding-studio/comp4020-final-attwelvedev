@@ -1,3 +1,4 @@
+import { flipsOf } from "../rooms/format.ts";
 import type { PlayerInput, Seat, Vec } from "../types.ts";
 import { blockedAt, circleHitsTile, crateAt, crateTouching, indexOf, tileKey } from "./collide.ts";
 import { caughtBy, guardParams, tileOf } from "./hazards.ts";
@@ -95,6 +96,16 @@ function updatePlates(world: World) {
     if (pressed !== world.pressed[plate.id]) {
       world.pressed[plate.id] = pressed;
       world.events.push({ kind: "plate", id: plate.id, pressed, at: tileCentre(tile) });
+    }
+  }
+}
+
+// An alarm flip starts when its trigger plate is pressed or the team is caught,
+// and runs for durationS (starting afresh if it is set off again).
+function triggerAlarm(world: World, trigger: (t: string) => boolean) {
+  for (const flip of flipsOf(world.room)) {
+    if (flip.kind === "alarm" && trigger(flip.trigger)) {
+      world.alarmUntil = world.tick + Math.round((flip.durationS * 1000) / TICK_MS);
     }
   }
 }
@@ -218,6 +229,7 @@ function sendBack(world: World, by: string) {
     .reduce((sum, o) => sum + lootValue(o.params), 0);
   world.seqProgress = {};
   world.events.push({ kind: "caught", by });
+  triggerAlarm(world, (t) => t === "caught");
 }
 
 function updateExit(world: World) {
@@ -250,6 +262,9 @@ export function step(
   }
   updatePlates(world);
   updateSequences(world);
+  for (const e of world.events) {
+    if (e.kind === "plate" && e.pressed) triggerAlarm(world, (t) => t === e.id);
+  }
   updateDoors(world);
   moveGuards(world, dtMs);
   updateCheckpoints(world);

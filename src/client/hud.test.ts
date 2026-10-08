@@ -112,6 +112,27 @@ describe("cueCaptions", () => {
     ]);
   });
 
+  it("captions the hazard cues, and names no side for team-wide ones", () => {
+    const cues = [
+      { kind: "guard", pan: -0.6, gain: 0.7 },
+      { kind: "camera", pan: 0.5, gain: 0.5 },
+      { kind: "laser", pan: 0.1, gain: 0.5 },
+      { kind: "loot", pan: -0.9, gain: 1 },
+      { kind: "checkpoint", pan: 0, gain: 1 },
+      { kind: "caught", pan: 0, gain: 1 },
+      { kind: "alarm", pan: 0, gain: 1 },
+    ] as const;
+    expect(cueCaptions([...cues])).toEqual([
+      "[guard footsteps, left]",
+      "[camera whir, right]",
+      "[laser hum, ahead]",
+      "[loot chime, left]",
+      "[checkpoint chime]",
+      "[siren]",
+      "[alarm]",
+    ]);
+  });
+
   it("is empty when nothing is audible", () => {
     expect(cueCaptions([])).toEqual([]);
   });

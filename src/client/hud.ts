@@ -73,7 +73,17 @@ const CUE_WORD: Record<SoundCue["kind"], string> = {
   footsteps: "footsteps",
   hum: "hum",
   door: "door click",
+  guard: "guard footsteps",
+  camera: "camera whir",
+  laser: "laser hum",
+  loot: "loot chime",
+  checkpoint: "checkpoint chime",
+  caught: "siren",
+  alarm: "alarm",
 };
+
+// Heard by the whole team from nowhere in particular, so no side is named.
+const EVERYWHERE = new Set<SoundCue["kind"]>(["checkpoint", "caught", "alarm"]);
 
 // What the room sounds like right now, as captions: one per sound and side.
 export function cueCaptions(sounds: SoundCue[]): string[] {
@@ -81,6 +91,10 @@ export function cueCaptions(sounds: SoundCue[]): string[] {
   for (const s of sounds) {
     if (s.kind === "hum") {
       out.add("[hum]");
+      continue;
+    }
+    if (EVERYWHERE.has(s.kind)) {
+      out.add(`[${CUE_WORD[s.kind]}]`);
       continue;
     }
     const side = s.pan < -SIDE ? "left" : s.pan > SIDE ? "right" : "ahead";

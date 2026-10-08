@@ -59,6 +59,37 @@ export interface Room {
   meta: Record<string, unknown>; // the raw JSON, for later phases' keys
 }
 
+// An environment flip a room can carry in its metadata (spec §4.1 of the phase 05 plan):
+// a dark zone, or an alarm set off by a plate or by being caught.
+export type Flip =
+  | { kind: "dark"; zone: [number, number, number, number] }
+  | { kind: "alarm"; trigger: string; durationS: number };
+
+export function flipsOf(room: Room): Flip[] {
+  const raw = room.meta.flips;
+  if (!Array.isArray(raw)) return [];
+  const out: Flip[] = [];
+  for (const f of raw) {
+    if (!isRecord(f)) continue;
+    const zone = f.zone;
+    if (
+      f.kind === "dark" &&
+      Array.isArray(zone) &&
+      zone.length === 4 &&
+      zone.every((n) => typeof n === "number")
+    ) {
+      out.push({ kind: "dark", zone: zone as [number, number, number, number] });
+    } else if (f.kind === "alarm" && typeof f.trigger === "string") {
+      out.push({
+        kind: "alarm",
+        trigger: f.trigger,
+        durationS: typeof f.durationS === "number" ? f.durationS : 8,
+      });
+    }
+  }
+  return out;
+}
+
 export class RoomFormatError extends Error {
   line: number;
   constructor(message: string, line: number) {

@@ -296,6 +296,9 @@ function Hud({
         self: rt.shown,
         layout: size.w >= 720 ? "fit" : "follow",
         pops,
+        alarm: view.alarm,
+        nowMs: now,
+        reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
       };
       draw(ctx, scene);
     };

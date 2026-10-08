@@ -65,6 +65,7 @@ export interface World {
   checkpoint: number; // 0 = the spawns, n = K<n>
   snapshot: Snapshot;
   seqProgress: Record<string, { next: number; at: number }>; // sequence doors: plates matched so far
+  alarmUntil: number; // the tick the alarm ends; 0 = off
 }
 
 export type WorldEvent =
@@ -143,6 +144,7 @@ export function createWorld(room: Room): World {
       lootTaken: [],
     },
     seqProgress: {},
+    alarmUntil: 0,
     stamps: [],
     nextStamp: 1,
     doorOpen,

@@ -12,12 +12,18 @@ const HUM_HZ = 110;
 
 // The cues are made here rather than loaded, so there is nothing to download
 // or credit: a soft tick for footsteps, a steady hum on a plate, a click for a
-// door. Each is panned and scaled by the cue the server computed.
+// door, and for the heist a lower tick for guards, a whir for a camera, a
+// buzz for a laser, chimes, a siren and an alarm. Each is panned and scaled
+// by the cue the server computed. Nothing flashes or flickers: a steady cue is
+// a steady tone.
 export function createAudio(): GameAudio {
   let ctx: AudioContext | null = null;
   let hum: { osc: OscillatorNode; gain: GainNode } | null = null;
   let noise: AudioBuffer | null = null;
   let lastStep = 0;
+  let lastGuard = 0;
+  let lastLaser = 0;
+  let lastAlarm = 0;
 
   const ensure = (): AudioContext | null => {
     if (ctx) return ctx;
@@ -68,6 +74,28 @@ export function createAudio(): GameAudio {
     osc.stop(c.currentTime + 0.07);
   };
 
+  // One short tone, optionally sliding from `from` to `to` Hz over `secs`.
+  const tone = (
+    c: AudioContext,
+    cue: SoundCue,
+    type: OscillatorType,
+    from: number,
+    to: number,
+    secs: number,
+    level: number,
+  ) => {
+    const osc = c.createOscillator();
+    osc.type = type;
+    osc.frequency.setValueAtTime(from, c.currentTime);
+    if (to !== from) osc.frequency.linearRampToValueAtTime(to, c.currentTime + secs);
+    const gain = c.createGain();
+    gain.gain.setValueAtTime(level * cue.gain, c.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + secs);
+    osc.connect(gain).connect(panner(c, cue.pan));
+    osc.start();
+    osc.stop(c.currentTime + secs + 0.02);
+  };
+
   const setHum = (c: AudioContext, level: number) => {
     if (!hum) {
       const osc = c.createOscillator();
@@ -101,6 +129,28 @@ export function createAudio(): GameAudio {
         tick(c, loudest);
       }
       for (const s of sounds) if (s.kind === "door") click(c, s);
+      for (const s of sounds) {
+        if (s.kind === "camera") tone(c, s, "sawtooth", 500, 900, 0.35, 0.18);
+        else if (s.kind === "loot") tone(c, s, "sine", 988, 1318, 0.25, 0.3);
+        else if (s.kind === "checkpoint") tone(c, s, "triangle", 523, 784, 0.4, 0.3);
+        else if (s.kind === "caught") tone(c, s, "square", 900, 500, 0.7, 0.25);
+      }
+      const guard = sounds.filter((s) => s.kind === "guard").sort((a, b) => b.gain - a.gain)[0];
+      if (guard && now - lastGuard >= STEP_GAP_MS * 1.6) {
+        lastGuard = now;
+        tone(c, guard, "triangle", 130, 100, 0.12, 0.5);
+      }
+      const laser = sounds.find((s) => s.kind === "laser");
+      if (laser && now - lastLaser >= 250) {
+        lastLaser = now;
+        tone(c, laser, "sawtooth", 220, 220, 0.2, 0.12);
+      }
+      // a steady two-tone, twice a second at most: well under the flashing limit
+      const alarm = sounds.find((s) => s.kind === "alarm");
+      if (alarm && now - lastAlarm >= 500) {
+        lastAlarm = now;
+        tone(c, alarm, "square", 740, 740, 0.22, 0.2);
+      }
       const h = sounds.find((s) => s.kind === "hum");
       if (h || hum) setHum(c, h ? 0.12 * h.gain : 0);
     },

@@ -15,6 +15,9 @@ export interface Scene {
   self: Vec | null; // own position, null for Can't see
   layout: "fit" | "follow"; // desktop fits the room, phone follows the team
   pops?: FacePop[]; // faces shown above their senders
+  alarm?: boolean; // the alarm is on: a red border and banner
+  nowMs?: number; // the clock the alarm pulse follows
+  reducedMotion?: boolean; // a static alarm, no pulse
 }
 
 export interface FacePop {
@@ -107,17 +110,23 @@ function hatch(
 }
 
 function drawTiles(ctx: CanvasRenderingContext2D, tiles: string[], cam: Camera) {
-  ctx.fillStyle = COLOR.solid;
-  for (let y = 0; y < tiles.length; y++) {
-    const row = tiles[y] ?? "";
-    for (let x = 0; x < row.length; x++) {
-      if (row[x] === "#")
-        ctx.fillRect(
-          cam.ox + x * cam.scale,
-          cam.oy + y * cam.scale,
-          cam.scale + 0.5,
-          cam.scale + 0.5,
-        );
+  // a space is a tile inside a dark zone: the server sends nothing about it
+  for (const [ch, color] of [
+    ["#", COLOR.solid],
+    [" ", COLOR.ink],
+  ] as const) {
+    ctx.fillStyle = color;
+    for (let y = 0; y < tiles.length; y++) {
+      const row = tiles[y] ?? "";
+      for (let x = 0; x < row.length; x++) {
+        if (row[x] === ch)
+          ctx.fillRect(
+            cam.ox + x * cam.scale,
+            cam.oy + y * cam.scale,
+            cam.scale + 0.5,
+            cam.scale + 0.5,
+          );
+      }
     }
   }
 }
@@ -379,6 +388,15 @@ function drawEntity(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera, s
     const role = scene.roles[e.seat] ?? "blind";
     const isSelf = e.seat === scene.seat;
     shapePath(ctx, ROLE_SHAPE[role], px, py, s * MAP.avatarRadius * 1.1);
+    if (e.state === "dim") {
+      // in the dark you are only a ring
+      ctx.globalAlpha = MAP.blindRingAlpha;
+      ctx.lineWidth = MAP.ringWidthPx;
+      ctx.strokeStyle = ROLE_COLOR[role];
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      return;
+    }
     ctx.fillStyle = ROLE_COLOR[role];
     ctx.fill();
     ctx.lineWidth = isSelf ? 3 : 2;
@@ -433,4 +451,29 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
     }
   }
   drawPops(ctx, scene, cam);
+  if (scene.alarm) drawAlarm(ctx, scene);
+}
+
+// A steady red border and a banner. The banner's intensity follows a 1 Hz sine
+// (one pulse a second, far under the flashing limit); with reduced motion it
+// does not move at all. The word is there so it never rests on colour alone.
+function drawAlarm(ctx: CanvasRenderingContext2D, scene: Scene) {
+  const pulse = scene.reducedMotion
+    ? 1
+    : 0.7 + 0.3 * Math.sin(((scene.nowMs ?? 0) / 1000) * 2 * Math.PI);
+  ctx.save();
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = COLOR.danger;
+  ctx.strokeRect(3, 3, scene.w - 6, scene.h - 6);
+  ctx.globalAlpha = pulse;
+  const w = Math.min(scene.w - 24, 220);
+  ctx.fillStyle = COLOR.danger;
+  ctx.fillRect((scene.w - w) / 2, 12, w, 30);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = COLOR.bg;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = "700 16px system-ui, sans-serif";
+  ctx.fillText("ALARM", scene.w / 2, 28);
+  ctx.restore();
 }
