@@ -4,6 +4,9 @@
 import type { Seat } from "../game/types.ts";
 import type { ErrorCode, LobbyState, LobbySummary } from "./lobbies.ts";
 
+// Clients import their types from here only (they never reach into lobbies.ts).
+export type { ErrorCode, LobbyState, LobbySummary };
+
 export type ClientMsg =
   | { t: "ping"; at: number }
   | { t: "lobbies.watch" }
@@ -17,6 +20,7 @@ export type ServerMsg =
   | { t: "pong"; at: number }
   | { t: "lobbies"; list: LobbySummary[] }
   | { t: "lobby"; lobby: LobbyState; you: { seat: Seat | null; host: boolean } }
+  | { t: "left" } // answers lobby.leave, so the page can navigate once the server has acted
   | { t: "error"; code: ErrorCode; message: string };
 
 const MAX_FRAME = 8 * 1024;

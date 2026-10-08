@@ -1,23 +1,264 @@
-/* Forms and lists shared by the pages. */
-main label {
-  display: block;
-}
-main input:not([type="hidden"]) {
-  width: 100%;
-  min-height: 44px;
-  font: inherit;
-}
-main button {
-  min-height: 44px;
-  min-width: 44px;
-  font: inherit;
-}
-.field {
-  margin: 0 0 16px;
-}
+/* Forms, buttons and the home and lobby screens (spec §4.1). Mobile first:
+   one column, then two from 880 px. */
+
 .stack > * + * {
-  margin-top: 16px;
+  margin-top: var(--s-4);
 }
+.muted {
+  color: var(--ui-muted);
+  margin: 0;
+}
+.error {
+  margin: var(--s-2) 0 0;
+  color: var(--ui);
+  border-left: 4px solid var(--danger);
+  padding-left: var(--s-3);
+}
+.error::before {
+  content: "Problem: ";
+  font-weight: 700;
+}
+
+/* controls: 48 px targets, a visible edge that is not colour alone */
+label {
+  display: block;
+  margin-bottom: var(--s-1);
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+  font-weight: 600;
+}
+input {
+  width: 100%;
+  min-height: var(--target);
+  padding: 0 var(--s-3);
+  background: var(--panel);
+  color: var(--ui);
+  border: 2px solid var(--ui-muted);
+  border-radius: var(--r);
+  font: inherit;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--target);
+  min-width: var(--target);
+  padding: 0 var(--s-4);
+  background: var(--panel);
+  color: var(--ui);
+  border: 2px solid var(--ui-muted);
+  border-radius: var(--r);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--ease);
+}
+.btn:hover {
+  background: var(--bg);
+  border-color: var(--ui);
+}
+.btn.primary {
+  background: var(--ui);
+  color: var(--bg);
+  border-color: var(--ui);
+}
+.btn.primary:hover {
+  background: var(--ui-muted);
+}
+@media (max-width: 879px) {
+  .home .btn.primary {
+    width: 100%;
+  }
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+}
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2) var(--s-4);
+  margin-bottom: var(--s-3);
+}
+.conn {
+  margin: 0;
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+  font-stretch: 75%;
+  font-weight: 700;
+  text-transform: none;
+}
+
+/* home */
+.home {
+  display: grid;
+  gap: var(--s-6);
+}
+.home h1 {
+  margin-bottom: var(--s-5);
+  max-width: 18ch;
+  font-size: var(--t-28);
+}
+.join {
+  margin-top: var(--s-6);
+  padding-top: var(--s-5);
+  border-top: 2px solid var(--panel);
+}
+.join-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s-3);
+}
+.join-row .field {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.join-row .btn {
+  flex: none;
+  white-space: nowrap;
+}
+.code-input {
+  font-stretch: 125%;
+  font-weight: 900;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+.open-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s-2);
+}
+.open-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-2) var(--s-2) var(--s-4);
+  background: var(--panel);
+  border-radius: var(--r);
+}
+.open-list .team {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+}
+.open-list .filled {
+  color: var(--ui-muted);
+  font-stretch: 75%;
+  font-weight: 700;
+}
+
+/* lobby */
+.lobby,
+.lobby-solo {
+  display: grid;
+  gap: var(--s-6);
+}
+.lobby-solo {
+  max-width: 34rem;
+}
+.share {
+  font-size: var(--t-18);
+  font-stretch: 100%;
+  font-weight: 700;
+  color: var(--ui-muted);
+  margin-bottom: var(--s-2);
+}
+.lobby-solo > h1.share {
+  font-size: var(--t-28);
+  font-stretch: 125%;
+  font-weight: 900;
+  color: var(--ui);
+}
+/* The code is as big as its column allows: the spec's clamp(72px, 22vw, 160px)
+   is the ceiling, but four W's in expanded black are 5.3 em wide, so the size
+   also follows the column (18cqi), or a random code like WWMW would overflow. */
+.code-block {
+  container-type: inline-size;
+}
+.code {
+  display: flex;
+  gap: 0.12em;
+  margin: 0 0 var(--s-4);
+  font-size: min(var(--t-code), 18cqi);
+  font-stretch: 125%;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0;
+}
+.qr {
+  width: min(100%, 16rem);
+  margin-top: var(--s-4);
+  background: var(--paper);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+.qr svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.team-name {
+  margin: 0 0 var(--s-5);
+}
+.lobby-side h2 {
+  margin: var(--s-5) 0 var(--s-3);
+}
+.lobby-side .section-head h2 {
+  margin: 0;
+}
+.seats {
+  list-style: none;
+  margin: 0 0 var(--s-4);
+  padding: 0;
+  display: grid;
+  gap: var(--s-2);
+}
+.seat {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--target);
+  padding: var(--s-2) var(--s-4);
+  background: var(--panel);
+  border-radius: var(--r);
+}
+.seat .shape {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  fill: var(--ui);
+}
+.seat .nick {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+}
+.seat.empty .nick {
+  color: var(--ui-muted);
+  font-weight: 400;
+}
+.tag {
+  padding: 2px var(--s-2);
+  border: 2px solid var(--ui-muted);
+  border-radius: var(--r);
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+  font-stretch: 75%;
+  font-weight: 700;
+}
+.spectators {
+  margin: 0 0 var(--s-4);
+  color: var(--ui-muted);
+}
+
+/* the stats page */
 .rows {
   list-style: none;
   margin: 0;
@@ -26,54 +267,24 @@ main button {
 .rows li {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--s-2);
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--panel);
   padding: 6px 0;
 }
-.rows .who {
-  min-width: 0;
-}
-.muted {
-  color: var(--ink-muted);
-}
-.code {
-  font-size: 1.5rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-.notice {
-  padding: 8px 12px;
-  background: var(--surface);
-  border: 1.5px solid var(--rim);
-  border-radius: 10px;
-}
-.link-field {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.link-field input {
-  flex: 1 1 14rem;
-  min-width: 0;
-}
-.qr {
-  width: min(100%, 16rem);
-  background: #fff;
-  padding: 8px;
-  border-radius: 10px;
-}
-.qr svg {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
+
+@media (min-width: 880px) {
+  .home {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--s-6) 64px;
+  }
+  .lobby {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 24rem);
+    gap: var(--s-6) 64px;
+    align-items: start;
+  }
+  .lobby-code {
+    padding-top: var(--s-5);
+  }
 }

@@ -1,8 +1,8 @@
 ---
+import { Home } from "../components/Home.tsx";
 import Base from "../layouts/Base.astro";
 ---
 
 <Base title="Sensory heist">
-  <h1>Sensory heist</h1>
-  <p><a href="/readme/">About</a></p>
+  <Home client:load />
 </Base>

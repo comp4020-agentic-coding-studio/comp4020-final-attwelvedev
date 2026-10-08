@@ -1,16 +1,14 @@
 ---
-import fontUrl from "../assets/fonts/atkinson-hyperlegible-next-latin.woff2?url";
+import fontUrl from "../assets/fonts/archivo-ascii.woff2?url";
 import "../styles/pages.css";
 import "../styles/shell.css";
 import "../styles/tokens.css";
 
 interface Props {
   title: string;
-  // a wider layout on desktop
-  wide?: boolean;
 }
 
-const { title, wide = false } = Astro.props;
+const { title } = Astro.props;
 ---
 
 <!doctype html>
@@ -18,49 +16,30 @@ const { title, wide = false } = Astro.props;
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
     <title>{title}</title>
     <link rel="preload" href={fontUrl} as="font" type="font/woff2" crossorigin />
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>
     <header class="band">
-      <div class={wide ? "band-inner wide" : "band-inner"}>
-        <p class="brand">Sensory heist</p>
+      <div class="band-inner">
+        <a class="brand" href="/">
+          <svg class="marks" width="44" height="14" viewBox="0 0 44 14" aria-hidden="true" focusable="false">
+            <circle cx="7" cy="7" r="6" fill="var(--role-blind)" />
+            <rect x="17" y="1" width="12" height="12" fill="var(--role-deaf)" />
+            <polygon points="37,1 43,13 31,13" fill="var(--role-mute)" />
+          </svg>
+          Sensory heist
+        </a>
       </div>
     </header>
-    <main id="main" class={wide ? "wide" : undefined}>
+    <main id="main">
       <slot />
     </main>
-    <footer class={wide ? "wide" : undefined}>
-      <p class="help">Keyboard: Tab and Shift+Tab move, Enter and Space press.</p>
+    <footer>
+      <p>Keyboard: Tab and Shift+Tab move, Enter and Space press.</p>
       <a href="/readme/">About</a>
     </footer>
   </body>
 </html>
-
-<style is:global>
-  * {
-    box-sizing: border-box;
-  }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--ink);
-    font-family: var(--font);
-    font-size: var(--t-16);
-    line-height: 1.5;
-    font-variant-numeric: tabular-nums;
-  }
-  main {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: var(--s-4);
-    overflow-wrap: anywhere;
-  }
-  main.wide {
-    max-width: 1112px;
-  }
-  a {
-    color: var(--rim);
-  }
-</style>

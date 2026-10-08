@@ -59,10 +59,12 @@ export async function connect(baseUrl: string, cookie?: string): Promise<Socket>
         });
       }
     },
+    // leaves any lobby first, so a spec's lobbies don't linger and fill the server
     close: () =>
       new Promise<void>((resolve) => {
         if (socket.readyState === WebSocket.CLOSED) return resolve();
         socket.once("close", () => resolve());
+        socket.send(JSON.stringify({ t: "lobby.leave" }));
         socket.close();
       }),
   };

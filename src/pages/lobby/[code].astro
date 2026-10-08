@@ -1,0 +1,11 @@
+---
+import { Lobby } from "../../components/Lobby.tsx";
+import Base from "../../layouts/Base.astro";
+
+// Thin on purpose: the lobby itself lives on the socket, never in a page.
+const code = (Astro.params.code ?? "").toUpperCase().slice(0, 8);
+---
+
+<Base title={`Lobby ${code}`}>
+  <Lobby client:load code={code} />
+</Base>

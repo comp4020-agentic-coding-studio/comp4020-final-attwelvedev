@@ -418,6 +418,12 @@ imported by any file under `src/pages/`.
 
 ### Task 4: Home and lobby screens, tokens and font, at both viewports
 
+**Status:** done and accepted by the user 2026-10-08. Judgement calls made:
+- Archivo is subset to ASCII only (wght 400–900, wdth 62–125, 40,764 B). Latin-1 takes it to ~66 KB, over the 45 KB cap, so accented nicknames fall back to the system font.
+- The lobby code is `min(clamp(72px, 22vw, 160px), 18cqi)`: four W's in expanded black are 5.3 em wide, so the spec's size alone overflows a 343 px column (the spec's 72 px floor is ~380 px wide). On a phone the code is ~62 px, not 82 px.
+- No Leaderboard link on home yet (the page arrives in phase 07). No Start, Settings or real-life buttons (Tasks 7 and 19).
+- A device that closes its tab keeps its seat (shown "away") and a lobby with no connected human lives 10 minutes, so abandoned lobbies count toward the 40-lobby cap. The specs now press Leave before closing.
+
 **Description.** Build the home and lobby UI from spec §4.1 (wireframes
 "Home" and "Lobby", and the "Loading / … / not found" states) as Preact
 islands talking to the socket, with the new tokens and Archivo.

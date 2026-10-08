@@ -77,6 +77,7 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
       }
       case "lobby.leave":
         change(who, () => leaveLobby(registry, who));
+        send(socket, { t: "left" });
         return;
       case "lobby.team":
         change(who, () => setTeamName(registry, who, msg.name));

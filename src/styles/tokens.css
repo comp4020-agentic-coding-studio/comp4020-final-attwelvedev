@@ -1,85 +1,61 @@
-/* The one typeface: Atkinson Hyperlegible Next, a Latin subset served from our
-   own origin (src/assets/fonts/FONT.md). The fallback is Arial scaled to its
-   metrics, so the swap moves nothing. */
+/* The one typeface: Archivo, an ASCII subset with width and weight axes served
+   from our own origin (src/assets/fonts/FONT.md). Expanded black for the lobby
+   code and titles, condensed for HUD chips, regular for body. The fallback is
+   Arial scaled to Archivo's metrics so the swap moves nothing. */
 @font-face {
-  font-family: "Atkinson Hyperlegible Next";
-  src: url("../assets/fonts/atkinson-hyperlegible-next-latin.woff2") format("woff2");
-  font-weight: 200 800;
+  font-family: "Archivo";
+  src: url("../assets/fonts/archivo-ascii.woff2") format("woff2");
+  font-weight: 400 900;
+  font-stretch: 62% 125%;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
-  font-family: "Atkinson fallback";
+  font-family: "Archivo fallback";
   src: local("Arial");
-  size-adjust: 99.4%;
-  ascent-override: 99%;
-  descent-override: 31.8%;
+  size-adjust: 100.7%;
+  ascent-override: 87.2%;
+  descent-override: 20.9%;
   line-gap-override: 0%;
 }
 
-/* Enamelware tokens (spec §4.1). Light = white enamel; dark = the navy rim as
-   the surface. Dark follows the system unless data-theme pins a choice. */
+/* Design tokens (spec §4.1, doc/prompts/DESIGN.md). Dark only. Code reads these
+   and never hard-codes a colour, size or duration. */
 :root {
-  --bg: #f4f7f8;
-  --surface: #ffffff;
-  --rim: #1e3d72;
-  --ink: #17243a;
-  --ink-muted: #566377;
-  --line: #d3dbe3;
-  --tape-fresh: #4a76b0;
-  --soon: #c27400;
-  --soon-text: #8c5200;
-  --past: #8e2453;
-  --basil: #36704a;
-  --unknown: #9aa5b3;
-  --font: "Atkinson Hyperlegible Next", "Atkinson fallback", system-ui, sans-serif;
-  --t-13: 13px;
-  --t-16: 16px;
-  --t-19: 19px;
-  --t-23: 23px;
+  --bg: #0b1220;
+  --panel: #141e36;
+  --ink: #000000; /* the Can't-see viewport */
+  --ui: #e8eef9;
+  --ui-muted: #9aa7c2;
+  --danger: #ff3b5c;
+  --goal: #5be3a8;
+  --role-blind: #f2a93b; /* circle */
+  --role-deaf: #4db3ff; /* square */
+  --role-mute: #9b7ee0; /* triangle */
+  --paper: #ffffff; /* the QR code's quiet zone: scanners need dark on light */
+
+  --font: "Archivo", "Archivo fallback", system-ui, sans-serif;
+  --t-14: 14px;
+  --t-18: 18px;
   --t-28: 28px;
+  --t-48: 48px;
+  --t-code: clamp(72px, 22vw, 160px);
+
   --s-1: 4px;
   --s-2: 8px;
   --s-3: 12px;
   --s-4: 16px;
-  --s-5: 20px;
-  --s-6: 24px;
-  --r-btn: 10px;
-  --r-panel: 14px;
-  --r-sheet: 20px;
-  color-scheme: light;
-}
+  --s-5: 24px;
+  --s-6: 32px;
+  --r: 4px;
+  --target: 48px; /* touch targets are at least this */
+  --ease: 150ms ease-out;
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #13233f;
-    --surface: #1b2e50;
-    --rim: #a8c2ec;
-    --ink: #eef2f7;
-    --ink-muted: #a6b3c6;
-    --line: #2d4268;
-    --tape-fresh: #7fa6de;
-    --soon: #f2a63b;
-    --soon-text: #f2a63b;
-    --past: #e58ab0;
-    --basil: #86c99c;
-    --unknown: #5e7090;
-    color-scheme: dark;
-  }
-}
-
-:root[data-theme="dark"] {
-  --bg: #13233f;
-  --surface: #1b2e50;
-  --rim: #a8c2ec;
-  --ink: #eef2f7;
-  --ink-muted: #a6b3c6;
-  --line: #2d4268;
-  --tape-fresh: #7fa6de;
-  --soon: #f2a63b;
-  --soon-text: #f2a63b;
-  --past: #e58ab0;
-  --basil: #86c99c;
-  --unknown: #5e7090;
   color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ease: 0ms;
+  }
 }
