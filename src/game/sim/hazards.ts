@@ -51,6 +51,15 @@ export const guardParams = (o: RoomObject) => ({
   turnDegPerS: num(o.params, "turnDegPerS", 180), // how fast it swings round at the end of a patrol
 });
 
+// Where a camera sees from: the wall behind it, half a tile back from the middle of
+// its tile. Seeing from the middle left a sliver of the tile (the strip along the
+// wall) "behind" the camera, so a player hugging the wall walked past it unseen.
+export function cameraApex(o: RoomObject): Vec {
+  const { facing } = cameraCone(o);
+  const t = o.tiles[0] as Vec;
+  return { x: t.x + 0.5 - facing.x * 0.5, y: t.y + 0.5 - facing.y * 0.5 };
+}
+
 // A camera looks the way `facingDeg` says (0 east, 90 south, as the map is drawn),
 // across `fovDeg` and out to `range` tiles, like a guard. Walls and cover block it.
 export function cameraCone(o: RoomObject): { facing: Vec; fovDeg: number; range: number } {
@@ -114,7 +123,7 @@ export function caughtBy(world: World): string | null {
       }
     } else if (o.kind === "camera") {
       if (!isWatching(world, o)) continue;
-      const at = { x: (o.tiles[0] as Vec).x + 0.5, y: (o.tiles[0] as Vec).y + 0.5 };
+      const at = cameraApex(o);
       const { facing, fovDeg, range } = cameraCone(o);
       for (const p of world.players) {
         if (hidden(p.pos)) continue;

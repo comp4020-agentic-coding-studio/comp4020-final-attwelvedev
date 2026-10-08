@@ -185,6 +185,7 @@ describe("viewFor: hazards", () => {
       expect(view.entities.find((e) => e.kind === "camera")?.cone).toEqual({
         fovDeg: 90,
         range: 8,
+        from: { x: 6, y: 1.5 }, // it faces east from tile (6, 1), so it sees from that tile's west edge
       });
       expect(view.entities.find((e) => e.kind === "camera")?.facing?.x).toBeCloseTo(1, 6); // looking east
       const laser = view.entities.find((e) => e.kind === "laser");

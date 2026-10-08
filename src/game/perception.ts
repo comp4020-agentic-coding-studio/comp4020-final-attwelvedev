@@ -1,6 +1,7 @@
 import type { Stamp } from "./channels.ts";
 import { flipsOf } from "./rooms/format.ts";
 import {
+  cameraApex,
   cameraCone,
   cameraParams,
   cameraWatching,
@@ -53,7 +54,7 @@ export interface EntityView {
     | "hidden" // a player on a hide spot
     | "occupied" // an exit tile a player is standing on
     | Stamp;
-  cone?: { fovDeg: number; range: number }; // a guard's sight
+  cone?: { fovDeg: number; range: number; from?: Vec }; // a hazard's sight; `from` when it sees from somewhere other than `pos` (a camera, from the wall)
   beam?: Vec[]; // a laser's tile centres
   shows?: string[]; // a sign's plate ids, in order
   flash?: "ok" | "wrong"; // a sign: the result of the last plate, for a moment
@@ -188,7 +189,11 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
         pos: centre(o.tiles[0] as Vec),
         state: watching ? "watching" : "idle",
         facing: rounded(cameraCone(o).facing),
-        cone: { fovDeg: cameraCone(o).fovDeg, range: cameraCone(o).range },
+        cone: {
+          fovDeg: cameraCone(o).fovDeg,
+          range: cameraCone(o).range,
+          from: rounded(cameraApex(o)),
+        },
       });
     } else if (o.kind === "laser") {
       out.push({

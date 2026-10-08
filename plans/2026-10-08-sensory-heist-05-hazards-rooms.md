@@ -359,6 +359,15 @@ harmless: `World` also has `stamps`/`nextStamp`, `Game` has `cooldowns`,
   Room 3's guard sees 3 tiles, and `solve.test.ts` now checks a 16 s wait at every
   place a team has to wait. A pivoting camera (sweeping, with a slim gap) was
   discussed and parked in the backlog.
+- 2026-10-09, after Task 14 (a bug): players could slip past a camera by hugging
+  the wall it hangs on. The camera saw from the middle of its tile, so the strip
+  of that tile along the wall (y 1.4 to 1.5, where a body's edge stops it) lay
+  "behind" the camera, outside its cone, in both rooms. The camera now sees from
+  the wall face behind it (`cameraApex`, half a tile back), in the rule and in the
+  drawn cone. `hazards.test.ts` now walks a player along every line a body can take
+  across each real camera, while it watches, and requires each line to be seen
+  somewhere: it failed on exactly y = 1.4 in both rooms before the fix, so a future
+  camera placed with a gap fails the build.
 - 2026-10-09, Task 14 review (a bug): on the cleared screen the "Sure? Restart
   room" button's text vanished on hover (dark text on a dark fill): the older
   `.btn:hover` rule (same specificity, later in the file) repainted the fill but

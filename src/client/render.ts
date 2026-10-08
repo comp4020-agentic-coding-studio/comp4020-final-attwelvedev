@@ -222,7 +222,7 @@ function drawCone(
   if (!e.cone) return;
   const poly = visiblePolygon(
     {
-      origin: e.pos,
+      origin: e.cone.from ?? e.pos,
       facing: e.facing ?? { x: 1, y: 0 },
       fovDeg: e.cone.fovDeg,
       range: e.cone.range,

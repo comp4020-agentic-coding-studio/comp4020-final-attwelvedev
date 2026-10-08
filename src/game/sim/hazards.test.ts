@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { loadRooms } from "../rooms/load.ts";
+import { blockedAt } from "./collide.ts";
 import { cameraWatching, caughtBy, laserOn } from "./hazards.ts";
 import { hold, place, worldWith } from "./testing.ts";
-import { TICK_MS } from "./world.ts";
+import { createWorld, RADIUS, TICK_MS } from "./world.ts";
 
 const T = (seconds: number) => Math.round((seconds * 1000) / TICK_MS);
 const tile = (x: number, y: number) => ({ x, y });
@@ -270,4 +272,49 @@ describe("caughtBy: guards", () => {
     }
     expect(caught).toBe(true);
   });
+});
+
+// A camera must leave no way to walk across its field of view unseen. This once
+// failed: the camera's viewing point was the middle of its tile, so a player
+// hugging the wall it hangs on (a sliver of the tile "behind" that point) slipped
+// past it while it was watching. Here a player is walked along every line a body can
+// legally take across each real camera's column, while it is watching, and each line
+// has to be seen somewhere along it.
+describe("no lane past a camera", () => {
+  for (const room of loadRooms()) {
+    for (const cam of room.objects.filter((o) => o.kind === "camera")) {
+      it(`${room.id} ${cam.id}: every line across it is seen at some point while it watches`, () => {
+        const world = createWorld(room);
+        world.tick = 0; // watching
+        const at = cam.tiles[0] as { x: number; y: number };
+        const face = Number(cam.params?.facingDeg ?? 90);
+        const vertical = Math.abs(Math.sin((face * Math.PI) / 180)) > 0.5; // faces up or down
+        const lanes: string[] = [];
+        // lines run across the camera's view: horizontal lines for a camera that faces up or down
+        const across = vertical ? room.height : room.width;
+        for (let line = RADIUS; line <= across - RADIUS + 1e-9; line += 0.1) {
+          let seen = false;
+          let walkable = 0;
+          for (let along = -8; along <= 8 && !seen; along += 0.1) {
+            const pos = vertical
+              ? { x: at.x + 0.5 + along, y: line }
+              : { x: line, y: at.y + 0.5 + along };
+            for (const p of world.players) p.pos = { ...pos };
+            if (blockedAt(world, pos)) continue; // a wall or a door: nobody stands there
+            walkable++;
+            seen = caughtBy(world) === cam.id;
+          }
+          if (!seen && walkable > 0) lanes.push(line.toFixed(1));
+        }
+        // lines that are walled off before the camera need no watching
+        const open = lanes.filter((line) => {
+          const y = Number(line);
+          return vertical
+            ? !blockedAt(world, { x: at.x + 0.5, y })
+            : !blockedAt(world, { x: y, y: at.y + 0.5 });
+        });
+        expect(open, `unwatched lines (${vertical ? "y" : "x"} =) ${open.join(", ")}`).toEqual([]);
+      });
+    }
+  }
 });
