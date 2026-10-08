@@ -1,0 +1,17 @@
+{"id":"01-loading-dock","name":"Loading Dock","version":1,
+ "beats":[
+  {"name":"The tunnel","x":[0,19],"intent":{"blind":"leans on the crate and feels it move","deaf":"sees the junction and calls which way to push","mute":"taps out push-on, stop"}},
+  {"name":"Three hands","x":[20,39],"intent":{"blind":"holds a plate and hears the hum","deaf":"sees which plate is free","mute":"signals the moment to step in"}},
+  {"name":"Out","x":[40,47],"intent":{"blind":"follows the footsteps to the exit","deaf":"guides the others onto the exit","mute":"confirms everyone is on it"}}
+ ],
+ "objects":{"D1":{"opensWhen":["p1","p2","p3"]}}}
+---
+################################################
+#....###################.......#...............#
+#....###################.......#...............#
+#.1..###################......pD.............E.#
+#.2...B.......##########......pD.............E.#
+#.3..#####....................pD.............E.#
+#....#####.....................#...............#
+#....#####.....................#...............#
+################################################

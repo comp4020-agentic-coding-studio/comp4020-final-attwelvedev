@@ -30,8 +30,11 @@
 - **Perception:** the server sends each client only what its role perceives
   (ADR 0007). Never add a field to a view or message without checking it
   against the role tables in `src/game/types.ts`.
-- **Rooms:** rooms are linted (`pnpm lint:rooms`, from phase 02) and must be
-  cleared by bots.
+- **Rooms:** one file per room, `rooms/NN-slug.room` (JSON metadata, a `---`
+  line, then a text grid; format in the phase 02 plan §4.1). Rooms are linted
+  by `pnpm lint:rooms` (part of `pnpm check`, and run by a hook on every room
+  edit) and must be cleared by bots. Never hand-write a room without running
+  the linter; a room needs a three-plate beat and a reachable exit.
 - **Naming and layout:** domain services in `src/lib/` take `db` first and
   never touch requests. Unit tests sit beside the code; promises to users get
   `spec/<area>.test.ts`; browser checks get one `spec/layout/<area>.test.ts`

@@ -35,6 +35,8 @@ COPY --from=build /app/dist /app/dist
 # server.ts runs under Node type stripping and imports the socket code in src/
 COPY --from=build /app/server.ts /app/server.ts
 COPY --from=build /app/src /app/src
+# the room files the game loads at boot (src/game/rooms/load.ts)
+COPY --from=build /app/rooms /app/rooms
 # the committed migrations, applied at boot (see src/lib/db.ts)
 COPY --from=build /app/drizzle /app/drizzle
 
