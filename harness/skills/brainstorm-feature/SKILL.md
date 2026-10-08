@@ -104,7 +104,30 @@ rubber-stamp an idea just because asking feels like friction, either.
 
 ## Phase 3 — Converge on a design
 
-Iterate with the user: propose an approach, get their reaction, refine.
+**Diverge before you converge (Architecture tier, and any Slice decision
+that is hard to reverse).** First name the 2–4 large decisions in the design
+— data model, where state lives, how changes reach other sessions, auth —
+not individual library picks. For each one, *always consider* the option
+space before proposing anything:
+
+- the conventional, low-risk default;
+- at least one **ambitious** alternative that would change the shape of the
+  product or architecture (not a strawman — one you could defend);
+- a **reframe**: could the problem be dissolved rather than solved (drop the
+  component, push the work to the client or the platform, change what the
+  feature promises)?
+
+Only **raise** an ambitious alternative when it is reasonable here: it fits
+the timeline and the user's constraints, and you can say what would have to
+be true for it to be the better choice. Don't pad the list. If you
+considered the ambitious directions and none is worth raising, say so in one
+line naming what you considered and why you dropped it, so the user can
+overrule you. Compare what you do raise on the criteria the user cares about
+(reversibility, build cost, risk, what later slices depend on), give a
+recommendation and say why — a ranked recommendation, not a survey. The
+runners-up feed the ADR's Context ("chose X over Y because…").
+
+Then iterate with the user: propose an approach, get their reaction, refine.
 Where a real alternative exists, present it with its trade-off rather than
 silently picking one and presenting it as the only option. Keep returning to
 Phase 2's watch-list as the design solidifies — resolving one ambiguity
@@ -192,6 +215,9 @@ trust that earlier passes covered it:
 - [ ] No contradiction between any two things said during the conversation
 - [ ] No obvious gap (error handling, edge cases, non-functional
   requirements, out-of-scope boundary) left unaddressed
+- [ ] For each large decision, ambitious alternatives were considered, and
+  each was either raised and explicitly accepted or rejected (reason
+  recorded) or dropped with a stated one-line reason
 - [ ] If the feature has UI: the Phase 3a decision (run or skipped, and why)
   is recorded, and every state named in the requirements has an agreed look
 
