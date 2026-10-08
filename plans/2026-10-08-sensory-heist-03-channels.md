@@ -207,9 +207,9 @@ rather than over the avatar; the cooldown ring counts on the device's own clock.
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 9–10 complete, tests passing, Task 10 accepted by the user
-- [ ] `pnpm test:unit` passes
-- [ ] `pnpm build && pnpm start`, then `pnpm check` and `pnpm check:evidence` pass
+- [x] Tasks 9–10 complete, tests passing, Task 10 accepted by the user
+- [x] `pnpm test:unit` passes
+- [x] `pnpm build && pnpm start`, then `pnpm check` and `pnpm check:evidence` pass
 - [ ] Deployed (ask first); `spec/channels.test.ts` green against fly.dev
 - [ ] Tick this phase in overview §5 and commit
 
