@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted. Supersedes 0004.
+superseded by 0007. (Supersedes 0004.)
 
 ## Context
 
