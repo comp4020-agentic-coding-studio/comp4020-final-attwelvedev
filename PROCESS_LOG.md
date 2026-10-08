@@ -273,3 +273,90 @@ rule also went into `CLAUDE.md`, so the next session is bound by it.
 The test only proves the information is sent to each role, not that a person can
 tell two sounds apart, so I log that as unchecked until a playtest.
 
+## 2026-10-09 — A camera with a lane along its own wall, caught by walking every line
+
+29c95e1
+
+Playing Room 2, I found I could hug the top wall and walk straight past the
+camera while it was watching. The obvious fix was to widen that room's cone. I had
+the agent reproduce it first, and the reproduction showed the cause was not the
+room: the camera saw from the middle of its tile, so the strip of that tile along
+the wall (y 1.4 to 1.5, as near as a body can get) lay behind it and outside its
+cone. Room 3's camera had the same hole, which widening one cone would have left.
+
+The fix moves the viewing point to the wall face behind the camera, in the rule and
+in the drawn cone, so the picture and the rule still agree. The test is the part I
+care about: it walks a player along every line a body can legally take across each
+real camera, while it watches, and requires each line to be seen somewhere. Before
+the fix it failed on exactly y = 1.4 in both rooms, which matched what I had seen
+by hand, so I knew it was testing the thing. A future camera placed with a gap now
+fails the build instead of waiting for me to find it.
+
+Not checked: that a lone player is always caught in time on a phone; the test
+proves they are seen, not that they can react.
+
+## 2026-10-09 — Rejecting my own alarm design because causality should stay inside one attempt
+
+9459be1
+
+The agent proposed making the alarm bite by having being caught set it off. I said
+it felt wrong: being caught teleports the team back, which starts a new attempt,
+so an alarm carried over into it is a punishment from the last attempt landing on
+this one. The agent agreed, and that exposed a real bug beside the design flaw: an
+alarm already ringing when the team was caught kept ringing after the reset.
+
+The obvious fix was to keep my idea and explain it in the tutorial. I chose three
+steps instead: only the alarm plate sets it off, being caught clears it so a retry
+starts clean, and while it rings every camera watches non-stop and guards walk 1.5
+times faster, so it costs something without waiting being free. Cause and effect now
+stay inside one attempt: you set it off, you are in trouble for eight seconds.
+
+How I knew it held: red tests for each rule (the alarm clearing on a catch, cameras
+watching while it rings, guards covering half as far again in a second), the scripted
+Room 3 run lengthening from 31 s to 39 s because it now waits out the alarm, and a
+lint rule that rejects an alarm trigger that is not a plate, so the old design
+cannot creep back in a room file.
+
+## 2026-10-09 — A contrast check that passed on the bug until it read settled colours
+
+9459be1
+
+On the cleared screen, "Sure? Restart room" went invisible when hovered. The cause
+was two of my own styles disagreeing: the asking look is a light fill with dark text,
+and an older hover rule repainted the fill dark but left the text. The CSS fix was one
+line. The obvious move was to stop there. I asked for a check that loads the app's real
+shipped stylesheet in a browser and requires readable contrast for every button look,
+resting and hovered, so a new button style cannot repeat it.
+
+The first version passed on the buggy CSS. The buttons ease their background over
+150 ms, so it read the colours half-way through the fade and found plenty of
+contrast. I only saw that because I wrote the expected failure first and it did not
+fail. Switching off transitions in the test and reading the settled colours made it
+fail with contrast 1.0 on exactly the reported case, then pass 18 of 18 after the fix.
+A check that looks green while measuring nothing is the dangerous kind, and a red run
+on the known bug is the only proof it measures the right thing.
+
+## 2026-10-09 — Three flaky specs, each fixed without loosening an assertion
+
+9459be1
+
+Three browser and socket specs failed intermittently once the machine was busy, and
+the easy move was to rerun until green or raise a timeout. I held to the rule that a
+failing test is told by fixing the code or stopping, and took each one apart.
+
+The joystick spec was a real race in the app: the long-press-menu guard was attached
+by an effect, so the control existed for a moment without it. I moved the controls
+into a component that carries the handler on the elements themselves and left the
+browser spec untouched; it went from failing 4 runs in 6 to passing 8 of 8 under the
+same load. The player-count spec compared a global total that other spec files change
+at the same time, so it could never be exact. I rewrote it to check what is true
+(at least our three while open, and after they close no more than the peak minus
+three plus whoever arrived, read from the same snapshot), then proved it still bites
+by stopping the server removing closed sockets and watching it fail before restoring
+the code. The third was my own driver in the heist spec: it corrected one axis at a
+time and a seat stuck 0.2 tiles off the tunnel centre; I steered both axes at once.
+
+How I knew it was fixed and not hidden: a 12-run soak of the whole spec project
+passed 12 of 12 with the machine at a load average over 100, against roughly one
+failure in four before. Not checked: the same soak against the deployed app.
+
