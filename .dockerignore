@@ -13,3 +13,7 @@ mise.local.toml
 .claude
 .data
 .astro
+
+# source originals of the bundled assets: not needed in the image
+src/assets/bluemojis
+src/assets/soundboard

@@ -22,3 +22,8 @@ mise.local.toml
 .claude/
 .data/
 .astro/
+
+# unmodified originals of the bundled faces and clips; the game uses the credited
+# copies in public/ (see CREDITS.md), and the clips are never redistributed as-is
+src/assets/bluemojis/
+src/assets/soundboard/
