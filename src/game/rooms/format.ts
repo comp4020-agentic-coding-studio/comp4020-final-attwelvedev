@@ -1,14 +1,44 @@
 import type { Role, Vec } from "../types.ts";
 
-export type Tile = "." | "#" | "1" | "2" | "3" | "B" | "p" | "D" | "E";
+export type Tile =
+  | "."
+  | "#"
+  | "1"
+  | "2"
+  | "3"
+  | "B"
+  | "p"
+  | "D"
+  | "E"
+  | "G"
+  | "C"
+  | "L"
+  | "h"
+  | "K"
+  | "$"
+  | "S";
 
 export interface RoomObject {
   id: string; // "p1", "D1", "B2", "E1"
-  kind: "plate" | "door" | "crate" | "exit" | "spawn";
+  kind:
+    | "plate"
+    | "door"
+    | "crate"
+    | "exit"
+    | "spawn"
+    | "guard"
+    | "camera"
+    | "laser"
+    | "hide"
+    | "checkpoint"
+    | "loot"
+    | "sign";
   tiles: Vec[]; // integer tile coordinates
   visibleTo: Role[];
   audibleTo: Role[];
   opensWhen?: string[]; // doors only
+  mode?: "all" | "sequence"; // doors only: all plates held, or pressed in opensWhen order
+  params?: Record<string, unknown>; // hazards, loot and signs: the room file's metadata for this id
 }
 
 export interface Beat {
@@ -38,7 +68,45 @@ export class RoomFormatError extends Error {
   }
 }
 
-const TILES = new Set(["#", ".", "1", "2", "3", "B", "p", "D", "E"]);
+const TILES = new Set([
+  "#",
+  ".",
+  "1",
+  "2",
+  "3",
+  "B",
+  "p",
+  "D",
+  "E",
+  "G",
+  "C",
+  "L",
+  "h",
+  "K",
+  "$",
+  "S",
+]);
+
+// Single-tile objects numbered in reading order: letter -> [kind, id prefix].
+const NUMBERED: Record<string, [RoomObject["kind"], string]> = {
+  G: ["guard", "G"],
+  C: ["camera", "C"],
+  L: ["laser", "L"],
+  h: ["hide", "h"],
+  K: ["checkpoint", "K"],
+  $: ["loot", "$"],
+  S: ["sign", "S"],
+};
+// Kinds whose metadata is kept whole as `params`.
+const PARAMS: Record<string, true> = {
+  guard: true,
+  camera: true,
+  laser: true,
+  hide: true,
+  checkpoint: true,
+  loot: true,
+  sign: true,
+};
 const DEFAULT_VISIBLE_TO: Role[] = ["deaf", "mute"];
 const ROLE_SET = new Set<string>(["blind", "deaf", "mute"]);
 
@@ -150,9 +218,13 @@ export function parseRoom(text: string): Room {
       visibleTo: isRoleList(ov.visible_to) ? ov.visible_to : [...DEFAULT_VISIBLE_TO],
       audibleTo: isRoleList(ov.audible_to) ? ov.audible_to : [],
     };
-    if (kind === "door" && Array.isArray(ov.opensWhen)) {
-      object.opensWhen = ov.opensWhen.filter((v): v is string => typeof v === "string");
+    if (kind === "door") {
+      if (Array.isArray(ov.opensWhen)) {
+        object.opensWhen = ov.opensWhen.filter((v): v is string => typeof v === "string");
+      }
+      object.mode = ov.mode === "sequence" ? "sequence" : "all";
     }
+    if (kind in PARAMS) object.params = { ...ov };
     objects.push(object);
   };
 
@@ -166,6 +238,10 @@ export function parseRoom(text: string): Room {
         add(`${ch}${counters[ch]}`, ch === "p" ? "plate" : "crate", at);
       } else if (ch === "1" || ch === "2" || ch === "3") {
         add(`s${ch}`, "spawn", at);
+      } else if (NUMBERED[ch]) {
+        const [kind, prefix] = NUMBERED[ch] as [RoomObject["kind"], string];
+        counters[ch] = (counters[ch] ?? 0) + 1;
+        add(`${prefix}${counters[ch]}`, kind, at);
       }
     }
   }

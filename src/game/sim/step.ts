@@ -1,9 +1,19 @@
 import type { PlayerInput, Seat, Vec } from "../types.ts";
 import { blockedAt, circleHitsTile, crateAt, crateTouching, indexOf, tileKey } from "./collide.ts";
-import { type PlayerState, SPEED_TPS, STAMP_LIFE_MS, TICK_MS, type World } from "./world.ts";
+import { caughtBy, guardParams, tileOf } from "./hazards.ts";
+import {
+  lootValue,
+  type PlayerState,
+  patrolOf,
+  SPEED_TPS,
+  STAMP_LIFE_MS,
+  TICK_MS,
+  type World,
+} from "./world.ts";
 
 const PUSH_MS = 200;
 const BISECT = 8;
+const SEQUENCE_GAP_MS = 5000; // a sequence door wants each plate within this of the last
 
 const tileCentre = (t: Vec): Vec => ({ x: t.x + 0.5, y: t.y + 0.5 });
 
@@ -89,10 +99,34 @@ function updatePlates(world: World) {
   }
 }
 
+// A sequence door tracks how many of its plates have been pressed in order. A
+// wrong plate, or a gap over SEQUENCE_GAP_MS, starts it again.
+function updateSequences(world: World) {
+  const pressedNow = world.events.flatMap((e) => (e.kind === "plate" && e.pressed ? [e.id] : []));
+  for (const door of world.room.objects.filter((o) => o.kind === "door" && o.mode === "sequence")) {
+    const order = door.opensWhen ?? [];
+    const progress = world.seqProgress[door.id] ?? { next: 0, at: world.tick };
+    world.seqProgress[door.id] = progress;
+    if (progress.next >= order.length) continue; // done; the door latches
+    if (progress.next > 0 && (world.tick - progress.at) * TICK_MS > SEQUENCE_GAP_MS) {
+      progress.next = 0;
+    }
+    for (const id of pressedNow) {
+      if (!order.includes(id)) continue;
+      if (id === order[progress.next]) progress.next++;
+      else progress.next = id === order[0] ? 1 : 0;
+      progress.at = world.tick;
+    }
+  }
+}
+
 function updateDoors(world: World) {
   for (const door of world.room.objects.filter((o) => o.kind === "door")) {
     const needs = door.opensWhen ?? [];
-    const held = needs.length > 0 && needs.every((id) => world.pressed[id]);
+    const held =
+      door.mode === "sequence"
+        ? needs.length > 0 && (world.seqProgress[door.id]?.next ?? 0) >= needs.length
+        : needs.length > 0 && needs.every((id) => world.pressed[id]);
     // latched: once opened a door stays open, so nobody can be stranded behind it
     const open = held || world.doorOpen[door.id] === true;
     if (open !== world.doorOpen[door.id]) {
@@ -101,6 +135,89 @@ function updateDoors(world: World) {
       if (first) world.events.push({ kind: "door", id: door.id, open, at: tileCentre(first) });
     }
   }
+}
+
+function moveGuards(world: World, dtMs: number) {
+  for (const guard of world.guards) {
+    const object = world.room.objects.find((o) => o.id === guard.id);
+    const patrol = patrolOf(object?.params);
+    const goal = patrol[guard.target];
+    if (!object || !goal || patrol.length < 2) continue;
+    const to = tileCentre(goal);
+    const dx = to.x - guard.pos.x;
+    const dy = to.y - guard.pos.y;
+    const dist = Math.hypot(dx, dy);
+    const reach = (guardParams(object).speedTps * dtMs) / 1000;
+    if (dist > 1e-9) guard.facing = { x: dx / dist, y: dy / dist };
+    if (dist <= reach) {
+      guard.pos = to;
+      guard.target = (guard.target + 1) % patrol.length;
+    } else {
+      guard.pos = { x: guard.pos.x + (dx / dist) * reach, y: guard.pos.y + (dy / dist) * reach };
+    }
+  }
+}
+
+// The nearest floor tiles to `from` (nearest first, ties in reading order) that
+// hold neither a wall, a closed door nor a crate.
+function floorNear(world: World, from: Vec, count: number): Vec[] {
+  const out: { t: Vec; d: number }[] = [];
+  for (let y = 0; y < world.room.height; y++) {
+    for (let x = 0; x < world.room.width; x++) {
+      const ch = world.room.grid[y]?.[x];
+      if (ch !== "." || crateAt(world, x, y)) continue;
+      out.push({ t: { x, y }, d: Math.hypot(x - from.x, y - from.y) });
+    }
+  }
+  out.sort((a, b) => a.d - b.d || a.t.y - b.t.y || a.t.x - b.t.x);
+  return out.slice(0, count).map((o) => o.t);
+}
+
+function updateCheckpoints(world: World) {
+  for (const o of world.room.objects.filter((o) => o.kind === "checkpoint")) {
+    const index = Number(o.id.slice(1));
+    const at = o.tiles[0];
+    if (!at || index <= world.checkpoint) continue;
+    if (!world.players.some((p) => tileOf(p.pos).x === at.x && tileOf(p.pos).y === at.y)) continue;
+    world.checkpoint = index;
+    const spots = [at, ...floorNear(world, at, 3).filter((t) => t.x !== at.x || t.y !== at.y)];
+    world.snapshot = {
+      players: spots.slice(0, 3).map((t) => tileCentre(t)),
+      crates: world.crates.map((c) => ({ id: c.id, tile: { ...c.tile } })),
+      lootTaken: [...world.lootTaken],
+    };
+    world.events.push({ kind: "checkpoint", index });
+  }
+}
+
+function updateLoot(world: World) {
+  for (const o of world.room.objects.filter((o) => o.kind === "loot")) {
+    const at = o.tiles[0];
+    if (!at || world.lootTaken.includes(o.id)) continue;
+    if (!world.players.some((p) => tileOf(p.pos).x === at.x && tileOf(p.pos).y === at.y)) continue;
+    world.lootTaken.push(o.id);
+    world.loot += lootValue(o.params);
+    world.events.push({ kind: "loot", id: o.id, at: tileCentre(at) });
+  }
+}
+
+// The whole team goes back to the last checkpoint: players, crates and loot as
+// they were when it was reached.
+function sendBack(world: World, by: string) {
+  const { snapshot } = world;
+  world.players.forEach((p, i) => {
+    const to = snapshot.players[i];
+    if (to) p.pos = { ...to };
+    p.moving = false;
+    p.pushMs = 0;
+  });
+  world.crates = snapshot.crates.map((c) => ({ id: c.id, tile: { ...c.tile } }));
+  world.lootTaken = [...snapshot.lootTaken];
+  world.loot = world.room.objects
+    .filter((o) => o.kind === "loot" && world.lootTaken.includes(o.id))
+    .reduce((sum, o) => sum + lootValue(o.params), 0);
+  world.seqProgress = {};
+  world.events.push({ kind: "caught", by });
 }
 
 function updateExit(world: World) {
@@ -132,8 +249,14 @@ export function step(
     pushCrate(world, p, input, dtMs);
   }
   updatePlates(world);
+  updateSequences(world);
   updateDoors(world);
-  updateExit(world);
+  moveGuards(world, dtMs);
+  updateCheckpoints(world);
+  updateLoot(world);
+  const by = caughtBy(world);
+  if (by !== null) sendBack(world, by);
+  else updateExit(world);
   ageStamps(world, dtMs);
   return world;
 }

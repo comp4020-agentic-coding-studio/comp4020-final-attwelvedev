@@ -17,6 +17,7 @@ describe("canvas tokens", () => {
     ["ui-muted", COLOR.uiMuted],
     ["danger", COLOR.danger],
     ["goal", COLOR.goal],
+    ["camera-light", COLOR.cameraLight],
     ["solid", COLOR.solid],
     ["floor", COLOR.floor],
     ["crate", COLOR.crate],

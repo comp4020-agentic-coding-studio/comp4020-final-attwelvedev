@@ -10,6 +10,7 @@ export const COLOR = {
   uiMuted: "#9aa7c2",
   danger: "#ff3b5c",
   goal: "#5be3a8",
+  cameraLight: "#ffd166", // a watched zone, always hatched
   solid: "#3a4d7a", // walls
   floor: "#0f1830",
   crate: "#c98f5a",

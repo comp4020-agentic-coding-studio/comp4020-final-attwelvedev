@@ -109,6 +109,11 @@ function tick(code: string): void {
   if (!running || !lobby) return;
   const { views, cleared } = tickGame(running.game, running.full);
   running.full.clear();
+  for (const event of running.game.world.events) {
+    if (event.kind === "caught") {
+      record("caught", null, lobby, { room: running.game.world.room.id, reason: event.by });
+    }
+  }
   for (const [seat, view] of views) {
     const who = lobby.seats[seat]?.who;
     if (who) hub.sendTo(who, { t: "view", view });

@@ -1,4 +1,8 @@
+import { cameraParams, cameraZone, laserBeam, laserParams } from "../sim/hazards.ts";
+import { patrolOf } from "../sim/world.ts";
 import type { Room } from "./format.ts";
+
+const SAFE_S = 2; // FR14: a cue-dependent safe window is at least this long
 
 export interface LintIssue {
   room: string;
@@ -47,6 +51,8 @@ export function lintRoom(room: Room): LintIssue[] {
   );
   if (!threePlate) issue("no beat has a door that needs three plates (three-plate beat, FR10)");
 
+  lintHazards(room, issue);
+
   // every exit tile must be reachable from every spawn, treating doors as open
   if (exits.length > 0 && spawns.length > 0) {
     for (const spawn of spawns) {
@@ -81,4 +87,75 @@ export function lintRoom(room: Room): LintIssue[] {
     }
   }
   return issues;
+}
+
+// Cue windows (FR14), patrol points, sequence-door signs, flip zones, and a
+// checkpoint ahead of the first hazard. Hazard position is by x, left to right,
+// the way the beats run.
+function lintHazards(room: Room, issue: (message: string) => void): void {
+  const isFloor = (x: number, y: number) => room.grid[y]?.[x] === ".";
+  const hazardXs: number[] = [];
+
+  for (const o of room.objects) {
+    if (o.kind === "camera") {
+      const { periodS, watchingS } = cameraParams(o);
+      if (periodS - watchingS < SAFE_S) {
+        issue(
+          `camera ${o.id} is safe for only ${periodS - watchingS} s between watching spells (needs ${SAFE_S} s)`,
+        );
+      }
+      hazardXs.push(cameraZone(o)[0]);
+    } else if (o.kind === "laser") {
+      const { offS } = laserParams(o);
+      if (offS < SAFE_S) issue(`laser ${o.id} is off for only ${offS} s (needs ${SAFE_S} s)`);
+      hazardXs.push(Math.min(...[o.tiles[0]?.x ?? 0, ...laserBeam(room, o).map((t) => t.x)]));
+    } else if (o.kind === "guard") {
+      const patrol = patrolOf(o.params);
+      for (const p of patrol) {
+        if (!isFloor(p.x, p.y))
+          issue(`guard ${o.id} has a patrol point (${p.x},${p.y}) that is not floor`);
+      }
+      hazardXs.push(Math.min(...[o.tiles[0]?.x ?? 0, ...patrol.map((p) => p.x)]));
+    }
+  }
+
+  const signs = room.objects.filter((o) => o.kind === "sign");
+  for (const door of room.objects.filter((o) => o.kind === "door" && o.mode === "sequence")) {
+    const order = door.opensWhen ?? [];
+    const shown = signs.some((s) => {
+      const shows = s.params?.shows;
+      return (
+        Array.isArray(shows) &&
+        shows.length === order.length &&
+        shows.every((v, i) => v === order[i])
+      );
+    });
+    if (!shown)
+      issue(`door ${door.id} is a sequence door but no sign shows exactly its plates in order`);
+  }
+
+  const flips = Array.isArray(room.meta.flips) ? room.meta.flips : [];
+  flips.forEach((flip: unknown, i: number) => {
+    const zone = (flip as { zone?: unknown } | null)?.zone;
+    if (zone === undefined) return;
+    const ok =
+      Array.isArray(zone) &&
+      zone.length === 4 &&
+      zone.every((n) => typeof n === "number") &&
+      (zone[0] as number) >= 0 &&
+      (zone[1] as number) >= 0 &&
+      (zone[2] as number) < room.width &&
+      (zone[3] as number) < room.height &&
+      (zone[0] as number) <= (zone[2] as number) &&
+      (zone[1] as number) <= (zone[3] as number);
+    if (!ok) issue(`flip ${i + 1} zone is not inside the ${room.width}x${room.height} grid`);
+  });
+
+  if (hazardXs.length > 0) {
+    const first = Math.min(...hazardXs);
+    const checkpoints = room.objects.filter((o) => o.kind === "checkpoint");
+    if (!checkpoints.some((k) => (k.tiles[0]?.x ?? Number.POSITIVE_INFINITY) <= first)) {
+      issue(`no checkpoint before the first hazard (at x=${first}): add a K to the left of it`);
+    }
+  }
 }

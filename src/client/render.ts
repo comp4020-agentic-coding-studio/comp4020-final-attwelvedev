@@ -169,6 +169,93 @@ function drawPops(ctx: CanvasRenderingContext2D, scene: Scene, cam: Camera) {
   }
 }
 
+function diamond(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - r);
+  ctx.lineTo(cx + r, cy);
+  ctx.lineTo(cx, cy + r);
+  ctx.lineTo(cx - r, cy);
+  ctx.closePath();
+}
+
+// A guard's sight: a wedge of `range` tiles either side of where it faces,
+// hatched so it never rests on colour alone.
+function drawCone(ctx: CanvasRenderingContext2D, e: EntityView, px: number, py: number, s: number) {
+  if (!e.cone) return;
+  const facing = Math.atan2(e.facing?.y ?? 0, e.facing?.x ?? 1);
+  const half = (e.cone.fovDeg / 2) * (Math.PI / 180);
+  const r = e.cone.range * s;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(px, py);
+  ctx.arc(px, py, r, facing - half, facing + half);
+  ctx.closePath();
+  ctx.clip();
+  ctx.globalAlpha = 0.14;
+  ctx.fillStyle = COLOR.danger;
+  ctx.fillRect(px - r, py - r, r * 2, r * 2);
+  ctx.globalAlpha = 0.5;
+  hatch(ctx, px - r, py - r, r * 2, r * 2, COLOR.danger);
+  ctx.restore();
+}
+
+// A camera's zone is hatched while it is watching and only outlined when idle.
+function drawZone(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera) {
+  if (!e.zone) return;
+  const [x0, y0, x1, y1] = e.zone;
+  const x = cam.ox + x0 * cam.scale;
+  const y = cam.oy + y0 * cam.scale;
+  const w = (x1 - x0 + 1) * cam.scale;
+  const h = (y1 - y0 + 1) * cam.scale;
+  ctx.save();
+  if (e.state === "watching") {
+    ctx.globalAlpha = 0.14;
+    ctx.fillStyle = COLOR.cameraLight;
+    ctx.fillRect(x, y, w, h);
+    ctx.globalAlpha = 0.55;
+    hatch(ctx, x, y, w, h, COLOR.cameraLight);
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = COLOR.cameraLight;
+    ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+  } else {
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = COLOR.uiMuted;
+    ctx.setLineDash([4, 4]);
+    ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+  }
+  ctx.restore();
+}
+
+// A beam is a steady line while on and a faint dotted one while off: it never
+// flickers, so nothing here can flash.
+function drawBeam(
+  ctx: CanvasRenderingContext2D,
+  e: EntityView,
+  px: number,
+  py: number,
+  cam: Camera,
+) {
+  const beam = e.beam ?? [];
+  const last = beam[beam.length - 1];
+  if (!last) return;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(px, py);
+  ctx.lineTo(cam.ox + last.x * cam.scale, cam.oy + last.y * cam.scale);
+  if (e.state === "on") {
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = COLOR.danger;
+  } else {
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.45;
+    ctx.strokeStyle = COLOR.uiMuted;
+    ctx.setLineDash([2, 6]);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawEntity(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera, scene: Scene) {
   const s = cam.scale;
   const px = cam.ox + e.pos.x * s;
@@ -217,6 +304,75 @@ function drawEntity(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera, s
     ctx.fillRect(left, top, s, s);
     ctx.globalAlpha = 1;
     hatch(ctx, left, top, s, s, COLOR.goal);
+  } else if (e.kind === "camera") {
+    drawZone(ctx, e, cam);
+    const watching = e.state === "watching";
+    ctx.fillStyle = COLOR.bg;
+    ctx.strokeStyle = watching ? COLOR.cameraLight : COLOR.uiMuted;
+    ctx.lineWidth = 2;
+    ctx.fillRect(left + s * 0.2, top + s * 0.3, s * 0.6, s * 0.4);
+    ctx.strokeRect(left + s * 0.2, top + s * 0.3, s * 0.6, s * 0.4);
+    ctx.beginPath();
+    ctx.arc(px, py, s * 0.11, 0, Math.PI * 2);
+    ctx.fillStyle = watching ? COLOR.cameraLight : COLOR.uiMuted;
+    ctx.fill();
+  } else if (e.kind === "laser") {
+    drawBeam(ctx, e, px, py, cam);
+    ctx.fillStyle = COLOR.bg;
+    ctx.strokeStyle = COLOR.danger;
+    ctx.lineWidth = 2;
+    ctx.fillRect(left + s * 0.25, top + s * 0.25, s * 0.5, s * 0.5);
+    ctx.strokeRect(left + s * 0.25, top + s * 0.25, s * 0.5, s * 0.5);
+  } else if (e.kind === "guard") {
+    drawCone(ctx, e, px, py, s);
+    diamond(ctx, px, py, s * 0.45);
+    ctx.fillStyle = COLOR.danger;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = COLOR.bg;
+    ctx.stroke();
+  } else if (e.kind === "hide") {
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = COLOR.uiMuted;
+    ctx.setLineDash([4, 4]);
+    ctx.strokeRect(left + s * 0.1, top + s * 0.1, s * 0.8, s * 0.8);
+    ctx.setLineDash([]);
+  } else if (e.kind === "checkpoint") {
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = COLOR.ui;
+    ctx.beginPath();
+    ctx.moveTo(left + s * 0.3, top + s * 0.85);
+    ctx.lineTo(left + s * 0.3, top + s * 0.15);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(left + s * 0.3, top + s * 0.15);
+    ctx.lineTo(left + s * 0.8, top + s * 0.32);
+    ctx.lineTo(left + s * 0.3, top + s * 0.5);
+    ctx.closePath();
+    ctx.fillStyle = e.state === "reached" ? COLOR.goal : COLOR.ui;
+    ctx.fill();
+  } else if (e.kind === "loot") {
+    diamond(ctx, px, py, s * 0.3);
+    ctx.fillStyle = COLOR.goal;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = COLOR.bg;
+    ctx.stroke();
+  } else if (e.kind === "sign") {
+    const glyphs = (e.shows ?? []).map((id) => id.replace(/^p/, "")).join(" ");
+    const w = Math.max(s, s * 0.34 * glyphs.length + s * 0.3);
+    ctx.fillStyle = COLOR.panel;
+    ctx.strokeStyle = COLOR.ui;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(px - w / 2, py - s * 0.35, w, s * 0.7, 3);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = COLOR.ui;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `700 ${Math.round(s * 0.4)}px system-ui, sans-serif`;
+    ctx.fillText(glyphs, px, py + 1);
   } else if (e.kind === "stamp" && e.state) {
     drawStamp(ctx, e.state as Stamp, px, py, s, e.age ?? 0);
   } else if (e.kind === "player" && e.seat !== undefined) {
@@ -252,7 +408,21 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
   ctx.fillStyle = COLOR.floor;
   ctx.fillRect(0, 0, scene.w, scene.h);
   drawTiles(ctx, scene.tiles, cam);
-  const order: EntityView["kind"][] = ["plate", "door", "crate", "exit", "player", "stamp"];
+  const order: EntityView["kind"][] = [
+    "plate",
+    "door",
+    "crate",
+    "exit",
+    "hide",
+    "checkpoint",
+    "loot",
+    "sign",
+    "camera",
+    "laser",
+    "guard",
+    "player",
+    "stamp",
+  ];
   for (const kind of order) {
     for (const e of scene.entities) {
       if (e.kind !== kind) continue;

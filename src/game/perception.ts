@@ -1,12 +1,50 @@
 import type { Stamp } from "./channels.ts";
+import {
+  cameraParams,
+  cameraWatching,
+  cameraZone,
+  guardParams,
+  laserBeam,
+  laserOn,
+  laserParams,
+} from "./sim/hazards.ts";
 import { type RoomStatus, TICK_MS, type World } from "./sim/world.ts";
 import type { Role, Seat, Vec } from "./types.ts";
 
 export interface EntityView {
   id: string;
-  kind: "player" | "crate" | "door" | "plate" | "exit" | "stamp";
+  kind:
+    | "player"
+    | "crate"
+    | "door"
+    | "plate"
+    | "exit"
+    | "stamp"
+    | "guard"
+    | "camera"
+    | "laser"
+    | "hide"
+    | "checkpoint"
+    | "loot"
+    | "sign";
   pos: Vec;
-  state?: "open" | "closed" | "pressed" | "up" | Stamp; // a stamp's state is which stamp it is
+  // a stamp's state is which stamp it is; a camera is watching or idle, a laser
+  // on or off, a checkpoint reached or up
+  state?:
+    | "open"
+    | "closed"
+    | "pressed"
+    | "up"
+    | "watching"
+    | "idle"
+    | "on"
+    | "off"
+    | "reached"
+    | Stamp;
+  cone?: { fovDeg: number; range: number }; // a guard's sight
+  zone?: [number, number, number, number]; // a camera's tiles, x0 y0 x1 y1 inclusive
+  beam?: Vec[]; // a laser's tile centres
+  shows?: string[]; // a sign's plate ids, in order
   age?: number; // ms since a stamp landed
   seat?: Seat;
   role?: Role;
@@ -66,6 +104,53 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
       }
     } else if (o.kind === "exit") {
       for (const t of o.tiles) out.push({ id: o.id, kind: "exit", pos: centre(t) });
+    } else if (o.kind === "guard") {
+      const guard = world.guards.find((g) => g.id === o.id);
+      if (!guard) continue;
+      const { sightTiles, fovDeg } = guardParams(o);
+      out.push({
+        id: o.id,
+        kind: "guard",
+        pos: rounded(guard.pos),
+        facing: rounded(guard.facing),
+        cone: { fovDeg, range: sightTiles },
+      });
+    } else if (o.kind === "camera") {
+      const watching = cameraWatching(cameraParams(o), world.tick);
+      out.push({
+        id: o.id,
+        kind: "camera",
+        pos: centre(o.tiles[0] as Vec),
+        state: watching ? "watching" : "idle",
+        zone: cameraZone(o),
+      });
+    } else if (o.kind === "laser") {
+      out.push({
+        id: o.id,
+        kind: "laser",
+        pos: centre(o.tiles[0] as Vec),
+        state: laserOn(laserParams(o), world.tick) ? "on" : "off",
+        beam: laserBeam(world.room, o).map(centre),
+      });
+    } else if (o.kind === "hide") {
+      out.push({ id: o.id, kind: "hide", pos: centre(o.tiles[0] as Vec) });
+    } else if (o.kind === "checkpoint") {
+      const reached = Number(o.id.slice(1)) <= world.checkpoint;
+      out.push({
+        id: o.id,
+        kind: "checkpoint",
+        pos: centre(o.tiles[0] as Vec),
+        state: reached ? "reached" : "up",
+      });
+    } else if (o.kind === "loot") {
+      if (!world.lootTaken.includes(o.id)) {
+        out.push({ id: o.id, kind: "loot", pos: centre(o.tiles[0] as Vec) });
+      }
+    } else if (o.kind === "sign") {
+      const shows = Array.isArray(o.params?.shows)
+        ? o.params.shows.filter((v): v is string => typeof v === "string")
+        : [];
+      out.push({ id: o.id, kind: "sign", pos: centre(o.tiles[0] as Vec), shows });
     }
   }
   for (const s of world.stamps) {

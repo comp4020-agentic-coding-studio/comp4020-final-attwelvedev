@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { viewFor } from "./perception.ts";
 import { step } from "./sim/step.ts";
-import { place, worldFrom } from "./sim/testing.ts";
+import { place, worldFrom, worldWith } from "./sim/testing.ts";
 import { TICK_MS } from "./sim/world.ts";
 
 const GRID = [
@@ -114,5 +114,89 @@ describe("viewFor: what each role is told", () => {
     const w = world();
     w.room.objects.find((o) => o.id === "p1")?.visibleTo.push("blind");
     expect(viewFor(w, 0, "blind", false).entities).toEqual([]); // blind still sees nothing
+  });
+});
+
+describe("viewFor: hazards", () => {
+  const GRID = [
+    "########################",
+    "#1....C.......G....h...#",
+    "#2....L.S........K.$...#",
+    "#3.....................#",
+    "########################",
+  ];
+  const OBJECTS = {
+    C1: { zone: [8, 1, 12, 3], periodS: 6, watchingS: 3, offsetS: 0 },
+    L1: { dir: "right", onS: 2, offS: 2, offsetS: 0 },
+    G1: { sightTiles: 6, fovDeg: 70, speedTps: 1.5 },
+    S1: { shows: ["p1"] },
+  };
+  const hazardWorld = () => worldWith(GRID, OBJECTS);
+  const kinds = (view: ReturnType<typeof viewFor>) => view.entities.map((e) => e.kind);
+
+  it("blind is told of no guard, camera, laser, hide spot, checkpoint, loot or sign", () => {
+    const view = viewFor(hazardWorld(), 0, "blind", true);
+    expect(view.entities).toEqual([]);
+    expect(JSON.stringify(view)).not.toMatch(/guard|camera|laser|cone|zone|beam/);
+  });
+
+  it("deaf and mute get them, with the cone, zone and beam to draw", () => {
+    for (const role of ["deaf", "mute"] as const) {
+      const view = viewFor(hazardWorld(), 1, role, false);
+      for (const kind of ["guard", "camera", "laser", "hide", "checkpoint", "loot", "sign"]) {
+        expect(kinds(view)).toContain(kind);
+      }
+      expect(view.entities.find((e) => e.kind === "guard")?.cone).toEqual({
+        fovDeg: 70,
+        range: 6,
+      });
+      expect(view.entities.find((e) => e.kind === "camera")?.zone).toEqual([8, 1, 12, 3]);
+      const laser = view.entities.find((e) => e.kind === "laser");
+      expect(laser?.beam?.length).toBeGreaterThan(5);
+      expect(laser?.state).toBe("on");
+      expect(view.entities.find((e) => e.kind === "sign")?.shows).toEqual(["p1"]);
+    }
+  });
+
+  it("shows a camera as watching or idle and a laser as on or off", () => {
+    const world = hazardWorld();
+    world.tick = 70; // 3.5 s: camera idle, laser off
+    const view = viewFor(world, 1, "deaf", false);
+    expect(view.entities.find((e) => e.kind === "camera")?.state).toBe("idle");
+    expect(view.entities.find((e) => e.kind === "laser")?.state).toBe("off");
+  });
+
+  it("stops sending loot once it is taken and marks a reached checkpoint", () => {
+    // no guard or laser here: this checks what is sent, not who gets caught
+    const world = worldWith(
+      GRID.map((r) => r.replace(/[GL]/g, ".")),
+      OBJECTS,
+    );
+    place(world, 0, { x: 19, y: 2 });
+    step(world, {}, TICK_MS);
+    expect(kinds(viewFor(world, 1, "deaf", false))).not.toContain("loot");
+    place(world, 0, { x: 17, y: 2 });
+    step(world, {}, TICK_MS);
+    expect(
+      viewFor(world, 1, "deaf", false).entities.find((e) => e.kind === "checkpoint")?.state,
+    ).toBe("reached");
+  });
+
+  it("sends a moving guard's position and facing, never to blind", () => {
+    const world = worldWith(GRID, {
+      ...OBJECTS,
+      G1: {
+        ...OBJECTS.G1,
+        patrol: [
+          [14, 1],
+          [18, 1],
+        ],
+      },
+    });
+    step(world, {}, TICK_MS);
+    const guard = viewFor(world, 1, "mute", false).entities.find((e) => e.kind === "guard");
+    expect(guard?.pos.x).toBeGreaterThan(14.5);
+    expect(guard?.facing).toEqual({ x: 1, y: 0 });
+    expect(JSON.stringify(viewFor(world, 0, "blind", true))).not.toContain("guard");
   });
 });

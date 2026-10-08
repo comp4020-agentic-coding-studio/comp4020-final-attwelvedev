@@ -31,6 +31,22 @@ export interface StampState {
   ageMs: number;
 }
 
+// A guard on patrol: `target` indexes the patrol point it is walking to.
+export interface GuardState {
+  id: string;
+  pos: Vec;
+  facing: Vec;
+  target: number;
+}
+
+// What a caught team goes back to: where players stood, where the crates were,
+// which loot was already taken. Taken when a checkpoint is reached.
+export interface Snapshot {
+  players: Vec[];
+  crates: CrateState[];
+  lootTaken: string[];
+}
+
 export interface World {
   room: Room;
   tick: number;
@@ -42,15 +58,39 @@ export interface World {
   pressed: Record<string, boolean>;
   status: RoomStatus;
   events: WorldEvent[]; // emitted this tick only, cleared at the start of step
+  guards: GuardState[];
+  lootTaken: string[];
+  loot: number; // value collected
+  lootTotal: number; // value in the room
+  checkpoint: number; // 0 = the spawns, n = K<n>
+  snapshot: Snapshot;
+  seqProgress: Record<string, { next: number; at: number }>; // sequence doors: plates matched so far
 }
 
 export type WorldEvent =
   | { kind: "door"; id: string; open: boolean; at: Vec }
   | { kind: "plate"; id: string; pressed: boolean; at: Vec }
   | { kind: "crate"; id: string; at: Vec }
+  | { kind: "caught"; by: string }
+  | { kind: "checkpoint"; index: number }
+  | { kind: "loot"; id: string; at: Vec }
   | { kind: "cleared" };
 
 export type Inputs = Partial<Record<Seat, PlayerInput>>;
+
+export const lootValue = (params: Record<string, unknown> | undefined): number =>
+  typeof params?.value === "number" ? params.value : 1;
+
+// A guard's patrol points as tile coordinates; none means it stands still.
+export function patrolOf(params: Record<string, unknown> | undefined): Vec[] {
+  const raw = params?.patrol;
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((p) =>
+    Array.isArray(p) && typeof p[0] === "number" && typeof p[1] === "number"
+      ? [{ x: p[0], y: p[1] }]
+      : [],
+  );
+}
 
 export function createWorld(room: Room): World {
   const spawn = (n: 1 | 2 | 3): PlayerState => {
@@ -71,13 +111,38 @@ export function createWorld(room: Room): World {
     if (o.kind === "door") doorOpen[o.id] = false;
     if (o.kind === "plate") pressed[o.id] = false;
   }
+  const players: World["players"] = [spawn(1), spawn(2), spawn(3)];
+  const crates = room.objects
+    .filter((o) => o.kind === "crate")
+    .map((o) => ({ id: o.id, tile: { ...(o.tiles[0] as Vec) } }));
+  const loot = room.objects.filter((o) => o.kind === "loot");
   return {
     room,
     tick: 0,
-    players: [spawn(1), spawn(2), spawn(3)],
-    crates: room.objects
-      .filter((o) => o.kind === "crate")
-      .map((o) => ({ id: o.id, tile: { ...(o.tiles[0] as Vec) } })),
+    players,
+    crates,
+    guards: room.objects
+      .filter((o) => o.kind === "guard")
+      .map((o) => {
+        const patrol = patrolOf(o.params);
+        const start = patrol[0] ?? (o.tiles[0] as Vec);
+        return {
+          id: o.id,
+          pos: { x: start.x + 0.5, y: start.y + 0.5 },
+          facing: { x: 1, y: 0 },
+          target: patrol.length > 1 ? 1 : 0,
+        };
+      }),
+    lootTaken: [],
+    loot: 0,
+    lootTotal: loot.reduce((sum, o) => sum + lootValue(o.params), 0),
+    checkpoint: 0,
+    snapshot: {
+      players: players.map((p) => ({ ...p.pos })),
+      crates: crates.map((c) => ({ id: c.id, tile: { ...c.tile } })),
+      lootTaken: [],
+    },
+    seqProgress: {},
     stamps: [],
     nextStamp: 1,
     doorOpen,

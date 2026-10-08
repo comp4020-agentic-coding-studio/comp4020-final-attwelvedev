@@ -82,3 +82,105 @@ describe("lintRoom", () => {
     expect(messages(room())).toEqual([]);
   });
 });
+
+describe("lintRoom: hazards", () => {
+  const head = (objects: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
+    JSON.stringify({
+      id: "t-room",
+      name: "Test room",
+      version: 1,
+      beats: [{ name: "Three hands", x: [8, 19], intent: { blind: "b", deaf: "d", mute: "m" } }],
+      objects: { D1: { opensWhen: ["p1", "p2", "p3"] }, ...objects },
+      ...extra,
+    });
+  const GRID = [
+    "####################",
+    "#1.K.C.......D...E.#",
+    "#2.........p.D.....#",
+    "#3.B.L.....p.D.....#",
+    "#..#.......p.......#",
+    "####################",
+  ];
+  const lint = (objects: Record<string, unknown>, grid = GRID, extra = {}) =>
+    lintRoom(parseRoom(`${head(objects, extra)}\n---\n${grid.join("\n")}\n`)).map((i) => i.message);
+  const GOOD = {
+    C1: { zone: [4, 1, 8, 3], periodS: 6, watchingS: 3, offsetS: 0 },
+    L1: { dir: "right", onS: 2, offS: 2, offsetS: 0 },
+  };
+
+  it("passes a room whose hazards give safe windows and have a checkpoint first", () => {
+    expect(lint(GOOD)).toEqual([]);
+  });
+
+  it("flags a camera with under 2 s of safe time", () => {
+    expect(lint({ ...GOOD, C1: { ...GOOD.C1, periodS: 4, watchingS: 3 } })).toContainEqual(
+      expect.stringMatching(/camera C1.*2 s/i),
+    );
+  });
+
+  it("flags a laser that is off for under 2 s", () => {
+    expect(lint({ ...GOOD, L1: { ...GOOD.L1, offS: 1 } })).toContainEqual(
+      expect.stringMatching(/laser L1.*2 s/i),
+    );
+  });
+
+  it("flags a guard whose patrol point is not floor", () => {
+    const grid = GRID.map((r, y) => (y === 2 ? "#2....G....p.D.....#" : r));
+    expect(
+      lint(
+        {
+          ...GOOD,
+          G1: {
+            patrol: [
+              [6, 2],
+              [0, 0],
+            ],
+          },
+        },
+        grid,
+      ),
+    ).toContainEqual(expect.stringMatching(/guard G1.*patrol/i));
+    expect(
+      lint(
+        {
+          ...GOOD,
+          G1: {
+            patrol: [
+              [6, 2],
+              [7, 2],
+            ],
+          },
+        },
+        grid,
+      ),
+    ).toEqual([]);
+  });
+
+  it("flags a sequence door with no sign, or a sign that lists the wrong plates", () => {
+    const seq = { D1: { mode: "sequence", opensWhen: ["p2", "p1", "p3"] } };
+    expect(lint({ ...GOOD, ...seq })).toContainEqual(expect.stringMatching(/door D1.*sign/i));
+    const signed = GRID.map((r, y) => (y === 4 ? "#..#S......p.......#" : r));
+    expect(lint({ ...GOOD, ...seq, S1: { shows: ["p1", "p2", "p3"] } }, signed)).toContainEqual(
+      expect.stringMatching(/door D1.*sign/i),
+    );
+    expect(lint({ ...GOOD, ...seq, S1: { shows: ["p2", "p1", "p3"] } }, signed)).toEqual([]);
+  });
+
+  it("flags a flip zone outside the grid", () => {
+    expect(lint(GOOD, GRID, { flips: [{ kind: "dark", zone: [0, 0, 99, 3] }] })).toContainEqual(
+      expect.stringMatching(/flip.*zone/i),
+    );
+    expect(lint(GOOD, GRID, { flips: [{ kind: "dark", zone: [2, 1, 9, 3] }] })).toEqual([]);
+  });
+
+  it("flags a room whose first hazard comes before any checkpoint", () => {
+    const noK = GRID.map((r) => r.replace("K", "."));
+    expect(lint(GOOD, noK)).toContainEqual(
+      expect.stringMatching(/checkpoint before the first hazard/i),
+    );
+    const lateK = GRID.map((r, y) => (y === 1 ? "#1...C..K....D...E.#" : r));
+    expect(lint(GOOD, lateK)).toContainEqual(
+      expect.stringMatching(/checkpoint before the first hazard/i),
+    );
+  });
+});

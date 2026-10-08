@@ -29,6 +29,7 @@
   --ui-muted: #9aa7c2;
   --danger: #ff3b5c;
   --goal: #5be3a8;
+  --camera-light: #ffd166; /* a camera's watched zone, always hatched: amber and yellow are close */
   --role-blind: #f2a93b; /* circle */
   --role-deaf: #4db3ff; /* square */
   --role-mute: #9b7ee0; /* triangle */

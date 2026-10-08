@@ -101,3 +101,52 @@ describe("parseRoom", () => {
     expect(p2?.audibleTo).toEqual([]);
   });
 });
+
+describe("parseRoom: hazards, checkpoints, loot and signs", () => {
+  const head = (objects: Record<string, unknown>) =>
+    JSON.stringify({ id: "t", name: "T", version: 1, beats: [], objects });
+  const grid = [
+    "####################",
+    "#1.G...C..L..K..$..#",
+    "#2.....h.......$..S#",
+    "#3.G..K.....D..E...#",
+    "####################",
+  ];
+  const parsed = (objects: Record<string, unknown> = {}) =>
+    parseRoom(`${head(objects)}\n---\n${grid.join("\n")}\n`);
+
+  it("numbers each new letter in reading order and replaces it with floor", () => {
+    const room = parsed();
+    const ids = (kind: string) => room.objects.filter((o) => o.kind === kind).map((o) => o.id);
+    expect(ids("guard")).toEqual(["G1", "G2"]);
+    expect(ids("camera")).toEqual(["C1"]);
+    expect(ids("laser")).toEqual(["L1"]);
+    expect(ids("hide")).toEqual(["h1"]);
+    expect(ids("checkpoint")).toEqual(["K1", "K2"]);
+    expect(ids("loot")).toEqual(["$1", "$2"]);
+    expect(ids("sign")).toEqual(["S1"]);
+    expect(room.grid.join("")).not.toMatch(/[GCLhK$S]/);
+    expect(room.objects.find((o) => o.id === "G2")?.tiles).toEqual([{ x: 3, y: 3 }]);
+  });
+
+  it("carries a hazard's metadata as params and a door's mode", () => {
+    const room = parsed({
+      G1: {
+        patrol: [
+          [3, 1],
+          [8, 1],
+        ],
+        speedTps: 2,
+      },
+      D1: { mode: "sequence", opensWhen: ["p1"] },
+    });
+    expect(room.objects.find((o) => o.id === "G1")?.params).toMatchObject({ speedTps: 2 });
+    expect(room.objects.find((o) => o.id === "D1")?.mode).toBe("sequence");
+  });
+
+  it("defaults a door to mode all", () => {
+    expect(parsed({ D1: { opensWhen: ["p1"] } }).objects.find((o) => o.id === "D1")?.mode).toBe(
+      "all",
+    );
+  });
+});
