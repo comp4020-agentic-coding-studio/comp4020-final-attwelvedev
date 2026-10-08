@@ -5,6 +5,8 @@ import {
   CALLOUTS,
   type Callout,
   type ChannelMessage,
+  CLIPS,
+  FACES,
   STAMPS,
   type Stamp,
 } from "../game/channels.ts";
@@ -57,8 +59,6 @@ export type ServerMsg =
   | { t: "cooldown"; family: Family; until: number; stamp?: true }; // stamp: the 1 s stamp clock, not the face clock
 
 const MAX_FRAME = 8 * 1024;
-const CLIP_ID = /^[a-z0-9-]{1,24}$/;
-const FACE_ID = /^f(0[1-9]|1[0-2])$/;
 
 // Anything malformed, unknown or oversized is null: the caller drops it and
 // keeps the socket open, so one bad frame never ends a game.
@@ -115,13 +115,12 @@ export function parseClientMsg(raw: string): ClientMsg | null {
         ? { t: "say", kind: "text", text: m.text }
         : null;
     case "sound":
-      return typeof m.clip === "string" && CLIP_ID.test(m.clip)
-        ? { t: "sound", clip: m.clip }
-        : null;
+      // only a clip on the soundboard: an id that is not one is dropped
+      return CLIPS.some((c) => c.id === m.clip) ? { t: "sound", clip: m.clip as string } : null;
     case "show":
       if (m.kind === "face") {
-        return typeof m.id === "string" && FACE_ID.test(m.id)
-          ? { t: "show", kind: "face", id: m.id }
+        return FACES.some((f) => f.id === m.id)
+          ? { t: "show", kind: "face", id: m.id as string }
           : null;
       }
       return m.kind === "stamp" && (STAMPS as readonly unknown[]).includes(m.id)

@@ -1,8 +1,9 @@
 import type { Browser, Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
-import { ROLE_LABEL, type Role } from "../../src/game/types.ts";
-import { axeViolations, DESKTOP, horizontalOverflow, launch, openPage, PHONE } from "../browser.ts";
-import { createLobbyAs, leaveGameAndClose } from "../lobbyUi.ts";
+import { ROLE_LABEL } from "../../src/game/types.ts";
+import { axeViolations, horizontalOverflow, launch } from "../browser.ts";
+import { leaveGameAndClose } from "../lobbyUi.ts";
+import { canvasHash, playRoom } from "../playUi.ts";
 
 const baseUrl = inject("baseUrl");
 let browser: Browser;
@@ -15,50 +16,9 @@ afterAll(async () => {
 
 const SOLID = [0x3a, 0x4d, 0x7a]; // --solid, the wall colour (src/client/tokens.ts)
 
-interface Table {
-  pages: Page[];
-  byRole: Record<Role, Page>;
-  phone: Page;
-}
-
-// Host and a third player on desktop, one touch phone in between, all through
-// the real screens: create, join, Start, reveal, Ready.
-async function playRoom(): Promise<Table> {
-  const { page: host, code } = await createLobbyAs(browser, baseUrl, "Ana", DESKTOP);
-  const phoneContext = await browser.newContext({
-    viewport: PHONE,
-    hasTouch: true,
-    isMobile: true,
-  });
-  const phone = await phoneContext.newPage();
-  const third = await openPage(browser, baseUrl, DESKTOP);
-  for (const [page, name] of [
-    [phone, "Bo"],
-    [third, "Cy"],
-  ] as const) {
-    await page.goto(baseUrl, { waitUntil: "networkidle" });
-    await page.getByLabel("Nickname").fill(name);
-    await page.getByLabel("Lobby code").fill(code);
-    await page.getByRole("button", { name: "Join", exact: true }).click();
-    await page.waitForURL(new RegExp(`/lobby/${code}$`));
-    await page.getByText("Seats").waitFor();
-  }
-  const start = host.getByRole("button", { name: "Start" });
-  await expect.poll(() => start.isEnabled(), { timeout: 5000 }).toBe(true);
-  await start.click();
-  const pages = [host, phone, third];
-  for (const page of pages) await page.getByRole("button", { name: "Ready" }).click();
-  for (const page of pages) await page.locator(".frame canvas").waitFor();
-  // seats rotate by room: room 1 is seat 0 blind, seat 1 deaf, seat 2 mute
-  return { pages, phone, byRole: { blind: host, deaf: phone, mute: third } };
-}
-
-const canvasHash = (page: Page) =>
-  page.locator(".frame canvas").evaluate((c) => (c as HTMLCanvasElement).toDataURL());
-
 describe("the game screen", () => {
   it("shows each role's frame, and only the sighted roles' canvas has walls", async () => {
-    const table = await playRoom();
+    const table = await playRoom(browser, baseUrl);
     for (const role of ["blind", "deaf", "mute"] as const) {
       const page = table.byRole[role];
       await expect(page.locator(".hud-role").innerText()).resolves.toContain(ROLE_LABEL[role]);
@@ -92,7 +52,7 @@ describe("the game screen", () => {
   });
 
   it("has no overflow and no axe violations on the HUD at phone and desktop widths", async () => {
-    const table = await playRoom();
+    const table = await playRoom(browser, baseUrl);
     for (const page of table.pages) {
       expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
       expect(await axeViolations(page)).toEqual([]);
@@ -103,7 +63,7 @@ describe("the game screen", () => {
   });
 
   it("puts the joystick and Act on touch, clear of the tray, and no key hints there", async () => {
-    const table = await playRoom();
+    const table = await playRoom(browser, baseUrl);
     const { phone } = table;
     await phone.locator("[data-joystick]").waitFor();
     await phone.locator("[data-act]").waitFor();
@@ -123,8 +83,25 @@ describe("the game screen", () => {
     await leaveGameAndClose(table.byRole.mute, baseUrl);
   });
 
+  it("keeps a held joystick or Act from selecting text or raising a menu", async () => {
+    const table = await playRoom(browser, baseUrl);
+    const { phone } = table;
+    for (const control of ["[data-joystick]", "[data-act]"]) {
+      const el = phone.locator(control);
+      await el.waitFor();
+      expect(await el.evaluate((e) => getComputedStyle(e).userSelect), control).toBe("none");
+      const prevented = await el.evaluate((e) => {
+        const ev = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+        e.dispatchEvent(ev);
+        return ev.defaultPrevented;
+      });
+      expect(prevented, control).toBe(true);
+    }
+    for (const page of table.pages) await leaveGameAndClose(page, baseUrl);
+  });
+
   it("moves the deaf player's avatar within 500 ms of pressing D", async () => {
-    const table = await playRoom();
+    const table = await playRoom(browser, baseUrl);
     const deaf = table.byRole.deaf;
     await deaf.waitForTimeout(300); // let the first frames settle
     const before = await canvasHash(deaf);
@@ -142,7 +119,7 @@ describe("the game screen", () => {
   });
 
   it("gives only the host a Restart that asks twice and then puts everyone back at spawn", async () => {
-    const table = await playRoom();
+    const table = await playRoom(browser, baseUrl);
     const { blind: host, deaf, mute } = table.byRole;
     expect(await deaf.getByRole("button", { name: /Restart/ }).count()).toBe(0);
     expect(await mute.getByRole("button", { name: /Restart/ }).count()).toBe(0);
@@ -163,7 +140,7 @@ describe("the game screen", () => {
   });
 
   it("lets a player move again after a restart, the one who pressed it and the others", async () => {
-    const table = await playRoom();
+    const table = await playRoom(browser, baseUrl);
     const { blind: host, deaf, mute } = table.byRole;
     await deaf.keyboard.down("d");
     await deaf.waitForTimeout(600);
@@ -186,7 +163,7 @@ describe("the game screen", () => {
   });
 
   it("tells the others when a player's connection drops, and when they leave", async () => {
-    const table = await playRoom();
+    const table = await playRoom(browser, baseUrl);
     const { blind: host, deaf, mute } = table.byRole;
     const crew = (page: Page) => page.locator(".hud-crew").innerText();
     expect(await crew(host)).not.toMatch(/away|left/);

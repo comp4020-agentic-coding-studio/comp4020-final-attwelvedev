@@ -23,6 +23,7 @@ export interface RequestLine {
 export const ACTIONS: Record<string, string> = {
   "GET /": "view.home",
   "GET /readme": "view.readme",
+  "GET /credits": "view.credits",
   "GET /lobby/[code]": "view.lobby",
   "GET /leaderboard": "view.leaderboard",
 };

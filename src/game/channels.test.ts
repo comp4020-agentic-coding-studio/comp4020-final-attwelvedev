@@ -4,6 +4,7 @@ import {
   COOLDOWN_MS,
   type CooldownState,
   cleanText,
+  FACES,
   type Outgoing,
   route,
   STAMP_COOLDOWN_MS,
@@ -128,5 +129,18 @@ describe("cleanText", () => {
 describe("CALLOUTS", () => {
   it("is the 3×3 grid in reading order", () => {
     expect(CALLOUTS).toEqual(["push", "up", "here", "left", "stop", "right", "wait", "down", "go"]);
+  });
+});
+
+describe("FACES", () => {
+  it("is exactly f01 to f12, each with a file and a label", () => {
+    expect(FACES.map((f) => f.id)).toEqual(
+      Array.from({ length: 12 }, (_, i) => `f${String(i + 1).padStart(2, "0")}`),
+    );
+    for (const f of FACES) {
+      expect(f.file).toMatch(/^[a-z-]+\.png$/);
+      expect(f.label.length).toBeGreaterThan(0);
+    }
+    expect(new Set(FACES.map((f) => f.file)).size).toBe(12);
   });
 });

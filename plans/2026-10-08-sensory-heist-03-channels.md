@@ -78,7 +78,7 @@ Callouts: `push`, `up`, `here`, `left`, `stop`, `right`, `wait`, `down`, `go`
 stripped. Faces: ids `f01`–`f12` mapped to files in `public/faces/`. Stamps:
 `up`, `down`, `left`, `right`, `x`, `question`, `bang`, `door`, `key`, placed
 at the sender's tile, fade 8 s. Sound clips: ids mapped to
-`public/sounds/*.mp3`, ≤ 8 clips, ≤ 3 s each.
+`public/sounds/*.mp3`, ≤ 12 clips, ≤ 3 s each (4×3 grid like the faces; keys 1–6 and `0` as for faces).
 
 The client speaks `say` text with `speechSynthesis` only when its role is
 `blind`; a `mute` client shows it as a caption-style line (and also hears it
@@ -199,6 +199,12 @@ intelligible on the blind device.
 
 **Depends on:** Task 8, Task 9.
 
+**Status:** [x] done 2026-10-08. Human review accepted by the user after the
+corrections in §9. All 12 faces (`public/faces/`) and 12 soundboard clips
+(`public/sounds/`) are credited in `CREDITS.md`; the server accepts only ids in
+`CLIPS` and `FACES`. Deviations: the typing badge sits at the top of the map
+rather than over the avatar; the cooldown ring counts on the device's own clock.
+
 ## 6. Phase Definition of Done
 
 - [ ] Tasks 9–10 complete, tests passing, Task 10 accepted by the user
@@ -227,3 +233,20 @@ None.
 ## 9. Corrections log
 
 - 2026-10-08 — Review: Task 10's faces (`f01`–`f12`) and clips are supplied by the user (with source URL and licence), not sourced by Claude; the plan didn't name them.
+- 2026-10-08 — Task 10: the Show hotbar only reached faces 1–6 by key. User asked for a `0` toggle (no button) that moves keys 1–6 to faces 7–12. First attempt missed because the spec's "hotbar of 6" left half the faces pointer-only. Keys 7–9 no longer send faces.
+- 2026-10-08 — Task 10: the soundboard grew from 8 clips (2×4) to 12 to match the 12 faces. User's call; the plan's "≤ 8 clips" is now "≤ 12", the Sound sheet is 4×3, and keys 1–6 with `0` page it exactly like the faces. First attempt missed because the spec's 2×4 grid assumed fewer clips than the user had.
+- 2026-10-08 — Task 10 review: "Game sound and spoken lines" was one setting; user wanted two (Game sound, Spoken lines). First attempt bundled them because the plan's settings sheet named only captions; now `speech` is its own setting and gates Say speech for Can't see and Can't speak, `sound` gates cues and clips.
+- 2026-10-08 — Task 10 review: faces were 36 px in 48 px rows, too small to read. User wanted them larger in taller rows; now 56 px (64 px on desktop) in 76 px rows (84 px). First attempt sized them as icons, not pictures.
+- 2026-10-08 — Task 10 review: Stamps showed "Stamps ready in N s", which no other comms family shows (the sheet header already says "Wait N s"). Removed.
+- 2026-10-08 — Task 10 review: no key moved between the Faces and Stamps tabs. User asked; added `F` and `T` inside Show (letters that don't collide with WASD), with key hints on the tabs and a line in the Tab cheat sheet.
+- 2026-10-08 — Task 10 review: Show said "You hear replies here"; it is "see" (Show is the visual channel). Say and Sound keep "hear".
+- 2026-10-08 — Task 10 review: some soundboard labels were long or inconsistent. User renamed: Ding→Truth, Wrong buzzer→Lie, Wilhelm scream→Scream, Goofy car horn→Car horn. Ids and files are unchanged.
+- 2026-10-08 — Task 10 review: "Crickets" wrapped mid-word at 375 px. Labels are now 14 px condensed with no mid-word breaks; a spec measures that no label is clipped or broken. First attempt used the 18 px grid font, too wide for four columns on a phone.
+- 2026-10-08 — Task 10 review: faces could be selected and dragged out of the sheet. Now `draggable=false`, no user-select and no pointer events on the image (the button gets the tap); a spec checks it. First attempt treated them as ordinary images.
+- 2026-10-08 — Task 10 review: captions were inconsistent (`[■ Left]` for callouts, `Bo: text` for text, `[Bo played X]` for clips). User wanted every caption to carry the sender's shape and name. Now all spoken-line captions are the role's shape, the name in bold, then the line, and sounds are `[in brackets]`. Room cues (`[footsteps, left]`) stay shapeless: the server doesn't say who made a footstep, and Can't see must not learn it.
+- 2026-10-08 — Task 10 review: the Faces/Stamps key hints were styled differently from the tray's. Now the same muted 14 px key hint, inline before the label; the selected tab uses a bar under it instead of a filled light background (which made a muted hint unreadable).
+- 2026-10-08 — Task 10 review: Can't hear was offered Game sound and Spoken lines switches that can do nothing. User suggested disabling them with an explanation. Now both are shown off, disabled and described ("You can't hear in this game…"); the stored values are untouched.
+- 2026-10-08 — Task 10 review: Captions was still offered to Can't hear, who is sent no speech or clips (only faces and stamps, which have no captions). User asked to disable it too; now Captions, Game sound and Spoken lines are all shown off and disabled for Can't hear, with one explanation.
+- 2026-10-08 — Task 10 review: user asked whether faces could stop being right-click savable or copyable. The picture takes no pointer events (a click lands on its button, so the browser never offers "Save image"), and the face buttons suppress the context menu and the iOS long-press callout. The files stay public URLs, so this stops casual saving only.
+- 2026-10-08 — Task 10 review: after the face-menu change, user agreed the held touch controls (joystick and Act, from Task 8) had no guard against text selection or the long-press menu and asked for it in this task. The touch zone now has `user-select: none`, no iOS callout and a suppressed context menu; a game spec checks it. First attempt at Task 8 only set `touch-action`.
+- 2026-10-08 — Task 10: sharing one room across `spec/layout/tray.test.ts` (user's call, to cut the check from 76 s) showed Show reopening on the Stamps tab after a player had used it, so "3 then 1" would send a stamp. Show now always reopens on Faces, like the hotbar page; a spec checks it. The file went from 19 rooms (71 s) to one (13 s), with an `afterEach` that closes sheets and settings and waits out cooldowns.

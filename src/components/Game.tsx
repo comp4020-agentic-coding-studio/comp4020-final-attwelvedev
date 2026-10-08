@@ -1,16 +1,30 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { createAudio, type GameAudio } from "../client/audio.ts";
-import { formatTime, lerpEntities, roomTitle, trayFor } from "../client/hud.ts";
+import { faceImage, preloadFaces } from "../client/faces.ts";
+import {
+  CALLOUT_WORD,
+  captionFor,
+  cueCaptions,
+  formatTime,
+  lerpEntities,
+  roomTitle,
+} from "../client/hud.ts";
 import { createInput } from "../client/input.ts";
 import { createPredictor, type Predictor } from "../client/predict.ts";
-import { draw, type Scene } from "../client/render.ts";
+import { draw, type FacePop, type Scene } from "../client/render.ts";
+import { loadSettings, type Settings as SettingsState, saveSettings } from "../client/settings.ts";
 import type { ConnectionState, GameSocket } from "../client/socket.ts";
+import { browserSpeech } from "../client/speech.ts";
 import { NET } from "../client/tokens.ts";
+import { FACE_POP_MS } from "../game/channels.ts";
 import { ROLE_LABEL, type Role, type Vec } from "../game/types.ts";
 import type { CrewMember, LobbyState, RoleView } from "../net/protocol.ts";
+import { type CaptionLine, Captions } from "./Captions.tsx";
 import { Connection } from "./Connection.tsx";
 import { RoleReveal } from "./RoleReveal.tsx";
-import { ROLE_GLYPH, RoleShape } from "./RoleShape.tsx";
+import { RoleShape } from "./RoleShape.tsx";
+import { Settings } from "./Settings.tsx";
+import { Tray } from "./Tray.tsx";
 
 export interface Reveal {
   room: string;
@@ -29,8 +43,11 @@ interface Runtime {
   predictor: Predictor | null;
   self: Vec | null; // where we think we are
   shown: Vec | null; // where we draw ourselves (self, eased)
+  pops: { seat: number; id: string; at: number }[]; // faces on show, by when they landed
+  soundOn: boolean;
 }
 
+const CAPTION_MS = 5000;
 const EASE = 0.5; // share of the gap to the predicted position closed each frame
 const SNAP_TILES = 1.5;
 
@@ -52,7 +69,7 @@ function onView(rt: Runtime, view: RoleView, audio: GameAudio): void {
     rt.self = rt.predictor.reconcile(pos, view.ack);
     rt.shown ??= rt.self;
   }
-  audio.play(view.sounds);
+  if (rt.soundOn) audio.play(view.sounds);
 }
 
 export function Game({
@@ -80,6 +97,8 @@ export function Game({
     predictor: null,
     self: null,
     shown: null,
+    pops: [],
+    soundOn: true,
   });
   const audio = useRef<GameAudio | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -122,6 +141,7 @@ export function Game({
       reveal={reveal}
       host={host}
       seats={seats}
+      audio={audio}
     />
   );
 }
@@ -135,6 +155,7 @@ function Hud({
   reveal,
   host,
   seats,
+  audio,
 }: {
   rt: Runtime;
   socket: GameSocket;
@@ -144,6 +165,7 @@ function Hud({
   reveal: Reveal;
   host: boolean;
   seats: LobbyState["seats"] | null;
+  audio: { current: GameAudio | null };
 }) {
   const { role } = reveal;
   const frame = useRef<HTMLDivElement>(null);
@@ -154,6 +176,42 @@ function Hud({
   const [touch, setTouch] = useState(false);
   const lastSent = useRef<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [settings, setSettings] = useState<SettingsState>(() => loadSettings(role));
+  const [lines, setLines] = useState<CaptionLine[]>([]);
+  const [cues, setCues] = useState<string[]>([]);
+  const [typing, setTyping] = useState(false);
+  const live = useRef({ settings, lineId: 0 });
+  live.current.settings = settings;
+  rt.soundOn = settings.sound;
+
+  function change(next: SettingsState) {
+    setSettings(next);
+    saveSettings(next);
+  }
+
+  // Everything a channel message does on arrival: speak it, play it, show it.
+  useEffect(() => {
+    const speech = browserSpeech(role, () => live.current.settings.speech);
+    if (role !== "blind") preloadFaces();
+    return socket.on("msg", (m) => {
+      const now = performance.now();
+      const { settings: s } = live.current;
+      if (m.family === "say") {
+        speech.say(m.kind === "callout" ? CALLOUT_WORD[m.callout] : m.text);
+      } else if (m.family === "sound" && s.sound) {
+        audio.current?.playClip(m.clip);
+      } else if (m.family === "show" && m.kind === "face") {
+        rt.pops.push({ seat: m.from.seat, id: m.id, at: now });
+      }
+      // text to Can't speak is always shown, since reading it is their only way
+      const caption = captionFor(m);
+      const wanted = s.captions || (m.family === "say" && m.kind === "text" && role !== "blind");
+      if (caption && wanted) {
+        const line = { id: ++live.current.lineId, ...caption, until: now + CAPTION_MS };
+        setLines((old) => [...old.filter((l) => l.until > now), line].slice(-3));
+      }
+    });
+  }, [socket, role, rt, audio]);
 
   // Restart asks twice (a stray tap must not wipe the room); the ask lapses after 3 s.
   function restart() {
@@ -175,6 +233,11 @@ function Hud({
       if (!view) return;
       setClock(formatTime(view.elapsedMs));
       setCleared(view.status === "cleared");
+      const now = performance.now();
+      rt.pops = rt.pops.filter((p) => now - p.at < FACE_POP_MS);
+      setLines((old) => (old.some((l) => l.until <= now) ? old.filter((l) => l.until > now) : old));
+      const heard = live.current.settings.captions ? cueCaptions(view.sounds) : [];
+      setCues((old) => (old.join("|") === heard.join("|") ? old : heard));
     }, 250);
     return () => {
       document.body.classList.remove("playing");
@@ -215,6 +278,14 @@ function Hud({
               };
       }
       const t = (performance.now() - rt.at) / NET.interpolateMs;
+      const now = performance.now();
+      const pops: FacePop[] = [];
+      for (const p of rt.pops) {
+        const img = faceImage(p.id);
+        const left = FACE_POP_MS - (now - p.at);
+        if (img && left > 0)
+          pops.push({ seat: p.seat as 0 | 1 | 2, img, fade: Math.min(1, left / 300) });
+      }
       const scene: Scene = {
         ...size,
         role,
@@ -224,6 +295,7 @@ function Hud({
         entities: lerpEntities(rt.prevEntities, view.entities, t),
         self: rt.shown,
         layout: size.w >= 720 ? "fit" : "follow",
+        pops,
       };
       draw(ctx, scene);
     };
@@ -266,7 +338,6 @@ function Hud({
   const gone = reveal.crew.flatMap((c, i) =>
     presence[i] ? [{ name: c.nickname, how: presence[i] }] : [],
   );
-  const tray = trayFor(role);
   const label = ROLE_LABEL[role];
   return (
     <div class="game" ref={root} style={{ "--frame": `var(--role-${role})` }}>
@@ -283,6 +354,7 @@ function Hud({
           {clock}
         </span>
         <Connection state={state} rttMs={rttMs} />
+        <Settings role={role} settings={settings} onChange={change} />
         {host && (
           <button type="button" class="hud-btn" onClick={restart}>
             {confirming ? "Sure? Restart" : "Restart"}
@@ -323,6 +395,12 @@ function Hud({
           role="img"
           aria-label={role === "blind" ? "No map. Listen to the room." : "Map of the room"}
         />
+        <Captions lines={lines} cues={cues} />
+        {typing && (
+          <span class="typing-badge" role="status">
+            Typing
+          </span>
+        )}
         {cleared && (
           <div class="overlay" role="status">
             <h2>Room cleared</h2>
@@ -340,32 +418,7 @@ function Hud({
         )}
       </div>
 
-      <ul class="tray" aria-label="Ways to talk">
-        {tray.map((tile, i) => (
-          <li key={tile.family} class={tile.canSend ? "tile" : "tile cant"}>
-            <span class="tile-name">
-              <kbd>{i + 1}</kbd> {tile.label}
-            </span>
-            {tile.canSend ? (
-              <span class="tile-to">
-                <span class="sr-only">
-                  goes to {tile.receivers.map((r) => ROLE_LABEL[r]).join(" and ")}
-                </span>
-                <span aria-hidden="true">
-                  →{" "}
-                  {tile.receivers.map((r) => (
-                    <span key={r} class={r === role ? "glyph me" : "glyph"}>
-                      {ROLE_GLYPH[r]}
-                    </span>
-                  ))}
-                </span>
-              </span>
-            ) : (
-              <span class="tile-cant">Can't send</span>
-            )}
-          </li>
-        ))}
-      </ul>
+      <Tray role={role} socket={socket} keepOpen={settings.keepOpen} onTyping={setTyping} />
 
       {touch ? (
         <div class="touch-zone">

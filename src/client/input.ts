@@ -51,7 +51,14 @@ export function createInput(root: HTMLElement): InputSource {
   window.addEventListener("blur", clear);
 
   const cleanups: (() => void)[] = [];
+  // a held thumb must not raise the browser's long-press menu mid-game
+  const noMenu = (el: HTMLElement): void => {
+    const stop = (e: Event): void => e.preventDefault();
+    el.addEventListener("contextmenu", stop);
+    cleanups.push(() => el.removeEventListener("contextmenu", stop));
+  };
   const joystick = root.querySelector<HTMLElement>("[data-joystick]");
+  if (joystick) noMenu(joystick);
   if (joystick) {
     let pointer: number | null = null;
     const setStick = (e: PointerEvent): void => {
@@ -94,6 +101,7 @@ export function createInput(root: HTMLElement): InputSource {
   }
   const act = root.querySelector<HTMLElement>("[data-act]");
   if (act) {
+    noMenu(act);
     const down = (e: PointerEvent): void => {
       actHeld = true;
       act.setPointerCapture?.(e.pointerId);

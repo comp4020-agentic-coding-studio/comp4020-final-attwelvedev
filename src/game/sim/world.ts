@@ -1,11 +1,11 @@
-import type { Stamp } from "../channels.ts";
+import { STAMP_LIFE_MS, type Stamp } from "../channels.ts";
 import type { Room } from "../rooms/format.ts";
 import type { PlayerInput, Seat, Vec } from "../types.ts";
 
 export const TICK_MS = 50;
 export const SPEED_TPS = 4;
 export const RADIUS = 0.4;
-export const STAMP_LIFE_MS = 8000;
+export { STAMP_LIFE_MS };
 
 export type RoomStatus = "playing" | "cleared";
 

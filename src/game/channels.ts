@@ -29,6 +29,8 @@ export type Stamp = (typeof STAMPS)[number];
 export const COOLDOWN_MS: Record<Family, number> = { say: 0, sound: 3000, show: 1500 };
 export const STAMP_COOLDOWN_MS = 1000;
 export const MAX_TEXT = 120;
+export const STAMP_LIFE_MS = 8000; // a stamp fades over this long, then is gone
+export const FACE_POP_MS = 1500; // how long a face shows above its sender
 
 export type Outgoing =
   | { family: "say"; kind: "callout"; callout: Callout }
@@ -82,3 +84,37 @@ export function cleanText(raw: string): string | null {
     .trim();
   return text === "" ? null : text;
 }
+
+// The bundled faces (bluemoji.io, credited in CREDITS.md). `id` is what goes on
+// the wire; `file` is under public/faces/. The first six are the Show hotbar.
+export const FACES = [
+  { id: "f01", file: "ok-sign-blue-emoji-blue.png", label: "OK" },
+  { id: "f02", file: "double-thumbs-up-emoji-blue.png", label: "Double thumbs up" },
+  { id: "f03", file: "thumbs-down-blue-emoji-blue.png", label: "Thumbs down" },
+  { id: "f04", file: "hold-up-blue-emoji-blue.png", label: "Hold up" },
+  { id: "f05", file: "shrug-blue-emoji-blue.png", label: "Shrug" },
+  { id: "f06", file: "desperate-blue-emoji-blue.png", label: "Desperate" },
+  { id: "f07", file: "pointing-and-laughing-in-tears-blue-emoji-blue.png", label: "Laughing" },
+  { id: "f08", file: "shy-blue-emoji-blue.png", label: "Shy" },
+  { id: "f09", file: "thousand-yard-stare-blue-emoji-blue.png", label: "Thousand-yard stare" },
+  { id: "f10", file: "secret-keep-quiet-hush-mewing-blue-emoji-blue.png", label: "Hush" },
+  { id: "f11", file: "devious-blue-emoji-blue.png", label: "Devious" },
+  { id: "f12", file: "trying-not-to-laugh-blue-emoji-blue.png", label: "Trying not to laugh" },
+] as const;
+
+// The soundboard: ids are file names under public/sounds/ (id.mp3), at most 12
+// and 3 s each, credited in CREDITS.md. The first six are the hotbar.
+export const CLIPS: readonly { id: string; label: string }[] = [
+  { id: "airhorn", label: "Air horn" },
+  { id: "ding-correct", label: "Truth" },
+  { id: "buzzer-wrong", label: "Lie" },
+  { id: "bruh", label: "Bruh" },
+  { id: "sus", label: "Sus" },
+  { id: "wilhelm-scream", label: "Scream" },
+  { id: "fah", label: "Fah" },
+  { id: "i-got-this", label: "I got this" },
+  { id: "yeah-boy", label: "Yeah boy" },
+  { id: "thud", label: "Thud" },
+  { id: "goofy-car-horn", label: "Car horn" },
+  { id: "crickets", label: "Crickets" },
+];

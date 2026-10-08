@@ -1,5 +1,7 @@
+import { STAMP_LIFE_MS, type Stamp } from "../game/channels.ts";
 import type { Role, Seat, Vec } from "../game/types.ts";
 import type { EntityView } from "../net/protocol.ts";
+import { STAMP_FACE } from "./hud.ts";
 import { COLOR, MAP, ROLE_COLOR, ROLE_SHAPE, type Shape } from "./tokens.ts";
 
 export interface Scene {
@@ -12,6 +14,13 @@ export interface Scene {
   entities: EntityView[];
   self: Vec | null; // own position, null for Can't see
   layout: "fit" | "follow"; // desktop fits the room, phone follows the team
+  pops?: FacePop[]; // faces shown above their senders
+}
+
+export interface FacePop {
+  seat: Seat;
+  img: CanvasImageSource;
+  fade: number; // 1 while fully shown, down to 0 as it goes
 }
 
 export interface Camera {
@@ -113,6 +122,53 @@ function drawTiles(ctx: CanvasRenderingContext2D, tiles: string[], cam: Camera) 
   }
 }
 
+// A stamp is a small plate with its mark, fading over its life but never
+// quite gone until the server drops it.
+function drawStamp(
+  ctx: CanvasRenderingContext2D,
+  id: Stamp,
+  x: number,
+  y: number,
+  s: number,
+  ageMs: number,
+) {
+  const word = id === "door" || id === "key";
+  ctx.save();
+  ctx.globalAlpha = Math.max(0.25, 1 - ageMs / STAMP_LIFE_MS);
+  // at the sender's feet: below their avatar, which is drawn first and would hide it
+  y += s * 0.65;
+  const w = s * (word ? 1.3 : 0.8);
+  const h = s * 0.7;
+  ctx.fillStyle = COLOR.bg;
+  ctx.strokeStyle = COLOR.ui;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(x - w / 2, y - h / 2, w, h, 3);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = COLOR.ui;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = `700 ${Math.round(s * (word ? 0.4 : 0.65))}px system-ui, sans-serif`;
+  ctx.fillText(STAMP_FACE[id], x, y + 1);
+  ctx.restore();
+}
+
+function drawPops(ctx: CanvasRenderingContext2D, scene: Scene, cam: Camera) {
+  for (const pop of scene.pops ?? []) {
+    const who = scene.entities.find((e) => e.kind === "player" && e.seat === pop.seat);
+    if (!who) continue;
+    const at = pop.seat === scene.seat && scene.self ? scene.self : who.pos; // own avatar is drawn predicted
+    const size = Math.max(28, cam.scale * 1.5);
+    const x = cam.ox + at.x * cam.scale;
+    const y = cam.oy + at.y * cam.scale - cam.scale * MAP.avatarRadius * 1.1 - size;
+    ctx.save();
+    ctx.globalAlpha = pop.fade;
+    ctx.drawImage(pop.img, x - size / 2, y, size, size);
+    ctx.restore();
+  }
+}
+
 function drawEntity(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera, scene: Scene) {
   const s = cam.scale;
   const px = cam.ox + e.pos.x * s;
@@ -161,6 +217,8 @@ function drawEntity(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera, s
     ctx.fillRect(left, top, s, s);
     ctx.globalAlpha = 1;
     hatch(ctx, left, top, s, s, COLOR.goal);
+  } else if (e.kind === "stamp" && e.state) {
+    drawStamp(ctx, e.state as Stamp, px, py, s, e.age ?? 0);
   } else if (e.kind === "player" && e.seat !== undefined) {
     const role = scene.roles[e.seat] ?? "blind";
     const isSelf = e.seat === scene.seat;
@@ -194,7 +252,7 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
   ctx.fillStyle = COLOR.floor;
   ctx.fillRect(0, 0, scene.w, scene.h);
   drawTiles(ctx, scene.tiles, cam);
-  const order: EntityView["kind"][] = ["plate", "door", "crate", "exit", "player"];
+  const order: EntityView["kind"][] = ["plate", "door", "crate", "exit", "player", "stamp"];
   for (const kind of order) {
     for (const e of scene.entities) {
       if (e.kind !== kind) continue;
@@ -204,4 +262,5 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
       drawEntity(ctx, shown, cam, scene);
     }
   }
+  drawPops(ctx, scene, cam);
 }

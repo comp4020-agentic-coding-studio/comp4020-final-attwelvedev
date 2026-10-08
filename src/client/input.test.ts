@@ -66,4 +66,20 @@ describe("createInput", () => {
     key("keydown", "d");
     expect(source.read().move.x).toBe(0);
   });
+
+  it("keeps the joystick and Act from raising a context menu, until disposed", () => {
+    document.body.innerHTML = "<div data-joystick></div><button data-act></button>";
+    source = createInput(document.body);
+    const menu = (el: Element) => {
+      const e = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+      el.dispatchEvent(e);
+      return e.defaultPrevented;
+    };
+    const stick = document.querySelector("[data-joystick]") as Element;
+    const act = document.querySelector("[data-act]") as Element;
+    expect(menu(stick)).toBe(true);
+    expect(menu(act)).toBe(true);
+    source.dispose();
+    expect(menu(stick)).toBe(false);
+  });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { formatTime, lerpEntities, roomTitle, trayFor } from "./hud.ts";
+import type { Role } from "../game/types.ts";
+import { captionFor, cueCaptions, formatTime, lerpEntities, roomTitle, trayFor } from "./hud.ts";
 
 describe("formatTime", () => {
   it("shows minutes and seconds", () => {
@@ -55,5 +56,63 @@ describe("lerpEntities", () => {
   });
   it("does not move a thing that jumped far (a crate pushed, a reconnect)", () => {
     expect(lerpEntities([at(0, 0)], [at(30, 0)], 0.5)[0]?.pos).toEqual({ x: 30, y: 0 });
+  });
+});
+
+describe("captionFor", () => {
+  const from = (role: Role, nickname = "Ana") => ({ seat: 1 as const, role, nickname });
+  const at = { sentAt: 0 };
+
+  it("gives every caption the sender's role and name, then what they said", () => {
+    const callout = {
+      family: "say",
+      kind: "callout",
+      callout: "left",
+      from: from("deaf", "Bo"),
+      ...at,
+    } as const;
+    expect(captionFor(callout)).toEqual({ role: "deaf", name: "Bo", text: "Left" });
+    const text = {
+      family: "say",
+      kind: "text",
+      text: "door east",
+      from: from("blind"),
+      ...at,
+    } as const;
+    expect(captionFor(text)).toEqual({ role: "blind", name: "Ana", text: "door east" });
+    const clip = { family: "sound", clip: "airhorn", from: from("mute", "Cy"), ...at } as const;
+    expect(captionFor(clip)).toEqual({ role: "mute", name: "Cy", text: "[Air horn]" });
+  });
+
+  it("writes a sound in square brackets, as captions do, and falls back to its id", () => {
+    const clip = { family: "sound", clip: "not-listed", from: from("mute"), ...at } as const;
+    expect(captionFor(clip)?.text).toBe("[not-listed]");
+  });
+
+  it("has no caption for faces and stamps, which are already pictures", () => {
+    const face = { family: "show", kind: "face", id: "f01", from: from("blind"), ...at } as const;
+    expect(captionFor(face)).toBeNull();
+  });
+});
+
+describe("cueCaptions", () => {
+  it("describes each sound once, with which side it came from", () => {
+    const cues = [
+      { kind: "footsteps", pan: -0.8, gain: 0.5 },
+      { kind: "footsteps", pan: -0.5, gain: 0.4 },
+      { kind: "footsteps", pan: 0.9, gain: 0.3 },
+      { kind: "hum", pan: 0, gain: 1 },
+      { kind: "door", pan: 0.05, gain: 0.7 },
+    ] as const;
+    expect(cueCaptions([...cues])).toEqual([
+      "[footsteps, left]",
+      "[footsteps, right]",
+      "[hum]",
+      "[door click, ahead]",
+    ]);
+  });
+
+  it("is empty when nothing is audible", () => {
+    expect(cueCaptions([])).toEqual([]);
   });
 });

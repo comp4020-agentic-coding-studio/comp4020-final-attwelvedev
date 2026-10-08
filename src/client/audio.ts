@@ -3,6 +3,7 @@ import type { SoundCue } from "../net/protocol.ts";
 export interface GameAudio {
   resume(): void; // call from a tap or key press: browsers keep audio off until then
   play(sounds: SoundCue[]): void; // the sound cues of one view
+  playClip(id: string): void; // a soundboard clip, from public/sounds/
   dispose(): void;
 }
 
@@ -84,6 +85,10 @@ export function createAudio(): GameAudio {
   return {
     resume() {
       void ensure()?.resume();
+    },
+    playClip(id) {
+      // a plain element: the clips are short, and a blocked autoplay just stays silent
+      void new Audio(`/sounds/${encodeURIComponent(id)}.mp3`).play().catch(() => undefined);
     },
     play(sounds) {
       const c = ctx;

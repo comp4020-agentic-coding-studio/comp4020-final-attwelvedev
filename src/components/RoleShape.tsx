@@ -29,4 +29,4 @@ export function RoleShape({
   );
 }
 
-export const ROLE_GLYPH: Record<Role, string> = { blind: "●", deaf: "■", mute: "▲" };
+export { ROLE_GLYPH } from "../client/hud.ts";

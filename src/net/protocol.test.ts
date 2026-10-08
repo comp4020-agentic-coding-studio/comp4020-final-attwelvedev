@@ -121,6 +121,7 @@ describe("parseClientMsg: channels", () => {
     ["an unknown say kind", '{"t":"say","kind":"shout","text":"x"}'],
     ["a non-string clip", '{"t":"sound","clip":3}'],
     ["a clip id with a path in it", '{"t":"sound","clip":"../x"}'],
+    ["a well-formed clip that is not on the soundboard", '{"t":"sound","clip":"not-a-clip"}'],
     ["a face out of range", '{"t":"show","kind":"face","id":"f13"}'],
     ["a face not an id", '{"t":"show","kind":"face","id":"smile"}'],
     ["an unknown stamp", '{"t":"show","kind":"stamp","id":"skull"}'],

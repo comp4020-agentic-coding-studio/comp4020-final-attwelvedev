@@ -1,0 +1,13 @@
+---
+// CREDITS.md, rendered: who made the outside assets and under what licence.
+// spec/credits.test.ts checks every bundled asset is named in it.
+import * as credits from "../../CREDITS.md";
+import Base from "../layouts/Base.astro";
+
+const title = credits.getHeadings().find((h) => h.depth === 1)?.text ?? "Credits";
+const html = await credits.compiledContent();
+---
+
+<Base title={title}>
+  <div class="readme-content" set:html={html} />
+</Base>
