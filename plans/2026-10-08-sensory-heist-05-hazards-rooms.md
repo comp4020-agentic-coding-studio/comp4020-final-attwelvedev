@@ -154,7 +154,9 @@ zone inside the grid; every room has ≥ 1 checkpoint before its first hazard
 (+ test), `src/game/sim/world.ts`, `src/game/sim/hazards.ts` (+ test),
 `src/game/sim/sight.ts` (+ test: line of sight, cone), `src/game/sim/step.ts`,
 `src/game/perception.ts` (+ test), `src/client/render.ts`,
-`src/net/attach.ts` (log `caught`), `src/lib/gameLog.ts` (`"caught"`).
+`src/net/attach.ts` (log `caught`), `src/lib/gameLog.ts` (`"caught"`),
+`src/styles/tokens.css` and `src/client/tokens.ts` (add the `camera-light`
+token, #FFD166, spec §4.1 — added at execution, 2026-10-08).
 
 **Interfaces produced (exact).**
 
@@ -209,8 +211,9 @@ diamonds, hide spots as dashed squares, checkpoint as a white flag, loot as a
 
 **Files touched.** `src/game/rooms/format.ts` (flips), `src/game/sim/world.ts`
 (`alarmUntil`), `src/game/sim/step.ts`, `src/game/perception.ts` (+ test),
-`src/client/audio.ts`, `src/client/render.ts`, `public/sfx/*` (+
-`CREDITS.md` entries).
+`src/client/audio.ts`, `src/client/render.ts`. The new cues are synthesised
+in Web Audio (as footsteps and hum already are): no `public/sfx`, no
+`CREDITS.md` rows, no new outside assets (user ruling, 2026-10-08).
 
 **Interfaces produced (exact).**
 
@@ -247,9 +250,12 @@ speakers (checked in Task 14's review).
 **Files touched.** `rooms/02-cameras-lasers.room`, `rooms/03-vault.room`,
 `src/net/game.ts` (+ test: advance), `src/net/protocol.ts` (`cleared`,
 `next`), `src/net/attach.ts`, `src/components/RoleReveal.tsx` (shape morph,
-cross-fade under reduced motion), `src/components/RoomCleared.tsx`,
+cross-fade under reduced motion), `src/components/RoomCleared.tsx` (replaces the cleared overlay in `Game.tsx`;
+keeps the host's restart button, `room.restart`),
 `src/game/rooms/solve.test.ts` (**scripted** solution inputs per room proving
-each is clearable — bots replace this in Task 16), `spec/heist.test.ts`.
+each is clearable — bots replace this in Task 16; the scripts are authored in
+code with a waypoint builder and stored as JSON beside the test, no recorder —
+user ruling, 2026-10-08), `spec/heist.test.ts`.
 
 **Interfaces produced (exact).**
 
@@ -310,4 +316,12 @@ for a whole beat, and the flips each handed a different role the lead.
 
 ## 8. Risks / open questions
 
-None.
+None. Phase 1 review rulings (2026-10-08): synthesised audio cues; solve scripts
+authored in code; `camera-light` token added in Task 12; cleared overlay
+replaced by `RoomCleared.tsx` with restart kept. Interface drift noted and
+harmless: `World` also has `stamps`/`nextStamp`, `Game` has `cooldowns`,
+`tickGame(game, full)`.
+
+## 9. Corrections log
+
+(none yet)
