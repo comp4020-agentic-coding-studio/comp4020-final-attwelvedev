@@ -482,11 +482,11 @@ in spec §4.1, and nothing looks like the pantry.
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 1–4 complete, tests passing, Task 4 accepted by the user
-- [ ] `pnpm test:unit` passes
-- [ ] `pnpm build && pnpm start`, then `pnpm check` and `pnpm check:evidence` pass
-- [ ] Deployed (ask first): `flyctl deploy --remote-only --ha=false -a <app>`; then `APP_URL=https://<app>.fly.dev pnpm vitest run --project spec` is green, including `spec/ws.test.ts` and `spec/lobby.test.ts` (proves Fly's proxy passes WebSocket upgrades and the 1 s bound holds from Sydney)
-- [ ] Tick this phase in overview §5 and commit
+- [x] Tasks 1–4 complete, tests passing, Task 4 accepted by the user
+- [x] `pnpm test:unit` passes
+- [x] `pnpm build && pnpm start`, then `pnpm check` and `pnpm check:evidence` pass
+- [x] Deployed (ask first): `flyctl deploy --remote-only --ha=false -a <app>`; then `APP_URL=https://<app>.fly.dev pnpm vitest run --project spec` is green, including `spec/ws.test.ts` and `spec/lobby.test.ts` (proves Fly's proxy passes WebSocket upgrades and the 1 s bound holds from Sydney)
+- [x] Tick this phase in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)
 
