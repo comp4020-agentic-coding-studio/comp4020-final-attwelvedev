@@ -5,6 +5,7 @@ import { connect, type Socket } from "./ws.ts";
 
 export interface Player {
   socket: Socket;
+  cookie: string; // the device cookie, so a spec can reconnect as the same person
   seat: Seat;
   role: Role;
 }
@@ -23,7 +24,13 @@ interface RevealMsg {
 // Creates a lobby, seats three sockets, starts it and returns them by seat
 // with their roles. `ready` is left to the caller.
 export async function startedGame(baseUrl: string): Promise<{ players: Player[]; code: string }> {
-  const sockets = await Promise.all([connect(baseUrl), connect(baseUrl), connect(baseUrl)]);
+  const cookies = await Promise.all(
+    [0, 1, 2].map(async () => {
+      const res = await fetch(new URL("/", baseUrl));
+      return res.headers.getSetCookie()[0]?.split(";")[0] ?? "";
+    }),
+  );
+  const sockets = await Promise.all(cookies.map((c) => connect(baseUrl, c)));
   const [host, b, c] = sockets as [Socket, Socket, Socket];
   host.send({ t: "lobby.create", nickname: "Ana" });
   const { lobby } = await host.next<LobbyMsg>("lobby");
@@ -38,7 +45,7 @@ export async function startedGame(baseUrl: string): Promise<{ players: Player[];
   const players: Player[] = [];
   for (const [i, socket] of sockets.entries()) {
     const reveal = await socket.next<RevealMsg>("reveal");
-    players.push({ socket, seat: i as Seat, role: reveal.role });
+    players.push({ socket, cookie: cookies[i] as string, seat: i as Seat, role: reveal.role });
   }
   return { players, code: lobby.code };
 }

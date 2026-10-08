@@ -66,9 +66,13 @@ export function blockedAt(world: World, pos: Vec): boolean {
   return false;
 }
 
+// A player stops up to ~1e-3 tiles short of what blocks them (the contact point
+// is found by bisection), so "touching" must allow more than that.
+const TOUCH_TILES = 0.02;
+
 // The crate tile a player at `pos` is touching on the +/-x or +/-y side, if any.
 export function crateTouching(world: World, pos: Vec, dir: Vec): Vec | null {
-  const probe = { x: pos.x + dir.x * 2 * EPS * 10, y: pos.y + dir.y * 2 * EPS * 10 };
+  const probe = { x: pos.x + dir.x * TOUCH_TILES, y: pos.y + dir.y * TOUCH_TILES };
   for (const c of world.crates) {
     if (circleHitsTile(probe, c.tile.x, c.tile.y)) return c.tile;
   }

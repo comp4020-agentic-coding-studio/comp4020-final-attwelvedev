@@ -1,0 +1,319 @@
+/* The in-game HUD (spec §4.1): top bar, crew strip, role frame around the map,
+   tray, and a control zone on touch devices. One column on a phone, the same
+   column centred on desktop. */
+
+body.playing .band,
+body.playing footer,
+body.playing .skip {
+  display: none;
+}
+body.playing main {
+  max-width: none;
+  padding: 0;
+}
+
+/* role reveal */
+.reveal {
+  display: grid;
+  gap: var(--s-4);
+  max-width: 34rem;
+  margin: 0 auto;
+  justify-items: start;
+}
+.reveal-title {
+  font-size: var(--t-48);
+}
+.reveal-shape {
+  animation: pop 400ms ease-out both;
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal-shape {
+    animation: fade 1ms both;
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+.reveal-facts {
+  margin: 0;
+  display: grid;
+  gap: var(--s-2);
+}
+.reveal-facts div {
+  display: flex;
+  gap: var(--s-3);
+}
+.reveal-facts dt {
+  min-width: 8rem;
+  color: var(--ui-muted);
+}
+.reveal-facts dd {
+  margin: 0;
+  font-weight: 700;
+}
+.reveal-crew {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s-2);
+}
+.reveal-crew li {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.reveal .btn {
+  min-width: 12rem;
+}
+.reveal .btn:disabled {
+  opacity: 1;
+  color: var(--ui-muted);
+  cursor: default;
+}
+
+/* the game */
+.game {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-width: 1280px;
+  margin: 0 auto;
+  background: var(--bg);
+  overflow: hidden;
+}
+.hud-top {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 44px;
+  padding: 0 var(--s-3);
+  font-stretch: 75%;
+  font-weight: 700;
+}
+.hud-role {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.hud-room {
+  flex: 1;
+  min-width: 0;
+  color: var(--ui-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hud-clock {
+  font-variant-numeric: tabular-nums;
+}
+.hud-btn {
+  min-height: 44px;
+  min-width: 48px;
+  padding: 0 var(--s-2);
+  background: transparent;
+  color: var(--ui);
+  border: 2px solid var(--ui-muted);
+  border-radius: var(--r);
+  font: inherit;
+  font-size: var(--t-14);
+  font-weight: 700;
+  cursor: pointer;
+}
+.hud-crew {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-4);
+  margin: 0;
+  padding: 0 var(--s-3);
+  min-height: 28px;
+  list-style: none;
+  font-size: var(--t-14);
+}
+.hud-crew li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+.hud-hint {
+  margin-left: auto;
+  color: var(--ui);
+  font-weight: 700;
+}
+
+.hud-alert {
+  flex: none;
+  margin: var(--s-1) var(--s-3) 0;
+  padding: var(--s-1) var(--s-3);
+  background: var(--panel);
+  border-left: 4px solid var(--danger);
+  font-size: var(--t-14);
+  font-weight: 700;
+}
+
+/* the role frame: 4 px in the role colour, the role's shape notched in the corner */
+.frame {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: var(--s-1) var(--s-3);
+  border: 4px solid var(--frame);
+  background: var(--ink);
+}
+.frame canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.notch {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  background: var(--frame);
+  color: var(--bg);
+}
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: var(--s-2);
+  text-align: center;
+  background: rgb(11 18 32 / 85%);
+}
+.overlay h2 {
+  font-size: var(--t-28);
+}
+.overlay p {
+  margin: 0;
+}
+
+/* the tray: three ways to talk, each with who receives it */
+.tray {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-2);
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  list-style: none;
+}
+.tile {
+  display: grid;
+  gap: 2px;
+  min-height: 56px;
+  padding: var(--s-1) var(--s-2);
+  background: var(--panel);
+  border: 2px solid var(--ui-muted);
+  border-radius: var(--r);
+  font-size: var(--t-14);
+  font-stretch: 75%;
+  font-weight: 700;
+}
+.tile kbd {
+  display: none;
+  font: inherit;
+  color: var(--ui-muted);
+}
+.tile.cant {
+  border-style: dashed;
+  background: repeating-linear-gradient(135deg, var(--panel) 0 6px, var(--bg) 6px 8px);
+}
+.tile-cant {
+  justify-self: start;
+  padding: 0 var(--s-1);
+  background: var(--panel);
+}
+.glyph {
+  display: inline-block;
+  padding: 0 2px;
+  color: var(--ui);
+}
+.glyph.me {
+  border: 2px solid var(--ui);
+  border-radius: var(--r);
+}
+
+.keys {
+  flex: none;
+  margin: 0;
+  padding: 0 var(--s-3) var(--s-3);
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+}
+@media (min-width: 720px) {
+  .tile kbd {
+    display: inline;
+  }
+  .tray {
+    max-width: 44rem;
+    margin: 0 auto;
+    width: 100%;
+  }
+  .keys {
+    text-align: center;
+  }
+}
+
+/* touch: joystick bottom-left, Act bottom-right; the tray never overlaps them */
+.touch-zone {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 150px;
+  padding: 0 var(--s-5);
+}
+.joystick {
+  --jx: 0;
+  --jy: 0;
+  position: relative;
+  width: 120px;
+  height: 120px;
+  border: 2px solid var(--ui-muted);
+  border-radius: 50%;
+  background: var(--panel);
+  touch-action: none;
+}
+.joystick .knob {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 56px;
+  height: 56px;
+  margin: -28px 0 0 -28px;
+  border-radius: 50%;
+  background: var(--ui);
+  transform: translate(calc(var(--jx) * 40px), calc(var(--jy) * 40px));
+}
+.act {
+  width: 96px;
+  height: 96px;
+  border: 2px solid var(--ui);
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--ui);
+  font: inherit;
+  font-weight: 900;
+  touch-action: none;
+  cursor: pointer;
+}
+.act:active {
+  background: var(--ui);
+  color: var(--bg);
+}

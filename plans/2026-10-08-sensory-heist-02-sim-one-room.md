@@ -6,7 +6,7 @@
 - **Part of:** `plans/2026-10-08-sensory-heist-00-overview.md`. Read it first,
   especially §3 (layering: `src/game/` is pure), §4.1, §4.2, §4.3, §4.4.
 - **Depends on phases:** 01.
-- **Progress:** Tasks 5–7 done; Task 8 next.
+- **Progress:** Tasks 5–8 done (Task 8 accepted by the user 2026-10-08). Left: deploy, crit-9 reflection, tick in overview §5.
 
 ## 1. Summary
 
@@ -151,8 +151,9 @@ export function openSocket(url?: string): GameSocket;
 - Crates are tile-aligned. Pushing into a crate for 200 ms continuous moves it
   one tile if the next tile is floor/plate and empty. Any seat can push.
 - A plate is pressed while any player centre or crate is on it. A door opens
-  while every id in `opensWhen` is pressed, and closes when one releases
-  unless a player overlaps it (then it stays open until clear).
+  when every id in `opensWhen` is pressed, and then **stays open** (latched;
+  see Corrections log: a door that re-closed could strand one player on the
+  far side).
 - The room clears when all three players' centres are on `E` tiles.
 - Deterministic: `step` uses no clock, no randomness; `dtMs` is always
   `TICK_MS` on the server.
@@ -294,8 +295,8 @@ export function step(world: World, inputs: Partial<Record<Seat, PlayerInput>>, d
 diagonal input is normalised; walls and closed doors block; a held push for
 200 ms moves a crate one tile and not into a wall or another crate; **any
 seat can push and press** (FR9: run the same scenario for seats 0, 1, 2);
-a door opens only when all three plates are pressed and emits one `door`
-event; a crate on a plate presses it; all three on `E` sets `cleared` and
+a door opens only when all three plates are pressed, emits one `door`
+event and stays open after the plates are released; a crate on a plate presses it; all three on `E` sets `cleared` and
 emits `cleared` once; replaying the same input sequence twice yields
 identical worlds (determinism).
 
@@ -366,7 +367,8 @@ export function startGame(lobby: LobbyState, rooms: Room[]): Game; // the caller
 export function tickGame(game: Game): { views: Map<Seat, RoleView>; cleared: boolean };
 ```
 
-Protocol additions (overview §4.3): `lobby.start`, `reveal`, `ready`,
+Protocol additions (overview §4.3): `lobby.start`, `room.restart` (host:
+builds a fresh world for the same room and sends full views), `reveal`, `ready`,
 `input`, `view`. `ErrorCode` gains `"need-three"` (Start with fewer than 3
 seated humans, until Task 16).
 
@@ -458,9 +460,9 @@ responsive; the three-plate door needs all three people.
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 5–8 complete, tests passing, Task 8 accepted by the user
-- [ ] `pnpm test:unit` and `pnpm lint:rooms` pass
-- [ ] `pnpm build && pnpm start`, then `pnpm check` and `pnpm check:evidence` pass
+- [x] Tasks 5–8 complete, tests passing, Task 8 accepted by the user
+- [x] `pnpm test:unit` and `pnpm lint:rooms` pass
+- [x] `pnpm build && pnpm start`, then `pnpm check` and `pnpm check:evidence` pass
 - [ ] Deployed (ask first); `APP_URL=https://<app>.fly.dev pnpm vitest run --project spec` green, including `spec/perception.test.ts` and `spec/game.test.ts` (views ≥ 15/s through Fly's proxy)
 - [ ] Before the week 10 crit: the user writes the "one decision about several people at once" (suggested: per-role perception filtering, ADR 0007, or seat-held rejoin) in `README.md`/`PROCESS.md` and `reflections/crit-9.md` — the agent may suggest, the user drafts
 - [ ] Tick this phase in overview §5 and commit
@@ -480,3 +482,29 @@ responsive; the three-plate door needs all three people.
 ## 8. Risks / open questions
 
 None.
+
+## 9. Corrections log
+
+- 2026-10-08 (Task 8 review): expected the three-plate door to need all three
+  people; the user walked through alone as the plates released, the door shut
+  behind them and the team was stuck. Wanted: no strandable state, and a way
+  out of any stuck state. Cause: §4.2 let the door re-close when plates were
+  released. Fix: the door latches open once opened (Task 6), and the host gets
+  a `room.restart` message and a Restart button (Tasks 7–8; new scope, agreed
+  with the user).
+- 2026-10-08 (Task 8 review): expected pushing a crate to work whenever you
+  walk into it, in any direction; it worked only sometimes and never "backwards".
+  Cause: the sim counted a crate as touched only within ~2e-5 tiles, but a
+  walking player stops up to ~1e-3 short of it. Fix: a 0.02-tile touch
+  tolerance (`crateTouching`), with a regression test over 20 start offsets in
+  all four directions.
+- 2026-10-08 (Task 8 review): expected to move after rejoining; you could see
+  everyone and the clock but not move. Cause: the server kept the seat's last
+  input, whose `seq` was higher than anything a freshly loaded page sends, so
+  every new input was dropped as stale. Fix: forget the seat's held input when
+  its device reconnects (also stops a held key walking a dropped player on).
+  Socket spec: reconnect, send seq 1, the avatar moves.
+- 2026-10-08 (Task 8 review): expected to be told when a player leaves
+  mid-game; nothing showed. Fix: the crew strip marks "(away)" for a dropped
+  connection and "(left)" for a freed seat, with a status line. The full
+  pause/rejoin flow is still Task 17.

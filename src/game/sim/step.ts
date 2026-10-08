@@ -93,10 +93,8 @@ function updateDoors(world: World) {
   for (const door of world.room.objects.filter((o) => o.kind === "door")) {
     const needs = door.opensWhen ?? [];
     const held = needs.length > 0 && needs.every((id) => world.pressed[id]);
-    const occupied = door.tiles.some((t) =>
-      world.players.some((p) => circleHitsTile(p.pos, t.x, t.y)),
-    );
-    const open = held || (world.doorOpen[door.id] === true && occupied);
+    // latched: once opened a door stays open, so nobody can be stranded behind it
+    const open = held || world.doorOpen[door.id] === true;
     if (open !== world.doorOpen[door.id]) {
       world.doorOpen[door.id] = open;
       const first = door.tiles[0];

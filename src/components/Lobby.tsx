@@ -3,6 +3,7 @@ import { readNickname, saveNickname } from "../client/nickname.ts";
 import { qrSvg } from "../client/qr.ts";
 import type { LobbyState } from "../net/protocol.ts";
 import { Connection } from "./Connection.tsx";
+import { Game, type Reveal } from "./Game.tsx";
 import { useSocket } from "./useSocket.ts";
 
 type Status = "joining" | "in" | "full" | "missing" | "failed";
@@ -33,6 +34,7 @@ export function Lobby({ code }: { code: string }) {
   const [team, setTeam] = useState("");
   const [copied, setCopied] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
+  const [reveal, setReveal] = useState<Reveal | null>(null);
   const as = useRef<"player" | "spectator">("player");
   const editingTeam = useRef(false); // an update from the server must not overwrite what the host is typing
 
@@ -50,11 +52,14 @@ export function Lobby({ code }: { code: string }) {
         if (!editingTeam.current) setTeam(m.lobby.teamName);
         setStatus("in");
       }),
+      socket.on("reveal", (m) =>
+        setReveal({ room: m.room, index: m.index, role: m.role, crew: m.crew }),
+      ),
       socket.on("error", (m) => {
         setMessage(m.message);
         if (m.code === "lobby-not-found") setStatus("missing");
         else if (m.code === "lobby-full") setStatus("full");
-        else if (m.code !== "not-host") setStatus("failed");
+        else if (m.code !== "not-host" && m.code !== "need-three") setStatus("failed");
       }),
       socket.on("left", () => location.assign("/")),
     ];
@@ -116,6 +121,11 @@ export function Lobby({ code }: { code: string }) {
     setQr(await qrSvg(`${location.origin}/lobby/${code}`));
   }
 
+  function start() {
+    setMessage("");
+    socket?.send({ t: "lobby.start" });
+  }
+
   const letters = code.split("");
   const heading = (
     <div class="code-block">
@@ -131,6 +141,20 @@ export function Lobby({ code }: { code: string }) {
       </p>
     </div>
   );
+
+  if (reveal && socket) {
+    return (
+      <Game
+        socket={socket}
+        state={state}
+        rttMs={rttMs}
+        online={online}
+        reveal={reveal}
+        host={host}
+        seats={lobby?.seats ?? null}
+      />
+    );
+  }
 
   if (nickname === "") {
     return (
@@ -217,6 +241,7 @@ export function Lobby({ code }: { code: string }) {
   }
 
   const watching = mySeat === null;
+  const seated = lobby.seats.filter((s) => s.who !== null).length;
   return (
     <div class="lobby">
       <div class="lobby-code">
@@ -295,6 +320,32 @@ export function Lobby({ code }: { code: string }) {
         </ul>
         {lobby.spectators.length > 0 && (
           <p class="spectators">Spectators: {lobby.spectators.map((s) => s.nickname).join(", ")}</p>
+        )}
+
+        {!watching && (
+          <div class="start">
+            {host ? (
+              <>
+                <button type="button" class="btn primary" onClick={start} disabled={seated < 3}>
+                  Start
+                </button>
+                <p class="muted" role="status">
+                  {seated < 3
+                    ? `Needs 3 players to start (${seated} of 3 seated).`
+                    : "All three seats are filled."}
+                </p>
+              </>
+            ) : (
+              <p class="muted" role="status">
+                Waiting for the host to start.
+              </p>
+            )}
+            {message && lobby.phase === "open" && (
+              <p class="error" role="alert">
+                {message}
+              </p>
+            )}
+          </div>
         )}
 
         <div class="actions">

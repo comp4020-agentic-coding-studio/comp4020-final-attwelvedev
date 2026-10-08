@@ -1,13 +1,13 @@
 // The socket's wire format: JSON text frames `{ t: string, ... }` (binary
 // frames are voice only, from phase 08). Widened by later tasks; the table of
 // every message is in plans/2026-10-08-sensory-heist-00-overview.md §4.3.
-import type { RoleView } from "../game/perception.ts";
+import type { EntityView, RoleView, SoundCue } from "../game/perception.ts";
 import type { PlayerInput, Role, Seat } from "../game/types.ts";
 import type { CrewMember } from "./game.ts";
 import type { ErrorCode, LobbyState, LobbySummary } from "./lobbies.ts";
 
 // Clients import their types from here only (they never reach into lobbies.ts).
-export type { CrewMember, ErrorCode, LobbyState, LobbySummary, RoleView };
+export type { CrewMember, EntityView, ErrorCode, LobbyState, LobbySummary, RoleView, SoundCue };
 
 export type ClientMsg =
   | { t: "ping"; at: number }
@@ -18,6 +18,7 @@ export type ClientMsg =
   | { t: "lobby.team"; name: string }
   | { t: "lobby.start" } // host
   | { t: "ready" }
+  | { t: "room.restart" } // host: everyone back to spawn, doors and crates reset
   | ({ t: "input" } & PlayerInput);
 
 export type ServerMsg =
@@ -65,6 +66,8 @@ export function parseClientMsg(raw: string): ClientMsg | null {
       return { t: "lobby.start" };
     case "ready":
       return { t: "ready" };
+    case "room.restart":
+      return { t: "room.restart" };
     case "input": {
       const move = m.move;
       if (typeof move !== "object" || move === null) return null;

@@ -145,6 +145,42 @@ describe("crates", () => {
     expect(w.crates[0]?.tile).toEqual({ x: 3, y: 1 });
   });
 
+  // Regression: pushing was hit and miss. The push check only counted a crate as
+  // touched within ~2e-5 tiles, but a player stops up to ~1e-3 short of it, so
+  // whether a push worked depended on where the walk happened to start.
+  const YARD = [
+    "################",
+    "#1.............#",
+    "#2.............#",
+    "#3.............#",
+    "#.......B......#",
+    "#..............#",
+    "#..............#",
+    "#..............#",
+    "################",
+  ];
+  const crateStart = { x: 8, y: 4 };
+  // three tiles from the crate, with room behind the player for the offset
+  const directions = [
+    { name: "east", dir: { x: 1, y: 0 }, from: { x: 4.5, y: 4.5 } },
+    { name: "west", dir: { x: -1, y: 0 }, from: { x: 12.5, y: 4.5 } },
+    { name: "south", dir: { x: 0, y: 1 }, from: { x: 8.5, y: 2.5 } },
+    { name: "north", dir: { x: 0, y: -1 }, from: { x: 8.5, y: 6.5 } },
+  ];
+  // start a little nearer or further along the walking axis each time
+  const offsets = Array.from({ length: 20 }, (_, i) => i * 0.0497);
+
+  it.each(directions)("pushes a crate $name from any starting offset", ({ dir, from }) => {
+    for (const offset of offsets) {
+      const w = worldFrom(YARD);
+      w.players[0].pos = { x: from.x - dir.x * offset, y: from.y - dir.y * offset };
+      hold(w, { 0: input(dir.x, dir.y) }, 40);
+      const tile = w.crates[0]?.tile ?? crateStart;
+      const moved = (tile.x - crateStart.x) * dir.x + (tile.y - crateStart.y) * dir.y;
+      expect(moved, `offset ${offset}`).toBeGreaterThan(0);
+    }
+  });
+
   it.each([0, 1, 2] as const)("seat %i can push a crate (FR9)", (seat) => {
     const w = worldFrom(CRATES);
     pushScenario(w, seat, 4);
@@ -195,13 +231,17 @@ describe("plates and doors", () => {
     expect(events[0]).toMatchObject({ kind: "door", id: "D1", open: true });
   });
 
-  it("closes the door when a plate is released", () => {
+  it("keeps the door open once opened, even after every plate is released", () => {
     const w = worldFrom(COURT);
     onPlates(w, [0, 1, 2]);
     hold(w, {}, 1);
     place(w, 2, { x: 2, y: 2 });
     hold(w, {}, 1);
-    expect(w.doorOpen.D1).toBe(false);
+    expect(w.doorOpen.D1).toBe(true);
+    for (const s of [0, 1, 2] as const) place(w, s, { x: 2, y: 2 });
+    hold(w, {}, 20);
+    expect(w.doorOpen.D1).toBe(true);
+    expect(w.events.filter((e) => e.kind === "door")).toEqual([]);
   });
 
   it("a crate on a plate presses it", () => {
@@ -219,18 +259,15 @@ describe("plates and doors", () => {
     expect(w.doorOpen.D1).toBe(true);
   });
 
-  it("holds the door open while a player overlaps it, then lets it close", () => {
+  it("lets one player through alone after it has opened, and back again", () => {
     const w = worldFrom(COURT);
     onPlates(w, [0, 1, 2]);
     hold(w, {}, 1);
-    expect(w.doorOpen.D1).toBe(true);
-    // all three step east off their plates and into the doorway together
-    hold(w, { 0: input(1, 0), 1: input(1, 0), 2: input(1, 0) }, 4);
-    expect(w.doorOpen.D1).toBe(true);
-    expect(w.players.every((p) => p.pos.x > 7)).toBe(true);
-    hold(w, { 0: input(1, 0), 1: input(1, 0), 2: input(1, 0) }, 20);
-    expect(w.players.every((p) => p.pos.x > 8.4)).toBe(true);
-    expect(w.doorOpen.D1).toBe(false);
+    for (const s of [1, 2] as const) place(w, s, { x: 2, y: 2 });
+    hold(w, { 0: input(1, 0) }, 20);
+    expect(w.players[0].pos.x).toBeGreaterThan(8.4);
+    hold(w, { 0: input(-1, 0) }, 30);
+    expect(w.players[0].pos.x).toBeLessThan(6);
   });
 });
 

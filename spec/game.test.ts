@@ -1,5 +1,5 @@
 import { describe, expect, inject, it } from "vitest";
-import { byRole, closeAll, nextView, ready, startedGame } from "./play.ts";
+import { byRole, closeAll, nextView, type Player, ready, startedGame } from "./play.ts";
 import { connect } from "./ws.ts";
 
 const baseUrl = inject("baseUrl");
@@ -76,5 +76,57 @@ describe("starting and playing a game", () => {
     }
     expect(moved).toBe(true);
     await closeAll(players);
+  });
+
+  it("lets only the host restart the room, which resets everyone to spawn with a full view", async () => {
+    const { players } = await startedGame(baseUrl);
+    ready(players);
+    const deaf = byRole(players, "deaf");
+    const start = (await nextView(deaf)).you.pos?.x ?? Number.NaN;
+    deaf.socket.send({ t: "input", seq: 1, move: { x: 1, y: 0 }, act: false });
+    let moved = false;
+    for (let i = 0; i < 20 && !moved; i++)
+      moved = ((await nextView(deaf)).you.pos?.x ?? 0) > start + 0.5;
+    expect(moved).toBe(true);
+    deaf.socket.send({ t: "input", seq: 2, move: { x: 0, y: 0 }, act: false });
+
+    const guest = players[1] as (typeof players)[number];
+    guest.socket.send({ t: "room.restart" });
+    expect((await guest.socket.next<ErrorMsg>("error")).code).toBe("not-host");
+
+    (players[0] as (typeof players)[number]).socket.send({ t: "room.restart" });
+    let reset = false;
+    for (let i = 0; i < 20 && !reset; i++) {
+      const view = await nextView(deaf);
+      reset = view.full && Math.abs((view.you.pos?.x ?? 0) - start) < 0.01 && view.tick < 10;
+    }
+    expect(reset).toBe(true);
+    await closeAll(players);
+  });
+
+  it("lets a player who reconnects move again, though their new page counts inputs from 1", async () => {
+    const { players } = await startedGame(baseUrl);
+    ready(players);
+    const deaf = byRole(players, "deaf");
+    await nextView(deaf);
+    for (let seq = 1; seq <= 100; seq++) {
+      deaf.socket.send({ t: "input", seq, move: { x: 0, y: 0 }, act: false });
+    }
+    await deaf.socket.drop();
+
+    // the same device comes back (a reload, or a connection that dropped)
+    const back = await connect(baseUrl, deaf.cookie);
+    await back.next("reveal");
+    const returned: Player = { ...deaf, socket: back };
+    const x0 = (await nextView(returned)).you.pos?.x ?? Number.NaN;
+    back.send({ t: "input", seq: 1, move: { x: 1, y: 0 }, act: false });
+    let moved = false;
+    const until = Date.now() + 1000;
+    while (!moved && Date.now() < until) {
+      const view = await nextView(returned, Math.max(1, until - Date.now())).catch(() => null);
+      moved = (view?.you.pos?.x ?? x0) > x0 + 0.2;
+    }
+    expect(moved).toBe(true);
+    await closeAll([...players.filter((p) => p !== deaf), returned]);
   });
 });

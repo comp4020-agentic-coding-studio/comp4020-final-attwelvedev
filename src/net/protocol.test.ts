@@ -58,6 +58,7 @@ describe("parseClientMsg game messages", () => {
   it("accepts start, ready and a well-typed input", () => {
     expect(parseClientMsg('{"t":"lobby.start"}')).toEqual({ t: "lobby.start" });
     expect(parseClientMsg('{"t":"ready"}')).toEqual({ t: "ready" });
+    expect(parseClientMsg('{"t":"room.restart"}')).toEqual({ t: "room.restart" });
     expect(parseClientMsg('{"t":"input","seq":3,"move":{"x":1,"y":-0.5},"act":true}')).toEqual({
       t: "input",
       seq: 3,

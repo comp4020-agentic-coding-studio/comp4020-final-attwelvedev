@@ -253,6 +253,18 @@ input {
   font-stretch: 75%;
   font-weight: 700;
 }
+.start {
+  display: grid;
+  gap: var(--s-2);
+  justify-items: start;
+  margin: 0 0 var(--s-4);
+}
+.btn:disabled {
+  opacity: 1;
+  color: var(--ui-muted);
+  border-style: dashed;
+  cursor: default;
+}
 .spectators {
   margin: 0 0 var(--s-4);
   color: var(--ui-muted);

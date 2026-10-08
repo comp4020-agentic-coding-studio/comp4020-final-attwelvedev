@@ -32,6 +32,9 @@
   --role-blind: #f2a93b; /* circle */
   --role-deaf: #4db3ff; /* square */
   --role-mute: #9b7ee0; /* triangle */
+  --solid: #3a4d7a; /* walls on the map */
+  --floor: #0f1830; /* map floor */
+  --crate: #c98f5a;
   --paper: #ffffff; /* the QR code's quiet zone: scanners need dark on light */
 
   --font: "Archivo", "Archivo fallback", system-ui, sans-serif;

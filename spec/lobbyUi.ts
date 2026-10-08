@@ -1,5 +1,6 @@
 import type { Browser, Page } from "playwright";
 import { openPage, type Viewport } from "./browser.ts";
+import { connect } from "./ws.ts";
 
 // Drives the home page the way a person does, so the layout specs share one
 // path to "I'm in a lobby".
@@ -43,5 +44,16 @@ export async function leaveAndClose(page: Page): Promise<void> {
       await page.waitForURL((url) => url.pathname === "/", { timeout: 5000 }).catch(() => {});
     }
   }
+  await page.context().close();
+}
+
+// A game screen has no Leave button yet, so leave over a socket that carries
+// the page's device cookie, then close the context. Keeps specs from leaving
+// lobbies behind to fill the server.
+export async function leaveGameAndClose(page: Page, baseUrl: string): Promise<void> {
+  const cookie = (await page.context().cookies())
+    .filter((c) => c.name === "heist_device")
+    .map((c) => `${c.name}=${c.value}`)[0];
+  if (cookie) await (await connect(baseUrl, cookie)).close();
   await page.context().close();
 }

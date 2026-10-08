@@ -10,7 +10,7 @@ import { DEVICE_COOKIE } from "../lib/session.ts";
 import { joinThrottle } from "../lib/throttle.ts";
 import { createHub } from "./broadcast.ts";
 import { normaliseLobbyCode } from "./codes.ts";
-import { applyInput, crewOf, type Game, startGame, tickGame } from "./game.ts";
+import { applyInput, crewOf, type Game, restartGame, startGame, tickGame } from "./game.ts";
 import {
   createLobby,
   createRegistry,
@@ -68,6 +68,13 @@ function sendReveal(code: string, seat: Seat): void {
     role: running.game.roles[seat] as (typeof running.game.roles)[number],
     crew: crewOf(lobby, running.game),
   });
+}
+
+// Ticks once all three are ready, and again after a restart of a cleared room.
+function runIfReady(code: string, running: Running): void {
+  if (running.game.ready.size < 3 || running.timer) return;
+  if (running.game.world.status !== "playing") return;
+  running.timer = setInterval(() => tick(code), TICK_MS);
 }
 
 function tick(code: string): void {
@@ -162,13 +169,19 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         const seat = code ? seatOfDevice(code, who) : null;
         if (!code || !running || seat === null) return;
         running.game.ready.add(seat);
-        if (
-          running.game.ready.size === 3 &&
-          !running.timer &&
-          running.game.world.status === "playing"
-        ) {
-          running.timer = setInterval(() => tick(code), TICK_MS);
+        runIfReady(code, running);
+        return;
+      }
+      case "room.restart": {
+        const code = registry.byDevice.get(who);
+        const running = code ? games.get(code) : undefined;
+        if (!code || !running) return;
+        if (registry.lobbies.get(code)?.host !== who) {
+          throw new LobbyError("not-host", "Only the host can do that.");
         }
+        restartGame(running.game);
+        running.full = new Set([0, 1, 2]);
+        runIfReady(code, running);
         return;
       }
       case "input": {
@@ -204,6 +217,9 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
   const seat = code ? seatOfDevice(code, who) : null;
   const resumed = code ? games.get(code) : undefined;
   if (code && seat !== null && resumed) {
+    // The new page counts its inputs from 1, so the old input (and its seq) must
+    // go, or every new input looks stale. It also stops a held key walking on.
+    delete resumed.game.inputs[seat];
     resumed.full.add(seat);
     sendReveal(code, seat);
   }

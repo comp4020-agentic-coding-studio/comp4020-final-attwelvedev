@@ -55,6 +55,14 @@ export function applyInput(game: Game, seat: Seat, input: PlayerInput): boolean 
   return true;
 }
 
+// A fresh world for the same room: everyone back at spawn, crates and doors
+// reset, held inputs dropped. Roles and who is ready stay as they are.
+export function restartGame(game: Game): void {
+  game.world = createWorld(game.world.room);
+  game.inputs = {};
+  game.startedAt = Date.now();
+}
+
 export function crewOf(lobby: LobbyState, game: Game): CrewMember[] {
   return lobby.seats.map((s, i) => ({
     seat: i as Seat,

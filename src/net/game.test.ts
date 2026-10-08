@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { loadRooms } from "../game/rooms/load.ts";
 import type { Seat } from "../game/types.ts";
-import { applyInput, crewOf, rolesFor, startGame, tickGame } from "./game.ts";
+import { applyInput, crewOf, restartGame, rolesFor, startGame, tickGame } from "./game.ts";
 import { LobbyError, type LobbyState } from "./lobbies.ts";
 
 const rooms = loadRooms();
@@ -106,5 +106,31 @@ describe("inputs and views", () => {
     expect(tickGame(game).cleared).toBe(false);
     game.world.status = "cleared";
     expect(tickGame(game).cleared).toBe(true);
+  });
+});
+
+describe("restartGame", () => {
+  it("puts everyone back at spawn with crates and doors reset, keeping roles and ready", () => {
+    const game = startGame(lobby("a", "b", "c"), rooms);
+    game.ready.add(0);
+    const roles = [...game.roles];
+    const crate = game.world.crates[0]?.tile;
+    applyInput(game, 1, { seq: 3, move: { x: 1, y: 0 }, act: false });
+    for (let i = 0; i < 40; i++) tickGame(game);
+    game.world.doorOpen.D1 = true;
+    game.world.status = "cleared";
+    expect(game.world.players[1].pos.x).toBeGreaterThan(3);
+
+    restartGame(game);
+    expect(game.world.tick).toBe(0);
+    expect(game.world.status).toBe("playing");
+    expect(game.world.doorOpen.D1).toBe(false);
+    expect(game.world.crates[0]?.tile).toEqual(crate);
+    expect(game.world.players[1].pos).toEqual({ x: 2.5, y: 4.5 });
+    expect(game.inputs).toEqual({});
+    expect(game.roles).toEqual(roles);
+    expect([...game.ready]).toEqual([0]);
+    // a seq lower than the old one is accepted again
+    expect(applyInput(game, 1, { seq: 1, move: { x: 0, y: 0 }, act: false })).toBe(true);
   });
 });
