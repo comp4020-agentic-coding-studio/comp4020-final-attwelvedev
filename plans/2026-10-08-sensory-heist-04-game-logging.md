@@ -172,9 +172,9 @@ with no chat text, nicknames or codes (grep for them).
 - [x] Task 11 complete, tests passing
 - [x] `pnpm test:unit` passes
 - [x] `pnpm build && pnpm start`, then `pnpm check` and `pnpm check:evidence` pass
-- [ ] Deployed (ask first); `spec/game-log.test.ts` and `spec/stats.test.ts` green against fly.dev; `flyctl logs` shows `game` lines while a group plays
-- [ ] Before the week 11 crit: the user rehearses narrating a game from `/stats` and `flyctl logs` alone, and drafts `reflections/crit-10.md`
-- [ ] Tick this phase in overview §5 and commit
+- [x] Deployed (ask first); `spec/game-log.test.ts` and `spec/stats.test.ts` green against fly.dev; `flyctl logs` shows `game` lines while a group plays
+- [x] Before the week 11 crit: the user rehearses narrating a game from `/stats` and `flyctl logs` alone, and drafts `reflections/crit-10.md`
+- [x] Tick this phase in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)
 
