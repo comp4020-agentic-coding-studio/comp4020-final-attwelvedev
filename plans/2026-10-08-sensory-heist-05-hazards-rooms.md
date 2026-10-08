@@ -302,8 +302,8 @@ for a whole beat, and the flips each handed a different role the lead.
 - [x] Tasks 12–14 complete, tests passing, Task 14 accepted by the user
 - [x] `pnpm test:unit` and `pnpm lint:rooms` pass
 - [x] `pnpm build && pnpm start`, then `pnpm check` and `pnpm check:evidence` pass
-- [ ] Deployed (ask first); `spec/heist.test.ts` green against fly.dev
-- [ ] Tick this phase in overview §5 and commit
+- [x] Deployed (ask first); `spec/heist.test.ts` green against fly.dev
+- [x] Tick this phase in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)
 
