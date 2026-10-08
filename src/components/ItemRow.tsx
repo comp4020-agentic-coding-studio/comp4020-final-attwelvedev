@@ -16,7 +16,12 @@ export interface ItemRowProps {
   canOffer: boolean;
   // an icon or photo for the dish; null leaves the dish empty
   image: ComponentChildren | null;
+  // the open row's panel (ItemPanel), drawn between the row and its actions
+  panel?: ComponentChildren;
+  // a housemate just changed this row: underline it (or a dot, reduced motion)
+  changed?: boolean;
   onToggle(): void;
+  onClose(): void;
   onUsed(): void;
   onBinned(): void;
   onOffer(from: HTMLElement): void;
@@ -78,7 +83,15 @@ export function ItemRow(props: ItemRowProps) {
       data-open={open ? "true" : undefined}
       data-offered={offered ? "true" : undefined}
       aria-busy={row.pending ? "true" : undefined}
-      class={row.note ? "row gone" : "row"}
+      class={["row", row.note && "gone", props.changed && "changed"].filter(Boolean).join(" ")}
+      onKeyDown={(event) => {
+        // Esc closes the open row and puts focus back on it
+        if (event.key === "Escape" && open) {
+          event.stopPropagation();
+          props.onClose();
+          event.currentTarget.querySelector<HTMLElement>(".row-main")?.focus();
+        }
+      }}
     >
       <div class="dish" aria-hidden="true">
         {image}
@@ -114,6 +127,7 @@ export function ItemRow(props: ItemRowProps) {
           </button>
           <MeasureGlyph item={item} />
           {outcome("used", "Used", props.onUsed, guard)}
+          {open && props.panel}
           <div class="row-actions">
             {canOffer && mine && (
               <button type="button" onClick={(e) => props.onNote(e.currentTarget)}>

@@ -7,12 +7,18 @@ import {
   BUCKET_ORDER,
   dateText,
   effectiveDate,
+  expiryLabel,
   glyphLevel,
   groupRows,
   localToday,
+  remoteChange,
   rowLabel,
+  saveFailure,
+  splittableOf,
   tapeFraction,
   valueText,
+  valueWriteBack,
+  valueWriteLabel,
 } from "./pantryView.ts";
 
 const TODAY = "2026-10-07";
@@ -188,5 +194,84 @@ describe("attribution", () => {
     expect(attribution("value", item, members, NOW)).toBe("A former member's estimate, 2 h ago");
     const unknown = testItem({ valueSetBy: "gone", valueSetAt: NOW - 3_600_000 });
     expect(attribution("value", unknown, members, NOW)).toBe("A former member's estimate, 1 h ago");
+  });
+});
+
+describe("save failures", () => {
+  it("says what was lost and what it went back to", () => {
+    expect(saveFailure("¼", "½")).toBe("Couldn't save ¼. Back to ½.");
+  });
+  it("labels a write by the value it made", () => {
+    const fill = testItem({ measure: "fill", fillStop: 1 });
+    expect(valueWriteLabel({ kind: "fill", stop: 1 }, fill)).toBe("¼");
+    expect(valueWriteLabel({ kind: "measure", measure: "count" }, fill)).toBe("Count");
+    expect(
+      valueWriteLabel(
+        { kind: "exact", amount: 400, unit: "g" },
+        testItem({ measure: "fill", exactAmount: 400, exactUnit: "g" }),
+      ),
+    ).toBe("~400 g");
+  });
+});
+
+describe("remoteChange", () => {
+  const before = testItem({ measure: "fill", fillStop: 2, estimatedExpiry: "2026-10-08" });
+  it("says what a housemate changed the amount to", () => {
+    expect(remoteChange(before, { ...before, fillStop: 1 }, TODAY)).toBe("¼");
+    expect(remoteChange(before, { ...before, measure: "count", count: 6 }, TODAY)).toBe("Count");
+  });
+  it("says what the use-by changed to", () => {
+    expect(remoteChange(before, { ...before, estimatedExpiry: "2026-10-12" }, TODAY)).toBe(
+      "This week",
+    );
+    expect(remoteChange(before, { ...before, exactExpiry: "2026-10-09" }, TODAY)).toBe(
+      "by Fri 9 Oct",
+    );
+  });
+  it("is null when nothing the row shows changed", () => {
+    expect(remoteChange(before, { ...before, valueSetAt: 5, name: "milk" }, TODAY)).toBeNull();
+  });
+});
+
+describe("labels for a failed write", () => {
+  it("names what an expiry reads as", () => {
+    expect(expiryLabel(testItem({ estimatedExpiry: "2026-10-12" }), TODAY)).toBe("This week");
+    expect(expiryLabel(testItem({ exactExpiry: "2026-10-09" }), TODAY)).toBe("by Fri 9 Oct");
+    expect(
+      saveFailure("This week", expiryLabel(testItem({ estimatedExpiry: "2026-10-08" }), TODAY)),
+    ).toBe("Couldn't save This week. Back to Use soon.");
+  });
+  it("names what a value went back to", () => {
+    expect(
+      valueWriteBack({ kind: "fill", stop: 1 }, testItem({ measure: "fill", fillStop: 2 })),
+    ).toBe("½");
+    expect(
+      valueWriteBack({ kind: "measure", measure: "count" }, testItem({ measure: "fill" })),
+    ).toBe("Fill");
+  });
+});
+
+describe("splittableOf", () => {
+  it("lets a count of 2 or more be split, up to one fewer than the whole", () => {
+    expect(splittableOf(testItem({ measure: "count", count: 6 }))).toEqual({
+      max: 5,
+      whole: "6",
+      unit: "items",
+    });
+    expect(splittableOf(testItem({ measure: "count", count: 1 }))).toBeUndefined();
+  });
+  it("lets a fill of two quarters or more be split in quarters, unless it has an exact amount", () => {
+    expect(splittableOf(testItem({ measure: "fill", fillStop: 4 }))).toEqual({
+      max: 3,
+      whole: "Full",
+      unit: "quarters",
+    });
+    expect(splittableOf(testItem({ measure: "fill", fillStop: 1 }))).toBeUndefined();
+    expect(
+      splittableOf(testItem({ measure: "fill", fillStop: 4, exactAmount: 400, exactUnit: "g" })),
+    ).toBeUndefined();
+  });
+  it("offers nothing for have", () => {
+    expect(splittableOf(testItem({ measure: "have" }))).toBeUndefined();
   });
 });

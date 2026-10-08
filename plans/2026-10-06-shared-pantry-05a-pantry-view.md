@@ -592,7 +592,31 @@ it in the Corrections log of the task.
   (panel sketch, attribution wording, "Offer some…"). **Pass:** wording and layout
   read right, explicit yes from the user. Not accepted until then.
 - **Depends on:** Task 23.
-- **Corrections log:** *(empty at plan time)*
+- **Corrections log:**
+  - Judgement call: the fill slider runs Nearly out (left) to Full (right), like a
+    gauge filling, because the plan's test needs ArrowLeft to take Full to ¾. The
+    §4.1 sketch lists the labels Full-first; the sketch was not followed.
+  - Judgement call: "Offer some…" is only in the offer sheet (the plan's test and
+    Description place it there); the sketch's panel-foot link was not built.
+  - The planned `OutcomeActions` refactor was not needed: the row already has one
+    action cluster that sits inline from 900 px and at the open row's foot below it.
+  - `remoteChange`, `itemWrites` and `splittableOf` (small pure helpers the
+    panel needed) were written with their tests in one step, so those tests were not
+    seen red first. The reducer, `exactAmount` and `writeQueue` tests were.
+  - Test fixes while building the spec, none loosening an assertion: "+ ×3 sends ≤ 2"
+    needs a slow network to be deterministic (the route is delayed 400 ms); milk's
+    guess already lands in This week, so the Use-by test starts it at Use soon; the
+    sheet is awaited before Esc; axe waits for the 160 ms panel fade (it measured
+    blended colours mid-fade).
+  - A fix in the code: the pressed chip's ✓ was part of its accessible name
+    ("✓ This week"); the tick now has empty alt text.
+  - Check time: 54 s against a 41 s baseline. `pantry-panel.test.ts` is now the
+    slowest file (44 s, 14 tests in series) and sets the wall time. Splitting it
+    (value and expiry; sheet and phone) is the obvious fix, left for the user's call.
+  - `passkeys.test.ts > rejects a credential the server doesn't know` timed out at 30 s
+    in two of five full runs under heavy machine load (the machine hit load 288 once);
+    it passes alone and in the quiet full run. Not touched; it is more exposed as
+    the suite gets heavier.
 
 ### Task 25: Keyboard model and the throttled announcer
 

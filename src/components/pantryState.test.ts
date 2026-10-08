@@ -5,6 +5,8 @@ import type { MyOffer } from "../lib/offers.ts";
 import { testItem } from "../lib/testItem.ts";
 import {
   type Action,
+  applyExpiry,
+  applyValue,
   initialState,
   type PantryState,
   pantryReducer,
@@ -484,5 +486,137 @@ describe("a portion arriving as event.added", () => {
       { type: "event.added", item: portion },
     );
     expect(s.rows.map((r) => r.item.id)).toEqual(["milk", "part", "orig", "bread"]);
+  });
+});
+
+describe("optimistic value writes", () => {
+  const fill = (over: Partial<Item> = {}) =>
+    testItem({ id: "milk", name: "milk", measure: "fill", fillStop: 2, ...over });
+
+  it("applyValue changes only that kind's fields", () => {
+    const base = fill({ exactAmount: 400, exactUnit: "g" });
+    expect(applyValue(base, { kind: "fill", stop: 3 })).toMatchObject({
+      fillStop: 3,
+      exactAmount: null,
+      exactUnit: null,
+    });
+    expect(applyValue(base, { kind: "count", count: 7 })).toMatchObject({ count: 7, fillStop: 2 });
+    expect(applyValue(fill(), { kind: "exact", amount: 1.5, unit: "kg" })).toMatchObject({
+      exactAmount: 1.5,
+      exactUnit: "kg",
+      fillStop: 2,
+    });
+    expect(applyValue(base, { kind: "clearExact" })).toMatchObject({
+      exactAmount: null,
+      exactUnit: null,
+    });
+    const measured = applyValue(base, { kind: "measure", measure: "count" });
+    expect(measured).toEqual({ ...base, measure: "count" });
+  });
+
+  it("applyExpiry keeps the estimate and exact date apart", () => {
+    const base = testItem({ estimatedExpiry: "2026-10-08", exactExpiry: "2026-10-09" });
+    expect(
+      applyExpiry(base, { kind: "bucket", bucket: "this-week", today: "2026-10-07" }),
+    ).toMatchObject({
+      estimatedExpiry: "2026-10-12",
+      exactExpiry: null,
+    });
+    expect(
+      applyExpiry(base, { kind: "bucket", bucket: "unknown", today: "2026-10-07" }),
+    ).toMatchObject({
+      estimatedExpiry: null,
+      exactExpiry: null,
+    });
+    expect(applyExpiry(base, { kind: "date", date: "2026-11-01" })).toMatchObject({
+      estimatedExpiry: "2026-10-08",
+      exactExpiry: "2026-11-01",
+    });
+    expect(applyExpiry(base, { kind: "clearDate" })).toMatchObject({ exactExpiry: null });
+  });
+
+  const stamped = fill({ valueSetBy: "m1", valueSetAt: 100 });
+  const start = () => initialState([stamped]);
+
+  it("pending changes the fields at once and leaves who and when alone", () => {
+    const s = run(start(), {
+      type: "value.pending",
+      itemId: "milk",
+      write: { kind: "fill", stop: 1 },
+    });
+    expect(s.rows[0].item).toMatchObject({ fillStop: 1, valueSetBy: "m1", valueSetAt: 100 });
+    expect(s.rows[0].saving?.value).toMatchObject({ fillStop: 2 });
+  });
+
+  it("keeps the earliest previous across several writes, so a failure goes all the way back", () => {
+    const s = run(
+      start(),
+      { type: "value.pending", itemId: "milk", write: { kind: "fill", stop: 3 } },
+      { type: "value.pending", itemId: "milk", write: { kind: "fill", stop: 1 } },
+    );
+    expect(s.rows[0].item.fillStop).toBe(1);
+    expect(s.rows[0].saving?.value).toMatchObject({ fillStop: 2 });
+  });
+
+  it("confirmed takes the server's group and stamp, and stops saving", () => {
+    const server = fill({ fillStop: 1, valueSetBy: "m2", valueSetAt: 200 });
+    const s = run(
+      start(),
+      { type: "value.pending", itemId: "milk", write: { kind: "fill", stop: 1 } },
+      { type: "value.confirmed", itemId: "milk", item: server },
+    );
+    expect(s.rows[0].item).toMatchObject({ fillStop: 1, valueSetBy: "m2", valueSetAt: 200 });
+    expect(s.rows[0].saving).toBeUndefined();
+  });
+
+  it("rolledBack restores the previous fields", () => {
+    const s = run(
+      start(),
+      { type: "value.pending", itemId: "milk", write: { kind: "fill", stop: 1 } },
+      { type: "value.rolledBack", itemId: "milk" },
+    );
+    expect(s.rows[0].item).toEqual(stamped);
+    expect(s.rows[0].saving).toBeUndefined();
+  });
+
+  it("an update with an older stamp does not undo a confirmed write", () => {
+    const confirmed = run(
+      start(),
+      { type: "value.pending", itemId: "milk", write: { kind: "fill", stop: 1 } },
+      {
+        type: "value.confirmed",
+        itemId: "milk",
+        item: fill({ fillStop: 1, valueSetBy: "m1", valueSetAt: 300 }),
+      },
+    );
+    const s = run(confirmed, {
+      type: "event.updated",
+      item: fill({ fillStop: 4, valueSetBy: "m2", valueSetAt: 250 }),
+    });
+    expect(s.rows[0].item.fillStop).toBe(1);
+  });
+
+  it("expiry writes follow the same cycle on the expiry group", () => {
+    const dated = testItem({
+      id: "e",
+      estimatedExpiry: "2026-10-08",
+      expirySetBy: "m1",
+      expirySetAt: 50,
+    });
+    const pending = run(initialState([dated]), {
+      type: "expiry.pending",
+      itemId: "e",
+      write: { kind: "bucket", bucket: "long-lasting", today: "2026-10-07" },
+    });
+    expect(pending.rows[0].item).toMatchObject({ estimatedExpiry: "2027-01-05", expirySetAt: 50 });
+    const back = run(pending, { type: "expiry.rolledBack", itemId: "e" });
+    expect(back.rows[0].item).toEqual(dated);
+    const done = run(pending, {
+      type: "expiry.confirmed",
+      itemId: "e",
+      item: { ...dated, estimatedExpiry: "2027-01-05", expirySetBy: "m2", expirySetAt: 90 },
+    });
+    expect(done.rows[0].item).toMatchObject({ expirySetBy: "m2", expirySetAt: 90 });
+    expect(done.rows[0].saving).toBeUndefined();
   });
 });

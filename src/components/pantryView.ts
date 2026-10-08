@@ -1,7 +1,7 @@
 import { type Bucket, bucketFor, daysUntil } from "../lib/expiry.ts";
 import type { Item } from "../lib/items.ts";
 import { ago } from "./ago.ts";
-import type { Row } from "./pantryState.ts";
+import type { Row, ValueWrite } from "./pantryState.ts";
 
 // What the pantry list shows and in what order, with no DOM, so the rules
 // (buckets, the tape, the words) are unit-tested and the components only draw.
@@ -129,4 +129,63 @@ export function attribution(
   if (at === null) return "Guessed";
   const name = by ? members.find((m) => m.id === by)?.name : undefined;
   return `${name ?? "A former member"}'s estimate, ${ago(at, now)}`;
+}
+
+// "Couldn't save ¼. Back to ½.": what was attempted and what it went back to.
+export const saveFailure = (label: string, back: string): string =>
+  `Couldn't save ${label}. Back to ${back}.`;
+
+const MEASURE_LABEL = { fill: "Fill", count: "Count", have: "Have" } as const;
+export const measureLabel = (measure: Item["measure"]): string => MEASURE_LABEL[measure];
+
+// What a value write reads as once made: the new value's words ("¼", "~400 g"), or the measure's name.
+export function valueWriteLabel(write: ValueWrite, applied: Item): string {
+  return write.kind === "measure" ? measureLabel(write.measure) : valueText(applied);
+}
+
+// What a housemate's update changed, in the words the panel says ("¼", "This
+// week", "by Fri 9 Oct"); null when nothing the row shows moved.
+export function remoteChange(before: Item, after: Item, today: string): string | null {
+  if (after.measure !== before.measure) return measureLabel(after.measure);
+  const valueMoved =
+    after.fillStop !== before.fillStop ||
+    after.count !== before.count ||
+    after.exactAmount !== before.exactAmount ||
+    after.exactUnit !== before.exactUnit;
+  if (valueMoved) return valueText(after);
+  if (
+    after.exactExpiry !== before.exactExpiry ||
+    after.estimatedExpiry !== before.estimatedExpiry
+  ) {
+    return after.exactExpiry ? dateText(after.exactExpiry) : BUCKET_LABEL[bucketOf(after, today)];
+  }
+  return null;
+}
+
+// What can be split off: a count of 2 or more, or a fill of ½ or more with no exact
+// amount. `whole` is how the whole item reads ("6", "¼").
+export interface Splittable {
+  max: number;
+  whole: string;
+  unit: "items" | "quarters";
+}
+
+// How an item's use-by reads: its exact date, else its bucket.
+export const expiryLabel = (item: Item, today: string): string =>
+  item.exactExpiry ? dateText(item.exactExpiry) : BUCKET_LABEL[bucketOf(item, today)];
+
+// What a value went back to after a failed write.
+export const valueWriteBack = (write: ValueWrite, previous: Item): string =>
+  write.kind === "measure" ? measureLabel(previous.measure) : valueText(previous);
+
+// What "Offer some…" may split off (the server's rule, so the sheet only offers
+// what will be accepted): a count of 2+, or a fill of two quarters+ with no exact amount.
+export function splittableOf(item: Item): Splittable | undefined {
+  if (item.measure === "count" && item.count >= 2) {
+    return { max: item.count - 1, whole: String(item.count), unit: "items" };
+  }
+  if (item.measure === "fill" && item.exactAmount === null && item.fillStop >= 2) {
+    return { max: item.fillStop - 1, whole: valueText(item), unit: "quarters" };
+  }
+  return undefined;
 }

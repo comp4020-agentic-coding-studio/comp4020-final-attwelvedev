@@ -139,6 +139,7 @@
   grid-template-columns: 44px minmax(0, 1fr) auto auto;
   grid-template-areas:
     "dish main value used"
+    "panel panel panel panel"
     "actions actions actions actions";
   align-items: center;
   column-gap: var(--s-3);
@@ -290,7 +291,9 @@ div.row-main {
 @media (min-width: 900px) {
   .row {
     grid-template-columns: 48px minmax(0, 1fr) auto auto auto;
-    grid-template-areas: "dish main value used actions";
+    grid-template-areas:
+      "dish main value used actions"
+      "panel panel panel panel panel";
   }
   .dish {
     width: 48px;

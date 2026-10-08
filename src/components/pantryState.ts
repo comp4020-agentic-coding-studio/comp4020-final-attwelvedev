@@ -1,6 +1,6 @@
-import { addDays } from "../lib/expiry.ts";
-import type { Guess } from "../lib/guess.ts";
-import type { Item, Outcome } from "../lib/items.ts";
+import { addDays, estimateFor, type SettableBucket } from "../lib/expiry.ts";
+import type { Guess, Measure } from "../lib/guess.ts";
+import type { Item, Outcome, Unit } from "../lib/items.ts";
 import type { MyOffer } from "../lib/offers.ts";
 
 // The pantry island's state as a pure reducer, so the awkward cases (an echo
@@ -18,6 +18,69 @@ export interface RowOffer {
   note: string;
 }
 
+// The fields of one group (value, or expiry) as they were before an optimistic
+// write, kept so a failed write can put them back.
+export type Patch = Partial<Item>;
+
+export type ValueWrite =
+  | { kind: "fill"; stop: number }
+  | { kind: "count"; count: number }
+  | { kind: "exact"; amount: number; unit: Unit }
+  | { kind: "clearExact" }
+  | { kind: "measure"; measure: Measure };
+export type ExpiryWrite =
+  | { kind: "bucket"; bucket: SettableBucket; today: string }
+  | { kind: "date"; date: string }
+  | { kind: "clearDate" };
+
+const valueFields = (i: Item): Patch => ({
+  measure: i.measure,
+  fillStop: i.fillStop,
+  count: i.count,
+  exactAmount: i.exactAmount,
+  exactUnit: i.exactUnit,
+  valueSetBy: i.valueSetBy,
+  valueSetAt: i.valueSetAt,
+});
+const expiryFields = (i: Item): Patch => ({
+  estimatedExpiry: i.estimatedExpiry,
+  exactExpiry: i.exactExpiry,
+  expirySetBy: i.expirySetBy,
+  expirySetAt: i.expirySetAt,
+});
+
+// What a write will change, as the server will, before the server answers. Who
+// and when are left alone: the clock that decides who wins is the server's.
+export function applyValue(item: Item, write: ValueWrite): Item {
+  switch (write.kind) {
+    case "fill":
+      return { ...item, fillStop: write.stop, exactAmount: null, exactUnit: null };
+    case "count":
+      return { ...item, count: write.count };
+    case "exact":
+      return { ...item, exactAmount: write.amount, exactUnit: write.unit };
+    case "clearExact":
+      return { ...item, exactAmount: null, exactUnit: null };
+    case "measure":
+      return { ...item, measure: write.measure };
+  }
+}
+
+export function applyExpiry(item: Item, write: ExpiryWrite): Item {
+  switch (write.kind) {
+    case "bucket":
+      return {
+        ...item,
+        estimatedExpiry: estimateFor(write.bucket, write.today),
+        exactExpiry: null,
+      };
+    case "date":
+      return { ...item, exactExpiry: write.date };
+    case "clearDate":
+      return { ...item, exactExpiry: null };
+  }
+}
+
 export interface Row {
   item: Item; // a pending row carries a temporary item with id `pending:<rid>`
   pending?: { rid: string }; // added here, waiting for the server
@@ -26,15 +89,26 @@ export interface Row {
   offer?: RowOffer; // the item's open offer
   offering?: true; // an offer posted here, waiting for the server
   withdrawing?: true; // the offer's withdraw, waiting for the server
+  // writes to a group waiting for the server; the patch is that group as it was
+  saving?: { value?: Patch; expiry?: Patch };
 }
 
 export type RetryAction =
   | { kind: "add"; name: string }
   | { kind: "outcome"; itemId: string; name: string; outcome: "used" | "binned" }
   | { kind: "undo"; historyId: string; name: string }
-  | { kind: "offer"; itemId: string; name: string; note?: string; communityIds?: string[] }
+  | {
+      kind: "offer";
+      itemId: string;
+      name: string;
+      note?: string;
+      communityIds?: string[];
+      portion?: number;
+    }
   | { kind: "withdraw"; offerId: string; itemId: string; name: string }
-  | { kind: "note"; offerId: string; itemId: string; name: string; note: string; previous: string };
+  | { kind: "note"; offerId: string; itemId: string; name: string; note: string; previous: string }
+  | { kind: "value"; itemId: string; name: string; change: ValueWrite; label: string }
+  | { kind: "expiry"; itemId: string; name: string; change: ExpiryWrite; label: string };
 
 export interface Failure {
   id: string;
@@ -60,6 +134,12 @@ export type Action =
   | { type: "event.restored"; item: Item }
   | { type: "event.updated"; item: Item }
   | { type: "event.merged"; itemId: string; item: Item }
+  | { type: "value.pending"; itemId: string; write: ValueWrite }
+  | { type: "value.confirmed"; itemId: string; item: Item }
+  | { type: "value.rolledBack"; itemId: string }
+  | { type: "expiry.pending"; itemId: string; write: ExpiryWrite }
+  | { type: "expiry.confirmed"; itemId: string; item: Item }
+  | { type: "expiry.rolledBack"; itemId: string }
   | { type: "offers.snapshot"; open: MyOffer[] }
   | { type: "offer.mine"; offer: MyOffer }
   | { type: "offer.noted"; itemId: string; note: string }
@@ -110,6 +190,11 @@ function insertByCreatedAt(rows: Row[], row: Row): Row[] {
   }
   return [...rows.slice(0, at), row, ...rows.slice(at)];
 }
+
+const dropped = (saving: Row["saving"], group: "value" | "expiry"): Row["saving"] => {
+  const { [group]: _gone, ...rest } = saving ?? {};
+  return Object.keys(rest).length ? rest : undefined;
+};
 
 const has = (rows: Row[], itemId: string) => rows.some((r) => r.item.id === itemId);
 
@@ -265,6 +350,68 @@ export function pantryReducer(state: PantryState, action: Action): PantryState {
         ),
       };
     }
+
+    case "value.pending":
+      return {
+        ...state,
+        rows: mapRow(rows, action.itemId, (r) => ({
+          ...r,
+          item: applyValue(r.item, action.write),
+          saving: { ...r.saving, value: r.saving?.value ?? valueFields(r.item) },
+        })),
+      };
+
+    // the server's account of the group (its stamp decides if it is newer than
+    // what the row has) replaces my optimistic fields
+    case "value.confirmed":
+      return {
+        ...state,
+        rows: mapRow(rows, action.itemId, (r) => ({
+          ...r,
+          item: { ...r.item, ...valueFields(mergeUpdated(r.item, action.item)) },
+          saving: dropped(r.saving, "value"),
+        })),
+      };
+
+    case "value.rolledBack":
+      return {
+        ...state,
+        rows: mapRow(rows, action.itemId, (r) => ({
+          ...r,
+          item: { ...r.item, ...r.saving?.value },
+          saving: dropped(r.saving, "value"),
+        })),
+      };
+
+    case "expiry.pending":
+      return {
+        ...state,
+        rows: mapRow(rows, action.itemId, (r) => ({
+          ...r,
+          item: applyExpiry(r.item, action.write),
+          saving: { ...r.saving, expiry: r.saving?.expiry ?? expiryFields(r.item) },
+        })),
+      };
+
+    case "expiry.confirmed":
+      return {
+        ...state,
+        rows: mapRow(rows, action.itemId, (r) => ({
+          ...r,
+          item: { ...r.item, ...expiryFields(mergeUpdated(r.item, action.item)) },
+          saving: dropped(r.saving, "expiry"),
+        })),
+      };
+
+    case "expiry.rolledBack":
+      return {
+        ...state,
+        rows: mapRow(rows, action.itemId, (r) => ({
+          ...r,
+          item: { ...r.item, ...r.saving?.expiry },
+          saving: dropped(r.saving, "expiry"),
+        })),
+      };
 
     case "offers.snapshot": {
       const open = new Map(action.open.map((o) => [o.itemId, asRowOffer(o)]));

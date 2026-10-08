@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import "../styles/offers.css";
+import "../styles/panel.css";
+import { CountStepper } from "./CountStepper.tsx";
+import type { Splittable } from "./pantryView.ts";
 
 export type SheetMode = "offer" | "note";
 
 export interface SheetResult {
   note: string;
   communityIds: string[];
+  // part of a count or fill item; absent offers the whole item
+  portion?: number;
 }
 
 const MAX_NOTE = 280;
@@ -21,6 +26,7 @@ export function OfferSheet({
   itemName,
   communities,
   initialNote,
+  splittable,
   onSubmit,
   onClose,
 }: {
@@ -28,12 +34,15 @@ export function OfferSheet({
   itemName: string;
   communities: { id: string; name: string }[];
   initialNote: string;
+  splittable?: Splittable;
   onSubmit(result: SheetResult): void;
   onClose(): void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const note = useRef<HTMLInputElement>(null);
   const [problem, setProblem] = useState("");
+  const [some, setSome] = useState(false);
+  const [portion, setPortion] = useState(1);
 
   useEffect(() => {
     const el = dialog.current;
@@ -65,10 +74,35 @@ export function OfferSheet({
             setProblem("Tick at least one community.");
             return;
           }
-          onSubmit({ note: text, communityIds });
+          onSubmit({ note: text, communityIds, portion: some && splittable ? portion : undefined });
         }}
       >
         <h2 id="offer-sheet-title">{title}</h2>
+        {mode === "offer" && splittable && (
+          <fieldset class="portion">
+            <legend class="sr-only">How much to offer</legend>
+            <label class="check">
+              <input type="radio" name="amount" checked={!some} onChange={() => setSome(false)} />
+              Whole item ({splittable.whole})
+            </label>
+            <label class="check">
+              <input type="radio" name="amount" checked={some} onChange={() => setSome(true)} />
+              Offer some…
+            </label>
+            {some && (
+              <div class="portion-amount">
+                <CountStepper
+                  value={portion}
+                  min={1}
+                  max={splittable.max}
+                  label={`How many ${splittable.unit} to offer`}
+                  onChange={setPortion}
+                />
+                <span>{splittable.unit === "quarters" ? "quarters" : "of them"}</span>
+              </div>
+            )}
+          </fieldset>
+        )}
         <div class="field">
           <label for="offer-note">Pickup note</label>
           <input

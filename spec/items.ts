@@ -33,3 +33,19 @@ export async function makeMany(http: Client, names: string[]): Promise<void> {
     await Promise.all(names.slice(i, i + 8).map((name) => makeItem(http, name)));
   }
 }
+
+// A value or measure write, as another device would make it
+export async function writeItem(
+  http: Client,
+  id: string,
+  path: "value" | "measure" | "expiry",
+  fields: Record<string, string>,
+): Promise<void> {
+  const res = await http.post(`/items/${id}/${path}`, fields, JSON_ACCEPT);
+  if (res.status !== 200) throw new Error(`${path} write gave ${res.status}`);
+}
+
+export async function pantryItems(http: Client): Promise<Record<string, unknown>[]> {
+  const res = await http.get("/api/pantry", JSON_ACCEPT);
+  return ((await res.json()) as { items: Record<string, unknown>[] }).items;
+}
