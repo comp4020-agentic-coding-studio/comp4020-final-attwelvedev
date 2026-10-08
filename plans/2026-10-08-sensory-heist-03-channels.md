@@ -210,8 +210,8 @@ rather than over the avatar; the cooldown ring counts on the device's own clock.
 - [x] Tasks 9–10 complete, tests passing, Task 10 accepted by the user
 - [x] `pnpm test:unit` passes
 - [x] `pnpm build && pnpm start`, then `pnpm check` and `pnpm check:evidence` pass
-- [ ] Deployed (ask first); `spec/channels.test.ts` green against fly.dev
-- [ ] Tick this phase in overview §5 and commit
+- [x] Deployed (ask first); `spec/channels.test.ts` green against fly.dev
+- [x] Tick this phase in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)
 
