@@ -1,83 +1,76 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { Session } from "./households.ts";
 import { ACTIONS, anon, describeRequest, isLogged } from "./requestLog.ts";
 import { hashToken } from "./session.ts";
 
-const session: Session = {
-  member: { id: "m1", householdId: "h1", name: "NOSY-Sam", createdAt: 1 },
-  household: { id: "h1", name: "SECRET-Unit-4", inviteCode: "KETTLE-42", createdAt: 1 },
-};
 const TOKEN = "raw-cookie-value-0123456789";
 
 const base = {
-  method: "POST",
-  route: "/items",
-  status: 303,
+  method: "GET",
+  route: "/",
+  status: 200,
   ms: 3.7,
   token: TOKEN,
-  session,
   now: Date.parse("2026-10-07T03:00:00Z"),
 };
 
 describe("describeRequest", () => {
-  it("gives the documented shape for a signed-in action", () => {
+  it("gives the documented shape", () => {
     const line = describeRequest(base);
     expect(line).toMatchObject({
       ts: "2026-10-07T03:00:00.000Z",
       kind: "request",
-      method: "POST",
-      route: "/items",
-      action: "item.add",
-      status: 303,
+      method: "GET",
+      route: "/",
+      action: "view.home",
+      status: 200,
     });
     expect(Number.isInteger(line.ms)).toBe(true);
+  });
+
+  it("who is 8 hex of the token hash when a token is present", () => {
+    const line = describeRequest(base);
     expect(line.who).toMatch(/^[0-9a-f]{8}$/);
-    expect(line.hh).toMatch(/^[0-9a-f]{8}$/);
     expect(line.who).toBe(hashToken(TOKEN).slice(0, 8));
   });
 
-  it("has no who or hh without a session", () => {
-    const line = describeRequest({ ...base, session: null });
-    expect(line.who).toBeNull();
-    expect(line.hh).toBeNull();
+  it("who is null without a token", () => {
+    expect(describeRequest({ ...base, token: undefined }).who).toBeNull();
+    expect(describeRequest({ ...base, token: null }).who).toBeNull();
   });
 
   it("names an unknown route '<METHOD> <pattern>'", () => {
-    expect(describeRequest({ ...base, method: "GET", route: "/nowhere/[x]" }).action).toBe(
-      "GET /nowhere/[x]",
-    );
+    expect(describeRequest({ ...base, route: "/nowhere/[x]" }).action).toBe("GET /nowhere/[x]");
   });
 
-  it("logs the route pattern and nothing private", () => {
+  it("detail is redacted", () => {
     const line = describeRequest({
       ...base,
-      route: "/join/[token]/accept",
-      detail: { via: "link", memberName: "NOSY-Sam", note: "SECRETNOTE" },
+      route: "/lobby/[code]",
+      detail: { via: "code", nickname: "NOSY-Sam", note: "SECRETNOTE" },
     });
     const text = JSON.stringify(line);
-    expect(line.route).toBe("/join/[token]/accept");
-    for (const secret of [TOKEN, hashToken(TOKEN), "NOSY", "SECRET", "h1", "m1", "KETTLE"]) {
+    expect(line.route).toBe("/lobby/[code]");
+    for (const secret of [TOKEN, hashToken(TOKEN), "NOSY", "SECRET"]) {
       expect(text).not.toContain(secret);
     }
-    expect(line.detail).toEqual({ via: "link" });
+    expect(line.detail).toEqual({ via: "code" });
   });
 
   it("omits detail when there is none", () => {
     expect("detail" in describeRequest(base)).toBe(false);
   });
 
-  it("logs a thrown error as 500 with its class name and never its message", () => {
+  it("an error becomes err with the class name only", () => {
     class BoomError extends Error {}
     const line = describeRequest({
       ...base,
-      status: 200,
-      error: new BoomError("the pantry of SECRETMILK exploded"),
+      error: new BoomError("the lobby of SECRETTEAM exploded"),
     });
     expect(line.status).toBe(500);
     expect(line.err).toBe("BoomError");
-    expect(JSON.stringify(line)).not.toContain("SECRETMILK");
+    expect(JSON.stringify(line)).not.toContain("SECRETTEAM");
   });
 });
 
@@ -94,7 +87,18 @@ describe("isLogged", () => {
     expect(isLogged(route)).toBe(false);
   });
   it("logs the rest", () => {
-    expect(isLogged("/items")).toBe(true);
+    expect(isLogged("/lobby/[code]")).toBe(true);
+  });
+});
+
+describe("ACTIONS", () => {
+  it("names the pages a player can reach", () => {
+    expect(ACTIONS).toMatchObject({
+      "GET /": "view.home",
+      "GET /readme": "view.readme",
+      "GET /lobby/[code]": "view.lobby",
+      "GET /leaderboard": "view.leaderboard",
+    });
   });
 });
 
@@ -116,7 +120,7 @@ function patternOf(file: string): string {
   return `/${rel}`;
 }
 
-describe("ACTIONS", () => {
+describe("ACTIONS coverage", () => {
   it("names every POST endpoint", () => {
     const missing = files("src/pages")
       .filter((f) => f.endsWith(".ts") && /export const POST\b/.test(readFileSync(f, "utf-8")))

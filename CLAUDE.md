@@ -1,34 +1,41 @@
 # Project invariants
 
-<!-- PLACEHOLDER: fill in once the stack and first ADR are chosen, then delete
-     this comment. Concrete rules beat general ones, so name real paths and
-     commands. -->
-
 - **Persistence:** only `/data` survives a restart or redeploy (`fly.toml`).
-  Nothing important lives anywhere else.
+  Nothing important lives anywhere else. Only heist records persist (ADR 0009);
+  lobbies and games live in memory and die with the process.
 - **Run it:** `pnpm install && pnpm build && pnpm start` serves on `:8080`
-  (DB at `./.data/app.db`; set `DATABASE_PATH` to move it). `pnpm dev` is
-  for hot reload.
+  (DB at `./.data/app.db`; set `DATABASE_PATH` to move it). From phase 01 Task 2
+  `pnpm start` is `node server.ts`: one Node process serving the Astro handler
+  and a WebSocket endpoint at `/ws`. `pnpm dev` is for hot reload.
 - **Dependencies:** adding one needs a reason (and an ADR if it shapes the
   app). The machine has 256 MB; check the cost before adding.
-- **Shape of the app:** a household pantry where adding is one field + Enter
-  and every outcome is one tap with Undo, never a confirm dialog. A person is
-  a member of one household, identified by a hashed device token (ADR 0002).
-  State is SQLite on `/data` (ADR 0003). Live sync is SSE (ADR 0004, from
-  phase 02). See `specs/2026-10-06-shared-pantry.md`.
+- **Shape of the app:** a three-player browser co-op heist where each player is
+  missing a channel (Can't see, Can't hear, Can't speak) and they coordinate
+  through role-gated channels (Say, Sound, Show). A person is an anonymous
+  device cookie plus a nickname (ADR 0008). The server runs a headless
+  simulation per room over WebSockets (ADR 0007). See
+  `specs/2026-10-08-sensory-heist.md` and `plans/2026-10-08-sensory-heist-00-overview.md`.
+  The pantry this repo started as is archived at tag `archive/pantry-2026-10-08`.
+- **Layering:**
+  - `src/game/` is pure: no DOM, no `ws`, no `node:` imports except in
+    `src/game/rooms/load.ts`. Simulation, perception, channel rules, bots and
+    rooms live here and run headless.
+  - `src/net/` is the server side of the socket: lobby registry, game loop,
+    routing. It imports `src/game/` and `src/lib/`, never Astro.
+  - `src/client/` is browser-only: canvas renderer, input, audio, socket
+    client. It imports `src/game/types.ts` and `src/net/protocol.ts` only.
+  - Astro pages in `src/pages/` stay thin and never import `src/net/`: the
+    socket server runs as a separate module instance. Anything both sides
+    share lives on `globalThis` behind one accessor (`sharedStats()`).
+- **Perception:** the server sends each client only what its role perceives
+  (ADR 0007). Never add a field to a view or message without checking it
+  against the role tables in `src/game/types.ts`.
+- **Rooms:** rooms are linted (`pnpm lint:rooms`, from phase 02) and must be
+  cleared by bots.
 - **Naming and layout:** domain services in `src/lib/` take `db` first and
-  never touch requests. Endpoints in `src/pages/` stay thin. Unit tests sit
-  beside the code; promises to users get `spec/<area>.test.ts`; browser
-  checks get one `spec/layout/<area>.test.ts` per area.
-- **Live changes:** services return their change; endpoints publish to
-  `src/lib/live.ts` after the commit, never inside a transaction. A broken
-  stream must never fail the request that triggered it. Offer payloads are
-  built only by `offerEvents` (`src/lib/offerEvents.ts`); an endpoint never
-  constructs an `offer.*` event.
-- **Item values are estimates:** an item's amount and expiry each carry who set
-  them and when (`valueSet*`, `expirySet*`); both null means *Guessed*. The latest
-  write wins per group. Item events are built by `itemEvents.ts`, not by the
-  endpoint.
+  never touch requests. Unit tests sit beside the code; promises to users get
+  `spec/<area>.test.ts`; browser checks get one `spec/layout/<area>.test.ts`
+  per area.
 
 # Working method
 
@@ -103,8 +110,8 @@ A log line is the app's account of what users did, so:
 
 - Never log a field that is not in `redact`'s allowlist (`src/lib/log.ts`).
   Add to it on purpose, with a reason.
-- Never log a raw path, name, note, location, photo, token or cookie. The line
-  carries the route *pattern*; invite and device links hold tokens in the path.
+- Never log a raw path, nickname, team name, chat text, voice, token or cookie.
+  The line carries the route *pattern*; lobby codes sit in the path.
 - A new POST endpoint needs an `ACTIONS` entry; a test fails without one.
   Add detail from anywhere in a request with `logDetail({ via: "code" })`.
 

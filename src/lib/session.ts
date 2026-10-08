@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 
-export const DEVICE_COOKIE = "pantry_device";
+export const DEVICE_COOKIE = "heist_device";
 
 // The cookie holds the raw token; the database only ever sees its hash, so a
 // leaked database can't be replayed as a login.
@@ -10,10 +10,4 @@ export function newDeviceToken(): string {
 
 export function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
-}
-
-// Invite and device links carry 128 bits, enough that guessing one is
-// hopeless; only the hash is stored.
-export function newLinkToken(): string {
-  return randomBytes(16).toString("base64url");
 }

@@ -1,4 +1,3 @@
-import type { Session } from "./households.ts";
 import type { Detail } from "./log.ts";
 import { redact } from "./log.ts";
 import { hashToken } from "./session.ts";
@@ -13,8 +12,7 @@ export interface RequestLine {
   action: string;
   status: number;
   ms: number;
-  who: string | null; // a device: 8 hex of its stored token hash
-  hh: string | null; // a household: 8 hex of a hash of its id
+  who: string | null; // a device: 8 hex of its token hash
   detail?: Detail;
   err?: string; // the error's class name, never its message
 }
@@ -23,54 +21,10 @@ export interface RequestLine {
 // when a POST endpoint is missing, so a new one can't ship unnamed. Entries for
 // routes that don't exist yet are fine.
 export const ACTIONS: Record<string, string> = {
-  "GET /": "view.pantry",
-  "GET /history": "view.history",
-  "GET /household": "view.household",
-  "GET /household/devices": "view.devices",
-  "GET /join": "view.join",
-  "GET /join/[token]": "view.join-link",
-  "GET /device/[token]": "view.device-link",
+  "GET /": "view.home",
   "GET /readme": "view.readme",
-  "GET /events": "stream.open",
-  "GET /api/pantry": "api.pantry",
-  "GET /api/offers": "api.offers",
-  "GET /offers": "view.offers",
-  "GET /passkey/signin": "view.passkey-signin",
-  "GET /communities": "view.communities",
-  "GET /communities/[id]": "view.community",
-  "GET /communities/join/[token]": "view.community-link",
-  "POST /households": "household.create",
-  "POST /items": "item.add",
-  "POST /items/[id]/outcome": "item.outcome",
-  "POST /items/[id]/value": "item.value",
-  "POST /items/[id]/measure": "item.measure",
-  "POST /items/[id]/expiry": "item.expiry",
-  "POST /history/[id]/undo": "item.undo",
-  "POST /join/code": "household.join",
-  "POST /join/[token]/accept": "household.join",
-  "POST /device/[token]/accept": "device.link",
-  "POST /household/invite-link": "household.invite-link",
-  "POST /household/device-link": "household.device-link",
-  "POST /household/leave": "household.leave",
-  "POST /household/members/[id]/remove": "household.remove-member",
-  "POST /household/pickup-note": "household.pickup-note",
-  "POST /communities/create": "community.create",
-  "POST /communities/join/code": "community.join",
-  "POST /communities/join/[token]/accept": "community.join",
-  "POST /communities/[id]/join-link": "community.join-link",
-  "POST /communities/[id]/leave": "community.leave",
-  "POST /communities/[id]/households/[householdId]/remove": "community.remove-household",
-  "POST /passkey/register/options": "passkey.register-options",
-  "POST /passkey/register/verify": "passkey.register",
-  "POST /passkey/signin/options": "passkey.signin-options",
-  "POST /passkey/signin/verify": "passkey.signin",
-  "POST /passkey/[id]/remove": "passkey.remove",
-  "POST /offers/create": "offer.create",
-  "POST /offers/[id]/claim": "offer.claim",
-  "POST /offers/[id]/collected": "offer.collected",
-  "POST /offers/[id]/release": "offer.release",
-  "POST /offers/[id]/withdraw": "offer.withdraw",
-  "POST /offers/[id]/note": "offer.note",
+  "GET /lobby/[code]": "view.lobby",
+  "GET /leaderboard": "view.leaderboard",
 };
 
 // The stats view and static assets are not user actions: logging them would
@@ -89,12 +43,10 @@ export function describeRequest(input: {
   status: number;
   ms: number;
   token: string | null | undefined;
-  session: Session | null;
   detail?: Record<string, unknown>;
   error?: unknown;
   now?: number;
 }): RequestLine {
-  const { session } = input;
   const detail = redact(input.detail ?? {});
   const line: RequestLine = {
     ts: new Date(input.now ?? Date.now()).toISOString(),
@@ -104,8 +56,7 @@ export function describeRequest(input: {
     action: ACTIONS[`${input.method} ${input.route}`] ?? `${input.method} ${input.route}`,
     status: input.error === undefined ? input.status : 500,
     ms: Math.round(input.ms),
-    who: session && input.token ? anon(input.token) : null,
-    hh: session ? anon(`hh:${session.household.id}`) : null,
+    who: input.token ? anon(input.token) : null,
   };
   if (Object.keys(detail).length) line.detail = detail;
   if (input.error !== undefined) {

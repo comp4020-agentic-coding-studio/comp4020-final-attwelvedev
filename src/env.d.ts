@@ -1,19 +1,6 @@
 declare namespace App {
   interface Locals {
-    session: import("./lib/households").Session | null;
-    // set by POST /households when it re-renders the first-run form
-    firstRunError?: { message: string; householdName: string; memberName: string };
-    // set by POST /items when it re-renders the pantry
-    addError?: string;
-    // set by the join endpoints when they re-render the join page
-    joinError?: { message: string; status: number; code?: string; memberName?: string };
-    // set by POST /household/invite-link and /household/device-link so the page
-    // can show the raw token once; only its hash is stored
-    newInviteLink?: { token: string; expiresAt: number };
-    // set by the community endpoints when they re-render /communities
-    communityError?: { message: string; status: number; name?: string; code?: string };
-    // set by POST /communities/:id/join-link, shown once like newInviteLink
-    newCommunityLink?: { token: string; expiresAt: number };
-    newDeviceLink?: { token: string; expiresAt: number };
+    // the hashed device behind this request (8 hex), null before it has a cookie
+    who: string | null;
   }
 }

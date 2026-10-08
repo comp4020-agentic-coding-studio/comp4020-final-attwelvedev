@@ -44,38 +44,26 @@ describe("the stats view", () => {
   it("counts what people do", async () => {
     const before = await stats();
     const me = client(baseUrl, { headers: ownAddress() });
-    await me.post("/households", { householdName: "Unit 4", memberName: "Sam" });
-    await me.post("/items", { name: "Milk" });
+    await me.get("/");
+    await me.get("/");
     const after = await stats();
-    expect(after.actions["household.create"]).toBeGreaterThan(
-      before.actions["household.create"] ?? 0,
+    expect(after.actions["view.home"]).toBeGreaterThanOrEqual(
+      (before.actions["view.home"] ?? 0) + 2,
     );
-    expect(after.actions["item.add"]).toBeGreaterThan(before.actions["item.add"] ?? 0);
     expect(after.requests).toBeGreaterThanOrEqual(before.requests + 2);
-    expect(after.recent.some((r) => r.action === "item.add" && r.who?.match(/^[0-9a-f]{8}$/))).toBe(
-      true,
-    );
+    expect(
+      after.recent.some((r) => r.action === "view.home" && r.who?.match(/^[0-9a-f]{8}$/)),
+    ).toBe(true);
   });
 
-  it("shows no name, item or link token, in the data or the page", async () => {
-    const tag = randomUUID().slice(0, 8);
-    const secretItem = `SECRETMILK-${tag}`;
-    const nosy = `NOSY-${tag}`;
-    const me = client(baseUrl, { headers: ownAddress() });
-    await me.post("/households", { householdName: `SECRETHOME-${tag}`, memberName: nosy });
-    await me.post("/items", { name: secretItem });
-    const html = await (await me.post("/household/invite-link")).text();
-    const path = html.match(/\/join\/([A-Za-z0-9_-]{22})/)?.[0] ?? "";
-    const token = path.split("/").pop() ?? "";
-    expect(token).toHaveLength(22);
-    await fetch(new URL(path, baseUrl)); // the page that carries the token in its path
-
+  it("shows no name or message, in the data or the page", async () => {
+    const secret = `SECRET-${randomUUID().slice(0, 8)}`;
+    // routes are patterns, so a query string never reaches the log or the counts
+    await fetch(new URL(`/?nickname=${secret}`, baseUrl));
     const data = await (await fetch(new URL("/stats.json", baseUrl))).text();
     const page = await (await fetch(new URL("/stats", baseUrl))).text();
-    for (const secret of [secretItem, nosy, `SECRETHOME-${tag}`, token]) {
-      expect(data).not.toContain(secret);
-      expect(page).not.toContain(secret);
-    }
+    expect(data).not.toContain(secret);
+    expect(page).not.toContain(secret);
   });
 
   it("does not count looking at itself", async () => {

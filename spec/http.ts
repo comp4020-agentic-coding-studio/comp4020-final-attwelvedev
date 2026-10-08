@@ -1,7 +1,7 @@
 import { JSDOM } from "jsdom";
 
 // A black-box client with its own cookie jar, so each test can be its own
-// person (and household) against the one shared running app.
+// person (and device) against the one shared running app.
 
 export interface Client {
   get(path: string, headers?: Record<string, string>): Promise<Response>; // follows no redirects

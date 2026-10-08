@@ -6,22 +6,11 @@ import "../styles/tokens.css";
 
 interface Props {
   title: string;
-  // a desktop layout with room for the offers rail beside the pantry
+  // a wider layout on desktop
   wide?: boolean;
 }
 
 const { title, wide = false } = Astro.props;
-const here = Astro.url.pathname;
-const session = Astro.locals.session;
-// About lives in the footer; the tabs are the places a household goes daily
-const NAV = [
-  { href: "/", label: "Pantry" },
-  ...(session ? [{ href: "/offers", label: "Offers" }] : []),
-  { href: "/history", label: "History" },
-  ...(session ? [{ href: "/household", label: "Household" }] : []),
-];
-// a section is current on its sub-pages too (/household/devices)
-const current = (href: string) => (href === "/" ? here === href : here.startsWith(href));
 ---
 
 <!doctype html>
@@ -36,10 +25,7 @@ const current = (href: string) => (href === "/" ? here === href : here.startsWit
     <a class="skip" href="#main">Skip to content</a>
     <header class="band">
       <div class={wide ? "band-inner wide" : "band-inner"}>
-        <p class="brand">{session ? session.household.name : "Shared pantry"}</p>
-        <nav aria-label="Main" class="tabs">
-          {NAV.map((l) => <a href={l.href} aria-current={current(l.href) ? "page" : undefined}>{l.label}</a>)}
-        </nav>
+        <p class="brand">Sensory heist</p>
       </div>
     </header>
     <main id="main" class={wide ? "wide" : undefined}>

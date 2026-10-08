@@ -15,7 +15,7 @@ describe("redact", () => {
       lat: -35.28,
       lng: 149.12,
       token: "abc",
-      cookie: "pantry_device=abc",
+      cookie: "heist_device=abc",
       photo: "data:...",
       memberName: "Sam",
       itemName: "milk",

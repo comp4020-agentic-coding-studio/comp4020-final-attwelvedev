@@ -11,12 +11,11 @@ function line(over: Partial<RequestLine> & { at?: number } = {}): RequestLine {
     ts: new Date(at).toISOString(),
     kind: "request",
     method: "POST",
-    route: "/items",
+    route: "/lobby/[code]",
     action: "item.add",
     status: 200,
     ms: 3,
     who: "aaaaaaaa",
-    hh: "bbbbbbbb",
     ...rest,
   };
 }
