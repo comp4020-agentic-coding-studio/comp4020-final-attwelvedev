@@ -25,3 +25,31 @@ describe("parseClientMsg", () => {
     expect(parseClientMsg(raw)).toBeNull();
   });
 });
+
+describe("parseClientMsg lobby messages", () => {
+  it("accepts the lobby messages with well-typed bodies", () => {
+    expect(parseClientMsg('{"t":"lobbies.watch"}')).toEqual({ t: "lobbies.watch" });
+    expect(parseClientMsg('{"t":"lobby.create","nickname":"Ana"}')).toEqual({
+      t: "lobby.create",
+      nickname: "Ana",
+    });
+    expect(
+      parseClientMsg('{"t":"lobby.join","code":"KMQZ","nickname":"Bo","as":"spectator"}'),
+    ).toEqual({ t: "lobby.join", code: "KMQZ", nickname: "Bo", as: "spectator" });
+    expect(parseClientMsg('{"t":"lobby.leave"}')).toEqual({ t: "lobby.leave" });
+    expect(parseClientMsg('{"t":"lobby.team","name":"Owls"}')).toEqual({
+      t: "lobby.team",
+      name: "Owls",
+    });
+  });
+
+  it.each([
+    '{"t":"lobby.create"}',
+    '{"t":"lobby.create","nickname":5}',
+    '{"t":"lobby.join","code":"KMQZ","nickname":"Bo"}',
+    '{"t":"lobby.join","code":"KMQZ","nickname":"Bo","as":"boss"}',
+    '{"t":"lobby.team","name":null}',
+  ])("rejects %s", (raw) => {
+    expect(parseClientMsg(raw)).toBeNull();
+  });
+});

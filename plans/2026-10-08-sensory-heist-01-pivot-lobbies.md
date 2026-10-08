@@ -236,7 +236,7 @@ before `next()`.
 
 ### Task 2: Serve WebSockets at `/ws` from a custom server, in prod and dev
 
-**Status:** done — see the commit tagged in `git log` for "WebSocket endpoint". Verified: `pnpm check` (64 tests), `spec/ws.test.ts` against `pnpm start` and `pnpm dev`, and the full spec project against the built Docker image. Static serving amended (see §4).
+**Status:** done — commit `192ddba`. Verified: `pnpm check` (64 tests), `spec/ws.test.ts` against `pnpm start` and `pnpm dev`, and the full spec project against the built Docker image. Static serving amended (see §4).
 
 **Description.** Run the Astro handler inside our own Node server and attach
 a `ws` server at `/ws` that identifies the device from its cookie, answers
@@ -315,6 +315,8 @@ so dev and prod share one upgrade path.
 **Depends on:** Task 1.
 
 ### Task 3: Lobbies: create, join by code, seats, spectators, open list
+
+**Status:** done. Judgement calls: the plan's `normaliseLobbyCode(" k7mq ")` example contained a digit, which the letters-only alphabet (plan §4, spec §2.1) rejects, so the test uses `kmqz` and asserts a digit is rejected. Added beyond the interface list, all named in §4 or needed to use it: `LOBBY_ALPHABET` and `newLobbyCode` (`codes.ts`), `expireIdle` (the 10-minute idle sweep), `src/net/broadcast.ts` (the planned split of `attach.ts`). Seats of players who close their tab stay held (shown disconnected) until the lobby idles out or they press leave; see the report.
 
 **Description.** The in-memory lobby registry and its protocol messages.
 
