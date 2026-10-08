@@ -15,6 +15,9 @@ export default defineConfig({
           // deployed app (Sydney) that is more than vitest's default 5 s. The
           // 1 s live-sync bounds are assertions in the specs, not this timeout.
           testTimeout: 30_000,
+          // Launching Chrome in a file's beforeAll takes seconds on a small CI runner
+          // with dozens of files starting at once; the default 10 s is not enough there.
+          hookTimeout: 60_000,
           globalSetup: ["./spec/global-setup.ts"],
         },
       },
