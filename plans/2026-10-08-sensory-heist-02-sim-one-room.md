@@ -6,7 +6,7 @@
 - **Part of:** `plans/2026-10-08-sensory-heist-00-overview.md`. Read it first,
   especially §3 (layering: `src/game/` is pure), §4.1, §4.2, §4.3, §4.4.
 - **Depends on phases:** 01.
-- **Progress:** Tasks 5–6 done.
+- **Progress:** Tasks 5–7 done; Task 8 next.
 
 ## 1. Summary
 

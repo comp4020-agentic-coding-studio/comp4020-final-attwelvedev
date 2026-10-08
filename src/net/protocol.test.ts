@@ -53,3 +53,35 @@ describe("parseClientMsg lobby messages", () => {
     expect(parseClientMsg(raw)).toBeNull();
   });
 });
+
+describe("parseClientMsg game messages", () => {
+  it("accepts start, ready and a well-typed input", () => {
+    expect(parseClientMsg('{"t":"lobby.start"}')).toEqual({ t: "lobby.start" });
+    expect(parseClientMsg('{"t":"ready"}')).toEqual({ t: "ready" });
+    expect(parseClientMsg('{"t":"input","seq":3,"move":{"x":1,"y":-0.5},"act":true}')).toEqual({
+      t: "input",
+      seq: 3,
+      move: { x: 1, y: -0.5 },
+      act: true,
+    });
+  });
+
+  it("clamps move components to [-1, 1]", () => {
+    expect(parseClientMsg('{"t":"input","seq":1,"move":{"x":9,"y":-9},"act":false}')).toEqual({
+      t: "input",
+      seq: 1,
+      move: { x: 1, y: -1 },
+      act: false,
+    });
+  });
+
+  it.each([
+    ["a missing move", '{"t":"input","seq":1,"act":false}'],
+    ["a string seq", '{"t":"input","seq":"1","move":{"x":0,"y":0},"act":false}'],
+    ["a negative seq", '{"t":"input","seq":-1,"move":{"x":0,"y":0},"act":false}'],
+    ["a non-boolean act", '{"t":"input","seq":1,"move":{"x":0,"y":0},"act":1}'],
+    ["a non-numeric move", '{"t":"input","seq":1,"move":{"x":"1","y":0},"act":false}'],
+  ])("returns null for an input with %s", (_name, raw) => {
+    expect(parseClientMsg(raw)).toBeNull();
+  });
+});

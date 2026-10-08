@@ -1,11 +1,16 @@
 import type { IncomingMessage, Server } from "node:http";
 import type { Duplex } from "node:stream";
 import { type RawData, type WebSocket, WebSocketServer } from "ws";
+import type { Room } from "../game/rooms/format.ts";
+import { loadRooms } from "../game/rooms/load.ts";
+import { TICK_MS } from "../game/sim/world.ts";
+import type { Seat } from "../game/types.ts";
 import { anon } from "../lib/requestLog.ts";
 import { DEVICE_COOKIE } from "../lib/session.ts";
 import { joinThrottle } from "../lib/throttle.ts";
 import { createHub } from "./broadcast.ts";
 import { normaliseLobbyCode } from "./codes.ts";
+import { applyInput, crewOf, type Game, startGame, tickGame } from "./game.ts";
 import {
   createLobby,
   createRegistry,
@@ -16,6 +21,7 @@ import {
   openLobbies,
   setConnected,
   setTeamName,
+  startLobby,
 } from "./lobbies.ts";
 import { type ClientMsg, parseClientMsg } from "./protocol.ts";
 
@@ -30,6 +36,64 @@ const missed = new WeakMap<WebSocket, number>();
 const registry = createRegistry();
 const hub = createHub(registry);
 const idleSince = new Map<string, number>(); // lobby code → first seen with no connected human
+
+// One running game per playing lobby. It ticks once all three seats are ready.
+interface Running {
+  game: Game;
+  full: Set<Seat>; // seats owed a full view (tiles) on the next tick
+  timer: ReturnType<typeof setInterval> | null;
+}
+const games = new Map<string, Running>(); // lobby code → game
+
+let rooms: Room[] | null = null;
+const roomList = (): Room[] => {
+  rooms ??= loadRooms();
+  return rooms;
+};
+
+const seatOfDevice = (code: string, who: string): Seat | null => {
+  const at = registry.lobbies.get(code)?.seats.findIndex((s) => s.who === who) ?? -1;
+  return at >= 0 ? (at as Seat) : null;
+};
+
+function sendReveal(code: string, seat: Seat): void {
+  const lobby = registry.lobbies.get(code);
+  const running = games.get(code);
+  const who = lobby?.seats[seat]?.who;
+  if (!lobby || !running || !who) return;
+  hub.sendTo(who, {
+    t: "reveal",
+    room: running.game.world.room.id,
+    index: running.game.roomIndex,
+    role: running.game.roles[seat] as (typeof running.game.roles)[number],
+    crew: crewOf(lobby, running.game),
+  });
+}
+
+function tick(code: string): void {
+  const running = games.get(code);
+  const lobby = registry.lobbies.get(code);
+  if (!running || !lobby) return;
+  const { views, cleared } = tickGame(running.game, running.full);
+  running.full.clear();
+  for (const [seat, view] of views) {
+    const who = lobby.seats[seat]?.who;
+    if (who) hub.sendTo(who, { t: "view", view });
+  }
+  if (cleared && running.timer) {
+    clearInterval(running.timer);
+    running.timer = null;
+  }
+}
+
+// A game whose lobby is gone stops ticking.
+function reapGames(): void {
+  for (const [code, running] of games) {
+    if (registry.lobbies.has(code)) continue;
+    if (running.timer) clearInterval(running.timer);
+    games.delete(code);
+  }
+}
 
 function deviceToken(req: IncomingMessage): string | null {
   for (const part of (req.headers.cookie ?? "").split(";")) {
@@ -82,10 +146,45 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
       case "lobby.team":
         change(who, () => setTeamName(registry, who, msg.name));
         return;
+      case "lobby.start": {
+        const open = registry.lobbies.get(registry.byDevice.get(who) ?? "");
+        if (open && games.has(open.code)) return; // already playing
+        const lobby = startLobby(registry, who);
+        const game = startGame(lobby, roomList());
+        games.set(lobby.code, { game, full: new Set([0, 1, 2]), timer: null });
+        for (const seat of [0, 1, 2] as const) sendReveal(lobby.code, seat);
+        hub.broadcast(lobby);
+        return;
+      }
+      case "ready": {
+        const code = registry.byDevice.get(who);
+        const running = code ? games.get(code) : undefined;
+        const seat = code ? seatOfDevice(code, who) : null;
+        if (!code || !running || seat === null) return;
+        running.game.ready.add(seat);
+        if (
+          running.game.ready.size === 3 &&
+          !running.timer &&
+          running.game.world.status === "playing"
+        ) {
+          running.timer = setInterval(() => tick(code), TICK_MS);
+        }
+        return;
+      }
+      case "input": {
+        const code = registry.byDevice.get(who);
+        const running = code ? games.get(code) : undefined;
+        const seat = code ? seatOfDevice(code, who) : null;
+        if (!running || seat === null) return;
+        applyInput(running.game, seat, { seq: msg.seq, move: msg.move, act: msg.act });
+        return;
+      }
     }
   } catch (error) {
     if (!(error instanceof LobbyError)) throw error;
     send(socket, { t: "error", code: error.code, message: error.message });
+  } finally {
+    reapGames();
   }
 }
 
@@ -99,6 +198,15 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
   hub.socketsOf.set(who, sockets);
   const back = setConnected(registry, who, true);
   if (back) hub.broadcast(back);
+  // A device coming back to a game in progress is told its role again and gets
+  // a full view next tick, so a reload or a dropped connection resumes in place.
+  const code = registry.byDevice.get(who);
+  const seat = code ? seatOfDevice(code, who) : null;
+  const resumed = code ? games.get(code) : undefined;
+  if (code && seat !== null && resumed) {
+    resumed.full.add(seat);
+    sendReveal(code, seat);
+  }
 
   socket.on("pong", () => missed.set(socket, 0));
   socket.on("message", (data: RawData, isBinary: boolean) => {
@@ -136,6 +244,7 @@ setInterval(() => {
 setInterval(() => {
   for (const lobby of expireIdle(registry, idleSince, Date.now(), IDLE_LOBBY_MS))
     hub.broadcast(lobby);
+  reapGames();
 }, SWEEP_MS).unref();
 
 // Only /ws is ours; any other upgrade (Vite's HMR socket in dev) is left alone.
