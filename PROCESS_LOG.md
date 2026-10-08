@@ -175,3 +175,27 @@ were never about food. How I knew the cut was clean: `pnpm check` and
 `pnpm check:evidence` stayed green on the stripped app, the grep for any
 remaining pantry or household wording in `src` and `spec` came back empty, and
 a first page view issues the new `heist_device` cookie.
+
+## 2026-10-08 — Playtesting found three bugs the green suite could not
+
+4d86a17
+
+Task 8 had a Human review, and the full check was green (types, lint, 255
+tests, a three-browser layout spec) before I played it. Playing it found four
+things in a few minutes: a door that shut behind one player and stranded them,
+a crate that only sometimes moved (never "backwards"), a player frozen after
+reloading, and no sign when a teammate left. The obvious move was to patch what
+I saw. I made each one start as a failing test instead.
+
+The push bug is the example. The sim counted a crate as touched within 2e-5
+tiles, but a walking player stops up to 1e-3 short, so success depended on the
+starting offset. A test over 20 offsets in all four directions failed in every
+direction, passed with a 0.02 tolerance, and failed again with the fix stashed,
+so I knew it was the cause and not a coincidence. The freeze needed the test
+moved down to the socket: a browser test passed both before and after the fix,
+because the page predicts its own movement and so looks fine to itself. Only
+another player's view, or the raw socket, shows what the server accepted. I
+deleted that weak browser test rather than keep false coverage.
+
+The door fix changed a rule in the plan (§4.2), so the plan was edited and the
+change logged in its Corrections log instead of being patched silently.
