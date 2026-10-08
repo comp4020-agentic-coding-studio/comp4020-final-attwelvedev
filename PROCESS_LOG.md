@@ -148,3 +148,30 @@ the stream-silent case working. The one existing test the first attempt broke (a
 `offer.taken` before the response) is what showed a "row is busy" rule was too
 narrow. How I knew it held: the spec went from about 1 pass in 6 to 6 of 6, then
 the full check was green at 657 tests. Not weakened: the 1000 ms waits are unchanged.
+
+## 2026-10-08 — Pivoting from the pantry to the sensory heist
+
+a53b516, 22bbaef, 463b7b6
+
+The brief asks for an app that is more interesting because other people are
+using it at the same time, designed for a showcase room full of them. The
+pantry answered that weakly: households talk in person and the app stayed out
+of the way. It was also my third food-tracking prototype, and the domain kept
+producing small, tiring problems. The obvious move was to keep polishing the
+pantry (phase 05a was half built). I chose to stop, because more polish would
+not have made it any more about co-presence.
+
+The call went through the usual route rather than a rewrite on a whim: a
+brainstormed spec (`specs/2026-10-08-sensory-heist.md`), four new ADRs
+(0007–0010) that supersede the pantry's, and a phased plan, all committed
+before any code moved (22bbaef). The unfinished pantry work was committed as it
+stood and tagged `archive/pantry-2026-10-08` (a53b516), so nothing was lost and
+every SHA that PROCESS.md already cites still resolves. Then it was deleted from
+`main` (463b7b6).
+
+What carried over is the harness: request logging with its redaction allowlist,
+`/stats`, `/readme/`, the check scripts, the hooks and the working method. They
+were never about food. How I knew the cut was clean: `pnpm check` and
+`pnpm check:evidence` stayed green on the stripped app, the grep for any
+remaining pantry or household wording in `src` and `spec` came back empty, and
+a first page view issues the new `heist_device` cookie.

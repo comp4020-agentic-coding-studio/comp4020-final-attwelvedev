@@ -155,6 +155,8 @@ no connected humans for 10 minutes is removed.
 
 ### Task 1: Archive the pantry, remove it from `main`, reset the harness text
 
+**Status:** done — archive `a53b516` (tag `archive/pantry-2026-10-08`), docs `22bbaef`, removal `463b7b6`. README.md prose is the user's to write.
+
 **Description.** Preserve the pantry at a tag, delete it from `main`, and
 leave a green, minimal app (`/`, `/readme/`, `/stats`) that the game builds
 on. Rewrite the pantry-specific parts of `CLAUDE.md`. Log the pivot.
