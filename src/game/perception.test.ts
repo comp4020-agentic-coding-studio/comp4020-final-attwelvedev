@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { viewFor } from "./perception.ts";
+import { caughtBy } from "./sim/hazards.ts";
 import { step } from "./sim/step.ts";
-import { place, worldFrom, worldWith } from "./sim/testing.ts";
+import { gather, place, tap, worldFrom, worldWith } from "./sim/testing.ts";
 import { TICK_MS } from "./sim/world.ts";
 
 const GRID = [
@@ -72,10 +73,41 @@ describe("viewFor: what each role is told", () => {
     expect(viewFor(w, 0, "blind", false).sounds).toEqual([]);
   });
 
-  it("does not play a seat its own footsteps", () => {
+  it("plays blind and mute their own steps: centred, and a different cue from other players'", () => {
     const w = world();
     w.players[0].moving = true;
-    expect(viewFor(w, 0, "blind", false).sounds).toEqual([]);
+    for (const role of ["blind", "mute"] as const) {
+      const own = viewFor(w, 0, role, false).sounds;
+      expect(own).toHaveLength(1);
+      expect(own[0]).toMatchObject({ kind: "step", pan: 0 });
+      expect(own[0]?.gain).toBeGreaterThan(0);
+    }
+    // deaf hears nothing, their own steps included
+    expect(viewFor(w, 0, "deaf", false).sounds).toEqual([]);
+  });
+
+  it("tells your own steps from someone else's: theirs keep the footsteps cue, panned", () => {
+    const w = world();
+    place(w, 0, { x: 10, y: 1 });
+    place(w, 1, { x: 6, y: 1 });
+    w.players[0].moving = true;
+    w.players[1].moving = true;
+    const kinds = viewFor(w, 0, "blind", false).sounds.map((s) => s.kind);
+    expect(kinds.sort()).toEqual(["footsteps", "step"]);
+    const theirs = viewFor(w, 0, "blind", false).sounds.find((s) => s.kind === "footsteps");
+    expect(theirs?.pan).toBeLessThan(0);
+  });
+
+  it("bumps instead of stepping while you push at something, and only you hear it", () => {
+    const w = world();
+    place(w, 0, { x: 10, y: 1 });
+    place(w, 1, { x: 6, y: 1 });
+    w.players[0].moving = true;
+    w.players[0].blocked = true;
+    const own = viewFor(w, 0, "blind", false).sounds;
+    expect(own).toEqual([{ kind: "bump", pan: 0, gain: expect.any(Number) }]);
+    // nobody else hears the bump, and a player stuck against a wall makes no footsteps
+    expect(viewFor(w, 1, "blind", false).sounds).toEqual([]);
   });
 
   it("hums for the blind player only while standing on a plate", () => {
@@ -126,7 +158,7 @@ describe("viewFor: hazards", () => {
     "########################",
   ];
   const OBJECTS = {
-    C1: { zone: [8, 1, 12, 3], periodS: 6, watchingS: 3, offsetS: 0 },
+    C1: { facingDeg: 0, fovDeg: 90, range: 8, periodS: 6, watchingS: 3, offsetS: 0 },
     L1: { dir: "right", onS: 2, offS: 2, offsetS: 0 },
     G1: { sightTiles: 6, fovDeg: 70, speedTps: 1.5 },
     S1: { shows: ["p1"] },
@@ -140,7 +172,7 @@ describe("viewFor: hazards", () => {
     expect(JSON.stringify(view)).not.toMatch(/cone|zone|beam|shows/);
   });
 
-  it("deaf and mute get them, with the cone, zone and beam to draw", () => {
+  it("deaf and mute get them, with the cones and beam to draw", () => {
     for (const role of ["deaf", "mute"] as const) {
       const view = viewFor(hazardWorld(), 1, role, false);
       for (const kind of ["guard", "camera", "laser", "hide", "checkpoint", "loot", "sign"]) {
@@ -150,7 +182,11 @@ describe("viewFor: hazards", () => {
         fovDeg: 70,
         range: 6,
       });
-      expect(view.entities.find((e) => e.kind === "camera")?.zone).toEqual([8, 1, 12, 3]);
+      expect(view.entities.find((e) => e.kind === "camera")?.cone).toEqual({
+        fovDeg: 90,
+        range: 8,
+      });
+      expect(view.entities.find((e) => e.kind === "camera")?.facing?.x).toBeCloseTo(1, 6); // looking east
       const laser = view.entities.find((e) => e.kind === "laser");
       expect(laser?.beam?.length).toBeGreaterThan(5);
       expect(laser?.state).toBe("on");
@@ -175,11 +211,14 @@ describe("viewFor: hazards", () => {
     place(world, 0, { x: 19, y: 2 });
     step(world, {}, TICK_MS);
     expect(kinds(viewFor(world, 1, "deaf", false))).not.toContain("loot");
+    const flag = () =>
+      viewFor(world, 1, "deaf", false).entities.find((e) => e.kind === "checkpoint");
     place(world, 0, { x: 17, y: 2 });
     step(world, {}, TICK_MS);
-    expect(
-      viewFor(world, 1, "deaf", false).entities.find((e) => e.kind === "checkpoint")?.state,
-    ).toBe("reached");
+    expect(flag()).toMatchObject({ state: "up", present: 1 }); // one of three is there
+    gather(world, { x: 17, y: 2 });
+    step(world, {}, TICK_MS);
+    expect(flag()?.state).toBe("reached");
   });
 
   it("sends a moving guard's position and facing, never to blind", () => {
@@ -281,16 +320,65 @@ describe("viewFor: environment flips", () => {
       expect(view.sounds.some((s) => s.kind === "footsteps")).toBe(true);
     });
 
-    it("can be set off by being caught", () => {
-      const grid = GRID.map((r, y) => (y === 1 ? `${r.slice(0, 9)}C${r.slice(10)}` : r));
+    it("is cleared when the team is caught: the retry starts clean", () => {
+      const grid = PLATE.map((r, y) => (y === 1 ? `${r.slice(0, 9)}C${r.slice(10)}` : r));
       const world = worldWith(
         grid,
-        { C1: { zone: [10, 1, 14, 3], periodS: 6, watchingS: 3, offsetS: 0 } },
-        { flips: [{ kind: "alarm", trigger: "caught", durationS: 8 }] },
+        { C1: { facingDeg: 0, fovDeg: 90, range: 8, periodS: 6, watchingS: 3, offsetS: 0 } },
+        ALARM,
       );
-      place(world, 1, { x: 12, y: 2 });
+      place(world, 0, { x: 7, y: 2 }); // the plate: alarm on
       step(world, {}, TICK_MS);
       expect(viewFor(world, 0, "mute", false).alarm).toBe(true);
+      place(world, 0, { x: 3, y: 2 });
+      place(world, 1, { x: 12, y: 2 }); // into the watched zone
+      step(world, {}, TICK_MS);
+      expect(world.events.some((e) => e.kind === "caught")).toBe(true);
+      expect(viewFor(world, 0, "mute", false).alarm).toBe(false);
+      expect(viewFor(world, 0, "blind", false).sounds.some((s) => s.kind === "alarm")).toBe(false);
+    });
+
+    it("makes cameras watch non-stop while it is on", () => {
+      const grid = PLATE.map((r, y) => (y === 1 ? `${r.slice(0, 9)}C${r.slice(10)}` : r));
+      const objects = {
+        C1: { facingDeg: 0, fovDeg: 90, range: 8, periodS: 6, watchingS: 3, offsetS: 0 },
+      };
+      const world = worldWith(grid, objects, ALARM);
+      world.tick = 70; // 3.5 s: the camera is idle
+      place(world, 1, { x: 12, y: 2 });
+      expect(caughtBy(world)).toBeNull();
+      expect(
+        viewFor(world, 1, "deaf", false).entities.find((e) => e.kind === "camera")?.state,
+      ).toBe("idle");
+      world.alarmUntil = world.tick + 100;
+      expect(caughtBy(world)).toBe("C1");
+      expect(
+        viewFor(world, 1, "deaf", false).entities.find((e) => e.kind === "camera")?.state,
+      ).toBe("watching");
+    });
+
+    it("makes guards walk half as fast again while it is on", () => {
+      const grid = GRID.map((r, y) => (y === 2 ? `${r.slice(0, 5)}G${r.slice(6)}` : r));
+      const patrolled = {
+        G1: {
+          patrol: [
+            [5, 2],
+            [20, 2],
+          ],
+          speedTps: 1.5,
+          sightTiles: 1,
+          fovDeg: 10,
+        },
+      };
+      const calm = worldWith(grid, patrolled, ALARM);
+      const loud = worldWith(grid, patrolled, ALARM);
+      loud.alarmUntil = 1000;
+      for (let i = 0; i < 20; i++) {
+        step(calm, {}, TICK_MS);
+        step(loud, {}, TICK_MS);
+      }
+      expect((calm.guards[0]?.pos.x ?? 0) - 5.5).toBeCloseTo(1.5, 1); // 1 s at 1.5 tiles/s
+      expect((loud.guards[0]?.pos.x ?? 0) - 5.5).toBeCloseTo(2.25, 1); // 1.5 times that
     });
   });
 });
@@ -319,6 +407,7 @@ describe("viewFor: audio cues for blind and mute", () => {
     );
     const world = worldWith(grid, { G1: patrol(11), G2: patrol(24) });
     place(world, 0, { x: 14, y: 2 });
+    for (const g of world.guards) g.moving = true; // walking, so they make footsteps
     const guards = viewFor(world, 0, "blind", false).sounds.filter((s) => s.kind === "guard");
     expect(guards).toHaveLength(2);
     const [near, far] = guards.sort((a, b) => b.gain - a.gain) as [
@@ -346,7 +435,7 @@ describe("viewFor: audio cues for blind and mute", () => {
   it("whirs on the tick a camera starts watching, once", () => {
     const grid = GRID.map((r, y) => (y === 1 ? "#1....C.......................#" : r));
     const world = worldWith(grid, {
-      C1: { zone: [8, 1, 12, 3], periodS: 6, watchingS: 3, offsetS: 0 },
+      C1: { facingDeg: 0, fovDeg: 90, range: 8, periodS: 6, watchingS: 3, offsetS: 0 },
     });
     place(world, 0, { x: 3, y: 3 });
     world.tick = 120;
@@ -361,10 +450,130 @@ describe("viewFor: audio cues for blind and mute", () => {
     place(world, 1, { x: 7, y: 2 });
     step(world, {}, TICK_MS);
     expect(viewFor(world, 0, "blind", false).sounds.some((s) => s.kind === "loot")).toBe(true);
-    place(world, 1, { x: 12, y: 2 });
+    gather(world, { x: 12, y: 2 });
     step(world, {}, TICK_MS);
     expect(viewFor(world, 0, "blind", false).sounds.some((s) => s.kind === "checkpoint")).toBe(
       true,
     );
+  });
+});
+
+describe("viewFor: a sign tracks its sequence door", () => {
+  const GRID = [
+    "####################",
+    "#1..p.p.p..#.......#",
+    "#2.....S...D.....E.#",
+    "#3.........#.......#",
+    "####################",
+  ];
+  const objects = {
+    D1: { mode: "sequence", opensWhen: ["p2", "p1", "p3"] },
+    S1: { shows: ["p2", "p1", "p3"] },
+  };
+  const press = (world: ReturnType<typeof worldWith>, x: number) =>
+    tap(world, 0, { x, y: 1 }, { x: 2, y: 1 });
+  const sign = (world: ReturnType<typeof worldWith>) =>
+    viewFor(world, 1, "deaf", false).entities.find((e) => e.kind === "sign");
+
+  it("starts with nothing done and no clock", () => {
+    const view = sign(worldWith(GRID, objects));
+    expect(view?.progress).toBe(0);
+    expect(view?.window).toBeUndefined();
+  });
+
+  it("counts plates done in order, with the share of the 5 s window left", () => {
+    const world = worldWith(GRID, objects);
+    press(world, 6); // p2
+    expect(sign(world)?.progress).toBe(1);
+    expect(sign(world)?.window).toBeCloseTo(0.99, 2);
+    for (let i = 0; i < 50; i++) step(world, {}, TICK_MS); // 2.5 s
+    expect(sign(world)?.window).toBeCloseTo(0.49, 1);
+  });
+
+  it("clears when the window runs out or a wrong plate is pressed", () => {
+    const world = worldWith(GRID, objects);
+    press(world, 6);
+    for (let i = 0; i < 105; i++) step(world, {}, TICK_MS); // past 5 s
+    expect(sign(world)?.progress).toBe(0);
+    expect(sign(world)?.window).toBeUndefined();
+    press(world, 6);
+    press(world, 8); // p3 before p1: wrong
+    expect(sign(world)?.progress).toBe(0);
+  });
+
+  it("shows every plate done, and no clock, once the door has opened", () => {
+    const world = worldWith(GRID, objects);
+    press(world, 6);
+    press(world, 4);
+    press(world, 8);
+    expect(sign(world)?.progress).toBe(3);
+    expect(sign(world)?.window).toBeUndefined();
+  });
+
+  it("tells blind nothing: the sign is not sent", () => {
+    const world = worldWith(GRID, objects);
+    press(world, 6);
+    expect(JSON.stringify(viewFor(world, 0, "blind", false))).not.toMatch(/progress|window|sign/);
+  });
+});
+
+describe("viewFor: how far each kind of sound carries", () => {
+  const GRID = [
+    "##############################",
+    "#1............................#",
+    "#2............................#",
+    "#3............................#",
+    "##############################",
+  ];
+  const heard = (w: ReturnType<typeof worldWith>, kind: string) =>
+    viewFor(w, 0, "blind", false).sounds.filter((s) => s.kind === kind);
+  const far = (put: string) =>
+    worldWith(GRID.map((r, y) => (y === 2 ? `#2${put.padEnd(27, ".")}#` : r)));
+
+  it("a plate click is local: loud beside you, fainter further off, gone beyond 8 tiles", () => {
+    const w = far("........p"); // the plate is at x = 10
+    place(w, 0, { x: 9, y: 1 });
+    place(w, 1, { x: 10, y: 2 });
+    step(w, {}, TICK_MS);
+    const near = heard(w, "plate")[0];
+    expect(near?.gain).toBeGreaterThan(0.7);
+    place(w, 0, { x: 5, y: 1 }); // 5 tiles away
+    const mid = heard(w, "plate")[0];
+    expect(mid?.gain).toBeGreaterThan(0);
+    expect(mid?.gain).toBeLessThan(near?.gain ?? 0);
+    place(w, 0, { x: 1, y: 1 }); // 9 tiles away
+    expect(heard(w, "plate")).toEqual([]);
+  });
+
+  it("releasing a plate and hiding are local too, and only a few tiles", () => {
+    const w = far("........p");
+    place(w, 1, { x: 10, y: 2 });
+    step(w, {}, TICK_MS);
+    place(w, 1, { x: 15, y: 3 });
+    step(w, {}, TICK_MS);
+    place(w, 0, { x: 3, y: 1 });
+    expect(heard(w, "plate-up")).toEqual([]);
+    place(w, 0, { x: 13, y: 1 });
+    expect(heard(w, "plate-up")).toHaveLength(1);
+    const h = worldWith(GRID.map((r, y) => (y === 2 ? "#2.......h....................#" : r)));
+    place(h, 1, { x: 9, y: 2 });
+    step(h, {}, TICK_MS);
+    place(h, 0, { x: 1, y: 1 });
+    expect(heard(h, "hide")).toEqual([]);
+  });
+
+  it("team signals stay global: the flag, the exit, the loot and a cleared room carry the whole room", () => {
+    const w = worldWith(GRID.map((r, y) => (y === 2 ? "#2.....K.........E.$..........#" : r)));
+    place(w, 0, { x: 28, y: 1 });
+    place(w, 1, { x: 7, y: 2 }); // by the flag, 21 tiles from seat 0
+    step(w, {}, TICK_MS);
+    expect(heard(w, "flag")).toHaveLength(1);
+    expect(heard(w, "flag")[0]?.gain).toBe(1);
+    place(w, 1, { x: 17, y: 2 });
+    step(w, {}, TICK_MS);
+    expect(heard(w, "exit")).toHaveLength(1);
+    place(w, 1, { x: 19, y: 2 });
+    step(w, {}, TICK_MS);
+    expect(heard(w, "loot")).toHaveLength(1);
   });
 });

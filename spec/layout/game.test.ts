@@ -131,8 +131,8 @@ describe("the game screen", () => {
     await deaf.waitForTimeout(300);
     expect(await canvasHash(deaf)).not.toBe(spawn);
 
-    await host.getByRole("button", { name: "Restart" }).click();
-    await host.getByRole("button", { name: "Sure? Restart" }).click();
+    await host.getByRole("button", { name: "Restart room", exact: true }).click();
+    await host.getByRole("button", { name: "Sure? Restart room", exact: true }).click();
     await expect.poll(() => canvasHash(deaf), { timeout: 3000 }).toBe(spawn);
     await leaveGameAndClose(host, baseUrl);
     await leaveGameAndClose(deaf, baseUrl);
@@ -145,8 +145,8 @@ describe("the game screen", () => {
     await deaf.keyboard.down("d");
     await deaf.waitForTimeout(600);
     await deaf.keyboard.up("d");
-    await host.getByRole("button", { name: "Restart" }).click();
-    await host.getByRole("button", { name: "Sure? Restart" }).click();
+    await host.getByRole("button", { name: "Restart room", exact: true }).click();
+    await host.getByRole("button", { name: "Sure? Restart room", exact: true }).click();
     await deaf.waitForTimeout(500);
     for (const page of [deaf, mute]) {
       const before = await canvasHash(page);

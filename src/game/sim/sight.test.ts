@@ -28,6 +28,27 @@ describe("lineOfSight", () => {
   });
 });
 
+describe("lineOfSight: hide spots are cover", () => {
+  const COVER = [
+    "####################",
+    "#1.....h...........#",
+    "#2.................#",
+    "#3.................#",
+    "####################",
+  ];
+  it("is blocked by a hide spot between the two points, not beside it", () => {
+    const world = worldFrom(COVER);
+    expect(lineOfSight(world, at(3, 1), at(11, 1))).toBe(false);
+    expect(lineOfSight(world, at(3, 2), at(11, 2))).toBe(true);
+  });
+
+  it("is not blocked by the hide spot you are standing on or looking at", () => {
+    const world = worldFrom(COVER);
+    expect(lineOfSight(world, at(7, 1), at(11, 1))).toBe(true);
+    expect(lineOfSight(world, at(3, 1), at(7, 1))).toBe(true);
+  });
+});
+
 describe("inCone", () => {
   const from = at(5, 2);
   const facing = { x: 1, y: 0 };

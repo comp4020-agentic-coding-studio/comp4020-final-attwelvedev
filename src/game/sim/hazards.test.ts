@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { cameraWatching, caughtBy, laserOn } from "./hazards.ts";
-import { step } from "./step.ts";
-import { hold, input, place, tap, worldWith } from "./testing.ts";
-import { TICK_MS, type World } from "./world.ts";
+import { hold, place, worldWith } from "./testing.ts";
+import { TICK_MS } from "./world.ts";
 
 const T = (seconds: number) => Math.round((seconds * 1000) / TICK_MS);
 const tile = (x: number, y: number) => ({ x, y });
@@ -40,34 +39,82 @@ const ROOM = [
   "#3...K...L.....B.....#",
   "######################",
 ];
-const CAMERA = { C1: { zone: [10, 1, 14, 3], periodS: 6, watchingS: 3, offsetS: 0 } };
+// C1 is at (7, 1), looking east, 60 degrees wide, 10 tiles deep
+const CAMERA = {
+  C1: { facingDeg: 0, fovDeg: 60, range: 10, periodS: 6, watchingS: 3, offsetS: 0 },
+};
 const LASER = { L1: { dir: "right", onS: 2, offS: 2, offsetS: 0 } };
 
 describe("caughtBy: cameras", () => {
-  it("catches a player in a watched zone, not in an unwatched one or outside it", () => {
+  it("catches a player in its cone while it is watching, and not while it looks away", () => {
     const world = worldWith(ROOM, CAMERA);
-    place(world, 0, tile(12, 2));
+    place(world, 0, tile(12, 1));
     expect(caughtBy(world)).toBe("C1");
     world.tick = T(4);
     expect(caughtBy(world)).toBeNull();
-    world.tick = 0;
-    place(world, 0, tile(5, 2));
+  });
+
+  it("only sees a cone: not behind it, not off to the side, not beyond its range", () => {
+    const world = worldWith(ROOM, CAMERA);
+    place(world, 0, tile(4, 1)); // behind
     expect(caughtBy(world)).toBeNull();
+    place(world, 0, tile(9, 3)); // 45 degrees off the line: outside the 30 either side
+    expect(caughtBy(world)).toBeNull();
+    place(world, 0, tile(19, 1)); // 12 tiles: past its range
+    expect(caughtBy(world)).toBeNull();
+    place(world, 0, tile(12, 2)); // slightly off the line, inside
+    expect(caughtBy(world)).toBe("C1");
   });
 
   it("does not see a player on a hide spot", () => {
-    // the hide spot is at x=15, outside the usual zone: widen the zone over it
-    const wide = worldWith(ROOM, { C1: { ...CAMERA.C1, zone: [10, 1, 18, 3] } });
-    place(wide, 0, tile(15, 1));
-    expect(caughtBy(wide)).toBeNull();
-    place(wide, 0, tile(16, 1));
-    expect(caughtBy(wide)).toBe("C1");
+    const world = worldWith(ROOM, CAMERA);
+    place(world, 0, tile(15, 1)); // the hide spot
+    expect(caughtBy(world)).toBeNull();
+    place(world, 0, tile(16, 2)); // beside the line of the cover, in the open: seen
+    expect(caughtBy(world)).toBe("C1");
+  });
+
+  it("is blocked by a wall and by a hide spot standing in the way", () => {
+    const walled = worldWith(
+      [
+        "######################",
+        "#1.....C...#.........#",
+        "#2...................#",
+        "#3...................#",
+        "######################",
+      ],
+      CAMERA,
+    );
+    place(walled, 0, tile(14, 1));
+    expect(caughtBy(walled)).toBeNull();
+    const covered = worldWith(
+      [
+        "######################",
+        "#1.....C...h.........#",
+        "#2...................#",
+        "#3...................#",
+        "######################",
+      ],
+      CAMERA,
+    );
+    place(covered, 0, tile(14, 1)); // behind the cover
+    expect(caughtBy(covered)).toBeNull();
+    place(covered, 0, tile(14, 3)); // clear of it
+    expect(caughtBy(covered)).toBe("C1");
+  });
+
+  it("looks where facingDeg says: south from the top wall", () => {
+    const south = worldWith(ROOM, { C1: { ...CAMERA.C1, facingDeg: 90 } });
+    place(south, 0, tile(7, 3));
+    expect(caughtBy(south)).toBe("C1");
+    place(south, 0, tile(12, 1));
+    expect(caughtBy(south)).toBeNull();
   });
 });
 
 describe("caughtBy: lasers", () => {
   it("catches a player on the beam while it is on, runs to the first wall", () => {
-    const world = worldWith(ROOM, LASER);
+    const world = worldWith(ROOM, { ...LASER, ...CAMERA }); // (the camera looks east, away from the emitter)
     place(world, 0, tile(19, 3));
     expect(caughtBy(world)).toBe("L1");
     world.tick = T(2);
@@ -124,168 +171,103 @@ describe("caughtBy: guards", () => {
     expect(caughtBy(walled)).toBeNull();
   });
 
-  it("patrols between its points at speedTps, facing where it walks", () => {
-    const world = worldWith(GRID, {
-      G1: {
-        ...GUARD.G1,
-        patrol: [
-          [9, 1],
-          [15, 1],
-        ],
+  it("a hide spot is cover: a player standing behind one is not seen", () => {
+    const grid = [
+      "######################",
+      "#1.......G..h........#",
+      "#2...................#",
+      "#3...................#",
+      "######################",
+    ];
+    const world = worldWith(grid, GUARD);
+    place(world, 0, tile(14, 1)); // straight behind the hide spot at x=12
+    expect(caughtBy(world)).toBeNull();
+    place(world, 0, tile(14, 2)); // off to the side of its shadow: seen
+    expect(caughtBy(world)).toBe("G1");
+  });
+
+  const PATROL = {
+    G1: {
+      ...GUARD.G1,
+      patrol: [
+        [9, 1],
+        [15, 1],
+      ],
+      turnDegPerS: 180,
+    },
+  };
+  const deg = (v: { x: number; y: number }) => (Math.atan2(v.y, v.x) * 180) / Math.PI;
+
+  it("starts out facing the way it is going to walk", () => {
+    const world = worldWith(
+      [
+        "######################",
+        "#1.......G...........#",
+        "#2...................#",
+        "#3...................#",
+        "######################",
+      ],
+      {
+        G1: {
+          ...PATROL.G1,
+          patrol: [
+            [9, 3],
+            [9, 1],
+          ],
+        },
       },
-    });
+    );
+    expect(world.guards[0]?.facing).toEqual({ x: 0, y: -1 }); // toward the second point
+  });
+
+  it("patrols between its points at speedTps, facing where it walks", () => {
+    const world = worldWith(GRID, PATROL);
     hold(world, {}, 20); // one second
     const guard = world.guards[0];
     expect(guard?.pos.x).toBeCloseTo(9.5 + 1.5, 1);
-    expect(guard?.facing).toEqual({ x: 1, y: 0 });
-    hold(world, {}, 20 * 5); // past the far point, turning back
-    expect(world.guards[0]?.facing.x).toBe(-1);
+    expect(deg(guard?.facing ?? { x: 0, y: 0 })).toBeCloseTo(0, 3);
+    expect(guard?.moving).toBe(true);
   });
-});
 
-describe("caught: the team returns to the checkpoint", () => {
-  const caughtWorld = (): World => {
-    const world = worldWith(ROOM, CAMERA);
-    place(world, 2, tile(1, 3));
-    return world;
-  };
+  it("turns round gradually at the end of its patrol, standing still while it does", () => {
+    const world = worldWith(GRID, PATROL);
+    // 6 tiles at 1.5 tiles/s: walk until it has arrived at the far end
+    for (let i = 0; i < 200 && world.guards[0]?.target === 1; i++) hold(world, {}, 1);
+    const end = world.guards[0]?.pos.x;
+    expect(end).toBeCloseTo(15.5, 6);
+    hold(world, {}, 5); // a quarter of a second into the turn: about 45 degrees
+    const mid = world.guards[0];
+    expect(Math.abs(deg(mid?.facing ?? { x: 0, y: 0 }))).toBeGreaterThan(20);
+    expect(Math.abs(deg(mid?.facing ?? { x: 0, y: 0 }))).toBeLessThan(80);
+    expect(mid?.pos.x).toBe(end);
+    expect(mid?.moving).toBe(false);
+    hold(world, {}, 20); // the turn is done and it is walking back
+    const back = world.guards[0];
+    expect(Math.abs(deg(back?.facing ?? { x: 0, y: 0 }))).toBeCloseTo(180, 0);
+    expect(back?.pos.x ?? 99).toBeLessThan(15.5);
+  });
 
-  it("restores players, crates and loot to the checkpoint snapshot", () => {
-    const world = caughtWorld();
-    place(world, 0, tile(5, 3)); // K1
-    step(world, {}, TICK_MS);
-    expect(world.checkpoint).toBe(1);
-    expect(world.events).toContainEqual({ kind: "checkpoint", index: 1 });
-    // after the checkpoint: take loot and move the crate
-    place(world, 0, tile(19, 2));
-    step(world, {}, TICK_MS);
-    expect(world.loot).toBe(1);
-    world.crates[0] = { id: "B1", tile: tile(16, 3) };
-    // a second player walks into the watched zone
-    place(world, 1, tile(12, 2));
-    step(world, {}, TICK_MS);
-    expect(world.events).toContainEqual({ kind: "caught", by: "C1" });
-    expect(world.loot).toBe(0);
-    expect(world.lootTaken).toEqual([]);
-    expect(world.crates[0]?.tile).toEqual(tile(15, 3));
-    const spots = world.players.map((p) => `${Math.floor(p.pos.x)},${Math.floor(p.pos.y)}`);
-    expect(spots).toContain("5,3");
-    expect(new Set(spots).size).toBe(3);
-    for (const p of world.players) {
-      expect(Math.hypot(p.pos.x - 5.5, p.pos.y - 3.5)).toBeLessThan(2.5);
+  it("turns no faster than turnDegPerS, a step at a time", () => {
+    const world = worldWith(GRID, PATROL);
+    hold(world, {}, 80);
+    let last = deg(world.guards[0]?.facing ?? { x: 0, y: 0 });
+    for (let i = 0; i < 10; i++) {
+      hold(world, {}, 1);
+      const now = deg(world.guards[0]?.facing ?? { x: 0, y: 0 });
+      expect(Math.abs(now - last)).toBeLessThanOrEqual(9.0001); // 180 deg/s = 9 deg a tick
+      last = now;
     }
   });
 
-  it("goes back to the spawns when no checkpoint has been reached", () => {
-    const world = worldWith(ROOM, CAMERA);
-    place(world, 1, tile(12, 2));
-    step(world, {}, TICK_MS);
-    expect(world.events).toContainEqual({ kind: "caught", by: "C1" });
-    expect(world.players[0]?.pos).toEqual({ x: 1.5, y: 1.5 });
-    expect(world.players[1]?.pos).toEqual({ x: 1.5, y: 2.5 });
-  });
-
-  it("does not clear a room on the tick the team is caught", () => {
-    const world = worldWith(ROOM, CAMERA);
-    place(world, 1, tile(12, 2));
-    step(world, {}, TICK_MS);
-    expect(world.status).toBe("playing");
-  });
-});
-
-describe("checkpoints and loot", () => {
-  const GRID = [
-    "########################",
-    "#1.....K....K.....$....#",
-    "#2...................$.#",
-    "#3.....................#",
-    "########################",
-  ];
-  it("numbers checkpoints in reading order, never moves back to an earlier one", () => {
-    const world = worldWith(GRID);
-    place(world, 0, tile(12, 1));
-    step(world, {}, TICK_MS);
-    expect(world.checkpoint).toBe(2);
-    place(world, 0, tile(7, 1));
-    step(world, {}, TICK_MS);
-    expect(world.checkpoint).toBe(2);
-  });
-
-  it("counts loot once, by value, however long a player stands on it", () => {
-    const world = worldWith(GRID, { $2: { value: 5 } });
-    expect(world.lootTotal).toBe(6);
-    place(world, 0, tile(18, 1));
-    hold(world, {}, 10);
-    expect(world.loot).toBe(1);
-    expect(world.events.filter((e) => e.kind === "loot")).toEqual([]);
-    place(world, 1, tile(21, 2));
-    step(world, {}, TICK_MS);
-    expect(world.loot).toBe(6);
-  });
-});
-
-describe("sequence doors", () => {
-  const GRID = [
-    "####################",
-    "#1..p.p.p..#.......#",
-    "#2.........D.....E.#",
-    "#3.........#.......#",
-    "####################",
-  ];
-  const door = { D1: { mode: "sequence", opensWhen: ["p2", "p1", "p3"] } };
-  const park = tile(2, 1);
-  const press = (world: World, id: "p1" | "p2" | "p3") =>
-    tap(world, 0, tile({ p1: 4, p2: 6, p3: 8 }[id], 1), park);
-
-  it("opens only when the plates are pressed in sign order", () => {
-    const world = worldWith(GRID, door);
-    press(world, "p2");
-    press(world, "p1");
-    expect(world.doorOpen.D1).toBe(false);
-    press(world, "p3");
-    expect(world.doorOpen.D1).toBe(true);
-  });
-
-  it("stays shut in the wrong order", () => {
-    const world = worldWith(GRID, door);
-    press(world, "p1");
-    press(world, "p2");
-    press(world, "p3");
-    expect(world.doorOpen.D1).toBe(false);
-  });
-
-  it("resets after a gap of more than 5 s", () => {
-    const world = worldWith(GRID, door);
-    press(world, "p2");
-    hold(world, {}, T(5) + 2);
-    press(world, "p1");
-    press(world, "p3");
-    expect(world.doorOpen.D1).toBe(false);
-    // and the whole sequence still works afterwards
-    press(world, "p2");
-    press(world, "p1");
-    press(world, "p3");
-    expect(world.doorOpen.D1).toBe(true);
-  });
-
-  it("accepts each press within 5 s of the last", () => {
-    const world = worldWith(GRID, door);
-    press(world, "p2");
-    hold(world, {}, T(4));
-    press(world, "p1");
-    hold(world, {}, T(4));
-    press(world, "p3");
-    expect(world.doorOpen.D1).toBe(true);
-  });
-});
-
-describe("no abilities", () => {
-  it("hazards treat every seat alike", () => {
-    for (const seat of [0, 1, 2] as const) {
-      const world = worldWith(ROOM, CAMERA);
-      place(world, seat, tile(12, 2));
-      expect(caughtBy(world)).toBe("C1");
-      expect(input(0, 0).move).toEqual({ x: 0, y: 0 });
+  it("sweeps its cone round as it turns: someone beside the end of the lane is seen", () => {
+    const world = worldWith(GRID, PATROL);
+    place(world, 0, tile(15, 3)); // south of the far end, inside its 6-tile reach
+    let caught = false;
+    for (let i = 0; i < 120 && !caught; i++) {
+      hold(world, {}, 1);
+      place(world, 0, tile(15, 3)); // stay put
+      caught = caughtBy(world) === "G1";
     }
+    expect(caught).toBe(true);
   });
 });

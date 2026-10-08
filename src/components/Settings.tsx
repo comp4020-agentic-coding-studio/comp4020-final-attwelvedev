@@ -1,6 +1,7 @@
 import { useState } from "preact/hooks";
 import type { Settings as SettingsState } from "../client/settings.ts";
 import type { Role } from "../game/types.ts";
+import { ConfirmButton } from "./ConfirmButton.tsx";
 
 // The few things a person may turn on or off. Kept to a button and a small
 // panel in the top bar: the real-life presets arrive with the wizard (Task 19).
@@ -11,10 +12,12 @@ export function Settings({
   role,
   settings,
   onChange,
+  onLeave,
 }: {
   role: Role;
   settings: SettingsState;
   onChange: (next: SettingsState) => void;
+  onLeave: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const deaf = role === "deaf";
@@ -74,6 +77,14 @@ export function Settings({
             <input type="checkbox" checked={settings.keepOpen} onChange={toggle("keepOpen")} />
             Keep the comms sheet open after sending
           </label>
+          <div class="settings-leave">
+            <ConfirmButton
+              class="hud-btn danger"
+              label="Leave game"
+              confirmLabel="Sure? Leave game"
+              onConfirm={onLeave}
+            />
+          </div>
         </fieldset>
       )}
     </>

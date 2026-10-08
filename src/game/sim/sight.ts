@@ -4,10 +4,11 @@ import type { World } from "./world.ts";
 
 const SAMPLE = 0.1; // tiles between line-of-sight samples
 
-// Walls and closed doors stop sight; crates and players do not.
+// Walls, closed doors and hide spots (low cover) stop sight; crates and players do not.
 function blocksSight(world: World, tx: number, ty: number): boolean {
   const ch = world.room.grid[ty]?.[tx];
   if (ch === undefined || ch === "#") return true;
+  if (indexOf(world.room).hideAt.has(tileKey(tx, ty))) return true;
   if (ch !== "D") return false;
   const id = indexOf(world.room).doorAt.get(tileKey(tx, ty));
   return !id || !world.doorOpen[id];

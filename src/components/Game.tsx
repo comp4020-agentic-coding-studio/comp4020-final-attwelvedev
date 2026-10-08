@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { createAudio, type GameAudio } from "../client/audio.ts";
 import { faceImage, preloadFaces } from "../client/faces.ts";
+import { detectFx, FX_MAX, FX_MS, type Fx } from "../client/fx.ts";
 import {
   CALLOUT_WORD,
   captionFor,
   cueCaptions,
   formatTime,
+  hearCues,
+  heardCues,
   lerpEntities,
-  roomTitle,
 } from "../client/hud.ts";
 import { createInput } from "../client/input.ts";
 import { createPredictor, type Predictor } from "../client/predict.ts";
@@ -20,18 +22,25 @@ import { FACE_POP_MS } from "../game/channels.ts";
 import { ROLE_LABEL, type Role, type Vec } from "../game/types.ts";
 import type { CrewMember, LobbyState, RoleView } from "../net/protocol.ts";
 import { type CaptionLine, Captions } from "./Captions.tsx";
+import { ConfirmButton } from "./ConfirmButton.tsx";
 import { Connection } from "./Connection.tsx";
 import { RoleReveal } from "./RoleReveal.tsx";
 import { RoleShape } from "./RoleShape.tsx";
+import { RoomCleared } from "./RoomCleared.tsx";
 import { Settings } from "./Settings.tsx";
+import { TouchControls } from "./TouchControls.tsx";
 import { Tray } from "./Tray.tsx";
 
 export interface Reveal {
   room: string;
+  name: string; // the room's title, from its file
   index: number;
   role: Role;
   crew: CrewMember[];
+  from?: Role; // your role in the room before, so the shape can morph into the new one
 }
+
+const LAST_ROOM = 2; // the heist is three rooms: index 0, 1, 2
 
 // What the frame loop and the input loop share. Plain mutable state in a ref:
 // it changes 20 times a second and must not re-render the page each time.
@@ -44,6 +53,8 @@ interface Runtime {
   self: Vec | null; // where we think we are
   shown: Vec | null; // where we draw ourselves (self, eased)
   pops: { seat: number; id: string; at: number }[]; // faces on show, by when they landed
+  cueHold: Map<string, number>; // cue captions and when to let each go
+  fx: { fx: Fx; at: number }[]; // small effects for what just changed, by when they started
   soundOn: boolean;
 }
 
@@ -60,6 +71,12 @@ function onView(rt: Runtime, view: RoleView, audio: GameAudio): void {
   }
   rt.prevEntities = rt.view?.entities ?? [];
   rt.view = view;
+  const started = performance.now();
+  hearCues(rt.cueHold, cueCaptions(view.sounds), started); // every view, so a one-tick sound is not missed
+  rt.fx = [
+    ...rt.fx.filter((f) => started - f.at < FX_MS),
+    ...detectFx(rt.prevEntities, view.entities).map((fx) => ({ fx, at: started })),
+  ].slice(-FX_MAX);
   rt.at = performance.now();
   if (view.tiles) rt.tiles = view.tiles;
   const pos = view.you.pos;
@@ -98,6 +115,8 @@ export function Game({
     self: null,
     shown: null,
     pops: [],
+    fx: [],
+    cueHold: new Map(),
     soundOn: true,
   });
   const audio = useRef<GameAudio | null>(null);
@@ -173,9 +192,11 @@ function Hud({
   const root = useRef<HTMLDivElement>(null);
   const [clock, setClock] = useState("0:00");
   const [cleared, setCleared] = useState(false);
+  const [summary, setSummary] = useState<{ ms: number; loot: number; lootTotal: number } | null>(
+    null,
+  );
   const [touch, setTouch] = useState(false);
   const lastSent = useRef<string | null>(null);
-  const [confirming, setConfirming] = useState(false);
   const [settings, setSettings] = useState<SettingsState>(() => loadSettings(role));
   const [lines, setLines] = useState<CaptionLine[]>([]);
   const [cues, setCues] = useState<string[]>([]);
@@ -213,15 +234,17 @@ function Hud({
     });
   }, [socket, role, rt, audio]);
 
-  // Restart asks twice (a stray tap must not wipe the room); the ask lapses after 3 s.
+  useEffect(
+    () =>
+      socket.on("cleared", (m) => setSummary({ ms: m.ms, loot: m.loot, lootTotal: m.lootTotal })),
+    [socket],
+  );
+
+  // Restarts the room, not the heist: everyone back to this room's start. The
+  // buttons that call it (ConfirmButton) have already asked twice.
   function restart() {
-    if (!confirming) {
-      setConfirming(true);
-      setTimeout(() => setConfirming(false), 3000);
-      return;
-    }
-    setConfirming(false);
     lastSent.current = null;
+    setSummary(null);
     socket.send({ t: "room.restart" });
   }
 
@@ -236,9 +259,9 @@ function Hud({
       const now = performance.now();
       rt.pops = rt.pops.filter((p) => now - p.at < FACE_POP_MS);
       setLines((old) => (old.some((l) => l.until <= now) ? old.filter((l) => l.until > now) : old));
-      const heard = live.current.settings.captions ? cueCaptions(view.sounds) : [];
+      const heard = live.current.settings.captions ? heardCues(rt.cueHold, now) : [];
       setCues((old) => (old.join("|") === heard.join("|") ? old : heard));
-    }, 250);
+    }, 100);
     return () => {
       document.body.classList.remove("playing");
       clearInterval(tick);
@@ -296,6 +319,9 @@ function Hud({
         self: rt.shown,
         layout: size.w >= 720 ? "fit" : "follow",
         pops,
+        fx: rt.fx
+          .filter((f) => now - f.at < FX_MS)
+          .map((f) => ({ ...f.fx, age: (now - f.at) / FX_MS })),
         alarm: view.alarm,
         nowMs: now,
         reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
@@ -345,23 +371,31 @@ function Hud({
   return (
     <div class="game" ref={root} style={{ "--frame": `var(--role-${role})` }}>
       <h1 class="sr-only">
-        {roomTitle(reveal.room)}: {label}
+        {reveal.name}: {label}
       </h1>
       <header class="hud-top">
         <span class="hud-role">
           <RoleShape role={role} size={20} />
           {label}
         </span>
-        <span class="hud-room">{roomTitle(reveal.room)}</span>
+        <span class="hud-room">{reveal.name}</span>
         <span class="hud-clock" role="timer" aria-label="Time">
           {clock}
         </span>
         <Connection state={state} rttMs={rttMs} />
-        <Settings role={role} settings={settings} onChange={change} />
+        <Settings
+          role={role}
+          settings={settings}
+          onChange={change}
+          onLeave={() => socket.send({ t: "lobby.leave" })}
+        />
         {host && (
-          <button type="button" class="hud-btn" onClick={restart}>
-            {confirming ? "Sure? Restart" : "Restart"}
-          </button>
+          <ConfirmButton
+            class="hud-btn"
+            label="Restart room"
+            confirmLabel="Sure? Restart room"
+            onConfirm={restart}
+          />
         )}
       </header>
 
@@ -405,13 +439,15 @@ function Hud({
           </span>
         )}
         {cleared && (
-          <div class="overlay" role="status">
-            <h2>Room cleared</h2>
-            <p>Time {clock}</p>
-            <button type="button" class="btn" onClick={() => socket.send({ t: "lobby.leave" })}>
-              Leave
-            </button>
-          </div>
+          <RoomCleared
+            ms={summary?.ms ?? rt.view?.elapsedMs ?? 0}
+            loot={summary?.loot ?? 0}
+            lootTotal={summary?.lootTotal ?? 0}
+            last={reveal.index >= LAST_ROOM}
+            host={host}
+            onNext={() => socket.send({ t: "next" })}
+            onRestart={restart}
+          />
         )}
         {!online && (
           <div class="overlay" role="alert">
@@ -424,16 +460,9 @@ function Hud({
       <Tray role={role} socket={socket} keepOpen={settings.keepOpen} onTyping={setTyping} />
 
       {touch ? (
-        <div class="touch-zone">
-          <div class="joystick" data-joystick role="application" aria-label="Move">
-            <span class="knob" />
-          </div>
-          <button type="button" class="act" data-act>
-            Act
-          </button>
-        </div>
+        <TouchControls disabled={cleared} />
       ) : (
-        <p class="keys">WASD or arrows move · Space acts</p>
+        <p class={cleared ? "keys is-off" : "keys"}>WASD or arrows move · Space acts</p>
       )}
     </div>
   );

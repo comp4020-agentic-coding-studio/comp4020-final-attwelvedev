@@ -8,6 +8,7 @@ interface RoomIndex {
   doorAt: Map<string, string>; // "x,y" -> door id
   plateAt: Map<string, string>; // "x,y" -> plate id
   exitAt: Set<string>;
+  hideAt: Set<string>; // hide spots: cover that blocks sight
 }
 
 // Rooms never change after parsing, so the lookups are built once per Room.
@@ -18,12 +19,13 @@ export const tileKey = (x: number, y: number): string => `${x},${y}`;
 export function indexOf(room: Room): RoomIndex {
   let index = indexes.get(room);
   if (index) return index;
-  index = { doorAt: new Map(), plateAt: new Map(), exitAt: new Set() };
+  index = { doorAt: new Map(), plateAt: new Map(), exitAt: new Set(), hideAt: new Set() };
   for (const o of room.objects) {
     for (const t of o.tiles) {
       if (o.kind === "door") index.doorAt.set(tileKey(t.x, t.y), o.id);
       else if (o.kind === "plate") index.plateAt.set(tileKey(t.x, t.y), o.id);
       else if (o.kind === "exit") index.exitAt.add(tileKey(t.x, t.y));
+      else if (o.kind === "hide") index.hideAt.add(tileKey(t.x, t.y));
     }
   }
   indexes.set(room, index);

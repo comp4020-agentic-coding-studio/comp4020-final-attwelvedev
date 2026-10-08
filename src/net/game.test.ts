@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { loadRooms } from "../game/rooms/load.ts";
 import type { Seat } from "../game/types.ts";
-import { applyInput, crewOf, restartGame, rolesFor, startGame, tickGame } from "./game.ts";
+import {
+  advanceRoom,
+  applyInput,
+  crewOf,
+  restartGame,
+  rolesFor,
+  startGame,
+  tickGame,
+} from "./game.ts";
 import { LobbyError, type LobbyState } from "./lobbies.ts";
 
 const rooms = loadRooms();
@@ -133,5 +141,50 @@ describe("restartGame", () => {
     expect([...game.ready]).toEqual([0]);
     // a seq lower than the old one is accepted again
     expect(applyInput(game, 1, { seq: 1, move: { x: 0, y: 0 }, act: false })).toBe(true);
+  });
+});
+
+describe("advanceRoom", () => {
+  const started = () => startGame(lobby("a", "b", "c"), rooms);
+
+  it("has three rooms to play", () => {
+    expect(rooms.map((r) => r.id)).toEqual(["01-loading-dock", "02-cameras-lasers", "03-vault"]);
+  });
+
+  it("moves to the next room: new world, roles rotated, nobody ready, inputs and cooldowns cleared", () => {
+    const game = started();
+    game.ready.add(0);
+    game.ready.add(1);
+    applyInput(game, 1, { seq: 2, move: { x: 1, y: 0 }, act: false });
+    game.cooldowns.until.sound = 123;
+    game.world.status = "cleared";
+    expect(advanceRoom(game, rooms)).toBe("next");
+    expect(game.roomIndex).toBe(1);
+    expect(game.world.room.id).toBe("02-cameras-lasers");
+    expect(game.world.status).toBe("playing");
+    expect(game.world.tick).toBe(0);
+    expect(game.roles).toEqual(rolesFor(1));
+    expect(game.ready.size).toBe(0);
+    expect(game.inputs).toEqual({});
+    expect(game.cooldowns.until).toEqual({});
+  });
+
+  it("gives every seat every role once across the three rooms, then reports done", () => {
+    const game = started();
+    const played: string[][] = [[], [], []];
+    const record = () => {
+      game.roles.forEach((r, seat) => {
+        played[seat]?.push(r);
+      });
+    };
+    record();
+    expect(advanceRoom(game, rooms)).toBe("next");
+    record();
+    expect(advanceRoom(game, rooms)).toBe("next");
+    record();
+    for (const roles of played) expect(new Set(roles).size).toBe(3);
+    expect(game.world.room.id).toBe("03-vault");
+    expect(advanceRoom(game, rooms)).toBe("done");
+    expect(game.roomIndex).toBe(2);
   });
 });

@@ -5,6 +5,9 @@ import type { PlayerInput, Seat, Vec } from "../types.ts";
 export const TICK_MS = 50;
 export const SPEED_TPS = 4;
 export const RADIUS = 0.4;
+export const ALARM_GUARD_SPEEDUP = 1.5; // guards walk this much faster while the alarm is on
+export const CHECKPOINT_RADIUS = 1.5; // tiles from a flag's centre; all three players must be this close at once
+export const SEQUENCE_GAP_MS = 5000; // a sequence door wants each plate within this of the last
 export { STAMP_LIFE_MS };
 
 export type RoomStatus = "playing" | "cleared";
@@ -15,7 +18,9 @@ export interface PlayerState {
   facing: Vec;
   lastSeq: number;
   pushMs: number;
-  moving: boolean;
+  moving: boolean; // holding a direction
+  blocked: boolean; // holding a direction but getting almost nowhere: a wall, a door, a crate
+  hidden: boolean; // standing on a hide spot: guards and cameras cannot see you
 }
 
 export interface CrateState {
@@ -37,6 +42,7 @@ export interface GuardState {
   pos: Vec;
   facing: Vec;
   target: number;
+  moving: boolean; // walked this tick: false while it stands turning round
 }
 
 // What a caught team goes back to: where players stood, where the crates were,
@@ -66,12 +72,19 @@ export interface World {
   snapshot: Snapshot;
   seqProgress: Record<string, { next: number; at: number }>; // sequence doors: plates matched so far
   alarmUntil: number; // the tick the alarm ends; 0 = off
+  flagPresent: Record<string, number>; // checkpoint id -> how many players were within reach last tick
+  exitCount: number; // players on the exit last tick
+  seqFlash: Record<string, { result: "ok" | "wrong"; tick: number }>; // a sequence door's latest result, shown briefly
 }
 
 export type WorldEvent =
   | { kind: "door"; id: string; open: boolean; at: Vec }
   | { kind: "plate"; id: string; pressed: boolean; at: Vec }
   | { kind: "crate"; id: string; at: Vec }
+  | { kind: "hide"; seat: Seat; hidden: boolean; at: Vec }
+  | { kind: "flag"; id: string; present: number; at: Vec } // players within reach of an unset flag changed
+  | { kind: "exit"; present: number; at: Vec } // players on the exit changed
+  | { kind: "seq"; door: string; result: "ok" | "wrong" | "open"; n: number; at: Vec }
   | { kind: "caught"; by: string }
   | { kind: "checkpoint"; index: number }
   | { kind: "loot"; id: string; at: Vec }
@@ -104,6 +117,8 @@ export function createWorld(room: Room): World {
       lastSeq: 0,
       pushMs: 0,
       moving: false,
+      blocked: false,
+      hidden: false,
     };
   };
   const doorOpen: Record<string, boolean> = {};
@@ -127,11 +142,18 @@ export function createWorld(room: Room): World {
       .map((o) => {
         const patrol = patrolOf(o.params);
         const start = patrol[0] ?? (o.tiles[0] as Vec);
+        // it starts out facing the way it is about to walk
+        const next = patrol[1];
+        const len = next ? Math.hypot(next.x - start.x, next.y - start.y) : 0;
         return {
           id: o.id,
           pos: { x: start.x + 0.5, y: start.y + 0.5 },
-          facing: { x: 1, y: 0 },
+          facing:
+            next && len > 0
+              ? { x: (next.x - start.x) / len, y: (next.y - start.y) / len }
+              : { x: 1, y: 0 },
           target: patrol.length > 1 ? 1 : 0,
+          moving: false,
         };
       }),
     lootTaken: [],
@@ -145,6 +167,9 @@ export function createWorld(room: Room): World {
     },
     seqProgress: {},
     alarmUntil: 0,
+    flagPresent: {},
+    exitCount: 0,
+    seqFlash: {},
     stamps: [],
     nextStamp: 1,
     doorOpen,

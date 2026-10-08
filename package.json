@@ -12,6 +12,7 @@
     "format": "biome check --write .",
     "check": "pnpm typecheck && pnpm lint && pnpm lint:rooms && pnpm test",
     "lint:rooms": "node scripts/lint-rooms.ts",
+    "solve:rooms": "node scripts/solve-rooms.ts",
     "check:evidence": "node scripts/check-evidence.ts",
     "test": "vitest run",
     "test:unit": "vitest run --project unit",

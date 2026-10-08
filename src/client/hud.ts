@@ -80,38 +80,71 @@ const CUE_WORD: Record<SoundCue["kind"], string> = {
   checkpoint: "checkpoint chime",
   caught: "siren",
   alarm: "alarm",
+  step: "your footsteps",
+  bump: "you bump into something",
+  plate: "plate click",
+  "plate-up": "plate release",
+  crate: "crate scrape",
+  flag: "at the flag",
+  exit: "on the exit",
+  "seq-ok": "right plate",
+  "seq-wrong": "wrong plate",
+  "seq-open": "sequence door unlocked",
+  hide: "rustle",
+  cleared: "room cleared",
 };
 
 // Heard by the whole team from nowhere in particular, so no side is named.
-const EVERYWHERE = new Set<SoundCue["kind"]>(["checkpoint", "caught", "alarm"]);
+const EVERYWHERE = new Set<SoundCue["kind"]>(["checkpoint", "caught", "alarm", "bump", "cleared"]);
+
+// Some sounds carry a count: how many are at the flag or the exit, how many plates are done.
+function word(s: SoundCue): string {
+  if (s.kind === "flag" || s.kind === "exit") return `${CUE_WORD[s.kind]} ${s.n ?? 0}/3`;
+  if (s.kind === "seq-ok") return `${CUE_WORD[s.kind]}: ${s.n ?? 0} done`;
+  return CUE_WORD[s.kind];
+}
 
 // What the room sounds like right now, as captions: one per sound and side.
 export function cueCaptions(sounds: SoundCue[]): string[] {
   const out = new Set<string>();
   for (const s of sounds) {
+    if (s.kind === "step") continue; // you made it: nothing to caption
     if (s.kind === "hum") {
       out.add("[hum]");
       continue;
     }
     if (EVERYWHERE.has(s.kind)) {
-      out.add(`[${CUE_WORD[s.kind]}]`);
+      out.add(`[${word(s)}]`);
       continue;
     }
     const side = s.pan < -SIDE ? "left" : s.pan > SIDE ? "right" : "ahead";
-    out.add(`[${CUE_WORD[s.kind]}, ${side}]`);
+    out.add(`[${word(s)}, ${side}]`);
   }
   return [...out];
+}
+
+export const CUE_HOLD_MS = 2000; // how long a cue caption stays after it was last heard
+const MAX_CUES = 4;
+
+// Remembers each cue caption until CUE_HOLD_MS after it last came in, newest last.
+// A one-shot sound lives in a single 50 ms view, so showing only the newest view
+// would almost never show it; this is what makes a camera whir readable.
+export function hearCues(held: Map<string, number>, captions: string[], now: number): void {
+  for (const c of captions) {
+    held.delete(c); // so a repeat moves to the end
+    held.set(c, now + CUE_HOLD_MS);
+  }
+}
+
+// The captions still within their hold, forgetting the rest.
+export function heardCues(held: Map<string, number>, now: number): string[] {
+  for (const [caption, until] of held) if (until <= now) held.delete(caption);
+  return [...held.keys()].slice(-MAX_CUES);
 }
 
 export function formatTime(ms: number): string {
   const total = Math.floor(ms / 1000);
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
-}
-
-// "01-loading-dock" -> "Loading dock"
-export function roomTitle(id: string): string {
-  const words = id.replace(/^\d+-/, "").replace(/-/g, " ");
-  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 export interface TrayTile {

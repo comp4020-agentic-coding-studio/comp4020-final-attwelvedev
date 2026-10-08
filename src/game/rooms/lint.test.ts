@@ -104,7 +104,7 @@ describe("lintRoom: hazards", () => {
   const lint = (objects: Record<string, unknown>, grid = GRID, extra = {}) =>
     lintRoom(parseRoom(`${head(objects, extra)}\n---\n${grid.join("\n")}\n`)).map((i) => i.message);
   const GOOD = {
-    C1: { zone: [4, 1, 8, 3], periodS: 6, watchingS: 3, offsetS: 0 },
+    C1: { facingDeg: 0, fovDeg: 90, range: 8, periodS: 6, watchingS: 3, offsetS: 0 },
     L1: { dir: "right", onS: 2, offS: 2, offsetS: 0 },
   };
 
@@ -171,6 +171,15 @@ describe("lintRoom: hazards", () => {
       expect.stringMatching(/flip.*zone/i),
     );
     expect(lint(GOOD, GRID, { flips: [{ kind: "dark", zone: [2, 1, 9, 3] }] })).toEqual([]);
+  });
+
+  it("flags an alarm whose trigger is not a plate in the room", () => {
+    const flip = (trigger: string) => ({ flips: [{ kind: "alarm", trigger, durationS: 8 }] });
+    expect(lint(GOOD, GRID, flip("caught"))).toContainEqual(
+      expect.stringMatching(/alarm.*caught/i),
+    );
+    expect(lint(GOOD, GRID, flip("p9"))).toContainEqual(expect.stringMatching(/alarm.*p9/i));
+    expect(lint(GOOD, GRID, flip("p1"))).toEqual([]);
   });
 
   it("flags a room whose first hazard comes before any checkpoint", () => {

@@ -316,3 +316,42 @@ describe("determinism", () => {
     expect(a).toEqual(b);
   });
 });
+
+describe("blocked: pushing at something and not getting anywhere", () => {
+  const GRID = ["#######", "#1..B.#", "#2....#", "#3....#", "#######"];
+  const east = { 0: input(1, 0) };
+  const at = (x: number, y: number) => ({ x, y });
+
+  it("is false while walking freely, and with no input", () => {
+    const w = worldFrom(GRID);
+    hold(w, east, 3);
+    expect(w.players[0].moving).toBe(true);
+    expect(w.players[0].blocked).toBe(false);
+    hold(w, {}, 1);
+    expect(w.players[0].blocked).toBe(false);
+  });
+
+  it("is true when pushing straight into a wall, and clears when you turn away", () => {
+    const w = worldFrom(GRID);
+    place(w, 1, at(5, 2));
+    hold(w, { 1: input(1, 0) }, 6);
+    expect(w.players[1].moving).toBe(true);
+    expect(w.players[1].blocked).toBe(true);
+    hold(w, { 1: input(-1, 0) }, 2);
+    expect(w.players[1].blocked).toBe(false);
+  });
+
+  it("is false while sliding along a wall: you are still getting somewhere", () => {
+    const w = worldFrom(GRID);
+    place(w, 1, at(5, 2));
+    hold(w, { 1: input(1, 1) }, 4);
+    expect(w.players[1].blocked).toBe(false);
+  });
+
+  it("is true against a crate that has not moved yet", () => {
+    const w = worldFrom(GRID);
+    place(w, 0, at(3, 1)); // the crate is at (4, 1)
+    hold(w, { 0: input(1, 0) }, 2);
+    expect(w.players[0].blocked).toBe(true);
+  });
+});

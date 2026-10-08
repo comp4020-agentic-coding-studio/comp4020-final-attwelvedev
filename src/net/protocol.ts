@@ -39,6 +39,7 @@ export type ClientMsg =
   | { t: "lobby.start" } // host
   | { t: "ready" }
   | { t: "room.restart" } // host: everyone back to spawn, doors and crates reset
+  | { t: "next" } // host, once a room is cleared: on to the next room
   | ({ t: "input" } & PlayerInput)
   | { t: "say"; kind: "callout"; callout: Callout }
   | { t: "say"; kind: "text"; text: string }
@@ -53,8 +54,9 @@ export type ServerMsg =
   | { t: "lobby"; lobby: LobbyState; you: { seat: Seat | null; host: boolean } }
   | { t: "left" } // answers lobby.leave, so the page can navigate once the server has acted
   | { t: "error"; code: ErrorCode; message: string }
-  | { t: "reveal"; room: string; index: number; role: Role; crew: CrewMember[] }
+  | { t: "reveal"; room: string; name: string; index: number; role: Role; crew: CrewMember[] }
   | { t: "view"; view: RoleView }
+  | { t: "cleared"; room: string; ms: number; loot: number; lootTotal: number }
   | ({ t: "msg" } & ChannelMessage) // only ever sent to a seat whose role receives the family
   | { t: "cooldown"; family: Family; until: number; stamp?: true }; // stamp: the 1 s stamp clock, not the face clock
 
@@ -95,6 +97,8 @@ export function parseClientMsg(raw: string): ClientMsg | null {
       return { t: "ready" };
     case "room.restart":
       return { t: "room.restart" };
+    case "next":
+      return { t: "next" };
     case "input": {
       const move = m.move;
       if (typeof move !== "object" || move === null) return null;

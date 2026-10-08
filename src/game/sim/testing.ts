@@ -31,6 +31,11 @@ export function hold(world: World, inputs: Inputs, ticks: number): World {
   return world;
 }
 
+// The whole team on one tile (players may overlap).
+export function gather(world: World, tile: Vec): void {
+  for (const seat of [0, 1, 2] as const) place(world, seat, tile);
+}
+
 export function place(world: World, seat: Seat, tile: Vec): void {
   const p = world.players[seat];
   p.pos = { x: tile.x + 0.5, y: tile.y + 0.5 };

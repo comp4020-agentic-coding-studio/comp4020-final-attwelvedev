@@ -26,6 +26,38 @@ body.playing main {
 .reveal-shape {
   animation: pop 400ms ease-out both;
 }
+.reveal-shape {
+  position: relative;
+  display: grid;
+}
+.reveal-shape > * {
+  grid-area: 1 / 1;
+}
+/* a new room, a new role: the old shape turns into the new one */
+.reveal-shape.morphing {
+  animation: none;
+}
+.reveal-from {
+  animation: morph-out 600ms ease-in both;
+}
+.reveal-to {
+  animation: pop 400ms ease-out both;
+}
+.morphing .reveal-to {
+  animation: morph-in 600ms ease-out both;
+}
+@keyframes morph-out {
+  to {
+    opacity: 0;
+    transform: scale(0.6) rotate(90deg);
+  }
+}
+@keyframes morph-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6) rotate(-90deg);
+  }
+}
 @keyframes pop {
   from {
     opacity: 0;
@@ -33,8 +65,21 @@ body.playing main {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .reveal-shape {
+  .reveal-shape,
+  .reveal-to {
     animation: fade 1ms both;
+  }
+  /* the morph becomes a plain cross-fade: no turning, no scaling */
+  .reveal-from {
+    animation: fade-out 600ms linear both;
+  }
+  .morphing .reveal-to {
+    animation: fade 600ms linear both;
+  }
+}
+@keyframes fade-out {
+  to {
+    opacity: 0;
   }
 }
 @keyframes fade {
@@ -682,4 +727,45 @@ fieldset.settings {
   margin: 0;
   color: var(--ui-muted);
   font-size: var(--t-14);
+}
+
+/* a button that has asked "sure?" and is waiting for its second press */
+.hud-btn.asking,
+.btn.asking,
+.btn.asking:hover {
+  background: var(--ui);
+  color: var(--bg);
+  border-color: var(--ui);
+}
+/* destructive: leaving ends your game. Red text and border, and when it asks, a red fill */
+.hud-btn.danger,
+.btn.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.hud-btn.danger.asking,
+.btn.danger.asking {
+  background: var(--danger);
+  color: var(--bg);
+  border-color: var(--danger);
+}
+.settings-leave {
+  margin-top: var(--s-1);
+  padding-top: var(--s-3);
+  border-top: 2px solid var(--ui-muted);
+}
+.settings-leave .hud-btn {
+  width: 100%;
+}
+
+/* the room is cleared: nothing to steer, so the movement controls go quiet */
+.is-off {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.overlay-actions {
+  display: grid;
+  gap: var(--s-2);
+  justify-items: center;
+  margin-top: var(--s-2);
 }

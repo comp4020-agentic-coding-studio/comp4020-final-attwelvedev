@@ -1,6 +1,8 @@
 import { STAMP_LIFE_MS, type Stamp } from "../game/channels.ts";
 import type { Role, Seat, Vec } from "../game/types.ts";
 import type { EntityView } from "../net/protocol.ts";
+import { visiblePolygon } from "./cone.ts";
+import type { Fx } from "./fx.ts";
 import { STAMP_FACE } from "./hud.ts";
 import { COLOR, MAP, ROLE_COLOR, ROLE_SHAPE, type Shape } from "./tokens.ts";
 
@@ -15,6 +17,7 @@ export interface Scene {
   self: Vec | null; // own position, null for Can't see
   layout: "fit" | "follow"; // desktop fits the room, phone follows the team
   pops?: FacePop[]; // faces shown above their senders
+  fx?: (Fx & { age: number })[]; // small effects, each with how far through its life it is (0 to 1)
   alarm?: boolean; // the alarm is on: a red border and banner
   nowMs?: number; // the clock the alarm pulse follows
   reducedMotion?: boolean; // a static alarm, no pulse
@@ -187,51 +190,174 @@ function diamond(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: numbe
   ctx.closePath();
 }
 
-// A guard's sight: a wedge of `range` tiles either side of where it faces,
-// hatched so it never rests on colour alone.
-function drawCone(ctx: CanvasRenderingContext2D, e: EntityView, px: number, py: number, s: number) {
-  if (!e.cone) return;
-  const facing = Math.atan2(e.facing?.y ?? 0, e.facing?.x ?? 1);
-  const half = (e.cone.fovDeg / 2) * (Math.PI / 180);
-  const r = e.cone.range * s;
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(px, py);
-  ctx.arc(px, py, r, facing - half, facing + half);
-  ctx.closePath();
-  ctx.clip();
-  ctx.globalAlpha = 0.14;
-  ctx.fillStyle = COLOR.danger;
-  ctx.fillRect(px - r, py - r, r * 2, r * 2);
-  ctx.globalAlpha = 0.5;
-  hatch(ctx, px - r, py - r, r * 2, r * 2, COLOR.danger);
-  ctx.restore();
+// What blocks sight, as the server counts it: walls, closed doors and hide spots
+// (cover). Built once per frame and shared by every cone drawn in it.
+const blockerCache = new WeakMap<Scene, (tx: number, ty: number) => boolean>();
+function blockedFor(scene: Scene): (tx: number, ty: number) => boolean {
+  const cached = blockerCache.get(scene);
+  if (cached) return cached;
+  const solid = new Set<string>();
+  for (const e of scene.entities) {
+    const closedDoor = e.kind === "door" && e.state === "closed";
+    if (closedDoor || e.kind === "hide") solid.add(`${Math.floor(e.pos.x)},${Math.floor(e.pos.y)}`);
+  }
+  const fn = (tx: number, ty: number) =>
+    scene.tiles?.[ty]?.[tx] === "#" || solid.has(`${tx},${ty}`);
+  blockerCache.set(scene, fn);
+  return fn;
 }
 
-// A camera's zone is hatched while it is watching and only outlined when idle.
-function drawZone(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera) {
-  if (!e.zone) return;
-  const [x0, y0, x1, y1] = e.zone;
-  const x = cam.ox + x0 * cam.scale;
-  const y = cam.oy + y0 * cam.scale;
-  const w = (x1 - x0 + 1) * cam.scale;
-  const h = (y1 - y0 + 1) * cam.scale;
+// A hazard's sight (a guard's, a camera's): a fan of rays that stops at walls, closed
+// doors and cover, so it leaves a shadow behind them, as the real rule does. Lit and
+// hatched while it is looking; a camera that is looking away is only an outline,
+// so it never rests on colour alone.
+function drawCone(
+  ctx: CanvasRenderingContext2D,
+  e: EntityView,
+  cam: Camera,
+  scene: Scene,
+  color: string,
+  looking: boolean,
+) {
+  if (!e.cone) return;
+  const poly = visiblePolygon(
+    {
+      origin: e.pos,
+      facing: e.facing ?? { x: 1, y: 0 },
+      fovDeg: e.cone.fovDeg,
+      range: e.cone.range,
+    },
+    blockedFor(scene),
+  );
+  const pts = poly.map((p) => ({ x: cam.ox + p.x * cam.scale, y: cam.oy + p.y * cam.scale }));
+  // its own path object: the hatching below starts paths of its own
+  const shape = new Path2D();
+  pts.forEach((p, i) => {
+    if (i === 0) shape.moveTo(p.x, p.y);
+    else shape.lineTo(p.x, p.y);
+  });
+  shape.closePath();
   ctx.save();
-  if (e.state === "watching") {
+  if (looking) {
+    const xs = pts.map((p) => p.x);
+    const ys = pts.map((p) => p.y);
+    const [x0, y0] = [Math.min(...xs), Math.min(...ys)];
+    const [w, h] = [Math.max(...xs) - x0, Math.max(...ys) - y0];
+    ctx.save();
+    ctx.clip(shape);
     ctx.globalAlpha = 0.14;
-    ctx.fillStyle = COLOR.cameraLight;
-    ctx.fillRect(x, y, w, h);
-    ctx.globalAlpha = 0.55;
-    hatch(ctx, x, y, w, h, COLOR.cameraLight);
-    ctx.globalAlpha = 1;
+    ctx.fillStyle = color;
+    ctx.fillRect(x0, y0, w, h);
+    ctx.globalAlpha = 0.5;
+    hatch(ctx, x0, y0, w, h, color);
+    ctx.restore();
+    ctx.globalAlpha = 0.7;
     ctx.lineWidth = 2;
-    ctx.strokeStyle = COLOR.cameraLight;
-    ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+    ctx.strokeStyle = color;
+    ctx.stroke(shape);
   } else {
     ctx.lineWidth = 2;
     ctx.strokeStyle = COLOR.uiMuted;
+    ctx.globalAlpha = 0.6;
     ctx.setLineDash([4, 4]);
-    ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+    ctx.stroke(shape);
+  }
+  ctx.restore();
+}
+
+// A security camera turned the way it looks: a body with a lens. Watching, the
+// lens is open and filled with rays coming out of it; idle, the eye is shut (a
+// bar across an empty lens), so the state is in the shape and not only the colour.
+function drawCamera(
+  ctx: CanvasRenderingContext2D,
+  e: EntityView,
+  px: number,
+  py: number,
+  s: number,
+) {
+  const watching = e.state === "watching";
+  const aim = Math.atan2(e.facing?.y ?? 1, e.facing?.x ?? 0); // the lens points where it looks
+  const ink = watching ? COLOR.cameraLight : COLOR.uiMuted;
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate(aim);
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = ink;
+  ctx.fillStyle = COLOR.bg;
+  ctx.beginPath(); // the body, with a mount stub behind it
+  ctx.roundRect(-s * 0.45, -s * 0.24, s * 0.55, s * 0.48, 3);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-s * 0.45, 0);
+  ctx.lineTo(-s * 0.58, 0);
+  ctx.stroke();
+  ctx.beginPath(); // the lens
+  ctx.arc(s * 0.3, 0, s * 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  if (watching) {
+    ctx.fillStyle = ink;
+    ctx.beginPath();
+    ctx.arc(s * 0.3, 0, s * 0.09, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath(); // rays out of the lens
+    for (const a of [-0.45, 0, 0.45]) {
+      ctx.moveTo(s * 0.3 + Math.cos(a) * s * 0.3, Math.sin(a) * s * 0.3);
+      ctx.lineTo(s * 0.3 + Math.cos(a) * s * 0.46, Math.sin(a) * s * 0.46);
+    }
+    ctx.stroke();
+  } else {
+    ctx.beginPath(); // the eye is shut
+    ctx.moveTo(s * 0.3 - s * 0.2, 0);
+    ctx.lineTo(s * 0.3 + s * 0.2, 0);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// The code on the floor: "7 > 1 > 4". Plates already pressed in order turn green,
+// and a thin line under the sign drains over the 5 s you have to press the next
+// one. Quiet on purpose: you only need it once you are partway through.
+function drawSign(ctx: CanvasRenderingContext2D, e: EntityView, px: number, py: number, s: number) {
+  const ids = (e.shows ?? []).map((id) => id.replace(/^p/, ""));
+  const done = e.progress ?? 0;
+  const sep = " > ";
+  ctx.save();
+  ctx.font = `700 ${Math.round(s * 0.4)}px system-ui, sans-serif`;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  const widths = ids.map((id) => ctx.measureText(id).width);
+  const sepW = ctx.measureText(sep).width;
+  const textW = widths.reduce((sum, w) => sum + w, 0) + sepW * Math.max(0, ids.length - 1);
+  const w = Math.max(s, textW + s * 0.4);
+  const top = py - s * 0.35;
+  ctx.fillStyle = COLOR.panel;
+  ctx.strokeStyle =
+    e.flash === "wrong"
+      ? COLOR.danger
+      : e.flash === "ok" || done >= ids.length
+        ? COLOR.goal
+        : COLOR.ui;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(px - w / 2, top, w, s * 0.7, 3);
+  ctx.fill();
+  ctx.stroke();
+  let x = px - textW / 2;
+  ids.forEach((id, i) => {
+    ctx.fillStyle = i < done ? COLOR.goal : COLOR.ui;
+    ctx.fillText(id, x, py + 1);
+    x += widths[i] ?? 0;
+    if (i < ids.length - 1) {
+      ctx.fillStyle = COLOR.uiMuted;
+      ctx.fillText(sep, x, py + 1);
+      x += sepW;
+    }
+  });
+  if (e.window !== undefined) {
+    ctx.fillStyle = e.window < 0.3 ? COLOR.danger : COLOR.uiMuted;
+    ctx.fillRect(px - w / 2, top + s * 0.7 + 3, w * e.window, 3);
   }
   ctx.restore();
 }
@@ -280,6 +406,12 @@ function drawEntity(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera, s
       ctx.fillStyle = COLOR.goal;
       ctx.fillRect(left + inset * 2, top + inset * 2, s - inset * 4, s - inset * 4);
     }
+    // the plate's number, so a sign that says "7 1 4" can be matched to the floor
+    ctx.fillStyle = e.state === "pressed" ? COLOR.bg : COLOR.ui;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `700 ${Math.round(s * 0.5)}px system-ui, sans-serif`;
+    ctx.fillText(e.id.replace(/^p/, ""), px, py + 1);
   } else if (e.kind === "door") {
     if (e.state === "open") {
       ctx.lineWidth = 2;
@@ -308,23 +440,14 @@ function drawEntity(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera, s
     ctx.lineTo(left + inset, top + s - inset);
     ctx.stroke();
   } else if (e.kind === "exit") {
-    ctx.globalAlpha = 0.3;
+    ctx.globalAlpha = e.state === "occupied" ? 0.6 : 0.3; // someone is standing on it
     ctx.fillStyle = COLOR.goal;
     ctx.fillRect(left, top, s, s);
     ctx.globalAlpha = 1;
     hatch(ctx, left, top, s, s, COLOR.goal);
   } else if (e.kind === "camera") {
-    drawZone(ctx, e, cam);
-    const watching = e.state === "watching";
-    ctx.fillStyle = COLOR.bg;
-    ctx.strokeStyle = watching ? COLOR.cameraLight : COLOR.uiMuted;
-    ctx.lineWidth = 2;
-    ctx.fillRect(left + s * 0.2, top + s * 0.3, s * 0.6, s * 0.4);
-    ctx.strokeRect(left + s * 0.2, top + s * 0.3, s * 0.6, s * 0.4);
-    ctx.beginPath();
-    ctx.arc(px, py, s * 0.11, 0, Math.PI * 2);
-    ctx.fillStyle = watching ? COLOR.cameraLight : COLOR.uiMuted;
-    ctx.fill();
+    drawCone(ctx, e, cam, scene, COLOR.cameraLight, e.state === "watching");
+    drawCamera(ctx, e, px, py, s * 1.25);
   } else if (e.kind === "laser") {
     drawBeam(ctx, e, px, py, cam);
     ctx.fillStyle = COLOR.bg;
@@ -333,7 +456,7 @@ function drawEntity(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera, s
     ctx.fillRect(left + s * 0.25, top + s * 0.25, s * 0.5, s * 0.5);
     ctx.strokeRect(left + s * 0.25, top + s * 0.25, s * 0.5, s * 0.5);
   } else if (e.kind === "guard") {
-    drawCone(ctx, e, px, py, s);
+    drawCone(ctx, e, cam, scene, COLOR.danger, true);
     diamond(ctx, px, py, s * 0.45);
     ctx.fillStyle = COLOR.danger;
     ctx.fill();
@@ -360,6 +483,21 @@ function drawEntity(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera, s
     ctx.closePath();
     ctx.fillStyle = e.state === "reached" ? COLOR.goal : COLOR.ui;
     ctx.fill();
+    if (e.state !== "reached") {
+      // three pips: one filled for each player at the flag; all three sets it
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.arc(left + s * (0.3 + i * 0.2), top + s * 0.94, s * 0.06, 0, Math.PI * 2);
+        if (i < (e.present ?? 0)) {
+          ctx.fillStyle = COLOR.ui;
+          ctx.fill();
+        } else {
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = COLOR.uiMuted;
+          ctx.stroke();
+        }
+      }
+    }
   } else if (e.kind === "loot") {
     diamond(ctx, px, py, s * 0.3);
     ctx.fillStyle = COLOR.goal;
@@ -368,26 +506,26 @@ function drawEntity(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera, s
     ctx.strokeStyle = COLOR.bg;
     ctx.stroke();
   } else if (e.kind === "sign") {
-    const glyphs = (e.shows ?? []).map((id) => id.replace(/^p/, "")).join(" ");
-    const w = Math.max(s, s * 0.34 * glyphs.length + s * 0.3);
-    ctx.fillStyle = COLOR.panel;
-    ctx.strokeStyle = COLOR.ui;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.roundRect(px - w / 2, py - s * 0.35, w, s * 0.7, 3);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = COLOR.ui;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.font = `700 ${Math.round(s * 0.4)}px system-ui, sans-serif`;
-    ctx.fillText(glyphs, px, py + 1);
+    drawSign(ctx, e, px, py, s);
   } else if (e.kind === "stamp" && e.state) {
     drawStamp(ctx, e.state as Stamp, px, py, s, e.age ?? 0);
   } else if (e.kind === "player" && e.seat !== undefined) {
     const role = scene.roles[e.seat] ?? "blind";
     const isSelf = e.seat === scene.seat;
     shapePath(ctx, ROLE_SHAPE[role], px, py, s * MAP.avatarRadius * 1.1);
+    if (e.state === "hidden") {
+      // on a hide spot: faint, with a dashed outline, so you can see you are hidden
+      ctx.globalAlpha = 0.45;
+      ctx.fillStyle = ROLE_COLOR[role];
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([3, 3]);
+      ctx.strokeStyle = isSelf ? COLOR.ui : COLOR.uiMuted;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      return;
+    }
     if (e.state === "dim") {
       // in the dark you are only a ring
       ctx.globalAlpha = MAP.blindRingAlpha;
@@ -450,8 +588,63 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
       drawEntity(ctx, shown, cam, scene);
     }
   }
+  drawFx(ctx, scene, cam);
   drawPops(ctx, scene, cam);
   if (scene.alarm) drawAlarm(ctx, scene);
+}
+
+const FX_COLOR = { goal: COLOR.goal, danger: COLOR.danger, ui: COLOR.ui, muted: COLOR.uiMuted };
+
+// Each effect is one shape that fades over its short life. It grows as it fades,
+// unless the player asked for reduced motion, in which case it only fades.
+function drawFx(ctx: CanvasRenderingContext2D, scene: Scene, cam: Camera) {
+  for (const f of scene.fx ?? []) {
+    const x = cam.ox + f.pos.x * cam.scale;
+    const y = cam.oy + f.pos.y * cam.scale;
+    const grow = scene.reducedMotion ? 1 : 0.3 + 0.7 * f.age;
+    ctx.save();
+    ctx.globalAlpha = 0.85 * (1 - f.age);
+    ctx.strokeStyle = FX_COLOR[f.tone];
+    ctx.fillStyle = FX_COLOR[f.tone];
+    ctx.lineWidth = 3;
+    if (f.kind === "ring") {
+      ctx.beginPath();
+      ctx.arc(x, y, cam.scale * (f.big ? 1.6 : 0.9) * grow, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (f.kind === "dust") {
+      for (const [dx, dy] of [
+        [-1, -0.6],
+        [1, -0.6],
+        [-0.7, 0.8],
+        [0.7, 0.8],
+      ] as const) {
+        ctx.beginPath();
+        ctx.arc(
+          x + dx * cam.scale * 0.35 * grow,
+          y + dy * cam.scale * 0.35 * grow,
+          cam.scale * 0.07,
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+      }
+    } else {
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const a = (i * Math.PI) / 4;
+        ctx.moveTo(
+          x + Math.cos(a) * cam.scale * 0.25 * grow,
+          y + Math.sin(a) * cam.scale * 0.25 * grow,
+        );
+        ctx.lineTo(
+          x + Math.cos(a) * cam.scale * 0.5 * grow,
+          y + Math.sin(a) * cam.scale * 0.5 * grow,
+        );
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
 }
 
 // A steady red border and a banner. The banner's intensity follows a 1 Hz sine

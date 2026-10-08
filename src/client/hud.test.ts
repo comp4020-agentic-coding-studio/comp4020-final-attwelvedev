@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { Role } from "../game/types.ts";
-import { captionFor, cueCaptions, formatTime, lerpEntities, roomTitle, trayFor } from "./hud.ts";
+import {
+  CUE_HOLD_MS,
+  captionFor,
+  cueCaptions,
+  formatTime,
+  hearCues,
+  heardCues,
+  lerpEntities,
+  trayFor,
+} from "./hud.ts";
 
 describe("formatTime", () => {
   it("shows minutes and seconds", () => {
@@ -9,13 +18,6 @@ describe("formatTime", () => {
     expect(formatTime(1000)).toBe("0:01");
     expect(formatTime(102_000)).toBe("1:42");
     expect(formatTime(3_725_000)).toBe("62:05");
-  });
-});
-
-describe("roomTitle", () => {
-  it("turns a room id into a title", () => {
-    expect(roomTitle("01-loading-dock")).toBe("Loading dock");
-    expect(roomTitle("03-the-vault")).toBe("The vault");
   });
 });
 
@@ -133,7 +135,49 @@ describe("cueCaptions", () => {
     ]);
   });
 
+  it("does not caption your own steps (you made them), but does caption a bump", () => {
+    expect(cueCaptions([{ kind: "step", pan: 0, gain: 0.6 }])).toEqual([]);
+    expect(cueCaptions([{ kind: "bump", pan: 0, gain: 0.8 }])).toEqual([
+      "[you bump into something]",
+    ]);
+    expect(
+      cueCaptions([
+        { kind: "step", pan: 0, gain: 0.6 },
+        { kind: "footsteps", pan: -0.7, gain: 0.5 },
+      ]),
+    ).toEqual(["[footsteps, left]"]);
+  });
+
   it("is empty when nothing is audible", () => {
     expect(cueCaptions([])).toEqual([]);
+  });
+});
+
+// A one-shot sound (the camera starting to watch, a plate click) is in a single
+// 50 ms view. If captions only showed the newest view they would almost never be
+// seen, so each caption is held for a moment after it was last heard.
+describe("held cue captions", () => {
+  it("keeps a one-tick sound on screen for a while, then lets it go", () => {
+    const held = new Map<string, number>();
+    hearCues(held, ["[camera whir, right]"], 1000);
+    expect(heardCues(held, 1000)).toEqual(["[camera whir, right]"]);
+    expect(heardCues(held, 1000 + CUE_HOLD_MS - 1)).toEqual(["[camera whir, right]"]);
+    expect(heardCues(held, 1000 + CUE_HOLD_MS + 1)).toEqual([]);
+  });
+
+  it("keeps a repeated or continuous sound up for as long as it keeps coming", () => {
+    const held = new Map<string, number>();
+    for (let t = 0; t < 5000; t += 50) hearCues(held, ["[footsteps, left]"], t);
+    expect(heardCues(held, 5000)).toEqual(["[footsteps, left]"]);
+  });
+
+  it("shows a few at once, newest last, and forgets the old ones", () => {
+    const held = new Map<string, number>();
+    for (const [i, w] of ["a", "b", "c", "d", "e", "f"].entries())
+      hearCues(held, [`[${w}]`], 1000 + i);
+    expect(heardCues(held, 1010)).toEqual(["[c]", "[d]", "[e]", "[f]"]);
+    expect(held.size).toBeLessThanOrEqual(6); // old entries are dropped, not kept forever
+    heardCues(held, 1000 + CUE_HOLD_MS * 3);
+    expect(held.size).toBe(0);
   });
 });

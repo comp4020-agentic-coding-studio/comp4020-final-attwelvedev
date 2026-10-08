@@ -1,15 +1,23 @@
 import type { Stamp } from "./channels.ts";
 import { flipsOf } from "./rooms/format.ts";
 import {
+  cameraCone,
   cameraParams,
   cameraWatching,
-  cameraZone,
   guardParams,
+  isWatching,
   laserBeam,
   laserOn,
   laserParams,
 } from "./sim/hazards.ts";
-import { patrolOf, type RoomStatus, TICK_MS, type World } from "./sim/world.ts";
+import {
+  CHECKPOINT_RADIUS,
+  patrolOf,
+  type RoomStatus,
+  SEQUENCE_GAP_MS,
+  TICK_MS,
+  type World,
+} from "./sim/world.ts";
 import type { Role, Seat, Vec } from "./types.ts";
 
 export interface EntityView {
@@ -42,11 +50,16 @@ export interface EntityView {
     | "off"
     | "reached"
     | "dim" // your own avatar while you stand in a dark zone
+    | "hidden" // a player on a hide spot
+    | "occupied" // an exit tile a player is standing on
     | Stamp;
   cone?: { fovDeg: number; range: number }; // a guard's sight
-  zone?: [number, number, number, number]; // a camera's tiles, x0 y0 x1 y1 inclusive
   beam?: Vec[]; // a laser's tile centres
   shows?: string[]; // a sign's plate ids, in order
+  flash?: "ok" | "wrong"; // a sign: the result of the last plate, for a moment
+  progress?: number; // a sign: how many of them have been pressed in order so far
+  present?: number; // a checkpoint: how many of the three players are at the flag now
+  window?: number; // a sign: share (0 to 1) of the 5 s left to press the next one
   age?: number; // ms since a stamp landed
   seat?: Seat;
   role?: Role;
@@ -64,9 +77,22 @@ export interface SoundCue {
     | "loot"
     | "checkpoint"
     | "caught"
-    | "alarm";
+    | "alarm"
+    | "plate" // a plate pressed, anywhere: the team hears it
+    | "plate-up" // a plate released
+    | "crate" // a crate pushed on a tile
+    | "flag" // players within reach of an unset checkpoint changed; `n` is how many
+    | "exit" // players on the exit changed; `n` is how many
+    | "seq-ok" // the right plate of a sequence; `n` of them are done
+    | "seq-wrong" // a wrong plate, or the 5 s ran out
+    | "seq-open" // the sequence is done
+    | "hide" // someone stepped onto or off a hide spot
+    | "cleared" // the room is cleared
+    | "step" // your own footstep: centred, softer, and never the same cue as someone else's
+    | "bump"; // you are pushing at a wall, door or crate and getting nowhere
   pan: number;
   gain: number;
+  n?: number; // flag, exit and seq-ok: a count that sets the pitch and the caption
 }
 
 export interface RoleView {
@@ -85,9 +111,22 @@ export interface RoleView {
   dark: boolean; // you are standing in a dark zone
 }
 
+// Sounds the world makes fade with distance, so Can't see learns what is near them
+// and has to be TOLD the rest. How far each carries, in tiles: a click is quieter
+// than a footstep. Sounds the game makes to the team (the flag and exit tones, the
+// sequence, loot, a cleared room, being caught, the alarm) are not here: they are
+// not in the room, so they carry everywhere.
 const HEARING_RANGE = 12;
+const RANGE: Partial<Record<SoundCue["kind"], number>> = {
+  plate: 8,
+  "plate-up": 6,
+  hide: 6,
+};
 const PAN_RANGE = 8;
 const LASER_HUM_RANGE = 3;
+const FLASH_TICKS = 12; // a sign shows its last result for 0.6 s
+const OWN_STEP_GAIN = 0.6;
+const BUMP_GAIN = 0.8;
 
 const round = (n: number): number => Math.round(n * 1000) / 1000;
 const rounded = (v: Vec): Vec => ({ x: round(v.x), y: round(v.y) });
@@ -100,6 +139,7 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
     const e: EntityView = { id: `P${p.seat}`, kind: "player", pos: rounded(p.pos), seat: p.seat };
     if (p.seat === seat) e.role = role;
     if (p.moving) e.facing = { x: round(p.facing.x), y: round(p.facing.y) };
+    if (p.hidden) e.state = "hidden";
     return e;
   });
   for (const o of world.room.objects) {
@@ -118,7 +158,17 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
         out.push({ id: o.id, kind: "door", pos: centre(t), state });
       }
     } else if (o.kind === "exit") {
-      for (const t of o.tiles) out.push({ id: o.id, kind: "exit", pos: centre(t) });
+      for (const t of o.tiles) {
+        const stood = world.players.some(
+          (p) => Math.floor(p.pos.x) === t.x && Math.floor(p.pos.y) === t.y,
+        );
+        out.push({
+          id: o.id,
+          kind: "exit",
+          pos: centre(t),
+          ...(stood ? { state: "occupied" as const } : {}),
+        });
+      }
     } else if (o.kind === "guard") {
       const guard = world.guards.find((g) => g.id === o.id);
       if (!guard) continue;
@@ -131,13 +181,14 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
         cone: { fovDeg, range: sightTiles },
       });
     } else if (o.kind === "camera") {
-      const watching = cameraWatching(cameraParams(o), world.tick);
+      const watching = isWatching(world, o);
       out.push({
         id: o.id,
         kind: "camera",
         pos: centre(o.tiles[0] as Vec),
         state: watching ? "watching" : "idle",
-        zone: cameraZone(o),
+        facing: rounded(cameraCone(o).facing),
+        cone: { fovDeg: cameraCone(o).fovDeg, range: cameraCone(o).range },
       });
     } else if (o.kind === "laser") {
       out.push({
@@ -151,11 +202,15 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
       out.push({ id: o.id, kind: "hide", pos: centre(o.tiles[0] as Vec) });
     } else if (o.kind === "checkpoint") {
       const reached = Number(o.id.slice(1)) <= world.checkpoint;
+      const flag = centre(o.tiles[0] as Vec);
       out.push({
         id: o.id,
         kind: "checkpoint",
-        pos: centre(o.tiles[0] as Vec),
+        pos: flag,
         state: reached ? "reached" : "up",
+        present: world.players.filter(
+          (p) => Math.hypot(p.pos.x - flag.x, p.pos.y - flag.y) <= CHECKPOINT_RADIUS,
+        ).length,
       });
     } else if (o.kind === "loot") {
       if (!world.lootTaken.includes(o.id)) {
@@ -165,7 +220,13 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
       const shows = Array.isArray(o.params?.shows)
         ? o.params.shows.filter((v): v is string => typeof v === "string")
         : [];
-      out.push({ id: o.id, kind: "sign", pos: centre(o.tiles[0] as Vec), shows });
+      out.push({
+        id: o.id,
+        kind: "sign",
+        pos: centre(o.tiles[0] as Vec),
+        shows,
+        ...signProgress(world, shows),
+      });
     }
   }
   for (const s of world.stamps) {
@@ -174,11 +235,36 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
   return out;
 }
 
+// How far along its sequence door is: plates matched so far, and the share of
+// the 5 s window left to press the next. A stale or broken run counts as none.
+function signProgress(
+  world: World,
+  shows: string[],
+): { progress: number; window?: number; flash?: "ok" | "wrong" } {
+  const door = world.room.objects.find(
+    (o) =>
+      o.kind === "door" &&
+      o.mode === "sequence" &&
+      o.opensWhen?.length === shows.length &&
+      o.opensWhen.every((id, i) => id === shows[i]),
+  );
+  const run = door ? world.seqProgress[door.id] : undefined;
+  const last = door ? world.seqFlash[door.id] : undefined;
+  const flash = last && world.tick - last.tick < FLASH_TICKS ? { flash: last.result } : {};
+  if (!run) return { progress: 0, ...flash };
+  if (run.next >= shows.length) return { progress: shows.length };
+  const left = 1 - ((world.tick - run.at) * TICK_MS) / SEQUENCE_GAP_MS;
+  return run.next > 0 && left > 0
+    ? { progress: run.next, window: left, ...flash }
+    : { progress: 0, ...flash };
+}
+
 const panOf = (source: Vec, listener: Vec): number =>
   Math.max(-1, Math.min(1, (source.x - listener.x) / PAN_RANGE));
 
 function cue(kind: SoundCue["kind"], source: Vec, listener: Vec): SoundCue | null {
-  const gain = 1 - Math.hypot(source.x - listener.x, source.y - listener.y) / HEARING_RANGE;
+  const range = RANGE[kind] ?? HEARING_RANGE;
+  const gain = 1 - Math.hypot(source.x - listener.x, source.y - listener.y) / range;
   if (gain <= 0) return null;
   return { kind, pan: panOf(source, listener), gain };
 }
@@ -190,9 +276,21 @@ function soundsFor(world: World, seat: Seat): SoundCue[] {
   const me = world.players[seat].pos;
   const out: SoundCue[] = [];
   for (const p of world.players) {
-    if (p.seat === seat || !p.moving) continue;
+    // someone pressed against a wall is not walking, so makes no footsteps
+    if (p.seat === seat || !p.moving || p.blocked) continue;
     const c = cue("footsteps", p.pos, me);
     if (c) out.push(c);
+  }
+  // Your own movement, so Can't see knows they are moving or stopped. Centred and a
+  // different cue from other players' footsteps (which are panned), so the two
+  // are never confused. Only you hear your own bump.
+  const mine = world.players[seat];
+  if (mine.moving) {
+    out.push(
+      mine.blocked
+        ? { kind: "bump", pan: 0, gain: BUMP_GAIN }
+        : { kind: "step", pan: 0, gain: OWN_STEP_GAIN },
+    );
   }
   const tile = { x: Math.floor(me.x), y: Math.floor(me.y) };
   const onPlate = world.room.objects.some(
@@ -209,6 +307,28 @@ function soundsFor(world: World, seat: Seat): SoundCue[] {
       out.push({ kind: "checkpoint", pan: 0, gain: 1 });
     } else if (e.kind === "caught") {
       out.push({ kind: "caught", pan: 0, gain: 1 });
+    } else if (e.kind === "plate") {
+      // a click in the room: local, like any other sound the world makes
+      const c = cue(e.pressed ? "plate" : "plate-up", e.at, me);
+      if (c) out.push(c);
+    } else if (e.kind === "crate") {
+      const c = cue("crate", e.at, me);
+      if (c) out.push(c);
+    } else if (e.kind === "flag") {
+      out.push({ kind: "flag", pan: panOf(e.at, me), gain: 1, n: e.present });
+    } else if (e.kind === "exit") {
+      out.push({ kind: "exit", pan: panOf(e.at, me), gain: 1, n: e.present });
+    } else if (e.kind === "seq") {
+      const kind = e.result === "ok" ? "seq-ok" : e.result === "open" ? "seq-open" : "seq-wrong";
+      out.push({ kind, pan: panOf(e.at, me), gain: 1, n: e.n });
+    } else if (e.kind === "hide") {
+      const own = e.seat === seat;
+      const c = own
+        ? { kind: "hide" as const, pan: 0, gain: OWN_STEP_GAIN }
+        : cue("hide", e.at, me);
+      if (c) out.push(c);
+    } else if (e.kind === "cleared") {
+      out.push({ kind: "cleared", pan: 0, gain: 1 });
     }
   }
   hazardSounds(world, me, out);
@@ -221,7 +341,8 @@ function hazardSounds(world: World, me: Vec, out: SoundCue[]): void {
   for (const o of world.room.objects) {
     if (o.kind === "guard") {
       const guard = world.guards.find((g) => g.id === o.id);
-      if (!guard || patrolOf(o.params).length < 2) continue;
+      // footsteps only while it walks: standing and turning round it is silent
+      if (!guard?.moving || patrolOf(o.params).length < 2) continue;
       const c = cue("guard", guard.pos, me);
       if (c) out.push(c);
     } else if (o.kind === "camera") {

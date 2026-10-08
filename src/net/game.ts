@@ -64,6 +64,22 @@ export function applyInput(game: Game, seat: Seat, input: PlayerInput): boolean 
   return true;
 }
 
+// After a cleared room: the next room, with roles rotated so each seat plays
+// each role once over three rooms, a fresh world, and everyone to re-ready.
+// "done" once the last room is cleared (the heist is over).
+export function advanceRoom(game: Game, rooms: Room[]): "next" | "done" {
+  const room = rooms[game.roomIndex + 1];
+  if (!room) return "done";
+  game.roomIndex++;
+  game.roles = rolesFor(game.roomIndex);
+  game.world = createWorld(room);
+  game.ready.clear();
+  game.inputs = {};
+  game.cooldowns = { until: {} };
+  game.startedAt = Date.now();
+  return "next";
+}
+
 // A fresh world for the same room: everyone back at spawn, crates and doors
 // reset, held inputs dropped. Roles and who is ready stay as they are.
 export function restartGame(game: Game): void {

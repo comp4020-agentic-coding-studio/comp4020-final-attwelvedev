@@ -27,6 +27,11 @@ export function laserOn(
   return (seconds(tick) + params.offsetS) % (params.onS + params.offS) < params.onS - 1e-9;
 }
 
+// While the alarm is on every camera watches, whatever its cycle says.
+export const alarmOn = (world: World): boolean => world.tick < world.alarmUntil;
+export const isWatching = (world: World, camera: RoomObject): boolean =>
+  alarmOn(world) || cameraWatching(cameraParams(camera), world.tick);
+
 export const cameraParams = (o: RoomObject) => ({
   periodS: num(o.params, "periodS", 6),
   watchingS: num(o.params, "watchingS", 3),
@@ -43,15 +48,18 @@ export const guardParams = (o: RoomObject) => ({
   speedTps: num(o.params, "speedTps", 1.5),
   sightTiles: num(o.params, "sightTiles", 6),
   fovDeg: num(o.params, "fovDeg", 70),
+  turnDegPerS: num(o.params, "turnDegPerS", 180), // how fast it swings round at the end of a patrol
 });
 
-export function cameraZone(o: RoomObject): [number, number, number, number] {
-  const z = o.params?.zone;
-  if (Array.isArray(z) && z.length === 4 && z.every((n) => typeof n === "number")) {
-    return z as [number, number, number, number];
-  }
-  const t = o.tiles[0] as Vec;
-  return [t.x, t.y, t.x, t.y];
+// A camera looks the way `facingDeg` says (0 east, 90 south, as the map is drawn),
+// across `fovDeg` and out to `range` tiles, like a guard. Walls and cover block it.
+export function cameraCone(o: RoomObject): { facing: Vec; fovDeg: number; range: number } {
+  const rad = (num(o.params, "facingDeg", 90) * Math.PI) / 180;
+  return {
+    facing: { x: Math.cos(rad), y: Math.sin(rad) },
+    fovDeg: num(o.params, "fovDeg", 90),
+    range: num(o.params, "range", 8),
+  };
 }
 
 const DIRS: Record<string, Vec> = {
@@ -105,11 +113,12 @@ export function caughtBy(world: World): string | null {
         }
       }
     } else if (o.kind === "camera") {
-      if (!cameraWatching(cameraParams(o), world.tick)) continue;
-      const [x0, y0, x1, y1] = cameraZone(o);
+      if (!isWatching(world, o)) continue;
+      const at = { x: (o.tiles[0] as Vec).x + 0.5, y: (o.tiles[0] as Vec).y + 0.5 };
+      const { facing, fovDeg, range } = cameraCone(o);
       for (const p of world.players) {
-        const t = tileOf(p.pos);
-        if (!hidden(p.pos) && t.x >= x0 && t.x <= x1 && t.y >= y0 && t.y <= y1) return o.id;
+        if (hidden(p.pos)) continue;
+        if (inCone(at, facing, p.pos, range, fovDeg) && lineOfSight(world, at, p.pos)) return o.id;
       }
     } else if (o.kind === "laser") {
       if (!laserOn(laserParams(o), world.tick)) continue;

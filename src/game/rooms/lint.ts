@@ -1,6 +1,6 @@
-import { cameraParams, cameraZone, laserBeam, laserParams } from "../sim/hazards.ts";
+import { cameraParams, laserBeam, laserParams } from "../sim/hazards.ts";
 import { patrolOf } from "../sim/world.ts";
-import type { Room } from "./format.ts";
+import { flipsOf, type Room } from "./format.ts";
 
 const SAFE_S = 2; // FR14: a cue-dependent safe window is at least this long
 
@@ -104,7 +104,7 @@ function lintHazards(room: Room, issue: (message: string) => void): void {
           `camera ${o.id} is safe for only ${periodS - watchingS} s between watching spells (needs ${SAFE_S} s)`,
         );
       }
-      hazardXs.push(cameraZone(o)[0]);
+      hazardXs.push(o.tiles[0]?.x ?? 0);
     } else if (o.kind === "laser") {
       const { offS } = laserParams(o);
       if (offS < SAFE_S) issue(`laser ${o.id} is off for only ${offS} s (needs ${SAFE_S} s)`);
@@ -132,6 +132,13 @@ function lintHazards(room: Room, issue: (message: string) => void): void {
     });
     if (!shown)
       issue(`door ${door.id} is a sequence door but no sign shows exactly its plates in order`);
+  }
+
+  const plateIds = new Set(room.objects.filter((o) => o.kind === "plate").map((o) => o.id));
+  for (const flip of flipsOf(room)) {
+    if (flip.kind === "alarm" && !plateIds.has(flip.trigger)) {
+      issue(`alarm trigger "${flip.trigger}" is not a plate in this room`);
+    }
   }
 
   const flips = Array.isArray(room.meta.flips) ? room.meta.flips : [];

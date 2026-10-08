@@ -53,7 +53,15 @@ export function Lobby({ code }: { code: string }) {
         setStatus("in");
       }),
       socket.on("reveal", (m) =>
-        setReveal({ room: m.room, index: m.index, role: m.role, crew: m.crew }),
+        setReveal((old) => ({
+          room: m.room,
+          name: m.name,
+          index: m.index,
+          role: m.role,
+          crew: m.crew,
+          // a reveal for the room you are already in (a reconnect) has nothing to morph from
+          ...(old && old.index !== m.index ? { from: old.role } : {}),
+        })),
       ),
       socket.on("error", (m) => {
         setMessage(m.message);
@@ -145,6 +153,7 @@ export function Lobby({ code }: { code: string }) {
   if (reveal && socket) {
     return (
       <Game
+        key={reveal.index}
         socket={socket}
         state={state}
         rttMs={rttMs}

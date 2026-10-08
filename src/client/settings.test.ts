@@ -13,10 +13,12 @@ const store = (initial: Record<string, string> = {}) => {
 };
 
 describe("defaultsFor", () => {
-  it("has captions off for Can't see and on for everyone else", () => {
-    expect(defaultsFor("blind").captions).toBe(false);
-    expect(defaultsFor("deaf").captions).toBe(true);
-    expect(defaultsFor("mute").captions).toBe(true);
+  // Can't see's whole game is sound, so a muted phone or a loud showcase hall
+  // would leave them with nothing. Captions are their backup, so they start on.
+  it("has captions on for every role, Can't see included", () => {
+    for (const role of ["blind", "deaf", "mute"] as const) {
+      expect(defaultsFor(role).captions, role).toBe(true);
+    }
   });
 
   it("starts with game sound and spoken lines both on, and the sheet closing after a send", () => {
@@ -27,13 +29,13 @@ describe("defaultsFor", () => {
 describe("loadSettings and saveSettings", () => {
   it("round-trips a change", () => {
     const s = store();
-    saveSettings({ ...defaultsFor("blind"), captions: true }, s);
-    expect(loadSettings("blind", s).captions).toBe(true);
+    saveSettings({ ...defaultsFor("blind"), captions: false }, s); // a player who turns them off
+    expect(loadSettings("blind", s).captions).toBe(false);
   });
 
   it("keeps a person's choice across roles, falling back to the role default if unset", () => {
     const s = store();
-    expect(loadSettings("blind", s).captions).toBe(false);
+    expect(loadSettings("blind", s).captions).toBe(true);
     saveSettings({ sound: false, speech: false, keepOpen: true, captions: null }, s);
     const loaded = loadSettings("deaf", s);
     expect(loaded).toMatchObject({ sound: false, speech: false, keepOpen: true, captions: true });

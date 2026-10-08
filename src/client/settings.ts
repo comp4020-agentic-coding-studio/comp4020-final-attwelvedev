@@ -19,10 +19,10 @@ interface Store {
 
 const KEY = "heist.settings";
 
-// Captions are off by default for Can't see, whose game is listening, and on
-// for everyone else.
-export const defaultsFor = (role: Role): Settings => ({
-  captions: role !== "blind",
+// Captions are on for every role. Can't see's whole game is sound, so a muted
+// phone or a loud showcase hall would otherwise leave them with nothing.
+export const defaultsFor = (_role: Role): Settings => ({
+  captions: true,
   sound: true,
   speech: true,
   keepOpen: false,

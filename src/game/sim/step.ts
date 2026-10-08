@@ -1,11 +1,14 @@
 import { flipsOf } from "../rooms/format.ts";
 import type { PlayerInput, Seat, Vec } from "../types.ts";
 import { blockedAt, circleHitsTile, crateAt, crateTouching, indexOf, tileKey } from "./collide.ts";
-import { caughtBy, guardParams, tileOf } from "./hazards.ts";
+import { alarmOn, caughtBy, guardParams, tileOf } from "./hazards.ts";
 import {
+  ALARM_GUARD_SPEEDUP,
+  CHECKPOINT_RADIUS,
   lootValue,
   type PlayerState,
   patrolOf,
+  SEQUENCE_GAP_MS,
   SPEED_TPS,
   STAMP_LIFE_MS,
   TICK_MS,
@@ -14,7 +17,7 @@ import {
 
 const PUSH_MS = 200;
 const BISECT = 8;
-const SEQUENCE_GAP_MS = 5000; // a sequence door wants each plate within this of the last
+const BLOCKED_FRACTION = 0.3; // of the distance the input asked for
 
 const tileCentre = (t: Vec): Vec => ({ x: t.x + 0.5, y: t.y + 0.5 });
 
@@ -51,12 +54,18 @@ function movePlayer(world: World, p: PlayerState, input: PlayerInput | undefined
   p.moving = dir.x !== 0 || dir.y !== 0;
   if (!p.moving) {
     p.pushMs = 0;
+    p.blocked = false;
     return;
   }
   p.facing = dir;
   const dist = (SPEED_TPS * dtMs) / 1000;
+  const from = { ...p.pos };
   moveAxis(world, p, "x", dir.x * dist);
   moveAxis(world, p, "y", dir.y * dist);
+  // Sliding along a wall still gets somewhere; only a push that goes (almost) nowhere is blocked.
+  p.blocked =
+    Math.hypot(p.pos.x - from.x, p.pos.y - from.y) <
+    BLOCKED_FRACTION * Math.hypot(dir.x, dir.y) * dist;
 }
 
 // A player holding into a crate for PUSH_MS moves it one tile, if the tile
@@ -100,8 +109,8 @@ function updatePlates(world: World) {
   }
 }
 
-// An alarm flip starts when its trigger plate is pressed or the team is caught,
-// and runs for durationS (starting afresh if it is set off again).
+// An alarm flip starts when its trigger plate is pressed and runs for durationS
+// (starting afresh if it is set off again).
 function triggerAlarm(world: World, trigger: (t: string) => boolean) {
   for (const flip of flipsOf(world.room)) {
     if (flip.kind === "alarm" && trigger(flip.trigger)) {
@@ -119,13 +128,24 @@ function updateSequences(world: World) {
     const progress = world.seqProgress[door.id] ?? { next: 0, at: world.tick };
     world.seqProgress[door.id] = progress;
     if (progress.next >= order.length) continue; // done; the door latches
+    const at = tileCentre(door.tiles[0] as Vec);
+    const say = (result: "ok" | "wrong" | "open") => {
+      world.events.push({ kind: "seq", door: door.id, result, n: progress.next, at });
+      if (result !== "open") world.seqFlash[door.id] = { result, tick: world.tick };
+    };
     if (progress.next > 0 && (world.tick - progress.at) * TICK_MS > SEQUENCE_GAP_MS) {
       progress.next = 0;
+      say("wrong"); // the time ran out: start again
     }
     for (const id of pressedNow) {
       if (!order.includes(id)) continue;
-      if (id === order[progress.next]) progress.next++;
-      else progress.next = id === order[0] ? 1 : 0;
+      if (id === order[progress.next]) {
+        progress.next++;
+        say(progress.next >= order.length ? "open" : "ok");
+      } else {
+        progress.next = id === order[0] ? 1 : 0;
+        say("wrong");
+      }
       progress.at = world.tick;
     }
   }
@@ -148,18 +168,82 @@ function updateDoors(world: World) {
   }
 }
 
+// Standing on a hide spot: reported once each way, so everyone can hear and see it.
+function updateHide(world: World) {
+  const spots = world.room.objects.filter((o) => o.kind === "hide").flatMap((o) => o.tiles);
+  for (const p of world.players) {
+    const t = tileOf(p.pos);
+    const hidden = spots.some((s) => s.x === t.x && s.y === t.y);
+    if (hidden === p.hidden) continue;
+    p.hidden = hidden;
+    world.events.push({ kind: "hide", seat: p.seat, hidden, at: { ...p.pos } });
+  }
+}
+
+const reach = (p: PlayerState, at: Vec): boolean =>
+  Math.hypot(p.pos.x - at.x, p.pos.y - at.y) <= CHECKPOINT_RADIUS;
+
+// How many of the three are within reach of each flag not yet set, reported each
+// time that changes: the sound and the pips behind "all three, together".
+function updateFlags(world: World) {
+  for (const o of world.room.objects.filter((o) => o.kind === "checkpoint")) {
+    const at = o.tiles[0];
+    if (!at || Number(o.id.slice(1)) <= world.checkpoint) continue;
+    const flag = tileCentre(at);
+    const present = world.players.filter((p) => reach(p, flag)).length;
+    if (present === (world.flagPresent[o.id] ?? 0)) continue;
+    world.flagPresent[o.id] = present;
+    world.events.push({ kind: "flag", id: o.id, present, at: flag });
+  }
+}
+
+function updateExitCount(world: World) {
+  const { exitAt } = indexOf(world.room);
+  const present = world.players.filter((p) =>
+    exitAt.has(tileKey(tileOf(p.pos).x, tileOf(p.pos).y)),
+  ).length;
+  if (present === world.exitCount) return;
+  world.exitCount = present;
+  const first = world.room.objects.find((o) => o.kind === "exit")?.tiles[0];
+  world.events.push({ kind: "exit", present, at: first ? tileCentre(first) : { x: 0, y: 0 } });
+}
+
+// A guard walks toward its next patrol point, but never snaps round: it swings to
+// face the way it is going at turnDegPerS, and stands still until it is facing
+// (nearly) the right way. So at the end of a lane it pauses and its cone sweeps
+// round, instead of flipping instantly.
+const FACING_OK = 0.35; // radians (about 20 degrees): close enough to start walking
+
 function moveGuards(world: World, dtMs: number) {
+  const hurry = alarmOn(world) ? ALARM_GUARD_SPEEDUP : 1;
   for (const guard of world.guards) {
+    guard.moving = false;
     const object = world.room.objects.find((o) => o.id === guard.id);
     const patrol = patrolOf(object?.params);
     const goal = patrol[guard.target];
     if (!object || !goal || patrol.length < 2) continue;
+    const params = guardParams(object);
     const to = tileCentre(goal);
     const dx = to.x - guard.pos.x;
     const dy = to.y - guard.pos.y;
     const dist = Math.hypot(dx, dy);
-    const reach = (guardParams(object).speedTps * dtMs) / 1000;
-    if (dist > 1e-9) guard.facing = { x: dx / dist, y: dy / dist };
+
+    // turn toward the goal (a half turn always goes the same way round)
+    const want = Math.atan2(dy, dx);
+    const now = Math.atan2(guard.facing.y, guard.facing.x);
+    let off = want - now;
+    while (off > Math.PI) off -= 2 * Math.PI;
+    while (off <= -Math.PI) off += 2 * Math.PI;
+    if (dist > 1e-9) {
+      const most = (params.turnDegPerS * hurry * (Math.PI / 180) * dtMs) / 1000;
+      const turn = Math.max(-most, Math.min(most, off));
+      guard.facing = { x: Math.cos(now + turn), y: Math.sin(now + turn) };
+      off -= turn;
+    }
+    if (Math.abs(off) > FACING_OK) continue; // still swinging round: stand and look
+
+    const reach = (params.speedTps * hurry * dtMs) / 1000;
+    guard.moving = true;
     if (dist <= reach) {
       guard.pos = to;
       guard.target = (guard.target + 1) % patrol.length;
@@ -189,7 +273,12 @@ function updateCheckpoints(world: World) {
     const index = Number(o.id.slice(1));
     const at = o.tiles[0];
     if (!at || index <= world.checkpoint) continue;
-    if (!world.players.some((p) => tileOf(p.pos).x === at.x && tileOf(p.pos).y === at.y)) continue;
+    // the whole team, together: one runner cannot bank a hard section for everyone
+    const flag = tileCentre(at);
+    const together = world.players.every(
+      (p) => Math.hypot(p.pos.x - flag.x, p.pos.y - flag.y) <= CHECKPOINT_RADIUS,
+    );
+    if (!together) continue;
     world.checkpoint = index;
     const spots = [at, ...floorNear(world, at, 3).filter((t) => t.x !== at.x || t.y !== at.y)];
     world.snapshot = {
@@ -220,6 +309,7 @@ function sendBack(world: World, by: string) {
     const to = snapshot.players[i];
     if (to) p.pos = { ...to };
     p.moving = false;
+    p.blocked = false;
     p.pushMs = 0;
   });
   world.crates = snapshot.crates.map((c) => ({ id: c.id, tile: { ...c.tile } }));
@@ -228,8 +318,9 @@ function sendBack(world: World, by: string) {
     .filter((o) => o.kind === "loot" && world.lootTaken.includes(o.id))
     .reduce((sum, o) => sum + lootValue(o.params), 0);
   world.seqProgress = {};
+  world.seqFlash = {};
   world.events.push({ kind: "caught", by });
-  triggerAlarm(world, (t) => t === "caught");
+  world.alarmUntil = 0; // a retry starts clean: the alarm belongs to the attempt that set it off
 }
 
 function updateExit(world: World) {
@@ -267,8 +358,11 @@ export function step(
   }
   updateDoors(world);
   moveGuards(world, dtMs);
+  updateHide(world);
+  updateFlags(world);
   updateCheckpoints(world);
   updateLoot(world);
+  updateExitCount(world);
   const by = caughtBy(world);
   if (by !== null) sendBack(world, by);
   else updateExit(world);

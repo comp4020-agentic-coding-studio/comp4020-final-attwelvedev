@@ -50,15 +50,29 @@ describe("game logging and the live stats", () => {
     await Promise.all([a.close(), b.close()]);
   });
 
-  it("playersConnected rises with three sockets and falls when they close", async () => {
-    const base = await read();
+  it("playersConnected counts our three sockets while they are open, and drops by them when they close", async () => {
     const sockets = await Promise.all([connect(baseUrl), connect(baseUrl), connect(baseUrl)]);
-    const up = await until(read, (g) => g.playersConnected >= base.playersConnected + 3);
-    expect(up.playersConnected).toBeGreaterThanOrEqual(3);
-    expect(up.playersConnected).toBeGreaterThanOrEqual(base.playersConnected + 3);
+    // the server sends `welcome` once a socket is counted, so after these all three are in
+    await Promise.all(sockets.map((s) => s.next("welcome")));
+    const peak = await read();
+    expect(peak.playersConnected).toBeGreaterThanOrEqual(3);
+
     await Promise.all(sockets.map((s) => s.close()));
-    const down = await until(read, (g) => g.playersConnected <= up.playersConnected - 3);
-    expect(down.playersConnected).toBeLessThanOrEqual(up.playersConnected - 3);
+    // Other spec files connect and disconnect at the same time, so the total can
+    // not be compared exactly. Anyone who arrived since the peak shows up in the
+    // `socket.open` count of the same snapshot, so allow for exactly those: with
+    // ours gone the total can be no higher than this, and if ours were not being
+    // removed it would stay three above it.
+    const arrived = (g: Game) => (g.events["socket.open"] ?? 0) - (peak.events["socket.open"] ?? 0);
+    const after = await until(
+      read,
+      (g) => g.playersConnected <= peak.playersConnected - 3 + arrived(g),
+      4000,
+    );
+    expect(after.playersConnected).toBeLessThanOrEqual(peak.playersConnected - 3 + arrived(after));
+    expect(after.events["socket.close"]).toBeGreaterThanOrEqual(
+      (peak.events["socket.close"] ?? 0) + 3,
+    );
   });
 
   it("counts a started game and channel use by role, kind only", async () => {

@@ -12,7 +12,16 @@ import { sharedStats } from "../lib/stats.ts";
 import { joinThrottle } from "../lib/throttle.ts";
 import { createHub } from "./broadcast.ts";
 import { normaliseLobbyCode } from "./codes.ts";
-import { applyInput, crewOf, type Game, relay, restartGame, startGame, tickGame } from "./game.ts";
+import {
+  advanceRoom,
+  applyInput,
+  crewOf,
+  type Game,
+  relay,
+  restartGame,
+  startGame,
+  tickGame,
+} from "./game.ts";
 import {
   createLobby,
   createRegistry,
@@ -90,6 +99,7 @@ function sendReveal(code: string, seat: Seat): void {
   hub.sendTo(who, {
     t: "reveal",
     room: running.game.world.room.id,
+    name: running.game.world.room.name,
     index: running.game.roomIndex,
     role: running.game.roles[seat] as (typeof running.game.roles)[number],
     crew: crewOf(lobby, running.game),
@@ -121,10 +131,23 @@ function tick(code: string): void {
   if (cleared && running.timer) {
     clearInterval(running.timer);
     running.timer = null;
+    const { world } = running.game;
     record("room.clear", null, lobby, {
-      room: running.game.world.room.id,
+      room: world.room.id,
       ms: Date.now() - running.game.startedAt,
     });
+    for (const seat of [0, 1, 2] as const) {
+      const who = lobby.seats[seat]?.who;
+      if (who) {
+        hub.sendTo(who, {
+          t: "cleared",
+          room: world.room.id,
+          ms: world.tick * TICK_MS,
+          loot: world.loot,
+          lootTotal: world.lootTotal,
+        });
+      }
+    }
   }
 }
 
@@ -226,6 +249,19 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         record("room.start", who, registry.lobbies.get(code), { room: running.game.world.room.id });
         running.full = new Set([0, 1, 2]);
         runIfReady(code, running);
+        return;
+      }
+      case "next": {
+        const code = registry.byDevice.get(who);
+        const running = code ? games.get(code) : undefined;
+        const lobby = code ? registry.lobbies.get(code) : undefined;
+        if (!code || !running || !lobby) return;
+        if (lobby.host !== who) throw new LobbyError("not-host", "Only the host can do that.");
+        if (running.game.world.status !== "cleared") return;
+        if (advanceRoom(running.game, roomList()) === "done") return;
+        running.full = new Set([0, 1, 2]);
+        for (const seat of [0, 1, 2] as const) sendReveal(code, seat);
+        record("room.start", who, lobby, { room: running.game.world.room.id });
         return;
       }
       case "say":
