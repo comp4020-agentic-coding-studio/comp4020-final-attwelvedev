@@ -4,8 +4,8 @@
   Nothing important lives anywhere else. Only heist records persist (ADR 0009);
   lobbies and games live in memory and die with the process.
 - **Run it:** `pnpm install && pnpm build && pnpm start` serves on `:8080`
-  (DB at `./.data/app.db`; set `DATABASE_PATH` to move it). From phase 01 Task 2
-  `pnpm start` is `node server.ts`: one Node process serving the Astro handler
+  (DB at `./.data/app.db`; set `DATABASE_PATH` to move it). `pnpm start` is
+  `node server.ts`: one Node process serving the Astro handler
   and a WebSocket endpoint at `/ws`. `pnpm dev` is for hot reload.
 - **Dependencies:** adding one needs a reason (and an ADR if it shapes the
   app). The machine has 256 MB; check the cost before adding.

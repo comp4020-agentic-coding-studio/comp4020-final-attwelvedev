@@ -138,9 +138,14 @@ attachSockets(server);
 server.listen(Number(process.env.PORT ?? 8080), process.env.HOST ?? "0.0.0.0");
 ```
 
-Static assets: in middleware mode the handler serves `dist/client` assets
-itself (`@astrojs/node` `serve-static`); Task 2 verifies `/_astro/*` and the
-font answer 200 with the long cache header (`spec/font.test.ts`).
+Static assets: **amended during Task 2** — `middleware` mode's handler does
+not serve `dist/client` (verified in `@astrojs/node/dist/middleware.js`; the
+font 404'd). `astro.config.ts` therefore stays `mode: "standalone"`, whose
+exported `handler` serves static files and pages; `server.ts` sets
+`process.env.ASTRO_NODE_AUTOSTART = "disabled"` before a dynamic
+`import("./dist/server/entry.mjs")` (a variable path, so `pnpm typecheck` passes
+on a checkout with no `dist/`, as in CI). `/_astro/*` and the font answer 200
+with the long cache header (`spec/font.test.ts`).
 
 **Lobby codes.** 4 letters from `ABCDEFGHJKMNPQRSTUVWXYZ` (no I, L, O; 23⁴ ≈
 280k codes); retried until free among live lobbies. Failed joins go through
@@ -230,6 +235,8 @@ before `next()`.
 **Depends on:** none.
 
 ### Task 2: Serve WebSockets at `/ws` from a custom server, in prod and dev
+
+**Status:** done — see the commit tagged in `git log` for "WebSocket endpoint". Verified: `pnpm check` (64 tests), `spec/ws.test.ts` against `pnpm start` and `pnpm dev`, and the full spec project against the built Docker image. Static serving amended (see §4).
 
 **Description.** Run the Astro handler inside our own Node server and attach
 a `ws` server at `/ws` that identifies the device from its cookie, answers

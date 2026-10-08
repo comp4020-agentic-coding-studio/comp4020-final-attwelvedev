@@ -32,6 +32,9 @@ FROM base
 
 COPY --from=build /app/node_modules /app/node_modules
 COPY --from=build /app/dist /app/dist
+# server.ts runs under Node type stripping and imports the socket code in src/
+COPY --from=build /app/server.ts /app/server.ts
+COPY --from=build /app/src /app/src
 # the committed migrations, applied at boot (see src/lib/db.ts)
 COPY --from=build /app/drizzle /app/drizzle
 
@@ -40,4 +43,4 @@ ENV HOST=0.0.0.0
 ENV PORT=8080
 ENV DATABASE_PATH=/data/app.db
 EXPOSE 8080
-CMD ["node", "./dist/server/entry.mjs"]
+CMD ["node", "server.ts"]

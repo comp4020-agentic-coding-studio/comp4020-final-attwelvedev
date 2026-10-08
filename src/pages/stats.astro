@@ -1,12 +1,12 @@
 ---
 import Base from "../layouts/Base.astro";
-import { stats } from "../lib/stats.ts";
+import { sharedStats } from "../lib/stats.ts";
 
 // Aggregate only, and public on purpose: counts, and the last 30 actions as an
 // anonymous device code, an action name and a status. The script below redraws
 // it from /stats.json; without scripts this first render stays.
 Astro.response.headers.set("Cache-Control", "no-store");
-const s = stats.snapshot();
+const s = sharedStats().snapshot();
 const time = (ts: string) => ts.slice(11, 19);
 ---
 

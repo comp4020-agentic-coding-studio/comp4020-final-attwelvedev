@@ -3,7 +3,7 @@ import { deviceCookieOptions } from "./lib/cookie.ts";
 import { inRequest, newRequestContext, stdoutSink, withRequestContext } from "./lib/log.ts";
 import { anon, describeRequest, isLogged } from "./lib/requestLog.ts";
 import { DEVICE_COOKIE, newDeviceToken } from "./lib/session.ts";
-import { stats } from "./lib/stats.ts";
+import { sharedStats } from "./lib/stats.ts";
 
 // Gives every visitor an anonymous device cookie on their first page view (ADR
 // 0008), then writes one redacted line per request (who, what, when) and feeds
@@ -45,7 +45,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
       detail: ctx.detail,
       error,
     });
-    stats.record(line);
+    sharedStats().record(line);
     stdoutSink(line);
   }
 });

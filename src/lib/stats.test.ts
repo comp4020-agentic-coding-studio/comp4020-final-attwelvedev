@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RequestLine } from "./requestLog.ts";
-import { createStats } from "./stats.ts";
+import { createStats, sharedStats } from "./stats.ts";
 
 const T0 = Date.parse("2026-10-07T03:00:00Z");
 const MIN = 60_000;
@@ -81,5 +81,11 @@ describe("stats", () => {
     const s = stats.snapshot(T0);
     expect(s.requests).toBe(0);
     expect(s.recent).toEqual([]);
+  });
+});
+
+describe("sharedStats", () => {
+  it("returns the same object twice, so every module instance counts into one", () => {
+    expect(sharedStats()).toBe(sharedStats());
   });
 });

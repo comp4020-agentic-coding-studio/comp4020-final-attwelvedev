@@ -67,4 +67,13 @@ export function createStats(since = Date.now()) {
   };
 }
 
-export const stats = createStats();
+// The socket server (server.ts) and the Astro bundle are separate module
+// instances, so what both must count into lives on globalThis behind this one
+// accessor.
+const SHARED = Symbol.for("heist.stats");
+type Stats = ReturnType<typeof createStats>;
+export function sharedStats(): Stats {
+  const holder = globalThis as unknown as Record<symbol, Stats | undefined>;
+  holder[SHARED] ??= createStats();
+  return holder[SHARED];
+}
