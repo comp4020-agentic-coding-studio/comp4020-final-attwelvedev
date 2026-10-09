@@ -434,4 +434,9 @@ None.
   soon after joining look like leaving. Checked in a cache-on Chrome on :8080: no
   "Waiting for" overlay at any sample (every 50 ms) for About, Credits or
   /lobby/ABCD.
+- 2026-10-09, after the push: the page-request specs failed against fly.dev though they
+  passed locally. Cause: a game socket took ~5 s to close over the network, and the
+  server only remembered a page request for 5 s, so the close looked like a plain
+  drop. The window is now 15 s. Lesson: every timing in the leave logic was tuned on
+  localhost; run the specs against the deployed app before calling a timing right.
 

@@ -351,7 +351,9 @@ function leftForLanding(who: string): boolean {
 // Someone asked for a page of the site. The About, Credits and landing pages open no socket (or
 // only a watcher), and a lobby's page may be another lobby's, so this is how the server learns a
 // person has gone elsewhere. A person's own lobby page, reloaded, is not that: it is a reload.
-const PAGE_WINDOW_MS = 5000; // a socket closing this soon after such a request is the old page going
+// A socket closing this soon after such a request is the old page going. Generous on purpose: a slow
+// connection (a phone, or the deployed app behind its proxy) can take several seconds to close.
+const PAGE_WINDOW_MS = 15_000;
 const PAGE_GRACE_MS = 2000; // otherwise the old page needs this long to unload and close its socket
 const lastPage = new Map<string, number>(); // device -> when it last asked for a page elsewhere
 sharedPresence().onPageView((who, lobbyCode) => {
