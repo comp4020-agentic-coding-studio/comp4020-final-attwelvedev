@@ -21,6 +21,10 @@ export interface Scene {
   alarm?: boolean; // the alarm is on: a red border and banner
   nowMs?: number; // the clock the alarm pulse follows
   reducedMotion?: boolean; // a static alarm, no pulse
+  // A spectator sees the room even while following Can't see (spec §4.1: full
+  // tiles and entities, no dark masking) — the one place `role === "blind"`
+  // would otherwise black the screen out.
+  spectator?: boolean;
 }
 
 export interface FacePop {
@@ -582,7 +586,7 @@ function drawEntity(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera, s
 // else; the renderer is told nothing more than that player was sent.
 export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
   ctx.clearRect(0, 0, scene.w, scene.h);
-  if (scene.role === "blind" || !scene.tiles) {
+  if ((scene.role === "blind" && !scene.spectator) || !scene.tiles) {
     ctx.fillStyle = COLOR.ink;
     ctx.fillRect(0, 0, scene.w, scene.h);
     ctx.save();

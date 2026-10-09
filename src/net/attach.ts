@@ -1,6 +1,7 @@
 import type { IncomingMessage, Server } from "node:http";
 import type { Duplex } from "node:stream";
 import { type RawData, type WebSocket, WebSocketServer } from "ws";
+import { spectatorView } from "../game/perception.ts";
 import type { Room } from "../game/rooms/format.ts";
 import { loadRooms } from "../game/rooms/load.ts";
 import { TICK_MS } from "../game/sim/world.ts";
@@ -76,6 +77,7 @@ interface Running {
   heist: { ms: number; loot: number; lootTotal: number; versions: string[] };
 }
 const games = new Map<string, Running>(); // lobby code → game
+const spectating = new Map<string, Seat>(); // spectator's device hash → the seat they're watching
 
 let rooms: Room[] | null = null;
 const roomList = (): Room[] => {
@@ -126,6 +128,24 @@ function sendReveal(code: string, seat: Seat): void {
   });
 }
 
+// A spectator never occupies a seat, so it gets the same `reveal` (room,
+// crew and every seat's role) for whichever seat it is currently following,
+// instead of `sendReveal`'s own seat.
+function sendSpectatorReveal(code: string, who: string): void {
+  const lobby = registry.lobbies.get(code);
+  const running = games.get(code);
+  if (!lobby || !running) return;
+  const followSeat = spectating.get(who) ?? 0;
+  hub.sendTo(who, {
+    t: "reveal",
+    room: running.game.world.room.id,
+    name: running.game.world.room.name,
+    index: running.game.roomIndex,
+    role: running.game.roles[followSeat] as (typeof running.game.roles)[number],
+    crew: crewOf(lobby, running.game),
+  });
+}
+
 // Ticks once all three are ready, and again after a restart of a cleared room.
 function runIfReady(code: string, running: Running): void {
   if (running.game.ready.size < 3 || running.timer) return;
@@ -163,6 +183,11 @@ function tick(code: string): void {
   for (const [seat, view] of views) {
     const who = lobby.seats[seat]?.who;
     if (who) hub.sendTo(who, { t: "view", view });
+  }
+  for (const spectator of lobby.spectators) {
+    const followSeat = spectating.get(spectator.who) ?? 0;
+    const view = spectatorView(running.game.world, followSeat, running.game.roles, true);
+    hub.sendTo(spectator.who, { t: "view", view });
   }
   if (cleared && running.timer) {
     clearInterval(running.timer);
@@ -380,6 +405,7 @@ function departs(who: string): void {
   const was = lobbyOf(who);
   const seat = was ? seatOfDevice(was.code, who) : null;
   hub.change(who, () => leaveLobby(registry, who));
+  spectating.delete(who);
   if (was) record("lobby.leave", who, was);
   if (was && seat !== null && games.has(was.code) && registry.lobbies.has(was.code)) {
     botTakesSeat(was.code, seat, null, who);
@@ -479,6 +505,10 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
           change(who, () => joinLobby(registry, code, who, msg.nickname, msg.as));
         }
         record("lobby.join", who, lobbyOf(who), { kind: msg.as });
+        // a spectator joining a game already running needs the crew's roles,
+        // same as a reconnecting player does: their next view arrives from
+        // the next tick regardless, since tick() reads lobby.spectators fresh
+        if (msg.as === "spectator" && games.has(code)) sendSpectatorReveal(code, who);
         return;
       }
       case "lobby.leave": {
@@ -542,6 +572,7 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         if (advanceRoom(running.game, roomList()) === "done") return;
         running.full = new Set([0, 1, 2]);
         for (const seat of [0, 1, 2] as const) sendReveal(code, seat);
+        for (const spectator of lobby.spectators) sendSpectatorReveal(code, spectator.who);
         record("room.start", who, lobby, { room: running.game.world.room.id });
         return;
       }
@@ -559,6 +590,14 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         botTakesSeat(code, paused.seat, who, null);
         return;
       }
+      case "spectate": {
+        const code = registry.byDevice.get(who);
+        const lobby = code ? registry.lobbies.get(code) : undefined;
+        if (!code || !lobby?.spectators.some((s) => s.who === who)) return;
+        spectating.set(who, msg.seat);
+        sendSpectatorReveal(code, who); // the newly followed seat's role
+        return;
+      }
       case "say":
       case "sound":
       case "show": {
@@ -566,7 +605,13 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         const running = code ? games.get(code) : undefined;
         const lobby = code ? registry.lobbies.get(code) : undefined;
         const seat = code ? seatOfDevice(code, who) : null;
-        if (!running || !lobby || seat === null) return;
+        if (!running || !lobby) return;
+        if (seat === null) {
+          if (lobby.spectators.some((s) => s.who === who)) {
+            throw new LobbyError("cant-send", "Spectators can't send.");
+          }
+          return;
+        }
         const sent = relay(running.game, lobby, seat, msg, Date.now());
         if (sent === null) return;
         const family = msg.t;
@@ -590,6 +635,12 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         for (const receiver of sent.receivers) {
           const to = lobby.seats[receiver]?.who;
           if (to) hub.sendTo(to, { t: "msg", ...sent.message });
+        }
+        for (const spectator of lobby.spectators) {
+          const followSeat = spectating.get(spectator.who) ?? 0;
+          if (sent.receivers.includes(followSeat)) {
+            hub.sendTo(spectator.who, { t: "msg", ...sent.message });
+          }
         }
         if (sent.cooldown) send(socket, { t: "cooldown", ...sent.cooldown });
         return;

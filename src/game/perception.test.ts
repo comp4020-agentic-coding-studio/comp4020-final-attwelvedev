@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { viewFor } from "./perception.ts";
+import { spectatorView, viewFor } from "./perception.ts";
 import { caughtBy } from "./sim/hazards.ts";
 import { step } from "./sim/step.ts";
 import { gather, place, tap, worldFrom, worldWith } from "./sim/testing.ts";
@@ -658,5 +658,46 @@ describe("viewFor: how far each kind of sound carries", () => {
     place(w, 1, { x: 19, y: 2 });
     step(w, {}, TICK_MS);
     expect(heard(w, "loot")).toHaveLength(1);
+  });
+});
+
+describe("spectatorView: a full view regardless of the followed role", () => {
+  it("following the blind seat still gets tiles, entities and that seat's sounds", () => {
+    const w = world();
+    place(w, 0, { x: 10, y: 1 });
+    place(w, 1, { x: 5, y: 1 });
+    w.players[1].moving = true;
+    const view = spectatorView(w, 0, ["blind", "deaf", "mute"], true);
+    expect(view.role).toBe("blind");
+    expect(view.tiles).toHaveLength(5);
+    expect(view.entities.filter((e) => e.kind === "player")).toHaveLength(3);
+    expect(view.you).toEqual({ seat: 0, pos: { x: 10.5, y: 1.5 } });
+    expect(view.sounds.some((s) => s.kind === "footsteps")).toBe(true);
+  });
+
+  it("following the deaf seat gets no sounds, the same as that seat would", () => {
+    const w = world();
+    step(w, { 0: { seq: 1, move: { x: 1, y: 0 }, act: false } }, TICK_MS);
+    const view = spectatorView(w, 1, ["blind", "deaf", "mute"], false);
+    expect(view.role).toBe("deaf");
+    expect(view.sounds).toEqual([]);
+  });
+
+  it("never masks tiles or entities for a dark zone", () => {
+    const GRID_DARK = [
+      "########################",
+      "#1.....................#",
+      "#2.....................#",
+      "#3.....................#",
+      "########################",
+    ];
+    const DARK = { flips: [{ kind: "dark", zone: [10, 1, 14, 3] }] };
+    const w = worldWith(GRID_DARK, {}, DARK);
+    place(w, 0, { x: 3, y: 1 });
+    place(w, 1, { x: 12, y: 2 }); // inside the dark zone
+    const view = spectatorView(w, 0, ["blind", "deaf", "mute"], true);
+    expect(view.dark).toBe(false);
+    expect(view.entities.map((e) => e.id)).toContain("P1");
+    expect(view.tiles?.[2]?.slice(10, 15)).not.toBe("     ");
   });
 });

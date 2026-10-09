@@ -217,6 +217,64 @@ body.playing main {
   font-weight: 700;
 }
 
+/* spectators: the same chrome shape as a game, but grey and dashed, no role
+   notch and no tray (spec §4.1) — nothing here belongs to a seat */
+.spectator {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-width: 1280px;
+  margin: 0 auto;
+  background: var(--bg);
+  overflow: hidden;
+}
+.hud-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 44px;
+  padding: 0 var(--s-3);
+  font-stretch: 75%;
+  font-weight: 700;
+}
+.spectator-frame {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: var(--s-1) var(--s-3);
+  border: 4px dashed var(--ui-muted);
+  background: var(--ink);
+}
+.spectator-frame canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.spectator-follow {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin: 0 var(--s-3) var(--s-2);
+  padding: 0;
+  border: 0;
+}
+.spectator-follow legend {
+  width: 100%;
+  margin-bottom: var(--s-1);
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+}
+.spectator-follow .btn[aria-pressed="true"] {
+  background: var(--ui);
+  color: var(--bg);
+}
+.spectator > .btn.primary {
+  margin: 0 var(--s-3) var(--s-3);
+  align-self: flex-start;
+}
+
 /* the role frame: 4 px in the role colour, the role's shape notched in the corner */
 .frame {
   position: relative;

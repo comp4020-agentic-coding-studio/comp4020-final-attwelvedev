@@ -466,3 +466,38 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
     view.sounds = alarm ? [{ kind: "alarm", pan: 0, gain: 1 }] : soundsFor(world, seat);
   return view;
 }
+
+// A spectator follows one seat and sees the whole room regardless of that
+// seat's role or any dark zone (spec §4.1: full tiles and entities, no dark
+// masking), but hears only what that seat would hear, so the sound and the
+// sight they're given always agree.
+export function spectatorView(
+  world: World,
+  follow: Seat,
+  roles: [Role, Role, Role],
+  full: boolean,
+): RoleView {
+  const role = roles[follow];
+  const alarm = world.tick < world.alarmUntil;
+  const view: RoleView = {
+    tick: world.tick,
+    ack: 0,
+    room: world.room.id,
+    role,
+    full,
+    you: { seat: follow, pos: rounded(world.players[follow].pos) },
+    entities: entitiesFor(world, follow, role),
+    sounds:
+      role === "deaf"
+        ? []
+        : alarm
+          ? [{ kind: "alarm", pan: 0, gain: 1 }]
+          : soundsFor(world, follow),
+    status: world.status,
+    elapsedMs: world.tick * TICK_MS,
+    alarm: role === "deaf" ? false : alarm,
+    dark: false,
+  };
+  if (full) view.tiles = world.room.grid;
+  return view;
+}

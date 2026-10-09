@@ -51,7 +51,8 @@ export type ClientMsg =
   | { t: "say"; kind: "text"; text: string }
   | { t: "sound"; clip: string }
   | { t: "show"; kind: "face"; id: string }
-  | { t: "show"; kind: "stamp"; id: Stamp }; // the server places it at the sender's tile
+  | { t: "show"; kind: "stamp"; id: Stamp } // the server places it at the sender's tile
+  | { t: "spectate"; seat: Seat }; // a spectator: follow this seat instead
 
 export type ServerMsg =
   | { t: "welcome"; who: string }
@@ -128,6 +129,8 @@ export function parseClientMsg(raw: string): ClientMsg | null {
       return m.choice === "bot" || m.choice === "lobby"
         ? { t: "host.choice", choice: m.choice }
         : null;
+    case "spectate":
+      return m.seat === 0 || m.seat === 1 || m.seat === 2 ? { t: "spectate", seat: m.seat } : null;
     case "input": {
       const move = m.move;
       if (typeof move !== "object" || move === null) return null;

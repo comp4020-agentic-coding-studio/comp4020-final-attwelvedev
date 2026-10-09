@@ -162,6 +162,20 @@ describe("parseClientMsg: host.choice", () => {
   });
 });
 
+describe("parseClientMsg: spectate", () => {
+  it("accepts a seat 0, 1 or 2", () => {
+    for (const seat of [0, 1, 2]) {
+      expect(parseClientMsg(`{"t":"spectate","seat":${seat}}`)).toEqual({ t: "spectate", seat });
+    }
+  });
+
+  it("drops anything else", () => {
+    expect(parseClientMsg('{"t":"spectate","seat":3}')).toBeNull();
+    expect(parseClientMsg('{"t":"spectate","seat":"0"}')).toBeNull();
+    expect(parseClientMsg('{"t":"spectate"}')).toBeNull();
+  });
+});
+
 describe("parseClientMsg: bye", () => {
   it("accepts a bye: a page saying it is going away", () => {
     expect(parseClientMsg('{"t":"bye"}')).toEqual({ t: "bye" });

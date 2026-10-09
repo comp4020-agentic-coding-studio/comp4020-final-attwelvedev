@@ -5,6 +5,7 @@ import type { LobbySettings, LobbyState } from "../net/protocol.ts";
 import { Connection } from "./Connection.tsx";
 import { Game, type Reveal } from "./Game.tsx";
 import { RealLifeWizard } from "./RealLifeWizard.tsx";
+import { Spectator } from "./Spectator.tsx";
 import { useSocket } from "./useSocket.ts";
 
 type Status = "joining" | "in" | "full" | "missing" | "failed";
@@ -166,6 +167,19 @@ export function Lobby({ code }: { code: string }) {
 
   // A game is only this page's if the page is in the lobby its address names: typing another
   // code while in a game is told about that game again on connecting, and must still say "No lobby".
+  if (reveal && socket && lobby && status === "in" && mySeat === null) {
+    return (
+      <Spectator
+        key={reveal.index}
+        socket={socket}
+        state={state}
+        rttMs={rttMs}
+        seats={lobby.seats}
+        onStartNewTeam={startNewTeam}
+      />
+    );
+  }
+
   if (reveal && socket && lobby && status === "in") {
     return (
       <Game
