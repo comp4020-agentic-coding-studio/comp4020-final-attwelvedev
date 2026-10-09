@@ -8,6 +8,7 @@ import {
   crewOf,
   PAUSE_MS,
   pauseFor,
+  relay,
   restartGame,
   resumeIfBack,
   rolesFor,
@@ -350,5 +351,20 @@ describe("pausing for a dropped seat", () => {
     const before = { ...world.players[1].pos };
     for (let i = 0; i < 40; i++) tickGame(game);
     expect(world.players[1].pos).not.toEqual(before);
+  });
+});
+
+describe("a person's messages reach the bots they are sent to", () => {
+  it("lets a Can't-hear person steer a Can't-see bot with callouts (room 2: seat 0 hears nothing, seat 2 sees nothing)", () => {
+    const l = withBots("a", 1, 2);
+    const game = startGame(l, rooms);
+    game.world.status = "cleared";
+    advanceRoom(game, rooms); // room 2: seat 0 is Can't hear, seat 2 is Can't see
+    expect(game.roles).toEqual(["deaf", "mute", "blind"]);
+    const before = { ...game.world.players[2].pos };
+    const sent = relay(game, l, 0, { t: "say", kind: "callout", callout: "right" }, 1_000);
+    expect(sent).toMatchObject({ ok: true });
+    for (let i = 0; i < 10; i++) tickGame(game, new Set(), 1_000 + i * 50);
+    expect(game.world.players[2].pos.x).toBeGreaterThan(before.x);
   });
 });

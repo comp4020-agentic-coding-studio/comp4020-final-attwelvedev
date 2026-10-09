@@ -264,13 +264,16 @@ export function relay(
   if (result.cooldownKey) game.cooldowns.until[result.cooldownKey] = result.until;
   if (out.family === "show" && out.kind === "stamp") addStamp(game.world, out.id, out.at);
   const stamp = out.family === "show" && out.kind === "stamp";
+  const message = {
+    ...out,
+    from: { seat: from, role: game.roles[from], nickname: lobby.seats[from]?.nickname ?? "Bot" },
+    sentAt: now,
+  } as ChannelMessage;
+  // a bot hears what a person sends it, the same as a person would
+  for (const receiver of result.receivers) game.bots[receiver]?.inbox.push(message);
   return {
     ok: true,
-    message: {
-      ...out,
-      from: { seat: from, role: game.roles[from], nickname: lobby.seats[from]?.nickname ?? "Bot" },
-      sentAt: now,
-    },
+    message,
     receivers: result.receivers,
     cooldown: result.cooldownKey
       ? { family: out.family, until: result.until, ...(stamp ? { stamp: true as const } : {}) }
