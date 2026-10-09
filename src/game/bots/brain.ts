@@ -78,6 +78,10 @@ interface Guide {
   lastSent: Callout | null;
   started: boolean;
   nav: Nav;
+  lead: number; // how far a person coasts after "stop", in tiles: learnt, so "stop" is said that early
+  stopFrom: Vec | null; // where they were when told to stop, to measure it
+  bumped: Vec | null; // a person pushed at something here: until they are clear of it, line them up first
+  tapAt: number; // when the guide last asked a person for a tap
 }
 
 const newNav = (): Nav => ({ key: "", plan: [], i: 0, expect: null });
@@ -88,6 +92,11 @@ const FLAVOUR_MS = 10_000;
 const IDLE_MS = 5000; // a blind bot with nothing heard for this long stays put
 const CLIP_MS = 10_000;
 const HUM_TICKS = 3;
+const STUCK_TICKS = 8; // a person who has not moved for this long, while told to, is against something
+const TAP_NEAR_MS = 800; // between taps on the last stretch
+const TAP_MS = 1100; // between one "tap" and the next
+const LANE_SLACK = 0.15; // how far off the middle of a one-tile lane a person may be
+const BUMP_SLACK = 0.1; // and just after they bumped
 
 export function createBotMemory(
   seat: Seat,
@@ -127,6 +136,10 @@ export function createBotMemory(
       lastSent: null,
       started: false,
       nav: newNav(),
+      lead: 0.8,
+      stopFrom: null,
+      bumped: null,
+      tapAt: Number.NEGATIVE_INFINITY,
     },
     lastClipAt: Number.NEGATIVE_INFINITY,
     celebrated: false,
@@ -468,6 +481,8 @@ function forgetPlans(m: BotMemory): void {
   g.last = null;
   g.est = null;
   g.nav = newNav();
+  g.bumped = null;
+  g.stopFrom = null;
 }
 
 function thinkSighted(room: Room, view: RoleView, m: BotMemory, now: number): BotTurn {
@@ -603,6 +618,13 @@ function guideBlind(
     else g.still = 0;
     g.last = p;
     if (g.moving && g.still >= 2 && blindIsBot) g.moving = false; // it stopped on its own: a hum, or a wall
+    if (g.bumped && Math.hypot(p.x - g.bumped.x, p.y - g.bumped.y) > 0.9) g.bumped = null; // clear of it
+    if (g.stopFrom && !g.moving && g.still >= 3) {
+      // they have come to rest: that far is how long a person takes to react, in tiles
+      const coasted = Math.hypot(p.x - g.stopFrom.x, p.y - g.stopFrom.y);
+      g.lead = Math.max(0.2, Math.min(2, (g.lead + coasted) / 2));
+      g.stopFrom = null;
+    }
   } else {
     const spawn = room.objects.find((o) => o.id === `s${b + 1}`)?.tiles[0];
     const est = g.est ?? centreOf(spawn ?? ZERO);
@@ -614,6 +636,7 @@ function guideBlind(
   const tile = tileOf(p);
   const { goal, job } = goalFor(room, m, b as Seat, "blind", p, known, tile, view);
   let callout: Callout | null = null;
+  let tap: string | null = null;
 
   const atCentre =
     Math.abs(p.x - (tile.x + 0.5)) <= 0.1001 && Math.abs(p.y - (tile.y + 0.5)) <= 0.1001;
@@ -628,20 +651,60 @@ function guideBlind(
       callout = "wait";
       g.moving = false;
     }
+  } else if (
+    !blindIsBot &&
+    g.moving &&
+    g.still >= STUCK_TICKS &&
+    !mapsOf(room).plateAt.has(key(tile))
+  ) {
+    // A person pushing at something and getting nowhere: say so and stop them, rather than
+    // calling the same direction again. Line them up with the lane before going on.
+    callout = "stop";
+    g.moving = false;
+    g.bumped = { ...p };
+    g.nextTick = stepTick + 4;
+    g.still = 0;
   } else if (due) {
     const step = decide(room, m, g.nav, known, tile, stepTick, goal);
     g.decided = key(tile);
+    const a = step !== "wait" && !blindIsBot ? approach(g, p, tile, step, now, stepTick) : null;
     if (step === "wait") {
       if (g.moving) {
         callout = tile.x === goal.x && tile.y === goal.y ? "stop" : "wait";
         g.moving = false;
       }
       g.nextTick = stepTick + STEP_TICKS;
+    } else if (a) {
+      if (a.stop) {
+        callout = "stop";
+        g.moving = false;
+        g.stopFrom = { ...p };
+        g.nextTick = stepTick + 6;
+      } else if (a.tap) {
+        tap = a.tap;
+        g.tapAt = now;
+        g.nextTick = stepTick + 10;
+      }
+    } else if (!blindIsBot && needsLineUp(room, g, p, tile, step)) {
+      // A person cannot hold a direction to within a tenth of a tile, and a lane one tile wide
+      // allows no more: stop them, then ask for a tap toward the middle of the lane, and look
+      // again. Said in words, since a tap is smaller than any call.
+      if (g.moving) {
+        callout = "stop";
+        g.moving = false;
+        g.nextTick = stepTick + 6;
+      } else if (stepTick >= g.nextTick && now - g.tapAt >= TAP_MS) {
+        g.tapAt = now;
+        g.nextTick = stepTick + 16;
+        tap = `Tap ${lineUpWord(p, tile, step)}.`;
+      }
     } else {
       const heading = DELTA[step];
       const same = g.moving && g.heading.x === heading.x && g.heading.y === heading.y;
       if (!same) {
-        const resumes = !g.moving && g.heading.x === heading.x && g.heading.y === heading.y;
+        // a person is told the direction in words each time: "go" leans on what they remember
+        const resumes =
+          blindIsBot && !g.moving && g.heading.x === heading.x && g.heading.y === heading.y;
         callout = resumes ? "go" : (WORD[step] as Callout);
         g.heading = { ...heading };
         g.moving = true;
@@ -658,6 +721,10 @@ function guideBlind(
     g.lastSent = callout;
     return { family: "say", kind: "callout", callout };
   }
+  if (tap) {
+    g.lastSentAt = now;
+    return { family: "say", kind: "text", text: tap };
+  }
   if (now - m.lastFlavourAt >= FLAVOUR_MS && now - g.lastSentAt >= 1000) {
     const situation: Situation = !g.started ? "start" : g.moving ? "moving" : "waiting";
     g.started = true;
@@ -665,6 +732,73 @@ function guideBlind(
     return { family: "say", kind: "text", text: pickPhrase(situation, m.usedPhrases, m.seq) };
   }
   return null;
+}
+
+// The end of the straight run a person is on, as a person needs it: stop them a coast's
+// length early (what this person has done before), and for the last stretch ask for taps,
+// since a run cannot be stopped to within a tile by someone who hears it late.
+interface Approach {
+  stop?: true;
+  tap?: string;
+}
+function approach(
+  g: Guide,
+  p: Vec,
+  tile: Vec,
+  step: Step,
+  now: number,
+  stepTick: number,
+): Approach | null {
+  const delta = DELTA[step];
+  const i0 = Math.max(0, g.nav.i - 1);
+  let run = 0;
+  while (g.nav.plan[i0 + run] === step) run++;
+  const end = centreOf({
+    x: tile.x + delta.x * Math.max(1, run),
+    y: tile.y + delta.y * Math.max(1, run),
+  });
+  const along = (end.x - p.x) * delta.x + (end.y - p.y) * delta.y; // tiles left in the way they head
+  if (g.moving) {
+    const same = g.heading.x === delta.x && g.heading.y === delta.y;
+    return same && along <= g.lead + 0.05 && along > -0.3 ? { stop: true } : null;
+  }
+  if (along > 1.5) return null; // a long way: a run
+  const ready = stepTick >= g.nextTick && now - g.tapAt >= TAP_NEAR_MS;
+  if (Math.abs(along) <= 0.3) return null; // there already
+  if (!ready) return {};
+  const word = along > 0 ? headingWord(delta) : headingWord({ x: -delta.x, y: -delta.y });
+  return { tap: `Tap ${word}.` };
+}
+
+// How far a person is from the middle of their lane, across the way they are headed.
+function offLane(p: Vec, tile: Vec, step: Step): number {
+  return step === "left" || step === "right" ? p.y - (tile.y + 0.5) : p.x - (tile.x + 0.5);
+}
+
+// Is there a wall on either side of the tile they are in, or the one they are headed for?
+function tight(room: Room, tile: Vec, step: Step): boolean {
+  const next = { x: tile.x + DELTA[step].x, y: tile.y + DELTA[step].y };
+  const side = step === "left" || step === "right" ? { x: 0, y: 1 } : { x: 1, y: 0 };
+  const wall = (t: Vec) => {
+    const ch = room.grid[t.y]?.[t.x];
+    return ch === undefined || ch === "#" || ch === "D";
+  };
+  return [tile, next].some(
+    (t) => wall({ x: t.x + side.x, y: t.y + side.y }) || wall({ x: t.x - side.x, y: t.y - side.y }),
+  );
+}
+
+function needsLineUp(room: Room, g: Guide, p: Vec, tile: Vec, step: Step): boolean {
+  const off = Math.abs(offLane(p, tile, step));
+  if (g.bumped) return off > BUMP_SLACK;
+  return tight(room, tile, step) && off > LANE_SLACK;
+}
+
+// The direction that brings them back toward the middle of the lane.
+function lineUpWord(p: Vec, tile: Vec, step: Step): string {
+  const off = offLane(p, tile, step);
+  if (step === "left" || step === "right") return off > 0 ? "up" : "down";
+  return off > 0 ? "left" : "right";
 }
 
 function headingWord(h: Vec): string {

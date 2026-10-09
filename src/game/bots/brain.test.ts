@@ -299,8 +299,9 @@ describe("with a person on the team", () => {
   });
 
   it("clears the sequence door when the person is slow: the others step off and press again", () => {
-    // seat 0 is a person who does nothing for 25 s, longer than the 5 s the sequence allows
-    for (const slow of [0, 1, 2] as const) {
+    // a person who does nothing for 25 s, longer than the 5 s the sequence allows (not the one
+    // who cannot see: steering a person is its own test below, since they do not obey like a bot)
+    for (const slow of [0, 2] as const) {
       const run = play("03-vault", ROTATION_2, [0, 1, 2], 4000, () => {}, {
         humans: [slow],
         slow: { [slow]: 500 },
@@ -310,7 +311,7 @@ describe("with a person on the team", () => {
   });
 
   it("waits at each checkpoint for the person, so the whole team sets every one", () => {
-    for (const slow of [0, 1, 2] as const) {
+    for (const slow of [0, 2] as const) {
       const run = play("03-vault", ROTATION_2, [0, 1, 2], 4000, () => {}, {
         humans: [slow],
         slow: { [slow]: 400 },
@@ -330,5 +331,137 @@ describe("with a person on the team", () => {
       },
     });
     expect(pressedEarly).toBe(false);
+  });
+});
+
+// A person who cannot see, steered by the Can't-hear bot: they hear a call a few ticks late,
+// walk the way they were told until told to stop, and tap a key for "tap up".
+// They start a little off the middle of the lane, as a person steering by ear would be.
+function reactiveBlind(lagTicks = 6) {
+  let heading = { x: 0, y: 0 };
+  let tap = 0;
+  const due: { at: number; run: () => void }[] = [];
+  const dirOf = (w: string) =>
+    ({ up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } })[
+      w
+    ];
+  return {
+    hear(tick: number, m: ChannelMessage) {
+      if (m.family !== "say") return;
+      const word = m.kind === "callout" ? m.callout : null;
+      const taps = m.kind === "text" ? /^Tap (\w+)\./.exec(m.text)?.[1] : undefined;
+      if (word && dirOf(word)) {
+        due.push({ at: tick + lagTicks, run: () => (heading = dirOf(word) as typeof heading) });
+      } else if (word === "stop" || word === "wait") {
+        due.push({ at: tick + lagTicks, run: () => (heading = { x: 0, y: 0 }) });
+      } else if (taps && dirOf(taps)) {
+        due.push({
+          at: tick + lagTicks,
+          run: () => {
+            heading = { x: 0, y: 0 };
+            tap = 1;
+            tapDir = dirOf(taps) as typeof heading;
+          },
+        });
+      }
+    },
+    input(tick: number, seq: number) {
+      for (const d of due.filter((x) => x.at <= tick)) d.run();
+      due.splice(0, due.length, ...due.filter((x) => x.at > tick));
+      let move = heading;
+      if (tap > 0) {
+        tap--;
+        move = tapDir;
+      }
+      return { seq, move, act: false };
+    },
+  };
+}
+let tapDir = { x: 0, y: 0 };
+
+describe("steering a person who cannot see", () => {
+  const sim = (roomId: string, roles: [Role, Role, Role], offset = 0.3, ticks = 3000) => {
+    const r = room(roomId);
+    const world = createWorld(r);
+    const blindSeat = roles.indexOf("blind") as Seat;
+    const humans = new Set<Seat>([blindSeat]);
+    const person = reactiveBlind();
+    world.players[blindSeat].pos.y += offset; // a little off the middle of the lane
+    const bots: Partial<Record<Seat, BotSeat>> = {};
+    for (const s of [0, 1, 2] as const) {
+      if (s !== blindSeat) bots[s] = { memory: createBotMemory(s, humans, roles), inbox: [] };
+    }
+    const cooldowns = { until: {} };
+    let bumpedTicks = 0;
+    let worst = 0;
+    for (let i = 0; i < ticks && world.status !== "cleared"; i++) {
+      const out = botsAct(
+        r,
+        world,
+        roles,
+        bots,
+        cooldowns,
+        world.tick * TICK_MS,
+        (s) => `Bot ${s}`,
+      );
+      for (const sent of out.sent)
+        if (sent.receivers.includes(blindSeat)) person.hear(world.tick, sent.message);
+      out.inputs[blindSeat] = person.input(world.tick, i + 1);
+      step(world, out.inputs, TICK_MS);
+      // a bump: pushing against something and getting nowhere
+      bumpedTicks = world.players[blindSeat].blocked ? bumpedTicks + 1 : 0;
+      worst = Math.max(worst, bumpedTicks);
+    }
+    return { world, worst };
+  };
+
+  it("gets a person who starts off-centre through the tunnel to the plates", () => {
+    const run = sim("01-loading-dock", ["blind", "deaf", "mute"]);
+    expect(run.world.status).toBe("cleared");
+  });
+
+  it("tells a person to tap toward the middle of the lane, in words, rather than repeating a direction", () => {
+    const r = room("01-loading-dock");
+    const world = createWorld(r);
+    (world.crates[0] as { tile: { x: number; y: number } }).tile = { x: 12, y: 4 }; // the tunnel is clear
+    world.players[0].pos = { x: 4.5, y: 4.3 }; // at the tunnel's mouth, 0.2 above the middle of its lane
+    const roles: [Role, Role, Role] = ["blind", "deaf", "mute"];
+    const bots: Partial<Record<Seat, BotSeat>> = {
+      1: { memory: createBotMemory(1, new Set([0]), roles), inbox: [] },
+    };
+    const said: string[] = [];
+    for (let i = 0; i < 80; i++) {
+      const out = botsAct(r, world, roles, bots, { until: {} }, world.tick * TICK_MS, () => "Bot");
+      for (const s of out.sent) {
+        if (s.message.family === "say") {
+          said.push(s.message.kind === "callout" ? s.message.callout : s.message.text);
+        }
+      }
+      step(world, out.inputs, TICK_MS);
+    }
+    expect(said).toContain("Tap down.");
+    // and not the same direction called over and over
+    expect(said.filter((w) => w === "right").length).toBeLessThanOrEqual(2);
+  });
+
+  it("never lets a person push against a wall for more than a second", () => {
+    for (const offset of [0.3, -0.3, 0.2, -0.2]) {
+      const run = sim("01-loading-dock", ["blind", "deaf", "mute"], offset);
+      expect(run.worst, `offset ${offset}`).toBeLessThanOrEqual(20);
+    }
+  });
+
+  it("gets a person who reacts late through every room, in every role rotation, without pushing at walls", () => {
+    for (const id of ["01-loading-dock", "02-cameras-lasers", "03-vault"]) {
+      for (const roles of [
+        ["blind", "deaf", "mute"],
+        ["deaf", "mute", "blind"],
+        ["mute", "blind", "deaf"],
+      ] as [Role, Role, Role][]) {
+        const run = sim(id, roles, 0.2, 6000);
+        expect(run.world.status, `${id} ${roles.join("/")}`).toBe("cleared");
+        expect(run.worst, `${id} ${roles.join("/")}`).toBeLessThanOrEqual(20);
+      }
+    }
   });
 });

@@ -345,4 +345,19 @@ None.
   and spoken to Can't see. A bug found on the way: the "skip a job once a later
   one is done" rule skipped a push when the flag after it was set first; it now
   applies to waypoints only.
+- 2026-10-09, playing as Can't see with the Can't-hear bot guiding: the bot kept
+  saying "Right" while the user pushed at a wall, with no way to tell why. Expected:
+  directions a person can act on. First attempt missed because the guide steered a
+  person exactly as it steers a bot, which obeys to the tick: a person hears each call
+  late, holds a key until told to stop, and in a one-tile lane has to be within a
+  tenth of a tile of the middle, so they oscillated at the tunnel's mouth. Fixed for a
+  person (a bot is unchanged): if they push at something for half a second the guide
+  says stop and lines them up; in a tight lane it says "Tap up." (in words, since a
+  tap is smaller than any call) and looks again; it learns how far this person
+  coasts after "stop" and says it that early; the last tile before a turn or a goal
+  is taps, not a run; and a direction is always a word, never a bare "go". Test: a
+  simulated person who reacts 0.3 s late, starts off-centre, holds until told to
+  stop and taps on request, clears all three rooms in every rotation without
+  pushing at a wall for more than a second. The same pattern as the two before
+  (the solver had no realistic person in it); the person model is now in the tests.
 
