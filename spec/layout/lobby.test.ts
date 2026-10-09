@@ -60,6 +60,19 @@ describe.each([
   });
 });
 
+describe("typing another lobby's code into the address bar", () => {
+  it("says there is no such lobby, rather than silently taking you back to your own", async () => {
+    const { page, code } = await createLobbyAs(browser, baseUrl, "Ana", DESKTOP);
+    await page.goto(`${baseUrl}/lobby/ZZZX`, { waitUntil: "networkidle" });
+    await page.getByText("No lobby ZZZX.").waitFor({ timeout: 5000 });
+    expect(new URL(page.url()).pathname).toBe("/lobby/ZZZX");
+    // and nothing happened to the lobby they are in: it is still theirs to go back to
+    await page.goto(`${baseUrl}/lobby/${code}`, { waitUntil: "networkidle" });
+    await page.getByRole("heading", { name: "Seats" }).waitFor();
+    await leaveAndClose(page);
+  });
+});
+
 describe("the lobby over the socket", () => {
   it("shows the second seat on the first page within 1 s of the join being accepted", async () => {
     const { page: first, code } = await createLobbyAs(browser, baseUrl, "Ana", DESKTOP);

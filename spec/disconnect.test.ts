@@ -164,4 +164,29 @@ describe("a dropped connection pauses the game", () => {
     expect((await guest.socket.next<{ code: string }>("error", 2000)).code).toBe("not-host");
     await closeAll(players);
   });
+
+  // A person who reconnects while the game is paused is owed a full view (the map) for when it
+  // resumes. Paused ticks must not use it up, or their screen stays black.
+  it("still sends the map to someone who reconnected during the pause, once the game goes on", async () => {
+    const { players } = await startedGame(baseUrl);
+    ready(players);
+    const [host, guest, third] = players as [Player, Player, Player];
+    await nextView(guest, 3000);
+    await third.socket.drop(); // the game pauses
+    await host.socket.next("pause");
+    await guest.socket.drop(); // and a sighted player's page reloads in the pause
+    const again = await connect(baseUrl, guest.cookie);
+    await again.next("reveal", 4000);
+    await new Promise((resolve) => setTimeout(resolve, 600)); // a few paused ticks go by
+    const back = await connect(baseUrl, third.cookie); // the one it was waiting for returns
+    await host.socket.next("resume", 4000);
+    const view = await nextView({ ...guest, socket: again }, 4000);
+    expect(
+      view.tiles,
+      "a seeing role's first view after reconnecting carries the map",
+    ).toBeDefined();
+    await closeAll([host]);
+    await again.close();
+    await back.close();
+  });
 });

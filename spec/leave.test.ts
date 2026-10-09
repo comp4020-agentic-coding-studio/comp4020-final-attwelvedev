@@ -172,4 +172,39 @@ describe("a person leaves a running game", () => {
     await closeAll([host, guest]);
     await home.close();
   });
+
+  // The About and Credits pages open no socket at all, so the server sees only a request for a
+  // page with the device's cookie. Reading one in the same tab is leaving; in another tab it is not.
+  it("a person who goes to another page of the site has left", async () => {
+    const { players } = await startedGame(baseUrl);
+    ready(players);
+    const [host, guest, third] = players as [Player, Player, Player];
+    await nextView(host, 3000);
+    await fetch(new URL("/readme/", baseUrl), {
+      headers: { cookie: third.cookie, accept: "text/html" },
+    });
+    await third.socket.drop(); // the game page unloads as the new one arrives
+    let lobby = await host.socket.next<LobbyMsg>("lobby", 6000);
+    while (!lobby.lobby.seats[2]?.bot) lobby = await host.socket.next<LobbyMsg>("lobby", 6000);
+    expect(lobby.lobby.seats[2]?.who).toBeNull();
+    await closeAll([host, guest]);
+  });
+
+  it("a person who opens another page in a second tab has not left", async () => {
+    const { players } = await startedGame(baseUrl);
+    ready(players);
+    const [host, guest, third] = players as [Player, Player, Player];
+    await nextView(host, 3000);
+    await fetch(new URL("/credits/", baseUrl), {
+      headers: { cookie: third.cookie, accept: "text/html" },
+    }); // the game page stays open
+    let bot = false;
+    const until = Date.now() + 3000;
+    while (Date.now() < until) {
+      const lobby = await host.socket.next<LobbyMsg>("lobby", 300).catch(() => null);
+      if (lobby?.lobby.seats.some((s) => s.bot)) bot = true;
+    }
+    expect(bot).toBe(false);
+    await closeAll([host, guest, third]);
+  });
 });

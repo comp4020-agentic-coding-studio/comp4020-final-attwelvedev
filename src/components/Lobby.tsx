@@ -36,6 +36,7 @@ export function Lobby({ code }: { code: string }) {
   const [qr, setQr] = useState<string | null>(null);
   const [reveal, setReveal] = useState<Reveal | null>(null);
   const as = useRef<"player" | "spectator">("player");
+  const following = useRef(false); // this page asked to start a new team
   const editingTeam = useRef(false); // an update from the server must not overwrite what the host is typing
 
   useEffect(() => setNickname(readNickname()), []);
@@ -44,8 +45,12 @@ export function Lobby({ code }: { code: string }) {
     if (!socket) return;
     const offs = [
       socket.on("lobby", (m) => {
-        // an answer about another lobby means we started a new team: follow it
-        if (m.lobby.code !== code) return location.assign(`/lobby/${m.lobby.code}`);
+        // An answer about another lobby is the new team this page asked to start: follow it. Any
+        // other (the one we are already in, told again on reconnecting) is not about this page.
+        if (m.lobby.code !== code) {
+          if (following.current) location.assign(`/lobby/${m.lobby.code}`);
+          return;
+        }
         setLobby(m.lobby);
         // the host gave the game up (or nobody was left): back to the lobby screen
         if (m.lobby.phase === "open") setReveal(null);
@@ -100,6 +105,7 @@ export function Lobby({ code }: { code: string }) {
   }
 
   function startNewTeam() {
+    following.current = true;
     if (socket && nickname) socket.send({ t: "lobby.create", nickname });
   }
 

@@ -393,4 +393,18 @@ None.
   without that ask; the HUD says "Bo is back." / "Bo left the game. A bot took
   their seat." from the crew list changing. Tried in a browser: one message each way,
   none spurious. A person with the game open in a second tab has not left.
+- 2026-10-09, three things after trying leave and rejoin: (a) only `/` counted as
+  leaving, not About or Credits; (b) a Can't-hear player's screen was a black
+  "no map" one; (c) typing another lobby's code into the address bar bounced back
+  to the current lobby with no error. Causes: (a) those pages open no socket, so
+  the server only saw a dropped connection; (b) `tick()` cleared the "owed a full
+  view" marker every tick, including paused ticks that send no views, so a page
+  that reconnected during a pause never got its map; (c) the lobby page followed
+  any lobby message about another lobby, meant for starting a new team, and a
+  reconnecting socket is told about the lobby it is already in. Fixed: the
+  middleware reports page views (not the lobby page) through `sharedPresence()` and
+  the socket server treats one as leaving when no game page is open 2 s later
+  (another tab with the game open is not leaving); the marker is only cleared when
+  views were sent; the lobby page only follows a lobby it asked to start. Each has a
+  failing spec first, and the first two were checked in a browser.
 

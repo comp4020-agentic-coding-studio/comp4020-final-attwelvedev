@@ -6,6 +6,7 @@ import { loadRooms } from "../game/rooms/load.ts";
 import { TICK_MS } from "../game/sim/world.ts";
 import type { Seat } from "../game/types.ts";
 import { type GameEvent, lobbyKey, logGame } from "../lib/gameLog.ts";
+import { sharedPresence } from "../lib/presence.ts";
 import { anon } from "../lib/requestLog.ts";
 import { DEVICE_COOKIE } from "../lib/session.ts";
 import { sharedStats } from "../lib/stats.ts";
@@ -135,7 +136,8 @@ function tick(code: string): void {
     Date.now(),
     (seat) => lobby.seats[seat]?.nickname ?? "Bot",
   );
-  running.full.clear();
+  // a seat owed a full view (the map) is still owed it while the game is paused and sends none
+  if (views.size > 0) running.full.clear();
   for (const hit of caught) {
     for (const who of humansOf(lobby)) hub.sendTo(who, { t: "caught", ...hit });
   }
@@ -345,6 +347,20 @@ function leftForLanding(who: string): boolean {
   const open = hub.socketsOf.get(who);
   return open !== undefined && open.size > 0 && [...open].every((s) => hub.watchers.has(s));
 }
+
+// Someone asked for another page of the site (About, Credits, the stats...). Those pages open no
+// socket, so the game page's socket is what tells them apart: if, a moment later, this device
+// is in a game and has no game page open, it has gone to read something else, which is leaving.
+// With the game still open in another tab, it has not.
+const PAGE_GRACE_MS = 2000; // the old page needs this long to unload and close its socket
+sharedPresence().onPageView((who) => {
+  setTimeout(() => {
+    const lobby = lobbyOf(who);
+    if (!lobby || !games.has(lobby.code) || seatOfDevice(lobby.code, who) === null) return;
+    const gamePages = [...(hub.socketsOf.get(who) ?? [])].filter((s) => !hub.watchers.has(s));
+    if (gamePages.length === 0) departs(who);
+  }, PAGE_GRACE_MS).unref();
+});
 
 function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
   const { change, send } = hub;

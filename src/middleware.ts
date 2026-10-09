@@ -1,6 +1,7 @@
 import { defineMiddleware } from "astro:middleware";
 import { deviceCookieOptions } from "./lib/cookie.ts";
 import { inRequest, newRequestContext, stdoutSink, withRequestContext } from "./lib/log.ts";
+import { sharedPresence } from "./lib/presence.ts";
 import { anon, describeRequest, isLogged } from "./lib/requestLog.ts";
 import { DEVICE_COOKIE, newDeviceToken } from "./lib/session.ts";
 import { sharedStats } from "./lib/stats.ts";
@@ -22,6 +23,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
     );
   }
   context.locals.who = token ? anon(token) : null;
+  // A page of the site, other than the lobby page itself (which reloads into a game): the
+  // socket server learns this device has gone to read something else.
+  const isPage =
+    context.request.method === "GET" &&
+    !route?.startsWith("/lobby") &&
+    (context.request.headers.get("accept") ?? "").includes("text/html");
+  if (isPage && context.locals.who) sharedPresence().pageViewed(context.locals.who);
   // a rewrite re-enters here: the outer run already owns the line for this request
   if (!isLogged(route) || inRequest()) return next();
 
