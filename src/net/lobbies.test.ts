@@ -293,3 +293,18 @@ describe("reopenLobby", () => {
     expect(openLobbies(reg).map((l) => l.code)).toEqual([lobby.code]);
   });
 });
+
+describe("joining a game in progress", () => {
+  it("does not give a stranger a seat a bot is playing", () => {
+    const reg = createRegistry();
+    const lobby = createLobby(reg, dev(1), "Ana");
+    startLobby(reg, dev(1)); // two bots fill the other seats
+    expect(errorCode(() => joinLobby(reg, lobby.code, dev(9), "Stranger", "player"))).toBe(
+      "lobby-full",
+    );
+    expect(lobby.seats.filter((s) => s.bot)).toHaveLength(2);
+    // they can still watch
+    joinLobby(reg, lobby.code, dev(9), "Stranger", "spectator");
+    expect(lobby.spectators.map((s) => s.nickname)).toEqual(["Stranger"]);
+  });
+});

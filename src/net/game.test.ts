@@ -6,6 +6,7 @@ import {
   applyInput,
   chooserFor,
   crewOf,
+  giveSeatBack,
   PAUSE_MS,
   pauseFor,
   relay,
@@ -331,7 +332,7 @@ describe("pausing for a dropped seat", () => {
     const l = lobby("a", "b", "c");
     const game = startGame(l, rooms);
     pauseFor(game, 2, 0);
-    takeOverWithBot(game, l, 1);
+    takeOverWithBot(game, l, 1, "b");
     expect(game.paused?.seat).toBe(2);
     expect(game.bots[1]).toBeDefined();
   });
@@ -389,5 +390,48 @@ describe("being caught", () => {
     const caught = tickGame(game).caught;
     expect(caught).toEqual([{ hazard: "laser", seat: 1, checkpoint: 1 }]);
     expect(tickGame(game).caught).toEqual([]);
+  });
+});
+
+describe("coming back to a seat a bot took", () => {
+  const taken = () => {
+    const l = lobby("a", "b", "c");
+    const game = startGame(l, rooms);
+    for (let i = 0; i < 30; i++) tickGame(game);
+    takeOverWithBot(game, l, 2, "c");
+    return { l, game };
+  };
+
+  it("remembers who the seat belonged to", () => {
+    expect(taken().game.vacated[2]).toBe("c");
+  });
+
+  it("gives the seat back to that person only, and the bot steps aside with the world kept", () => {
+    const { l, game } = taken();
+    const world = game.world;
+    const where = { ...world.players[2].pos };
+    expect(giveSeatBack(game, l, "z", "Zed")).toBeNull(); // not their seat
+    expect(l.seats[2]?.bot).toBe(true);
+    const seat = giveSeatBack(game, l, "c", "C");
+    expect(seat).toBe(2);
+    expect(l.seats[2]).toMatchObject({ who: "c", nickname: "C", connected: true, bot: false });
+    expect(game.bots[2]).toBeUndefined();
+    expect(game.vacated[2]).toBeUndefined();
+    expect(game.world).toBe(world);
+    expect(world.players[2].pos).toEqual(where);
+    expect(game.inputs[2]).toBeUndefined();
+    // and they can only take it once
+    expect(giveSeatBack(game, l, "c", "C")).toBeNull();
+  });
+
+  it("makes the other bots start afresh, since who is a person has changed", () => {
+    const l = withBots("a", 1);
+    l.seats[2] = seat("c");
+    const game = startGame(l, rooms);
+    takeOverWithBot(game, l, 2, "c");
+    const before = game.bots[1]?.memory;
+    giveSeatBack(game, l, "c", "C");
+    expect(game.bots[1]?.memory).not.toBe(before);
+    expect(game.bots[1]?.memory.humans.has(2)).toBe(true);
   });
 });

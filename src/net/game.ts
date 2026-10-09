@@ -51,6 +51,7 @@ export interface Game {
   cooldowns: CooldownState;
   bots: Partial<Record<Seat, BotSeat>>; // a memory and an inbox for each seat a bot plays
   paused: Paused | null;
+  vacated: Partial<Record<Seat, string>>; // the device that left a seat a bot now plays, who may take it back
 }
 
 // Seat i gets ROLES[(i + roomIndex) % 3], so everyone plays every role across three rooms.
@@ -87,6 +88,7 @@ export function startGame(lobby: LobbyState, rooms: Room[]): Game {
     cooldowns: { until: {} },
     bots: {},
     paused: null,
+    vacated: {},
   };
   seatBots(
     game,
@@ -172,7 +174,13 @@ export function chooserFor(lobby: LobbyState, missing: Seat): string | null {
 
 // A bot plays the seat from here on: the world is kept as it is, and every bot
 // starts its memory afresh, since who is a person has changed.
-export function takeOverWithBot(game: Game, lobby: LobbyState, seat: Seat): void {
+export function takeOverWithBot(
+  game: Game,
+  lobby: LobbyState,
+  seat: Seat,
+  former: string | null = null,
+): void {
+  if (former) game.vacated[seat] = former;
   lobby.seats[seat] = {
     who: null,
     nickname: `Bot ${SEAT_SHAPE[seat]}`,
@@ -185,6 +193,26 @@ export function takeOverWithBot(game: Game, lobby: LobbyState, seat: Seat): void
     ([0, 1, 2] as const).filter((s) => lobby.seats[s]?.bot),
   );
   if (game.paused?.seat === seat) game.paused = null; // another seat's pause is still on
+}
+
+// The person a bot took a seat from is back: the seat is theirs again, the bot steps
+// aside and the world is as it was. Null if the seat was never theirs.
+export function giveSeatBack(
+  game: Game,
+  lobby: LobbyState,
+  who: string,
+  nickname: string,
+): Seat | null {
+  const seat = ([0, 1, 2] as const).find((s) => game.vacated[s] === who && lobby.seats[s]?.bot);
+  if (seat === undefined) return null;
+  lobby.seats[seat] = { who, nickname, connected: true, bot: false };
+  delete game.vacated[seat];
+  delete game.inputs[seat];
+  seatBots(
+    game,
+    ([0, 1, 2] as const).filter((s) => lobby.seats[s]?.bot),
+  ); // who is a person has changed
+  return seat;
 }
 
 // One 50 ms step, then a view per seat. `full` names the seats owed a full

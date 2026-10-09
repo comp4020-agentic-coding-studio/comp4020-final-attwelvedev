@@ -320,6 +320,13 @@ None.
     with the seat freed, is the behaviour this replaces; its intent (the others are
     told) is kept. `takeOverWithBot` also no longer clears a pause that is for a
     different seat.
+12. **Coming back (2026-10-09, after the user asked).** The device a bot took a
+    seat from (a Leave, or a drop the host answered with "bot") is remembered for
+    the game (`Game.vacated`). Joining the lobby's code with that device takes the
+    seat back: the bot steps aside, the world is as it was, every other bot starts
+    afresh, and the person gets their role and a full view. Anyone else is told
+    the lobby is full and may watch: `joinLobby` used to count a bot's seat as free.
+    The host role does not come back with the seat; see the Corrections log.
 
 ## 10. Corrections log
 

@@ -1,6 +1,7 @@
 import { describe, expect, inject, it } from "vitest";
 import type { RoleView } from "../src/game/perception.ts";
 import { byRole, closeAll, nextView, type Player, ready, startedGame } from "./play.ts";
+import { connect } from "./ws.ts";
 
 const baseUrl = inject("baseUrl");
 
@@ -61,5 +62,64 @@ describe("a person leaves a running game", () => {
     }
     expect((await nextView(guest, 3000)).tick).toBeGreaterThan(0);
     await closeAll(players.slice(1));
+  });
+
+  it("gives the seat back, and the bot steps aside, when the same person joins the lobby again", async () => {
+    const { players, code } = await startedGame(baseUrl);
+    ready(players);
+    const [host, guest, third] = players as [Player, Player, Player];
+    await nextView(host, 3000);
+    third.socket.send({ t: "lobby.leave" });
+    let lobby = await host.socket.next<LobbyMsg>("lobby", 4000);
+    while (!lobby.lobby.seats[2]?.bot) lobby = await host.socket.next<LobbyMsg>("lobby", 4000);
+    await third.socket.drop();
+
+    // the same device, with the lobby's code, takes the seat back
+    const back = await connect(baseUrl, third.cookie);
+    back.send({ t: "lobby.join", code, nickname: "Cy", as: "player" });
+    const mine = await back.next<LobbyMsg>("lobby", 4000);
+    expect(mine.you.seat).toBe(2);
+    expect(mine.lobby.seats[2]?.bot).toBe(false);
+    // told their role again, and the game is running for them
+    expect((await back.next<{ role: string }>("reveal", 4000)).role).toBe(third.role);
+    expect((await nextView({ ...third, socket: back }, 4000)).tick).toBeGreaterThan(0);
+    // and the others see the bot go
+    let after = await host.socket.next<LobbyMsg>("lobby", 4000);
+    while (after.lobby.seats[2]?.bot) after = await host.socket.next<LobbyMsg>("lobby", 4000);
+    expect(after.lobby.seats[2]?.who).not.toBeNull();
+    await closeAll([host, guest]);
+    await back.close();
+  });
+
+  it("does not give a seat a bot is playing to someone who was never in it", async () => {
+    const { players, code } = await startedGame(baseUrl);
+    ready(players);
+    const [host, guest, third] = players as [Player, Player, Player];
+    third.socket.send({ t: "lobby.leave" });
+    await host.socket.next("lobby", 4000);
+    const stranger = await connect(baseUrl);
+    stranger.send({ t: "lobby.join", code, nickname: "Zed", as: "player" });
+    expect((await stranger.next<{ code: string }>("error", 4000)).code).toBe("lobby-full");
+    await stranger.close();
+    await closeAll([host, guest, third]);
+  });
+
+  it("a host who comes back has their seat, but the host role stays with whoever has it now", async () => {
+    const { players, code } = await startedGame(baseUrl);
+    ready(players);
+    const [host, guest, third] = players as [Player, Player, Player];
+    await nextView(guest, 3000);
+    host.socket.send({ t: "lobby.leave" });
+    let handed = await guest.socket.next<LobbyMsg>("lobby", 4000);
+    while (!handed.you.host) handed = await guest.socket.next<LobbyMsg>("lobby", 4000);
+    await host.socket.drop();
+
+    const back = await connect(baseUrl, host.cookie);
+    back.send({ t: "lobby.join", code, nickname: "Ana", as: "player" });
+    const mine = await back.next<LobbyMsg>("lobby", 4000);
+    expect(mine.you.seat).toBe(0);
+    expect(mine.you.host).toBe(false);
+    await closeAll([guest, third]);
+    await back.close();
   });
 });

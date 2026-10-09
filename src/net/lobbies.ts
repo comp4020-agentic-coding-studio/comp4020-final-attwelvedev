@@ -109,7 +109,8 @@ export function joinLobby(
   const watching = lobby.spectators.some((s) => s.who === who);
   if (watching && as === "spectator") return lobby;
 
-  const free = lobby.seats.findIndex((s) => s.who === null);
+  // a seat a bot is playing is not free: it can only be taken back by whoever it was taken from
+  const free = lobby.seats.findIndex((s) => s.who === null && !s.bot);
   if (as === "player" && free < 0) {
     throw new LobbyError("lobby-full", "That lobby is full. You can watch instead.");
   }

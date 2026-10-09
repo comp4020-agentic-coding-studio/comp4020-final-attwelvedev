@@ -18,6 +18,7 @@ import {
   chooserFor,
   crewOf,
   type Game,
+  giveSeatBack,
   PAUSE_MS,
   pauseFor,
   relay,
@@ -28,6 +29,7 @@ import {
   tickGame,
 } from "./game.ts";
 import {
+  cleanNickname,
   createLobby,
   createRegistry,
   expireIdle,
@@ -253,13 +255,13 @@ function giveUp(code: string): void {
 // A bot plays the seat from now on, and everyone is told: the crew again (a bot where a
 // person was), the lobby, and that play goes on if the game was waiting for this seat.
 // Used when the host chooses a bot for a seat that stayed away, and when a person leaves.
-function botTakesSeat(code: string, seat: Seat, by: string | null): void {
+function botTakesSeat(code: string, seat: Seat, by: string | null, former: string | null): void {
   const running = games.get(code);
   const lobby = registry.lobbies.get(code);
   if (!running || !lobby) return;
   const away = lobby.seats[seat]?.who ?? null;
   const wasWaitedFor = running.game.paused?.seat === seat;
-  takeOverWithBot(running.game, lobby, seat);
+  takeOverWithBot(running.game, lobby, seat, former ?? away);
   if (away) registry.byDevice.delete(away);
   if (wasWaitedFor) {
     if (running.pauseTimer) clearTimeout(running.pauseTimer);
@@ -331,7 +333,28 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
             `No lobby with code ${shown}. Check the letters.`,
           );
         }
-        change(who, () => joinLobby(registry, code, who, msg.nickname, msg.as));
+        // someone a bot took a seat from, coming back to the lobby's code, has the seat back
+        const running = games.get(code);
+        const target = registry.lobbies.get(code);
+        if (msg.as === "player" && running && target) {
+          const nick = cleanNickname(msg.nickname);
+          let seat: Seat | null = null;
+          change(who, () => {
+            if (registry.byDevice.get(who) !== code) leaveLobby(registry, who);
+            else target.spectators = target.spectators.filter((s) => s.who !== who);
+            seat = giveSeatBack(running.game, target, who, nick);
+            if (seat !== null) registry.byDevice.set(who, code);
+            return seat !== null ? target : joinLobby(registry, code, who, msg.nickname, msg.as);
+          });
+          if (seat !== null) {
+            running.full.add(seat); // their first view carries the map
+            for (const s of [0, 1, 2] as const) sendReveal(code, s); // the crew is a person again
+            record("lobby.join", who, target, { kind: "rejoin" });
+            return;
+          }
+        } else {
+          change(who, () => joinLobby(registry, code, who, msg.nickname, msg.as));
+        }
         record("lobby.join", who, lobbyOf(who), { kind: msg.as });
         return;
       }
@@ -342,7 +365,7 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         if (was) record("lobby.leave", who, was);
         // a person leaving a game in progress does not leave their seat empty: a bot takes it
         if (was && seat !== null && games.has(was.code) && registry.lobbies.has(was.code)) {
-          botTakesSeat(was.code, seat, null);
+          botTakesSeat(was.code, seat, null, who);
         }
         send(socket, { t: "left" });
         return;
@@ -408,7 +431,7 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
           giveUp(code);
           return;
         }
-        botTakesSeat(code, paused.seat, who);
+        botTakesSeat(code, paused.seat, who, null);
         return;
       }
       case "say":
