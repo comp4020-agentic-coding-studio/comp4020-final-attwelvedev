@@ -427,3 +427,33 @@ role's English name stand in for its actual restriction in `src/game/types.ts`
 or the relevant ADR, and don't take a correction at face value without making
 it check.
 
+## 2026-10-09 — Recognising a redesign instead of patching it in, with a deploy pending
+
+resolved by 642141a
+
+Reviewing the finished real-life wizard, I realised headphone possession is a
+property of a seat (a person), but roles rotate every room while the wizard
+only ever asks once, before anyone has a role. "Does Can't hear have
+headphones?" is really asking about whichever seat lands that role in room 1;
+by room 2 a different seat is Can't hear and nothing updates the answer.
+
+With the phase otherwise finished and a deploy next, the obvious move was to
+have the agent patch it in quickly: ask the same question per seat instead of
+per role. I said no, because the real fix is bigger than that question —
+headphones would need tracking per seat and the effective masking-noise and
+captions settings recomputed every room from whoever currently holds which
+role, which reopens `presetFor`'s truth table and `LobbySettings`'s shape,
+both already built and tested this phase. That's a redesign of when and how
+the settings get computed, not a wording fix.
+
+I had the agent record it in `specs/backlog.md` instead of building it,
+folded into an entry already parked there for an unrelated reason (the wizard
+can't express a mixed remote/in-person table either) — the same per-seat
+rework fixes both, so one planning pass should cover both reasons rather than
+two separate ones landing on the same change.
+
+How I knew holding off was right: nothing about phase 07's own Definition of
+Done needed this to ship, `pnpm check` and the deploy stayed green without it,
+and the backlog entry names the exact interfaces a future planning pass would
+need to reopen, so the reasoning isn't lost by waiting.
+
