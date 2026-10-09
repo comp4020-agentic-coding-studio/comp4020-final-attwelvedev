@@ -1,0 +1,101 @@
+---
+// Public on purpose (FR32): nicknames, team names and times, never a device
+// hash. Server-rendered so it works without scripts; `?tab=` picks the board,
+// so the choice survives a reload and needs no client state.
+import { loadRooms } from "../game/rooms/load.ts";
+import Base from "../layouts/Base.astro";
+import { db } from "../lib/db.ts";
+import { type RunRow, topRuns } from "../lib/runs.ts";
+
+Astro.response.headers.set("Cache-Control", "no-store");
+
+const rooms = loadRooms();
+const tabs = [
+  { id: "heist", label: "Full heist", roomId: null as string | null },
+  ...rooms.map((r, i) => ({ id: `room-${i + 1}`, label: `Room ${i + 1}`, roomId: r.id })),
+];
+const requested = Astro.url.searchParams.get("tab");
+const active = tabs.find((t) => t.id === requested) ?? tabs[0] ?? { id: "heist", roomId: null };
+
+const runs: RunRow[] =
+  active.roomId === null
+    ? topRuns(db, { kind: "heist" })
+    : topRuns(db, { kind: "room", roomId: active.roomId });
+
+const formatTime = (ms: number): string => {
+  const total = Math.floor(ms / 1000);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+};
+---
+
+<Base title="Leaderboard">
+  <h1>Leaderboard</h1>
+  <nav class="tabs" aria-label="Board">
+    <ul>
+      {
+        tabs.map((t) => (
+          <li>
+            <a
+              href={`/leaderboard?tab=${t.id}`}
+              aria-current={t.id === active.id ? "page" : undefined}
+            >
+              {t.label}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </nav>
+
+  {
+    runs.length === 0 ? (
+      <p>No runs yet. Be first.</p>
+    ) : (
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Rank</th>
+            <th scope="col">Team</th>
+            <th scope="col">Crew</th>
+            <th scope="col">Time</th>
+            <th scope="col">Loot</th>
+          </tr>
+        </thead>
+        <tbody>
+          {runs.map((r) => (
+            <tr>
+              <td>{r.rank}</td>
+              <td>{r.teamName}</td>
+              <td>{r.names.map((n) => (n.bot ? `${n.nickname} (bot)` : n.nickname)).join(", ")}</td>
+              <td>{formatTime(r.ms)}</td>
+              <td>{r.lootTotal > 0 ? `${r.loot}/${r.lootTotal}` : "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )
+  }
+</Base>
+
+<style>
+  .tabs ul {
+    display: flex;
+    gap: 16px;
+    list-style: none;
+    margin: 0 0 24px;
+    padding: 0;
+  }
+  .tabs a[aria-current="page"] {
+    font-weight: 600;
+    text-decoration: underline;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+  th,
+  td {
+    padding: 4px 16px 4px 0;
+    text-align: left;
+  }
+</style>

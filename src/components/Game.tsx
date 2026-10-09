@@ -28,6 +28,7 @@ import { type CaptionLine, Captions } from "./Captions.tsx";
 import { ConfirmButton } from "./ConfirmButton.tsx";
 import { Connection } from "./Connection.tsx";
 import { Disconnect } from "./Disconnect.tsx";
+import { HeistComplete } from "./HeistComplete.tsx";
 import { RoleReveal } from "./RoleReveal.tsx";
 import { RoleShape } from "./RoleShape.tsx";
 import { RoomCleared } from "./RoomCleared.tsx";
@@ -204,6 +205,12 @@ function Hud({
   const [summary, setSummary] = useState<{ ms: number; loot: number; lootTotal: number } | null>(
     null,
   );
+  const [heist, setHeist] = useState<{
+    ms: number;
+    loot: number;
+    lootTotal: number;
+    rank: number;
+  } | null>(null);
   // the game is paused for a dropped seat; `until` is on this page's clock (the server says how long is left)
   const [pause, setPause] = useState<{
     waitingFor: string;
@@ -259,6 +266,14 @@ function Hud({
   useEffect(
     () =>
       socket.on("cleared", (m) => setSummary({ ms: m.ms, loot: m.loot, lootTotal: m.lootTotal })),
+    [socket],
+  );
+
+  useEffect(
+    () =>
+      socket.on("heist", (m) =>
+        setHeist({ ms: m.ms, loot: m.loot, lootTotal: m.lootTotal, rank: m.rank }),
+      ),
     [socket],
   );
 
@@ -555,16 +570,25 @@ function Hud({
             Typing
           </span>
         )}
-        {cleared && (
-          <RoomCleared
-            ms={summary?.ms ?? rt.view?.elapsedMs ?? 0}
-            loot={summary?.loot ?? 0}
-            lootTotal={summary?.lootTotal ?? 0}
-            last={reveal.index >= LAST_ROOM}
-            host={host}
-            onNext={() => socket.send({ t: "next" })}
-            onRestart={restart}
+        {heist ? (
+          <HeistComplete
+            ms={heist.ms}
+            loot={heist.loot}
+            lootTotal={heist.lootTotal}
+            rank={heist.rank}
           />
+        ) : (
+          cleared && (
+            <RoomCleared
+              ms={summary?.ms ?? rt.view?.elapsedMs ?? 0}
+              loot={summary?.loot ?? 0}
+              lootTotal={summary?.lootTotal ?? 0}
+              last={reveal.index >= LAST_ROOM}
+              host={host}
+              onNext={() => socket.send({ t: "next" })}
+              onRestart={restart}
+            />
+          )
         )}
         {caught && (
           <p class="caught-banner" role="alert">

@@ -1,3 +1,4 @@
+import { isAllowedName } from "../lib/names.ts";
 import { newLobbyCode } from "./codes.ts";
 
 export type LobbyPhase = "open" | "playing" | "done";
@@ -65,6 +66,7 @@ const squash = (raw: string): string => raw.trim().replace(/\s+/g, " ");
 export function cleanNickname(raw: string): string {
   const name = squash(raw).slice(0, MAX_NICKNAME).trim();
   if (!name) throw new LobbyError("bad-nickname", "Pick a nickname.");
+  if (!isAllowedName(name)) throw new LobbyError("bad-nickname", "Pick a different nickname.");
   return name;
 }
 
@@ -151,6 +153,7 @@ export function setTeamName(reg: Registry, who: string, name: string): LobbyStat
   if (!lobby || lobby.host !== who) throw new LobbyError("not-host", "Only the host can do that.");
   const clean = squash(name).slice(0, MAX_TEAM_NAME).trim();
   if (!clean) throw new LobbyError("bad-team-name", "Give the team a name.");
+  if (!isAllowedName(clean)) throw new LobbyError("bad-team-name", "Pick a different team name.");
   lobby.teamName = clean;
   return lobby;
 }

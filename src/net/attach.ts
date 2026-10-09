@@ -5,9 +5,11 @@ import type { Room } from "../game/rooms/format.ts";
 import { loadRooms } from "../game/rooms/load.ts";
 import { TICK_MS } from "../game/sim/world.ts";
 import type { Seat } from "../game/types.ts";
+import { db } from "../lib/db.ts";
 import { type GameEvent, lobbyKey, logGame } from "../lib/gameLog.ts";
 import { sharedPresence } from "../lib/presence.ts";
 import { anon } from "../lib/requestLog.ts";
+import { saveRun } from "../lib/runs.ts";
 import { DEVICE_COOKIE } from "../lib/session.ts";
 import { sharedStats } from "../lib/stats.ts";
 import { joinThrottle } from "../lib/throttle.ts";
@@ -68,6 +70,9 @@ interface Running {
   full: Set<Seat>; // seats owed a full view (tiles) on the next tick
   timer: ReturnType<typeof setInterval> | null;
   pauseTimer: ReturnType<typeof setTimeout> | null; // the end of a dropped seat's time
+  // Totalled across rooms as each is cleared, so the heist run saved after
+  // room 3 is the whole heist's time and loot, not just the last room's.
+  heist: { ms: number; loot: number; lootTotal: number; versions: string[] };
 }
 const games = new Map<string, Running>(); // lobby code → game
 
@@ -162,6 +167,7 @@ function tick(code: string): void {
     clearInterval(running.timer);
     running.timer = null;
     const { world } = running.game;
+    const roomMs = world.tick * TICK_MS;
     record("room.clear", null, lobby, {
       room: world.room.id,
       ms: Date.now() - running.game.startedAt,
@@ -172,9 +178,48 @@ function tick(code: string): void {
         hub.sendTo(who, {
           t: "cleared",
           room: world.room.id,
-          ms: world.tick * TICK_MS,
+          ms: roomMs,
           loot: world.loot,
           lootTotal: world.lootTotal,
+        });
+      }
+    }
+    const names = lobby.seats.map((s) => ({ nickname: s.nickname ?? "Bot", bot: s.bot }));
+    saveRun(db, {
+      kind: "room",
+      roomId: world.room.id,
+      version: String(world.room.version),
+      teamName: lobby.teamName,
+      names,
+      ms: roomMs,
+      loot: world.loot,
+      lootTotal: world.lootTotal,
+    });
+    record("run.saved", null, lobby, { kind: "room", room: world.room.id });
+    running.heist.ms += roomMs;
+    running.heist.loot += world.loot;
+    running.heist.lootTotal += world.lootTotal;
+    running.heist.versions.push(String(world.room.version));
+    const lastRoom = !roomList()[running.game.roomIndex + 1];
+    if (lastRoom) {
+      const heistRun = saveRun(db, {
+        kind: "heist",
+        roomId: null,
+        version: running.heist.versions.join("."),
+        teamName: lobby.teamName,
+        names,
+        ms: running.heist.ms,
+        loot: running.heist.loot,
+        lootTotal: running.heist.lootTotal,
+      });
+      record("run.saved", null, lobby, { kind: "heist" });
+      for (const who of humansOf(lobby)) {
+        hub.sendTo(who, {
+          t: "heist",
+          ms: heistRun.ms,
+          loot: heistRun.loot,
+          lootTotal: heistRun.lootTotal,
+          rank: heistRun.rank,
         });
       }
     }
@@ -448,7 +493,13 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         if (open && games.has(open.code)) return; // already playing
         const lobby = startLobby(registry, who);
         const game = startGame(lobby, roomList());
-        games.set(lobby.code, { game, full: new Set([0, 1, 2]), timer: null, pauseTimer: null });
+        games.set(lobby.code, {
+          game,
+          full: new Set([0, 1, 2]),
+          timer: null,
+          pauseTimer: null,
+          heist: { ms: 0, loot: 0, lootTotal: 0, versions: [] },
+        });
         for (const seat of [0, 1, 2] as const) sendReveal(lobby.code, seat);
         hub.broadcast(lobby);
         record("game.start", who, lobby, { bots: lobby.seats.filter((s) => s.bot).length });

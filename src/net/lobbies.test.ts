@@ -145,6 +145,12 @@ describe("setTeamName", () => {
     expect(setTeamName(reg, dev(1), `  ${"N".repeat(40)}  `).teamName).toBe("N".repeat(24));
     expect(errorCode(() => setTeamName(reg, dev(1), "   "))).toBe("bad-team-name");
   });
+
+  it("rejects a name on the blocklist", () => {
+    const reg = createRegistry();
+    createLobby(reg, dev(1), "Ana");
+    expect(errorCode(() => setTeamName(reg, dev(1), "fuck"))).toBe("bad-team-name");
+  });
 });
 
 describe("setConnected", () => {
@@ -215,6 +221,9 @@ describe("cleanNickname", () => {
   });
   it("throws bad-nickname when empty", () => {
     expect(errorCode(() => cleanNickname(" \t "))).toBe("bad-nickname");
+  });
+  it("throws bad-nickname for a name on the blocklist", () => {
+    expect(errorCode(() => cleanNickname("fuck"))).toBe("bad-nickname");
   });
 });
 

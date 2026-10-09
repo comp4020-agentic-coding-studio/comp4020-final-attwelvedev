@@ -15,9 +15,16 @@ export function openDb(path: string): Db {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
   const client = new Database(path);
   client.pragma("journal_mode = WAL");
-  client.pragma("foreign_keys = ON");
   const db = drizzle(client);
+  // Foreign keys off for the migration itself: an old pivot-era migration
+  // (0008, already applied to the deployed volume and never to be edited)
+  // drops a referenced table before some of its referencing ones, which a
+  // fresh, empty database enforces and an already-migrated one never
+  // revisits. Enforcement comes back on for everything the app does with
+  // the database afterwards.
+  client.pragma("foreign_keys = OFF");
   migrate(db, { migrationsFolder: "./drizzle" });
+  client.pragma("foreign_keys = ON");
   return db;
 }
 

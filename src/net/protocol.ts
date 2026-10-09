@@ -65,7 +65,8 @@ export type ServerMsg =
   // (a page's clock may not agree with the server's); `choosing` once the time is up.
   | { t: "pause"; waitingFor: string; deadline: number; left: number; choosing: boolean }
   | { t: "caught"; hazard: "guard" | "camera" | "laser"; seat: Seat; checkpoint: number } // the team was sent back
-  | { t: "resume"; back: string | null }; // the person is back, or null when a bot took the seat
+  | { t: "resume"; back: string | null } // the person is back, or null when a bot took the seat
+  | { t: "heist"; ms: number; loot: number; lootTotal: number; rank: number }; // the whole heist is done
 
 const MAX_FRAME = 8 * 1024;
 
