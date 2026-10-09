@@ -1,3 +1,4 @@
+import { parseJob, rawJobs } from "../bots/jobs.ts";
 import { cameraParams, laserBeam, laserParams } from "../sim/hazards.ts";
 import { patrolOf } from "../sim/world.ts";
 import { flipsOf, type Room } from "./format.ts";
@@ -52,6 +53,7 @@ export function lintRoom(room: Room): LintIssue[] {
   if (!threePlate) issue("no beat has a door that needs three plates (three-plate beat, FR10)");
 
   lintHazards(room, issue);
+  lintHints(room, issue);
 
   // every exit tile must be reachable from every spawn, treating doors as open
   if (exits.length > 0 && spawns.length > 0) {
@@ -165,4 +167,24 @@ function lintHazards(room: Room, issue: (message: string) => void): void {
       issue(`no checkpoint before the first hazard (at x=${first}): add a K to the left of it`);
     }
   }
+}
+
+// The hints the bots follow (metadata key `hints`): every job names something in
+// the room, and every beat has at least one, so the bots know what each stage asks.
+function lintHints(room: Room, issue: (message: string) => void): void {
+  if (room.beats.length === 0) return;
+  const raw = rawJobs(room);
+  if (raw.length === 0) {
+    issue('room has no "hints": the bots need jobs for each beat (see phase 06 §4.1)');
+    return;
+  }
+  const beats = new Set<number>();
+  raw.forEach((j, i) => {
+    const job = parseJob(room, j, i);
+    if (typeof job === "string") issue(job);
+    else beats.add(job.beat);
+  });
+  room.beats.forEach((b, i) => {
+    if (!beats.has(i + 1)) issue(`beat ${i + 1} ("${b.name}") has no job in the hints`);
+  });
 }

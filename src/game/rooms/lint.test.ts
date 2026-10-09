@@ -3,7 +3,7 @@ import { parseRoom } from "./format.ts";
 import { lintRoom } from "./lint.ts";
 
 const header = (opensWhen = `["p1","p2","p3"]`, beatX = "[8,19]") =>
-  `{"id":"t-room","name":"Test room","version":1,"beats":[{"name":"Three hands","x":${beatX},"intent":{"blind":"b","deaf":"d","mute":"m"}}],"objects":{"D1":{"opensWhen":${opensWhen}}}}`;
+  `{"id":"t-room","name":"Test room","version":1,"beats":[{"name":"Three hands","x":${beatX},"intent":{"blind":"b","deaf":"d","mute":"m"}}],"objects":{"D1":{"opensWhen":${opensWhen}}},"hints":{"jobs":[{"beat":1,"goTo":"p1"}]}}`;
 
 const GOOD = [
   "####################",
@@ -91,6 +91,7 @@ describe("lintRoom: hazards", () => {
       version: 1,
       beats: [{ name: "Three hands", x: [8, 19], intent: { blind: "b", deaf: "d", mute: "m" } }],
       objects: { D1: { opensWhen: ["p1", "p2", "p3"] }, ...objects },
+      hints: { jobs: [{ beat: 1, goTo: "p1" }] },
       ...extra,
     });
   const GRID = [
@@ -190,6 +191,55 @@ describe("lintRoom: hazards", () => {
     const lateK = GRID.map((r, y) => (y === 1 ? "#1...C..K....D...E.#" : r));
     expect(lint(GOOD, lateK)).toContainEqual(
       expect.stringMatching(/checkpoint before the first hazard/i),
+    );
+  });
+});
+
+describe("lintRoom hints", () => {
+  const withHints = (jobs: unknown[], extra = "") =>
+    room(
+      GOOD,
+      header().replace(/,"hints":\{.*\}\}$/, `,"hints":{"jobs":${JSON.stringify(jobs)}}${extra}}`),
+    );
+  const ok = [
+    { beat: 1, goTo: "p1", prefer: "blind" },
+    { beat: 1, goTo: "p2", prefer: "deaf" },
+    { beat: 1, goTo: "p3", prefer: "mute" },
+  ];
+
+  it("passes a room whose jobs all name things in it", () => {
+    expect(messages(withHints(ok))).toEqual([]);
+  });
+
+  it("asks a room with beats for hints", () => {
+    const bare = header().replace(/,"hints":\{.*\}\}$/, "}");
+    expect(messages(room(GOOD, bare))).toContainEqual(expect.stringMatching(/no "hints"/));
+  });
+
+  it("flags a job that names a plate, crate or door that is not there", () => {
+    expect(messages(withHints([...ok, { beat: 1, goTo: "p9" }]))).toContainEqual(
+      expect.stringMatching(/p9.*not a plate/),
+    );
+    expect(messages(withHints([...ok, { beat: 1, push: "B7", to: [5, 2] }]))).toContainEqual(
+      expect.stringMatching(/B7.*not a crate/),
+    );
+    expect(messages(withHints([{ ...ok[0], until: "D9" }, ...ok.slice(1)]))).toContainEqual(
+      expect.stringMatching(/D9.*not a door/),
+    );
+  });
+
+  it("flags a job in a beat the room does not have, and a beat with no job", () => {
+    expect(messages(withHints([...ok, { beat: 4, goTo: "p1" }]))).toContainEqual(
+      expect.stringMatching(/beat 4/),
+    );
+    expect(messages(withHints([{ beat: 2, goTo: "p1" }]))).toContainEqual(
+      expect.stringMatching(/beat 1 .* has no job/),
+    );
+  });
+
+  it("flags a waypoint that is not floor", () => {
+    expect(messages(withHints([...ok, { beat: 1, goTo: [0, 0] }]))).toContainEqual(
+      expect.stringMatching(/not floor/),
     );
   });
 });

@@ -119,7 +119,7 @@ lobby `open`. If no humans remain connected at the deadline, the game ends.
 
 ## 5. Task breakdown
 
-### Task 15: Bot brains per role, talking through the channels
+### Task 15: Bot brains per role, talking through the channels (done)
 
 **Files touched.** `src/game/bots/brain.ts`, `src/game/bots/path.ts`,
 `src/game/bots/phrases.ts`, `src/game/bots/jobs.ts` (each + test),
@@ -143,9 +143,10 @@ export interface BotMemory {
   lastFlavourAt: number;
   usedPhrases: Set<string>;
   seq: number;
+  humans: ReadonlySet<Seat>; // ruling 1: who is human, so jobs go to them first
 }
 export interface BotTurn { input: PlayerInput; send: Outgoing | null }
-export function createBotMemory(seat: Seat): BotMemory;
+export function createBotMemory(seat: Seat, humans?: ReadonlySet<Seat>): BotMemory; // humans: seats held by people (ruling 1)
 export function think(room: Room, view: RoleView, inbox: ChannelMessage[], memory: BotMemory, now: number): BotTurn;
 ```
 
@@ -261,3 +262,41 @@ resumes with a bot in that seat; `host.choice: lobby` returns everyone a
 ## 8. Risks / open questions
 
 None.
+
+## 9. Review rulings (Phase 1, 2026-10-09)
+
+1. **Crew info.** `createBotMemory(seat, humans)` stores a `humans` set on
+   `BotMemory`; jobs are claimed humans-first by the player positions a bot's
+   role can see. Blind bots only follow callouts.
+2. **Guide pace.** The 1.5 s limit is on *repeated* direction callouts. State
+   changes (turn, stop, wait, go) send at once. The unit test asserts repeats
+   are spaced at least 1.5 s apart.
+3. **Old solver.** Delete only `src/game/rooms/solve.test.ts`. Keep
+   `solveBuilder.ts`, `solvePlans.ts`, `scripts/solve-rooms.ts`,
+   `solutions/*.json` and `pnpm solve:rooms`; report them as dead tooling.
+4. **Hints.** `jobs` may carry extra optional fields (`order`, `hold`,
+   `together`, ...) with matching lint rules. Bots may compute hazard timing
+   (cameras, lasers, guards) from the room's static params and `view.tick`,
+   which is what lets them cross dark zones. Never live state their role
+   cannot perceive.
+5. Existing `need-three` tests (`src/net/game.test.ts`, `spec/game.test.ts`)
+   are replaced by start-fills-bots tests: FR4 changes the behaviour, so this is
+   not a weakened test.
+6. **BotMemory** carries internal state beyond the listed fields (the roles in
+   the room, what the bot has seen, its place in each job queue, its plan, the
+   guide's belief about the Can't-see seat, alarm windows), and
+   `createBotMemory(seat, humans, roles)` takes the roles too. A bot's memory is
+   made afresh at each room start, restart and takeover. `src/game/bots/` also
+   holds `forecast.ts` (hazard timing from static params and the tick, FR24),
+   `crew.ts` (one tick of every bot, through `route`) and `solve.ts` (three bots
+   in a room, the headless solver).
+7. **Delivery order.** `botsAct` thinks the Can't-see seat last, so a callout
+   sent this tick is heard this tick. Without that the guide would have to
+   predict the blind bot's lag; with it a stop sent at a tile centre lands there.
+8. **Hum.** The Can't-see bot holds on the third tick of a hum in a row, which
+   is when it has walked to the middle of the plate's tile: a bot that stopped
+   on the first tick would stand at the plate's edge, in a guard's sweep.
+
+## 10. Corrections log
+
+(none yet)

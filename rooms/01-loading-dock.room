@@ -4,7 +4,13 @@
   {"name":"Three hands","x":[20,39],"intent":{"blind":"holds a plate and hears the hum","deaf":"sees which plate is free","mute":"signals the moment to step in"}},
   {"name":"Out","x":[40,47],"intent":{"blind":"follows the footsteps to the exit","deaf":"guides the others onto the exit","mute":"confirms everyone is on it"}}
  ],
- "objects":{"D1":{"opensWhen":["p1","p2","p3"]}}}
+ "objects":{"D1":{"opensWhen":["p1","p2","p3"]}},
+ "hints":{"jobs":[
+  {"beat":1,"push":"B1","to":[11,4],"prefer":"mute"},
+  {"beat":2,"goTo":"p2","prefer":"blind"},
+  {"beat":2,"goTo":"p1","prefer":"deaf"},
+  {"beat":2,"goTo":"p3","prefer":"mute"},
+  {"beat":3,"goTo":"E","all":true}]}}
 ---
 ################################################
 #....###################.......#...............#
