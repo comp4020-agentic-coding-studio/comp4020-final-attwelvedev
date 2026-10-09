@@ -2,6 +2,8 @@ import WebSocket from "ws";
 
 export interface Socket {
   send(msg: unknown): void;
+  sendBinary(buf: Uint8Array): void;
+  nextBinary(timeoutMs?: number): Promise<Uint8Array>; // resolves on the next binary frame (default 2000 ms)
   next<T = { t: string }>(t: string, timeoutMs?: number): Promise<T>; // resolves on the next message of type t (default 2000 ms)
   close(): Promise<void>;
   drop(): Promise<void>; // closes the connection without leaving the lobby, like a lost signal or a reload
@@ -31,9 +33,14 @@ export async function connect(baseUrl: string, cookie?: string): Promise<Socket>
     headers: { cookie: cookie ?? (await freshCookie(baseUrl)) },
   });
   const queue: { t: string }[] = [];
+  const binaries: Uint8Array[] = [];
   const waiting: (() => void)[] = [];
   socket.on("message", (data, isBinary) => {
-    if (isBinary) return;
+    if (isBinary) {
+      binaries.push(new Uint8Array(data as Buffer));
+      for (const wake of waiting.splice(0)) wake();
+      return;
+    }
     queue.push(JSON.parse(data.toString()));
     for (const wake of waiting.splice(0)) wake();
   });
@@ -65,6 +72,23 @@ export async function connect(baseUrl: string, cookie?: string): Promise<Socket>
 
   return {
     send: (msg) => socket.send(JSON.stringify(msg)),
+    sendBinary: (buf) => socket.send(buf, { binary: true }),
+    async nextBinary(timeoutMs = 2000): Promise<Uint8Array> {
+      const deadline = Date.now() + timeoutMs;
+      for (;;) {
+        const frame = binaries.shift();
+        if (frame) return frame;
+        const left = deadline - Date.now();
+        if (left <= 0) throw new Error(`no binary frame within ${timeoutMs} ms`);
+        await new Promise<void>((resolve) => {
+          const timer = setTimeout(resolve, left);
+          waiting.push(() => {
+            clearTimeout(timer);
+            resolve();
+          });
+        });
+      }
+    },
     async next<T>(t: string, timeoutMs = 2000): Promise<T> {
       const deadline = Date.now() + timeoutMs;
       for (;;) {

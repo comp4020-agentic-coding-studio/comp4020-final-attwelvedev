@@ -170,7 +170,7 @@ upgrade (Task 2); a connection without one is refused with HTTP 401.
 | Direction | `t` | Body | Introduced |
 | --- | --- | --- | --- |
 | S→C | `welcome` | `{ who: string }` (8 hex of the token hash) | Task 2 |
-| C→S | `ping` / S→C `pong` | `{ at: number }` | Task 2 |
+| C→S | `ping` / S→C `pong` | `{ at: number }` / `{ at: number; serverAt: number }` (`serverAt` Task 21) | Task 2 |
 | C→S | `lobbies.watch` | — | Task 3 |
 | S→C | `lobbies` | `{ list: LobbySummary[] }` | Task 3 |
 | C→S | `lobby.create` | `{ nickname: string }` | Task 3 |

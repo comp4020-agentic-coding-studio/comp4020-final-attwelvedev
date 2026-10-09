@@ -31,8 +31,9 @@ describe("the /ws endpoint", () => {
     const socket = await connect(baseUrl);
     const sent = Date.now();
     socket.send({ t: "ping", at: 12345 });
-    const pong = await socket.next<{ t: string; at: number }>("pong", 1000);
+    const pong = await socket.next<{ t: string; at: number; serverAt: number }>("pong", 1000);
     expect(pong.at).toBe(12345);
+    expect(Math.abs(pong.serverAt - Date.now())).toBeLessThan(1000); // the server's clock, for voice
     expect(Date.now() - sent).toBeLessThan(1000);
     await socket.close();
   });

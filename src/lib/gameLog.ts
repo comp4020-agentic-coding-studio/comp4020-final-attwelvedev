@@ -18,7 +18,8 @@ export type GameEvent =
   | "caught"
   | "pause" // a person's connection dropped mid-room and the game paused for them
   | "bot.takeover" // the host let a bot take a dropped seat
-  | "run.saved"; // a room or heist run was written to the leaderboard
+  | "run.saved" // a room or heist run was written to the leaderboard
+  | "voice.latency"; // a receiver's voice latency over the last few seconds (numbers only)
 
 // One line per discrete thing a player did: never per tick. `who` is a device
 // hash and `lobby` a hash of the lobby's code and age, so neither leads back to

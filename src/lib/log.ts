@@ -14,6 +14,9 @@ const ALLOWED = new Set([
   "seat", // 0-2: a place in a crew, not a person
   "ms", // a duration, e.g. how long a room took
   "bots", // how many seats bots filled
+  "p50", // voice latency percentiles, ms: numbers about the network, never audio
+  "p95",
+  "dropped", // voice frames a receiver dropped for arriving late
 ]);
 const MAX_VALUE = 40;
 

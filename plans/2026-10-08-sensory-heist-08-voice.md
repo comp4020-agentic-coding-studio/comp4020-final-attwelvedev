@@ -75,7 +75,7 @@ lagging" when p95 > 400 ms.
 ### Task 21: Server voice relay with routing, limits and latency logging
 
 **Files touched.** `src/net/voice.ts` (+ test), `src/net/attach.ts`,
-`src/net/protocol.ts` (`voice.stats`, `parseVoiceFrame`), `src/lib/log.ts`
+`src/net/protocol.ts` (`voice.stats`; `pong` gains `serverAt: number`), `src/lib/log.ts`
 (allowlist), `src/lib/gameLog.ts`, `spec/ws.ts` (binary helpers),
 `spec/voice.test.ts`.
 
@@ -106,7 +106,9 @@ receives nothing; the mute socket's frame is dropped and answered with
 in `/stats.json` (`game.events`).
 
 **Implementation (green).** Per §4. Binary frames never reach
-`parseClientMsg`.
+`parseClientMsg`. `pong` becomes `{ t: "pong", at, serverAt }` (`serverAt` =
+server `Date.now()` when answered); a unit test in `protocol.test.ts` or the
+ws spec checks it. A rate-limited frame is dropped silently (no `error`).
 
 **Refactor.** None.
 
@@ -116,8 +118,9 @@ in `/stats.json` (`game.events`).
 
 ### Task 22: Push-to-talk client with encode, playback, lag and mic-denied states
 
-**Files touched.** `src/client/voice/capture.ts`, `src/client/voice/worklet.ts`
-(AudioWorklet module served from `public/`), `src/client/voice/playback.ts`
+**Files touched.** `src/client/voice/capture.ts`, `public/voice-worklet.js`
+(plain-JS AudioWorklet module, loaded with `audioWorklet.addModule("/voice-worklet.js")`),
+`src/client/socket.ts` (record `{ sent, serverAt, received }` ping samples for `clock.ts`), `src/client/voice/playback.ts`
 (+ test: jitter buffer and late-drop logic as a pure function),
 `src/client/clock.ts` (+ test: offset median), `src/components/SaySheet.tsx`
 (hold-to-talk button), `src/client/keys.ts` (`V` hold), `src/components/Game.tsx`
@@ -155,8 +158,11 @@ hatched). Voice disabled by host shows "Voice is off for this lobby".
 optional args parameter for the fake-media flags without changing existing
 callers.
 
-**Human review:** on a local build served over the LAN (two laptops and a
-phone; a deployed copy is not needed), the user and two others talk for one
+**Human review:** on a local build served over HTTPS on the LAN (`mkcert`
+local CA trusted on each device; `getUserMedia` and WebCodecs need a secure
+context, so plain `http://<lan-ip>` cannot work; two laptops and a phone —
+an iOS phone will show the no-`AudioEncoder` fallback, so use Android Chrome
+to test voice on a phone; a deployed copy is not needed), the user and two others talk for one
 room. Pass = speech is intelligible, delay doesn't break a 2 s cue window,
 the deaf device never plays voice, and "Voice lagging" appears when one
 device is throttled in devtools. The real Wi-Fi latency claim is checked

@@ -49,6 +49,7 @@ import {
   startLobby,
 } from "./lobbies.ts";
 import { type ClientMsg, parseClientMsg, type ServerMsg } from "./protocol.ts";
+import { createRateLimiter, encodeVoiceOut, parseVoiceFrame, voiceReceivers } from "./voice.ts";
 
 const HEARTBEAT_MS = 15_000;
 const MAX_MISSED = 2;
@@ -448,7 +449,7 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
   try {
     switch (msg.t) {
       case "ping":
-        send(socket, { t: "pong", at: msg.at });
+        send(socket, { t: "pong", at: msg.at, serverAt: Date.now() });
         return;
       case "bye":
         byes.get(socket)?.();
@@ -645,6 +646,17 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         if (sent.cooldown) send(socket, { t: "cooldown", ...sent.cooldown });
         return;
       }
+      case "voice.stats": {
+        const code = registry.byDevice.get(who);
+        const seat = code ? seatOfDevice(code, who) : null;
+        if (seat === null) return;
+        record("voice.latency", who, lobbyOf(who), {
+          p50: msg.p50,
+          p95: msg.p95,
+          dropped: msg.dropped,
+        });
+        return;
+      }
       case "input": {
         const code = registry.byDevice.get(who);
         const running = code ? games.get(code) : undefined;
@@ -660,6 +672,41 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
     send(socket, { t: "error", code: error.code, message: error.message });
   } finally {
     reapGames();
+  }
+}
+
+const voiceLimit = createRateLimiter();
+
+// A voice frame from a seat: parsed, checked against the Say rule and the rate limit, then handed to
+// the seats that may hear Say and to spectators following them. Never logged, never kept.
+function relayVoice(socket: WebSocket, who: string, data: Uint8Array): void {
+  const code = registry.byDevice.get(who);
+  const running = code ? games.get(code) : undefined;
+  const lobby = code ? registry.lobbies.get(code) : undefined;
+  const seat = code ? seatOfDevice(code, who) : null;
+  if (!running || !lobby || seat === null || running.game.paused) return;
+  const frame = parseVoiceFrame(data);
+  if (!frame) return;
+  const receivers = voiceReceivers(running.game.roles, seat, lobby.settings.voice);
+  if (receivers === null) {
+    record("channel.refused", who, lobby, { family: "say", reason: "cant-send" });
+    hub.send(socket, { t: "error", code: "cant-send", message: "Your role can't send voice." });
+    return;
+  }
+  if (!voiceLimit.allow(seat, Date.now())) return;
+  const out = encodeVoiceOut(seat, frame);
+  const to = new Set<string>();
+  for (const receiver of receivers) {
+    const device = lobby.seats[receiver]?.who;
+    if (device) to.add(device);
+  }
+  for (const spectator of lobby.spectators) {
+    if (receivers.includes(spectating.get(spectator.who) ?? 0)) to.add(spectator.who);
+  }
+  for (const device of to) {
+    for (const s of hub.socketsOf.get(device) ?? []) {
+      if (s.readyState === s.OPEN && !hub.watchers.has(s)) s.send(out, { binary: true });
+    }
   }
 }
 
@@ -694,7 +741,10 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
   socket.on("pong", () => missed.set(socket, 0));
   socket.on("message", (data: RawData, isBinary: boolean) => {
     missed.set(socket, 0);
-    if (isBinary) return;
+    if (isBinary) {
+      relayVoice(socket, who, new Uint8Array(data as Buffer));
+      return;
+    }
     const msg = parseClientMsg(data.toString());
     if (msg) handle(socket, who, msg);
   });

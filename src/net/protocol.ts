@@ -52,11 +52,12 @@ export type ClientMsg =
   | { t: "sound"; clip: string }
   | { t: "show"; kind: "face"; id: string }
   | { t: "show"; kind: "stamp"; id: Stamp } // the server places it at the sender's tile
-  | { t: "spectate"; seat: Seat }; // a spectator: follow this seat instead
+  | { t: "spectate"; seat: Seat } // a spectator: follow this seat instead
+  | { t: "voice.stats"; p50: number; p95: number; dropped: number }; // a receiver's voice latency, ms
 
 export type ServerMsg =
   | { t: "welcome"; who: string }
-  | { t: "pong"; at: number }
+  | { t: "pong"; at: number; serverAt: number } // serverAt: the server's clock, for the voice clock offset
   | { t: "lobbies"; list: LobbySummary[] }
   | { t: "lobby"; lobby: LobbyState; you: { seat: Seat | null; host: boolean } }
   | { t: "left" } // answers lobby.leave, so the page can navigate once the server has acted
@@ -90,6 +91,12 @@ export function parseClientMsg(raw: string): ClientMsg | null {
   switch (m.t) {
     case "ping":
       return typeof m.at === "number" && Number.isFinite(m.at) ? { t: "ping", at: m.at } : null;
+    case "voice.stats": {
+      const { p50, p95, dropped } = m;
+      return [p50, p95, dropped].every((n) => typeof n === "number" && Number.isFinite(n) && n >= 0)
+        ? { t: "voice.stats", p50: p50 as number, p95: p95 as number, dropped: dropped as number }
+        : null;
+    }
     case "bye":
       return { t: "bye" };
     case "lobbies.watch":
