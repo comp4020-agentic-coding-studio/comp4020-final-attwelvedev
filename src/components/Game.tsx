@@ -10,6 +10,7 @@ import {
   formatTime,
   hearCues,
   heardCues,
+  hostChangeText,
   lerpEntities,
 } from "../client/hud.ts";
 import { createInput } from "../client/input.ts";
@@ -98,6 +99,7 @@ export function Game({
   online,
   reveal,
   host,
+  hostName,
   seats,
 }: {
   socket: GameSocket;
@@ -106,6 +108,7 @@ export function Game({
   online: boolean;
   reveal: Reveal;
   host: boolean;
+  hostName: string | null;
   seats: LobbyState["seats"] | null;
 }) {
   const rt = useRef<Runtime>({
@@ -161,6 +164,7 @@ export function Game({
       online={online}
       reveal={reveal}
       host={host}
+      hostName={hostName}
       seats={seats}
       audio={audio}
     />
@@ -175,6 +179,7 @@ function Hud({
   online,
   reveal,
   host,
+  hostName,
   seats,
   audio,
 }: {
@@ -185,6 +190,7 @@ function Hud({
   online: boolean;
   reveal: Reveal;
   host: boolean;
+  hostName: string | null;
   seats: LobbyState["seats"] | null;
   audio: { current: GameAudio | null };
 }) {
@@ -205,6 +211,8 @@ function Hud({
   } | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [back, setBack] = useState<string | null>(null);
+  const [hostNote, setHostNote] = useState<string | null>(null); // the host role passed to someone
+  const hostSeen = useRef({ name: hostName, you: host });
   const [replaced, setReplaced] = useState<string | null>(null); // someone left and a bot took their seat
   const crewSeen = useRef(reveal.crew);
   const [caught, setCaught] = useState<string | null>(null); // why the team was just sent back
@@ -276,6 +284,17 @@ function Hud({
       clearTimeout(timer);
     };
   }, [socket]);
+
+  // The host role passed to someone: say who, so nobody has to work it out from a button.
+  useEffect(() => {
+    const before = hostSeen.current;
+    hostSeen.current = { name: hostName, you: host };
+    const text = hostChangeText(before, hostSeen.current);
+    if (!text) return;
+    setHostNote(text);
+    const timer = setTimeout(() => setHostNote(null), 6000);
+    return () => clearTimeout(timer);
+  }, [hostName, host]);
 
   // A person left the game and a bot took their seat: the crew changes under us, so say so.
   useEffect(() => {
@@ -491,6 +510,12 @@ function Hud({
         ))}
         {role === "blind" && <li class="hud-hint">No map. Listen.</li>}
       </ul>
+
+      {hostNote && (
+        <p class="hud-alert" role="status">
+          {hostNote}
+        </p>
+      )}
 
       {replaced && (
         <p class="hud-alert" role="status">

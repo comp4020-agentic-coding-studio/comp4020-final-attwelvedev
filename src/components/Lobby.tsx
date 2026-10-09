@@ -162,6 +162,9 @@ export function Lobby({ code }: { code: string }) {
         online={online}
         reveal={reveal}
         host={host}
+        hostName={
+          lobby?.seats.find((s) => s.who !== null && s.who === lobby.host)?.nickname ?? null
+        }
         seats={lobby?.seats ?? null}
       />
     );

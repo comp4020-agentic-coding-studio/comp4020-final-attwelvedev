@@ -8,6 +8,7 @@ import {
   formatTime,
   hearCues,
   heardCues,
+  hostChangeText,
   lerpEntities,
   trayFor,
 } from "./hud.ts";
@@ -205,5 +206,30 @@ describe("caughtText", () => {
     expect(caughtText({ hazard: "guard", seat: 0, checkpoint: 0 }, crew, 0)).toBe(
       "The guard saw you. Back to the start.",
     );
+  });
+});
+
+describe("hostChangeText", () => {
+  const none = { name: null, you: false };
+  const bo = { name: "Bo", you: false };
+  const ana = { name: "Ana", you: false };
+  const me = { name: "Cy", you: true };
+
+  it("says nothing the first time the host is known, or while it is the same", () => {
+    expect(hostChangeText(none, bo)).toBeNull();
+    expect(hostChangeText(bo, bo)).toBeNull();
+    expect(hostChangeText(me, me)).toBeNull();
+  });
+
+  it("names the new host to everyone else", () => {
+    expect(hostChangeText(ana, bo)).toBe("Bo is now the host.");
+  });
+
+  it("tells the new host it is them", () => {
+    expect(hostChangeText(ana, me)).toBe("You are now the host.");
+  });
+
+  it("says nothing if the host is gone and nobody is yet", () => {
+    expect(hostChangeText(ana, none)).toBeNull();
   });
 });

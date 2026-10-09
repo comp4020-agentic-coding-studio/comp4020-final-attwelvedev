@@ -213,3 +213,15 @@ export function caughtText(
         : `A camera saw ${who}.`;
   return `${what} Back to ${c.checkpoint > 0 ? `checkpoint ${c.checkpoint}` : "the start"}.`;
 }
+
+// The line for the host role passing to someone else (the host left, or was replaced): who it
+// is now, and to the new host that it is them. Nothing when the host is the same, or not
+// known yet.
+export function hostChangeText(
+  before: { name: string | null; you: boolean },
+  after: { name: string | null; you: boolean },
+): string | null {
+  if (before.name === null || after.name === null) return null;
+  if (before.name === after.name && before.you === after.you) return null;
+  return after.you ? "You are now the host." : `${after.name} is now the host.`;
+}

@@ -187,4 +187,24 @@ describe("the game screen", () => {
     ).resolves.toMatch(/A bot took their seat/);
     await leaveGameAndClose(host, baseUrl);
   });
+
+  it("says who the host is now when the host leaves", async () => {
+    const table = await playRoom(browser, baseUrl);
+    const { blind: host, deaf, mute } = table.byRole; // seat 0 is the host, seat 1 (Bo) is next
+    await leaveGameAndClose(host, baseUrl);
+    await expect(
+      deaf
+        .getByRole("status")
+        .filter({ hasText: /now the host/ })
+        .innerText(),
+    ).resolves.toMatch(/You are now the host/);
+    await expect(
+      mute
+        .getByRole("status")
+        .filter({ hasText: /now the host/ })
+        .innerText(),
+    ).resolves.toMatch(/Bo is now the host/);
+    await leaveGameAndClose(deaf, baseUrl);
+    await leaveGameAndClose(mute, baseUrl);
+  });
 });
