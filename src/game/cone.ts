@@ -1,4 +1,4 @@
-import type { Vec } from "../game/types.ts";
+import type { Vec } from "./types.ts";
 
 export interface ConeShape {
   origin: Vec; // tile units, the centre of whatever is looking

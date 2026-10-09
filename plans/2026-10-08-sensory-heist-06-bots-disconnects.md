@@ -360,4 +360,13 @@ None.
   stop and taps on request, clears all three rooms in every rotation without
   pushing at a wall for more than a second. The same pattern as the two before
   (the solver had no realistic person in it); the person model is now in the tests.
+- 2026-10-09, playing room 3: a guard's cone reaches out of the dark but nothing
+  was drawn there, so a person at the edge was caught by something invisible.
+  Expected: the cone shown in the light. First attempt (lit tiles, hatched)
+  looked blocky; the user asked for the exact cone. Now the server cuts the guard's
+  or a watching camera's real cone (walls and cover stop its rays) to the part
+  outside the dark zones and sends only those polygons, as a `sight` entity, with no
+  position for the hazard (ADR 0007: nothing a role cannot perceive). The client
+  draws them like any cone. `cone.ts` moved from `src/client/` to `src/game/`
+  because the server needs it, and `clip.ts` is the polygon cutting.
 

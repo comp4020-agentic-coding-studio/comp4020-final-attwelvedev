@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { camera, type Scene } from "./render.ts";
+import { camera, draw, type Scene } from "./render.ts";
 
 const ROOM = [
   "#".repeat(48),
@@ -71,5 +71,54 @@ describe("camera", () => {
     const fx = 40.5 * far.scale + far.ox;
     expect(fx).toBeGreaterThanOrEqual(0);
     expect(fx).toBeLessThanOrEqual(s.w);
+  });
+});
+
+// A canvas that remembers what it was asked to draw.
+function recorder() {
+  const calls: { name: string; args: unknown[] }[] = [];
+  const ctx = new Proxy(
+    {},
+    {
+      get:
+        (_t, name) =>
+        (...args: unknown[]) => {
+          calls.push({ name: String(name), args });
+        },
+      set: () => true,
+    },
+  ) as unknown as CanvasRenderingContext2D;
+  return { ctx, calls };
+}
+
+describe("a hazard's sight reaching out of the dark", () => {
+  it("is drawn as the cone it is: a filled, hatched, outlined polygon, nothing else of the hazard", () => {
+    const poly = [
+      { x: 20, y: 3 },
+      { x: 24, y: 3.5 },
+      { x: 24, y: 5.5 },
+      { x: 20, y: 6 },
+    ];
+    const sight = { id: "G1", kind: "sight" as const, pos: { x: 20, y: 3 }, polys: [poly] };
+    const s = scene({ layout: "fit", w: 1180, h: 500, entities: [...scene({}).entities, sight] });
+    const { ctx, calls } = recorder();
+    draw(ctx, s);
+    const cam = camera(s);
+    const corner = (p: { x: number; y: number }) => [
+      cam.ox + p.x * cam.scale,
+      cam.oy + p.y * cam.scale,
+    ];
+    const at = (name: string, p: { x: number; y: number }) =>
+      calls.some(
+        (c) =>
+          c.name === name &&
+          Math.abs((c.args[0] as number) - (corner(p)[0] as number)) < 1e-6 &&
+          Math.abs((c.args[1] as number) - (corner(p)[1] as number)) < 1e-6,
+      );
+    expect(at("moveTo", poly[0] as { x: number; y: number })).toBe(true);
+    for (const p of poly.slice(1)) expect(at("lineTo", p)).toBe(true);
+    expect(calls.some((c) => c.name === "clip")).toBe(true); // hatched inside it
+    expect(calls.some((c) => c.name === "stroke")).toBe(true); // and outlined
+    // no body of a guard is drawn for it (a diamond is a path closed with four lineTo calls)
   });
 });

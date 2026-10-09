@@ -276,6 +276,88 @@ describe("viewFor: environment flips", () => {
     expect(ids(view)).toEqual(["P0"]);
   });
 
+  describe("a hazard's sight reaching out of the dark", () => {
+    // a guard standing in the dark zone (x 10-14) looking east: its cone reaches x = 18
+    const ROW = "#2.........G..........#";
+    const GRID_G = GRID.map((r, y) => (y === 2 ? ROW : r));
+    const GUARD = {
+      G1: {
+        sightTiles: 6,
+        fovDeg: 70,
+        speedTps: 0,
+        patrol: [
+          [11, 2],
+          [20, 2],
+        ],
+      },
+    };
+    const inZone = (p: { x: number; y: number }) => p.x >= 10 && p.x < 15 && p.y >= 1 && p.y < 4;
+
+    const inside = (p: { x: number; y: number }) =>
+      p.x > 10 + 1e-6 && p.x < 15 - 1e-6 && p.y > 1 + 1e-6 && p.y < 4 - 1e-6;
+    const within = (poly: { x: number; y: number }[], at: { x: number; y: number }) => {
+      let hit = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const [a, b] = [poly[i], poly[j]] as [typeof at, typeof at];
+        if (a.y > at.y !== b.y > at.y && at.x < ((b.x - a.x) * (at.y - a.y)) / (b.y - a.y) + a.x) {
+          hit = !hit;
+        }
+      }
+      return hit;
+    };
+
+    it("shows the part of the guard's cone that is in the light, and not the guard or where it stands", () => {
+      const world = worldWith(GRID_G, GUARD, DARK);
+      place(world, 0, { x: 3, y: 1 });
+      const view = viewFor(world, 0, "mute", false);
+      expect(view.entities.some((e) => e.kind === "guard")).toBe(false);
+      const sight = view.entities.find((e) => e.kind === "sight");
+      expect(sight?.polys?.length).toBeGreaterThan(0);
+      // nothing of it inside the dark: no corner, and no entity position
+      for (const poly of sight?.polys ?? []) for (const p of poly) expect(inside(p)).toBe(false);
+      for (const e of view.entities) expect(inZone(e.pos)).toBe(false);
+      // and it is the real cone: lit just east of the dark along the guard's row, dark
+      // behind the guard, and not past its range (the cone ends 6 tiles from x = 11.5)
+      const polys = sight?.polys ?? [];
+      const lit = (x: number, y: number) => polys.some((poly) => within(poly, { x, y }));
+      expect(lit(16.5, 2.5)).toBe(true);
+      expect(lit(18.5, 2.5)).toBe(false); // past its range
+      expect(lit(7.5, 2.5)).toBe(false); // behind the guard
+    });
+
+    it("sends the same to Can't hear, and nothing to Can't see, who have no map to draw on", () => {
+      const world = worldWith(GRID_G, GUARD, DARK);
+      place(world, 0, { x: 3, y: 1 });
+      expect(viewFor(world, 1, "deaf", false).entities.some((e) => e.kind === "sight")).toBe(true);
+      expect(viewFor(world, 2, "blind", false).entities).toEqual([]);
+    });
+
+    it("sends the guard itself, as ever, once it is out in the light", () => {
+      const lit = GRID.map((r, y) => (y === 2 ? "#2.................G...#" : r));
+      const out = {
+        G1: {
+          ...GUARD.G1,
+          patrol: [
+            [19, 2],
+            [21, 2],
+          ],
+        },
+      };
+      const world = worldWith(lit, out, DARK);
+      place(world, 0, { x: 3, y: 1 });
+      const view = viewFor(world, 0, "mute", false);
+      expect(view.entities.some((e) => e.kind === "guard")).toBe(true);
+      expect(view.entities.some((e) => e.kind === "sight")).toBe(false);
+    });
+
+    it("leaves out a cone that does not reach the light", () => {
+      const short = { G1: { ...GUARD.G1, sightTiles: 2 } };
+      const world = worldWith(GRID_G, short, DARK);
+      place(world, 0, { x: 3, y: 1 });
+      expect(viewFor(world, 0, "mute", false).entities.some((e) => e.kind === "sight")).toBe(false);
+    });
+  });
+
   it("blind's cues are the same with or without darkness", () => {
     const lit = worldWith(GRID);
     const dark = worldWith(GRID, {}, DARK);

@@ -1,7 +1,7 @@
 import { STAMP_LIFE_MS, type Stamp } from "../game/channels.ts";
+import { visiblePolygon } from "../game/cone.ts";
 import type { Role, Seat, Vec } from "../game/types.ts";
 import type { EntityView } from "../net/protocol.ts";
-import { visiblePolygon } from "./cone.ts";
 import type { Fx } from "./fx.ts";
 import { STAMP_FACE } from "./hud.ts";
 import { COLOR, MAP, ROLE_COLOR, ROLE_SHAPE, type Shape } from "./tokens.ts";
@@ -455,6 +455,41 @@ function drawEntity(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera, s
     ctx.lineWidth = 2;
     ctx.fillRect(left + s * 0.25, top + s * 0.25, s * 0.5, s * 0.5);
     ctx.strokeRect(left + s * 0.25, top + s * 0.25, s * 0.5, s * 0.5);
+  } else if (e.kind === "sight") {
+    // What a hazard in the dark can see, in the light: drawn as any cone is, and nothing of
+    // the hazard itself or where it stands.
+    const color = e.state === "watching" ? COLOR.cameraLight : COLOR.danger;
+    for (const poly of e.polys ?? []) {
+      const pts = poly.map((p) => ({ x: cam.ox + p.x * s, y: cam.oy + p.y * s }));
+      const trace = () => {
+        ctx.beginPath();
+        pts.forEach((p, i) => {
+          if (i === 0) ctx.moveTo(p.x, p.y);
+          else ctx.lineTo(p.x, p.y);
+        });
+        ctx.closePath();
+      };
+      const xs = pts.map((p) => p.x);
+      const ys = pts.map((p) => p.y);
+      const [x0, y0] = [Math.min(...xs), Math.min(...ys)];
+      const [w, h] = [Math.max(...xs) - x0, Math.max(...ys) - y0];
+      ctx.save();
+      trace();
+      ctx.clip();
+      ctx.globalAlpha = 0.14;
+      ctx.fillStyle = color;
+      ctx.fillRect(x0, y0, w, h);
+      ctx.globalAlpha = 0.5;
+      hatch(ctx, x0, y0, w, h, color);
+      ctx.restore();
+      ctx.save();
+      trace();
+      ctx.globalAlpha = 0.7;
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = color;
+      ctx.stroke();
+      ctx.restore();
+    }
   } else if (e.kind === "guard") {
     drawCone(ctx, e, cam, scene, COLOR.danger, true);
     diamond(ctx, px, py, s * 0.45);
@@ -573,6 +608,7 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
     "checkpoint",
     "loot",
     "sign",
+    "sight",
     "camera",
     "laser",
     "guard",

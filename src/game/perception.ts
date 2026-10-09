@@ -1,4 +1,6 @@
 import type { Stamp } from "./channels.ts";
+import { subtractRects } from "./clip.ts";
+import { visiblePolygon } from "./cone.ts";
 import { flipsOf } from "./rooms/format.ts";
 import {
   cameraApex,
@@ -11,6 +13,7 @@ import {
   laserOn,
   laserParams,
 } from "./sim/hazards.ts";
+import { blocksSight } from "./sim/sight.ts";
 import {
   CHECKPOINT_RADIUS,
   patrolOf,
@@ -36,7 +39,8 @@ export interface EntityView {
     | "hide"
     | "checkpoint"
     | "loot"
-    | "sign";
+    | "sign"
+    | "sight"; // the lit tiles a hazard in the dark can see: all that reaches out of it
   pos: Vec;
   // a stamp's state is which stamp it is; a camera is watching or idle, a laser
   // on or off, a checkpoint reached or up
@@ -56,6 +60,7 @@ export interface EntityView {
     | Stamp;
   cone?: { fovDeg: number; range: number; from?: Vec }; // a hazard's sight; `from` when it sees from somewhere other than `pos` (a camera, from the wall)
   beam?: Vec[]; // a laser's tile centres
+  polys?: Vec[][]; // a sight: the parts of a hazard's cone that are in the light, as polygons
   shows?: string[]; // a sign's plate ids, in order
   flash?: "ok" | "wrong"; // a sign: the result of the last plate, for a moment
   progress?: number; // a sign: how many of them have been pressed in order so far
@@ -125,6 +130,7 @@ const RANGE: Partial<Record<SoundCue["kind"], number>> = {
 };
 const PAN_RANGE = 8;
 const LASER_HUM_RANGE = 3;
+const SIGHT_RAYS = 32; // rays in a cone sent from the dark: fine enough to look smooth
 const FLASH_TICKS = 12; // a sign shows its last result for 0.6 s
 const OWN_STEP_GAIN = 0.6;
 const BUMP_GAIN = 0.8;
@@ -388,9 +394,38 @@ function darken(world: World, seat: Seat, role: Role, zones: Zone[]): EntityView
       out.push(inAny(zones, e.pos) ? { ...e, state: "dim" } : e);
     } else if (!inAny(zones, e.pos)) {
       out.push(e.beam ? { ...e, beam: e.beam.filter((t) => !inAny(zones, t)) } : e);
+    } else if ((e.kind === "guard" || e.kind === "camera") && e.cone) {
+      // The hazard itself stays in the dark, but what it can see does not stop at the
+      // edge: the tiles in the light that it covers are sent, and nothing of where it is.
+      const sight = sightInLight(world, e, zones);
+      if (sight) out.push(sight);
     }
   }
   return out;
+}
+
+// What a guard or a watching camera in the dark can see, cut to the light: its real cone (the
+// rays stop at walls, closed doors and cover) with the dark zones taken out. Only polygons
+// in the light are sent, so nothing says where the hazard is or what is in the dark.
+function sightInLight(world: World, e: EntityView, zones: Zone[]): EntityView | null {
+  const cone = e.cone;
+  if (!cone || (e.kind === "camera" && e.state !== "watching")) return null;
+  const fan = visiblePolygon(
+    {
+      origin: cone.from ?? e.pos,
+      facing: e.facing ?? { x: 1, y: 0 },
+      fovDeg: cone.fovDeg,
+      range: cone.range,
+    },
+    (tx, ty) => blocksSight(world, tx, ty),
+    SIGHT_RAYS,
+  );
+  const dark = zones.map(([x0, y0, x1, y1]) => ({ x0, y0, x1: x1 + 1, y1: y1 + 1 }));
+  const polys = subtractRects(fan, dark).map((poly) =>
+    poly.map((p) => ({ x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100 })),
+  );
+  const first = polys[0]?.[0];
+  return first ? { id: e.id, kind: "sight", pos: first, polys, state: e.state } : null;
 }
 
 function maskTiles(grid: string[], zones: Zone[]): string[] {
