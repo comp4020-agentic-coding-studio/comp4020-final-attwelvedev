@@ -39,10 +39,16 @@ describe("a dropped connection pauses the game", () => {
     expect(pause.left).toBeGreaterThan(0);
     expect(pause.deadline).toBeGreaterThan(Date.now());
     expect((await guest.socket.next<PauseMsg>("pause")).waitingFor).toBe("Cy");
-    // and the game has stopped: no more views reach anyone
-    await expect(async () => {
-      for (let i = 0; i < 6; i++) await nextView(host, 300);
-    }).rejects.toThrow();
+    // and the game has stopped: no more views reach anyone. Views sent just before the pause
+    // may still be on their way (a real network is slower than a local one), so drain those first.
+    for (;;) {
+      try {
+        await nextView(host, 400);
+      } catch {
+        break;
+      }
+    }
+    await expect(nextView(host, 700)).rejects.toThrow();
     await closeAll([host, guest, players[2] as Player]);
   });
 
