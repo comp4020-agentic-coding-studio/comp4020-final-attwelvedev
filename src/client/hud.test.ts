@@ -4,6 +4,7 @@ import {
   CUE_HOLD_MS,
   captionFor,
   caughtText,
+  crewChangeText,
   cueCaptions,
   formatTime,
   hearCues,
@@ -231,5 +232,33 @@ describe("hostChangeText", () => {
 
   it("says nothing if the host is gone and nobody is yet", () => {
     expect(hostChangeText(ana, none)).toBeNull();
+  });
+});
+
+describe("crewChangeText", () => {
+  const person = (seat: number, nickname: string) => ({ seat, nickname, bot: false });
+  const bot = (seat: number) => ({ seat, nickname: `Bot ${seat}`, bot: true });
+
+  it("says a person left and a bot took their seat", () => {
+    expect(
+      crewChangeText(
+        [person(0, "Ana"), person(1, "Bo"), person(2, "Cy")],
+        [person(0, "Ana"), person(1, "Bo"), bot(2)],
+      ),
+    ).toBe("Cy left the game. A bot took their seat.");
+  });
+
+  it("says a person is back when they take their seat from a bot", () => {
+    expect(
+      crewChangeText(
+        [person(0, "Ana"), person(1, "Bo"), bot(2)],
+        [person(0, "Ana"), person(1, "Bo"), person(2, "Cy")],
+      ),
+    ).toBe("Cy is back.");
+  });
+
+  it("says nothing when the crew is the same", () => {
+    const crew = [person(0, "Ana"), person(1, "Bo"), bot(2)];
+    expect(crewChangeText(crew, crew)).toBeNull();
   });
 });

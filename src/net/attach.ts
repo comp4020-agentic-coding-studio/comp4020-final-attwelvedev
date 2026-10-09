@@ -50,6 +50,7 @@ const MAX_MISSED = 2;
 const IDLE_LOBBY_MS = 10 * 60_000;
 const SWEEP_MS = 60_000;
 // How long a dropped seat is held. Read once, so a spec can run against a short pause.
+const RETURN_MS = 400; // how long a new socket has to show it is a page of the game, not the landing page
 const PAUSE_FOR = Number(process.env.PAUSE_MS) > 0 ? Number(process.env.PAUSE_MS) : PAUSE_MS;
 
 const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
@@ -275,6 +276,26 @@ function botTakesSeat(code: string, seat: Seat, by: string | null, former: strin
   pauseIfAnyAbsent(code); // someone else may be away too
 }
 
+// A person's page is back in the game: if it was paused for them, it goes on; if it is paused
+// for someone else, they are told.
+function welcomeBack(code: string, who: string): void {
+  const running = games.get(code);
+  const lobby = registry.lobbies.get(code);
+  const seat = lobby ? seatOfDevice(code, who) : null;
+  if (!running || !lobby || seat === null || !running.game.paused) return;
+  if (resumeIfBack(running.game, seat)) {
+    if (running.pauseTimer) clearTimeout(running.pauseTimer);
+    running.pauseTimer = null;
+    for (const person of humansOf(lobby)) {
+      hub.sendTo(person, { t: "resume", back: lobby.seats[seat]?.nickname ?? "A player" });
+    }
+    pauseIfAnyAbsent(code); // if someone else is still away, wait for them
+  } else {
+    const msg = pauseMsg(running.game, lobby);
+    if (msg) hub.sendTo(who, msg); // a page that opened mid-pause is told
+  }
+}
+
 function pauseIfAnyAbsent(code: string): void {
   const lobby = registry.lobbies.get(code);
   const away = lobby?.seats.findIndex((s) => s.who !== null && !s.bot && !s.connected) ?? -1;
@@ -304,6 +325,27 @@ function deviceToken(req: IncomingMessage): string | null {
   return null;
 }
 
+// A person leaves their lobby, on purpose: pressing Leave, going to the landing page, or
+// starting or joining another lobby. In a running game a bot takes their seat at once.
+function departs(who: string): void {
+  const was = lobbyOf(who);
+  const seat = was ? seatOfDevice(was.code, who) : null;
+  hub.change(who, () => leaveLobby(registry, who));
+  if (was) record("lobby.leave", who, was);
+  if (was && seat !== null && games.has(was.code) && registry.lobbies.has(was.code)) {
+    botTakesSeat(was.code, seat, null, who);
+  }
+}
+
+// In a game, and every page this device has open is the landing page: that is leaving, not a
+// dropped connection (a person with the game open in another tab has not left).
+function leftForLanding(who: string): boolean {
+  const lobby = lobbyOf(who);
+  if (!lobby || !games.has(lobby.code) || seatOfDevice(lobby.code, who) === null) return false;
+  const open = hub.socketsOf.get(who);
+  return open !== undefined && open.size > 0 && [...open].every((s) => hub.watchers.has(s));
+}
+
 function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
   const { change, send } = hub;
   let refused = false; // a refused channel message is logged as channel.refused, not lobby.error
@@ -314,12 +356,16 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         return;
       case "lobbies.watch":
         hub.watchers.add(socket);
+        if (leftForLanding(who)) departs(who);
         send(socket, { t: "lobbies", list: openLobbies(registry) });
         return;
-      case "lobby.create":
+      case "lobby.create": {
+        const current = lobbyOf(who);
+        if (current && games.has(current.code)) departs(who); // a seat in a game is left properly
         change(who, () => createLobby(registry, who, msg.nickname));
         record("lobby.create", who, lobbyOf(who));
         return;
+      }
       case "lobby.join": {
         if (joinThrottle.blocked(who)) {
           throw new LobbyError("throttled", "Too many wrong codes. Try again in a minute.");
@@ -333,6 +379,8 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
             `No lobby with code ${shown}. Check the letters.`,
           );
         }
+        const current = lobbyOf(who);
+        if (current && current.code !== code && games.has(current.code)) departs(who);
         // someone a bot took a seat from, coming back to the lobby's code, has the seat back
         const running = games.get(code);
         const target = registry.lobbies.get(code);
@@ -359,14 +407,7 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         return;
       }
       case "lobby.leave": {
-        const was = lobbyOf(who);
-        const seat = was ? seatOfDevice(was.code, who) : null;
-        change(who, () => leaveLobby(registry, who));
-        if (was) record("lobby.leave", who, was);
-        // a person leaving a game in progress does not leave their seat empty: a bot takes it
-        if (was && seat !== null && games.has(was.code) && registry.lobbies.has(was.code)) {
-          botTakesSeat(was.code, seat, null, who);
-        }
+        departs(who);
         send(socket, { t: "left" });
         return;
       }
@@ -508,20 +549,11 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
     delete resumed.game.inputs[seat];
     resumed.full.add(seat);
     sendReveal(code, seat);
-    const lobby = registry.lobbies.get(code);
-    if (lobby && resumed.game.paused) {
-      if (resumeIfBack(resumed.game, seat)) {
-        if (resumed.pauseTimer) clearTimeout(resumed.pauseTimer);
-        resumed.pauseTimer = null;
-        for (const person of humansOf(lobby)) {
-          hub.sendTo(person, { t: "resume", back: lobby.seats[seat]?.nickname ?? "A player" });
-        }
-        pauseIfAnyAbsent(code); // if someone else is still away, wait for them
-      } else {
-        const msg = pauseMsg(resumed.game, lobby);
-        if (msg) hub.sendTo(who, msg); // a page that opened mid-pause is told
-      }
-    }
+    // Back, or only the landing page opening a socket? A page says which within moments (the
+    // landing page asks to watch the lobby list), so the game is only resumed after that.
+    setTimeout(() => {
+      if (socket.readyState === socket.OPEN && !hub.watchers.has(socket)) welcomeBack(code, who);
+    }, RETURN_MS);
   }
 
   socket.on("pong", () => missed.set(socket, 0));

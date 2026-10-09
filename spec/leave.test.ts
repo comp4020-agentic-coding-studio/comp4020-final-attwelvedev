@@ -122,4 +122,54 @@ describe("a person leaves a running game", () => {
     await closeAll([guest, third]);
     await back.close();
   });
+
+  // Going back to the landing page is leaving: the new page opens a socket of its own with the
+  // same cookie, which must not count as the person still being in the game.
+  it("a person who goes to the landing page has left: a bot takes their seat", async () => {
+    const { players } = await startedGame(baseUrl);
+    ready(players);
+    const [host, guest, third] = players as [Player, Player, Player];
+    await nextView(host, 3000);
+    await third.socket.drop(); // the game page unloads
+    const home = await connect(baseUrl, third.cookie); // and the landing page opens its socket
+    home.send({ t: "lobbies.watch" });
+    let lobby = await host.socket.next<LobbyMsg>("lobby", 5000);
+    while (!lobby.lobby.seats[2]?.bot) lobby = await host.socket.next<LobbyMsg>("lobby", 5000);
+    expect(lobby.lobby.seats[2]?.who).toBeNull();
+    await closeAll([host, guest]);
+    await home.close();
+  });
+
+  it("a person with the game open in another tab has not left by opening the landing page", async () => {
+    const { players } = await startedGame(baseUrl);
+    ready(players);
+    const [host, guest, third] = players as [Player, Player, Player];
+    await nextView(host, 3000);
+    const home = await connect(baseUrl, third.cookie);
+    home.send({ t: "lobbies.watch" });
+    let bot = false;
+    const until = Date.now() + 1500;
+    while (Date.now() < until) {
+      const lobby = await host.socket.next<LobbyMsg>("lobby", 300).catch(() => null);
+      if (lobby?.lobby.seats.some((s) => s.bot)) bot = true;
+    }
+    expect(bot).toBe(false);
+    await closeAll([host, guest, third]);
+    await home.close();
+  });
+
+  it("starting a new lobby from the landing page leaves the game too", async () => {
+    const { players } = await startedGame(baseUrl);
+    ready(players);
+    const [host, guest, third] = players as [Player, Player, Player];
+    await nextView(host, 3000);
+    await third.socket.drop();
+    const home = await connect(baseUrl, third.cookie);
+    home.send({ t: "lobby.create", nickname: "Cy" });
+    let lobby = await host.socket.next<LobbyMsg>("lobby", 5000);
+    while (!lobby.lobby.seats[2]?.bot) lobby = await host.socket.next<LobbyMsg>("lobby", 5000);
+    expect(lobby.lobby.phase).toBe("playing");
+    await closeAll([host, guest]);
+    await home.close();
+  });
 });

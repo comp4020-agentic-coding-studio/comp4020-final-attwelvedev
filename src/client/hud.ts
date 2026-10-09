@@ -225,3 +225,18 @@ export function hostChangeText(
   if (before.name === after.name && before.you === after.you) return null;
   return after.you ? "You are now the host." : `${after.name} is now the host.`;
 }
+
+// The line for a seat changing hands in the crew list: a person left and a bot took the seat,
+// or a person came back and took it from the bot. Null when nothing like that changed.
+export function crewChangeText(
+  before: readonly { seat: number; nickname: string; bot: boolean }[],
+  after: readonly { seat: number; nickname: string; bot: boolean }[],
+): string | null {
+  for (const now of after) {
+    const was = before.find((b) => b.seat === now.seat);
+    if (!was) continue;
+    if (now.bot && !was.bot) return `${was.nickname} left the game. A bot took their seat.`;
+    if (!now.bot && was.bot) return `${now.nickname} is back.`;
+  }
+  return null;
+}

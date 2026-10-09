@@ -6,6 +6,7 @@ import {
   CALLOUT_WORD,
   captionFor,
   caughtText,
+  crewChangeText,
   cueCaptions,
   formatTime,
   hearCues,
@@ -296,14 +297,14 @@ function Hud({
     return () => clearTimeout(timer);
   }, [hostName, host]);
 
-  // A person left the game and a bot took their seat: the crew changes under us, so say so.
+  // A seat changed hands: a person left and a bot took it, or they came back. The crew changes
+  // under us, so say so.
   useEffect(() => {
     const before = crewSeen.current;
     crewSeen.current = reveal.crew;
-    const gone = reveal.crew.find((c) => c.bot && before.some((b) => b.seat === c.seat && !b.bot));
-    if (!gone) return;
-    const who = before.find((b) => b.seat === gone.seat)?.nickname ?? "Someone";
-    setReplaced(`${who} left the game. A bot took their seat.`);
+    const text = crewChangeText(before, reveal.crew);
+    if (!text) return;
+    setReplaced(text);
     const timer = setTimeout(() => setReplaced(null), 6000);
     return () => clearTimeout(timer);
   }, [reveal.crew]);

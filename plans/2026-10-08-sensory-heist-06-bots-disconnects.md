@@ -381,4 +381,16 @@ None.
   position for the hazard (ADR 0007: nothing a role cannot perceive). The client
   draws them like any cone. `cone.ts` moved from `src/client/` to `src/game/`
   because the server needs it, and `clip.ts` is the polygon cutting.
+- 2026-10-09, trying leave and rejoin: (a) no message when a player came back;
+  (b) going to the landing page did not count as leaving. Expected: both said, and
+  the seat handled. First attempt missed because I only hooked the Leave button.
+  The landing page opens a socket with the same cookie, which the server read as
+  the person coming back (resuming the pause and keeping their seat while they
+  stood on `/`); and creating or joining another lobby left the old seat silently.
+  Fixed: one `departs` step for Leave, the landing page (a device whose every open
+  page is the landing page, which a page shows by asking to watch the lobby list)
+  and starting or joining another lobby; a new socket is only a return after 400 ms
+  without that ask; the HUD says "Bo is back." / "Bo left the game. A bot took
+  their seat." from the crew list changing. Tried in a browser: one message each way,
+  none spurious. A person with the game open in a second tab has not left.
 
