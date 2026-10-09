@@ -157,6 +157,19 @@ describe("openSocket when the page is hidden", () => {
   const withPage = (p: EventTarget) =>
     openSocket("ws://test/ws", { WebSocketImpl: FakeSocket, page: p });
 
+  it("says goodbye before it closes, so the server need not wait for the socket to close", () => {
+    const p = page();
+    withPage(p);
+    last().open();
+    const before = last().sent.length;
+    hide(p);
+    expect(
+      last()
+        .sent.slice(before)
+        .map((m) => JSON.parse(m).t),
+    ).toEqual(["bye"]);
+  });
+
   it("closes the connection, and does not try to reconnect while hidden", () => {
     const p = page();
     withPage(p);

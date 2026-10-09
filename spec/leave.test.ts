@@ -72,7 +72,7 @@ describe("a person leaves a running game", () => {
     third.socket.send({ t: "lobby.leave" });
     let lobby = await host.socket.next<LobbyMsg>("lobby", 4000);
     while (!lobby.lobby.seats[2]?.bot) lobby = await host.socket.next<LobbyMsg>("lobby", 4000);
-    await third.socket.drop();
+    await third.socket.unload();
 
     // the same device, with the lobby's code, takes the seat back
     const back = await connect(baseUrl, third.cookie);
@@ -112,7 +112,7 @@ describe("a person leaves a running game", () => {
     host.socket.send({ t: "lobby.leave" });
     let handed = await guest.socket.next<LobbyMsg>("lobby", 4000);
     while (!handed.you.host) handed = await guest.socket.next<LobbyMsg>("lobby", 4000);
-    await host.socket.drop();
+    await host.socket.unload();
 
     const back = await connect(baseUrl, host.cookie);
     back.send({ t: "lobby.join", code, nickname: "Ana", as: "player" });
@@ -130,7 +130,7 @@ describe("a person leaves a running game", () => {
     ready(players);
     const [host, guest, third] = players as [Player, Player, Player];
     await nextView(host, 3000);
-    await third.socket.drop(); // the game page unloads
+    await third.socket.unload(); // the game page unloads
     const home = await connect(baseUrl, third.cookie); // and the landing page opens its socket
     home.send({ t: "lobbies.watch" });
     let lobby = await host.socket.next<LobbyMsg>("lobby", 5000);
@@ -163,7 +163,7 @@ describe("a person leaves a running game", () => {
     ready(players);
     const [host, guest, third] = players as [Player, Player, Player];
     await nextView(host, 3000);
-    await third.socket.drop();
+    await third.socket.unload();
     const home = await connect(baseUrl, third.cookie);
     home.send({ t: "lobby.create", nickname: "Cy" });
     let lobby = await host.socket.next<LobbyMsg>("lobby", 5000);
@@ -183,7 +183,7 @@ describe("a person leaves a running game", () => {
     await fetch(new URL("/readme/", baseUrl), {
       headers: { cookie: third.cookie, accept: "text/html" },
     });
-    await third.socket.drop(); // the game page unloads as the new one arrives
+    await third.socket.unload(); // the game page unloads as the new one arrives
     let lobby = await host.socket.next<LobbyMsg>("lobby", 6000);
     while (!lobby.lobby.seats[2]?.bot) lobby = await host.socket.next<LobbyMsg>("lobby", 6000);
     expect(lobby.lobby.seats[2]?.who).toBeNull();
@@ -249,7 +249,7 @@ describe("a person leaves a running game", () => {
     await fetch(new URL("/readme/", baseUrl), {
       headers: { cookie: third.cookie, accept: "text/html" },
     });
-    await third.socket.drop(); // the game page closes its socket as it unloads
+    await third.socket.unload(); // the game page closes its socket as it unloads
     let lobby = await host.socket.next<LobbyMsg>("lobby", 3000);
     while (!lobby.lobby.seats[2]?.bot) lobby = await host.socket.next<LobbyMsg>("lobby", 3000);
     await expect(host.socket.next("pause", 700)).rejects.toThrow();
@@ -264,7 +264,7 @@ describe("a person leaves a running game", () => {
     await fetch(new URL("/lobby/ZZZX", baseUrl), {
       headers: { cookie: third.cookie, accept: "text/html" },
     });
-    await third.socket.drop();
+    await third.socket.unload();
     let lobby = await host.socket.next<LobbyMsg>("lobby", 3000);
     while (!lobby.lobby.seats[2]?.bot) lobby = await host.socket.next<LobbyMsg>("lobby", 3000);
     await expect(host.socket.next("pause", 700)).rejects.toThrow();
@@ -279,7 +279,7 @@ describe("a person leaves a running game", () => {
     await fetch(new URL(`/lobby/${code}`, baseUrl), {
       headers: { cookie: third.cookie, accept: "text/html" },
     });
-    await third.socket.drop();
+    await third.socket.unload();
     expect((await host.socket.next<{ waitingFor: string }>("pause", 3000)).waitingFor).toBe("Cy");
     await closeAll([host, guest, third]);
   });
@@ -303,10 +303,36 @@ describe("a person leaves a running game", () => {
     );
     await expect(host.socket.next("lobby", 800)).rejects.toThrow();
     // ...and then it closes
-    await third.socket.drop();
+    await third.socket.unload();
     let lobby = await host.socket.next<LobbyMsg>("lobby", 5000);
     while (!lobby.lobby.seats[2]?.bot) lobby = await host.socket.next<LobbyMsg>("lobby", 5000);
     await closeAll([host, guest]);
     await home.close();
+  });
+
+  // Over a real network a socket can take many seconds to close, so a page says bye first and the
+  // server acts on that, not on the close that follows.
+  it("a page's bye is a closed connection straight away: the game pauses without waiting for the close", async () => {
+    const { players } = await startedGame(baseUrl);
+    ready(players);
+    const [host, guest, third] = players as [Player, Player, Player];
+    await nextView(host, 3000);
+    third.socket.send({ t: "bye" }); // the socket itself stays open
+    expect((await host.socket.next<{ waitingFor: string }>("pause", 2000)).waitingFor).toBe("Cy");
+    await closeAll([host, guest, third]);
+  });
+
+  it("a bye after a request for another page is a leaving, however slowly the socket then closes", async () => {
+    const { players } = await startedGame(baseUrl);
+    ready(players);
+    const [host, guest, third] = players as [Player, Player, Player];
+    await nextView(host, 3000);
+    await fetch(new URL("/credits/", baseUrl), {
+      headers: { cookie: third.cookie, accept: "text/html" },
+    });
+    third.socket.send({ t: "bye" }); // and the socket is never closed in this test
+    let lobby = await host.socket.next<LobbyMsg>("lobby", 3000);
+    while (!lobby.lobby.seats[2]?.bot) lobby = await host.socket.next<LobbyMsg>("lobby", 3000);
+    await closeAll([host, guest]);
   });
 });

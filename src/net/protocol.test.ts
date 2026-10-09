@@ -153,3 +153,9 @@ describe("parseClientMsg: host.choice", () => {
     expect(parseClientMsg('{"t":"host.choice"}')).toBeNull();
   });
 });
+
+describe("parseClientMsg: bye", () => {
+  it("accepts a bye: a page saying it is going away", () => {
+    expect(parseClientMsg('{"t":"bye"}')).toEqual({ t: "bye" });
+  });
+});

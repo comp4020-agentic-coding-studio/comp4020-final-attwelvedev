@@ -31,6 +31,7 @@ export type {
 
 export type ClientMsg =
   | { t: "ping"; at: number }
+  | { t: "bye" } // a page is going away: said before closing, since a close can take seconds to arrive
   | { t: "lobbies.watch" }
   | { t: "lobby.create"; nickname: string }
   | { t: "lobby.join"; code: string; nickname: string; as: "player" | "spectator" }
@@ -83,6 +84,8 @@ export function parseClientMsg(raw: string): ClientMsg | null {
   switch (m.t) {
     case "ping":
       return typeof m.at === "number" && Number.isFinite(m.at) ? { t: "ping", at: m.at } : null;
+    case "bye":
+      return { t: "bye" };
     case "lobbies.watch":
       return { t: "lobbies.watch" };
     case "lobby.create":

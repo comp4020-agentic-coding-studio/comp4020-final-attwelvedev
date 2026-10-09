@@ -5,6 +5,7 @@ export interface Socket {
   next<T = { t: string }>(t: string, timeoutMs?: number): Promise<T>; // resolves on the next message of type t (default 2000 ms)
   close(): Promise<void>;
   drop(): Promise<void>; // closes the connection without leaving the lobby, like a lost signal or a reload
+  unload(): Promise<void>; // what a page does as it goes away: says bye, then closes (the close itself can take seconds over a real network)
 }
 
 // A device cookie the way a browser would get one: from the first page view.
@@ -60,6 +61,13 @@ export async function connect(baseUrl: string, cookie?: string): Promise<Socket>
         });
       }
     },
+    unload: () =>
+      new Promise<void>((resolve) => {
+        if (socket.readyState === WebSocket.CLOSED) return resolve();
+        socket.once("close", () => resolve());
+        socket.send(JSON.stringify({ t: "bye" }));
+        socket.close();
+      }),
     drop: () =>
       new Promise<void>((resolve) => {
         if (socket.readyState === WebSocket.CLOSED) return resolve();

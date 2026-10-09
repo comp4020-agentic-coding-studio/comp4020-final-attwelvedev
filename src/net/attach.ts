@@ -56,6 +56,7 @@ const PAUSE_FOR = Number(process.env.PAUSE_MS) > 0 ? Number(process.env.PAUSE_MS
 
 const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
 const missed = new WeakMap<WebSocket, number>();
+const byes = new WeakMap<WebSocket, () => void>(); // a socket's "this page has gone", run on its bye or its close
 
 const registry = createRegistry();
 const hub = createHub(registry);
@@ -377,6 +378,9 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
       case "ping":
         send(socket, { t: "pong", at: msg.at });
         return;
+      case "bye":
+        byes.get(socket)?.();
+        return;
       case "lobbies.watch":
         hub.watchers.add(socket);
         if (leftForLanding(who)) departs(who);
@@ -588,7 +592,12 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
     const msg = parseClientMsg(data.toString());
     if (msg) handle(socket, who, msg);
   });
-  socket.on("close", () => {
+  // This page has gone: it said bye, or its socket closed (whichever comes first; a close can take
+  // seconds to arrive over a real network, a bye is just a message). Only the first counts.
+  let gone = false;
+  const pageGone = () => {
+    if (gone) return;
+    gone = true;
     hub.watchers.delete(socket);
     sockets.delete(socket);
     record("socket.close", who, lobbyOf(who));
@@ -599,10 +608,10 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
       return;
     }
     hub.socketsOf.delete(who);
-    const gone = setConnected(registry, who, false);
-    if (gone) hub.broadcast(gone);
+    const away = setConnected(registry, who, false);
+    if (away) hub.broadcast(away);
     // a seated person's last connection dropped mid-room: the game waits for them
-    const code = gone?.code;
+    const code = away?.code;
     const seat = code ? seatOfDevice(code, who) : null;
     if (code && seat !== null) {
       // The page asked for was another page: this is the old page going, not a dropped connection
@@ -615,9 +624,11 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
       beginPause(code, seat);
       // a host who drops while the choice is theirs passes it on
       const paused = games.get(code)?.game.paused;
-      if (paused?.choosing && gone?.host === who) pauseEnds(code);
+      if (paused?.choosing && away?.host === who) pauseEnds(code);
     }
-  });
+  };
+  byes.set(socket, pageGone);
+  socket.on("close", pageGone);
   hub.send(socket, { t: "welcome", who });
   record("socket.open", who, lobbyOf(who));
 });

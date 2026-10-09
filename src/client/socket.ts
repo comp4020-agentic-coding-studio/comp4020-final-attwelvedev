@@ -101,6 +101,8 @@ export function openSocket(
     hidden = true;
     clearTimeout(retry);
     clearInterval(pinger);
+    // say so first: the close itself can take seconds to reach the server over a real network
+    if (ws?.readyState === OPEN) ws.send(JSON.stringify({ t: "bye" }));
     ws?.close();
   };
   const show = (event: Event): void => {

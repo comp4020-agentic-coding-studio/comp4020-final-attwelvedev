@@ -448,4 +448,12 @@ None.
   opens the landing socket first. Also found: running four spec files at once against
   the 256 MB machine makes them time out, so against the deployed app run the files
   one at a time (`--no-file-parallelism`).
+- 2026-10-09, the live specs timing out at 30 s: a WebSocket close takes 5-30 s on
+  fly.dev (idle too; instant on localhost), and the server learned "this page is gone"
+  only from the close, so leaving by navigation would take as long to register. Fixed
+  with a `bye` message the page sends before closing (client `pagehide`); the server
+  treats a bye like a close, once, whichever comes first. The leave specs use a
+  helper that says bye then closes, as a page does; `drop()` stays the lost-signal case.
+  Lesson (third time): behaviour that depends on the network (close timing, latency)
+  cannot be checked on localhost; the deployed app is part of the test environment.
 
