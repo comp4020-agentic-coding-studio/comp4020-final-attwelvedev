@@ -40,6 +40,7 @@ export type ClientMsg =
   | { t: "ready" }
   | { t: "room.restart" } // host: everyone back to spawn, doors and crates reset
   | { t: "next" } // host, once a room is cleared: on to the next room
+  | { t: "host.choice"; choice: "bot" | "lobby" } // host, once a dropped seat's time is up
   | ({ t: "input" } & PlayerInput)
   | { t: "say"; kind: "callout"; callout: Callout }
   | { t: "say"; kind: "text"; text: string }
@@ -58,7 +59,11 @@ export type ServerMsg =
   | { t: "view"; view: RoleView }
   | { t: "cleared"; room: string; ms: number; loot: number; lootTotal: number }
   | ({ t: "msg" } & ChannelMessage) // only ever sent to a seat whose role receives the family
-  | { t: "cooldown"; family: Family; until: number; stamp?: true }; // stamp: the 1 s stamp clock, not the face clock
+  | { t: "cooldown"; family: Family; until: number; stamp?: true } // stamp: the 1 s stamp clock, not the face clock
+  // The game is paused for a dropped seat. `left` is the ms to go as the server counts them
+  // (a page's clock may not agree with the server's); `choosing` once the time is up.
+  | { t: "pause"; waitingFor: string; deadline: number; left: number; choosing: boolean }
+  | { t: "resume"; back: string | null }; // the person is back, or null when a bot took the seat
 
 const MAX_FRAME = 8 * 1024;
 
@@ -99,6 +104,10 @@ export function parseClientMsg(raw: string): ClientMsg | null {
       return { t: "room.restart" };
     case "next":
       return { t: "next" };
+    case "host.choice":
+      return m.choice === "bot" || m.choice === "lobby"
+        ? { t: "host.choice", choice: m.choice }
+        : null;
     case "input": {
       const move = m.move;
       if (typeof move !== "object" || move === null) return null;

@@ -15,11 +15,16 @@ import { normaliseLobbyCode } from "./codes.ts";
 import {
   advanceRoom,
   applyInput,
+  chooserFor,
   crewOf,
   type Game,
+  PAUSE_MS,
+  pauseFor,
   relay,
   restartGame,
+  resumeIfBack,
   startGame,
+  takeOverWithBot,
   tickGame,
 } from "./game.ts";
 import {
@@ -31,16 +36,19 @@ import {
   type LobbyState,
   leaveLobby,
   openLobbies,
+  reopenLobby,
   setConnected,
   setTeamName,
   startLobby,
 } from "./lobbies.ts";
-import { type ClientMsg, parseClientMsg } from "./protocol.ts";
+import { type ClientMsg, parseClientMsg, type ServerMsg } from "./protocol.ts";
 
 const HEARTBEAT_MS = 15_000;
 const MAX_MISSED = 2;
 const IDLE_LOBBY_MS = 10 * 60_000;
 const SWEEP_MS = 60_000;
+// How long a dropped seat is held. Read once, so a spec can run against a short pause.
+const PAUSE_FOR = Number(process.env.PAUSE_MS) > 0 ? Number(process.env.PAUSE_MS) : PAUSE_MS;
 
 const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
 const missed = new WeakMap<WebSocket, number>();
@@ -54,6 +62,7 @@ interface Running {
   game: Game;
   full: Set<Seat>; // seats owed a full view (tiles) on the next tick
   timer: ReturnType<typeof setInterval> | null;
+  pauseTimer: ReturnType<typeof setTimeout> | null; // the end of a dropped seat's time
 }
 const games = new Map<string, Running>(); // lobby code → game
 
@@ -163,11 +172,92 @@ function tick(code: string): void {
   }
 }
 
+function stopGame(running: Running): void {
+  if (running.timer) clearInterval(running.timer);
+  if (running.pauseTimer) clearTimeout(running.pauseTimer);
+  running.timer = null;
+  running.pauseTimer = null;
+}
+
+// --- a dropped seat ---------------------------------------------------------
+
+// The people in the lobby who are connected: the ones a pause is shown to.
+const humansOf = (lobby: LobbyState): string[] =>
+  lobby.seats.flatMap((s) => (s.who && !s.bot ? [s.who] : []));
+
+function pauseMsg(game: Game, lobby: LobbyState): ServerMsg | null {
+  const paused = game.paused;
+  if (!paused) return null;
+  return {
+    t: "pause",
+    waitingFor: lobby.seats[paused.seat]?.nickname ?? "A player",
+    deadline: paused.deadline,
+    left: Math.max(0, paused.deadline - Date.now()),
+    choosing: paused.choosing,
+  };
+}
+
+function announcePause(code: string): void {
+  const running = games.get(code);
+  const lobby = registry.lobbies.get(code);
+  const msg = running && lobby ? pauseMsg(running.game, lobby) : null;
+  if (!msg || !lobby) return;
+  for (const who of humansOf(lobby)) hub.sendTo(who, msg);
+}
+
+// The game stops for everyone and the seat is held. A second drop while paused
+// changes nothing; once the first seat is back, whoever is still away is waited for.
+function beginPause(code: string, seat: Seat): void {
+  const running = games.get(code);
+  const lobby = registry.lobbies.get(code);
+  if (!running || !lobby || running.game.paused) return;
+  if (running.game.world.status !== "playing" || lobby.seats[seat]?.bot) return;
+  pauseFor(running.game, seat, Date.now(), PAUSE_FOR);
+  record("pause", lobby.seats[seat]?.who ?? null, lobby);
+  running.pauseTimer = setTimeout(() => pauseEnds(code), PAUSE_FOR);
+  announcePause(code);
+}
+
+// The time is up: the host decides (the next person, if the host is the one away).
+// If no one is left connected the game is over.
+function pauseEnds(code: string): void {
+  const running = games.get(code);
+  const lobby = registry.lobbies.get(code);
+  const paused = running?.game.paused;
+  if (!running || !lobby || !paused) return;
+  running.pauseTimer = null;
+  if (chooserFor(lobby, paused.seat) === null) {
+    giveUp(code);
+    return;
+  }
+  paused.choosing = true;
+  hub.broadcast(lobby); // the host may have changed
+  announcePause(code);
+}
+
+// The game is discarded and the lobby opens again, bots gone and people seated.
+function giveUp(code: string): void {
+  const running = games.get(code);
+  const lobby = registry.lobbies.get(code);
+  if (running) stopGame(running);
+  games.delete(code);
+  if (lobby) {
+    reopenLobby(lobby);
+    hub.broadcast(lobby);
+  }
+}
+
+function pauseIfAnyAbsent(code: string): void {
+  const lobby = registry.lobbies.get(code);
+  const away = lobby?.seats.findIndex((s) => s.who !== null && !s.bot && !s.connected) ?? -1;
+  if (away >= 0) beginPause(code, away as Seat);
+}
+
 // A game whose lobby is gone stops ticking.
 function reapGames(): void {
   for (const [code, running] of games) {
     if (registry.lobbies.has(code)) continue;
-    if (running.timer) clearInterval(running.timer);
+    stopGame(running);
     games.delete(code);
   }
 }
@@ -234,7 +324,7 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         if (open && games.has(open.code)) return; // already playing
         const lobby = startLobby(registry, who);
         const game = startGame(lobby, roomList());
-        games.set(lobby.code, { game, full: new Set([0, 1, 2]), timer: null });
+        games.set(lobby.code, { game, full: new Set([0, 1, 2]), timer: null, pauseTimer: null });
         for (const seat of [0, 1, 2] as const) sendReveal(lobby.code, seat);
         hub.broadcast(lobby);
         record("game.start", who, lobby, { bots: lobby.seats.filter((s) => s.bot).length });
@@ -245,7 +335,7 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         const code = registry.byDevice.get(who);
         const running = code ? games.get(code) : undefined;
         const seat = code ? seatOfDevice(code, who) : null;
-        if (!code || !running || seat === null) return;
+        if (!code || !running || seat === null || running.game.paused) return;
         running.game.ready.add(seat);
         runIfReady(code, running);
         return;
@@ -253,7 +343,7 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
       case "room.restart": {
         const code = registry.byDevice.get(who);
         const running = code ? games.get(code) : undefined;
-        if (!code || !running) return;
+        if (!code || !running || running.game.paused) return;
         if (registry.lobbies.get(code)?.host !== who) {
           throw new LobbyError("not-host", "Only the host can do that.");
         }
@@ -267,13 +357,37 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         const code = registry.byDevice.get(who);
         const running = code ? games.get(code) : undefined;
         const lobby = code ? registry.lobbies.get(code) : undefined;
-        if (!code || !running || !lobby) return;
+        if (!code || !running || !lobby || running.game.paused) return;
         if (lobby.host !== who) throw new LobbyError("not-host", "Only the host can do that.");
         if (running.game.world.status !== "cleared") return;
         if (advanceRoom(running.game, roomList()) === "done") return;
         running.full = new Set([0, 1, 2]);
         for (const seat of [0, 1, 2] as const) sendReveal(code, seat);
         record("room.start", who, lobby, { room: running.game.world.room.id });
+        return;
+      }
+      case "host.choice": {
+        const code = registry.byDevice.get(who);
+        const running = code ? games.get(code) : undefined;
+        const lobby = code ? registry.lobbies.get(code) : undefined;
+        const paused = running?.game.paused;
+        if (!code || !running || !lobby || !paused?.choosing) return; // not asked yet
+        if (lobby.host !== who) throw new LobbyError("not-host", "Only the host can do that.");
+        if (msg.choice === "lobby") {
+          giveUp(code);
+          return;
+        }
+        const away = lobby.seats[paused.seat]?.who ?? null;
+        takeOverWithBot(running.game, lobby, paused.seat);
+        if (away) registry.byDevice.delete(away);
+        if (running.pauseTimer) clearTimeout(running.pauseTimer);
+        running.pauseTimer = null;
+        record("bot.takeover", who, lobby);
+        // the crew changed (a bot where a person was): everyone gets the reveal again
+        for (const seat of [0, 1, 2] as const) sendReveal(code, seat);
+        for (const person of humansOf(lobby)) hub.sendTo(person, { t: "resume", back: null });
+        hub.broadcast(lobby);
+        pauseIfAnyAbsent(code); // someone else may be away too
         return;
       }
       case "say":
@@ -350,6 +464,20 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
     delete resumed.game.inputs[seat];
     resumed.full.add(seat);
     sendReveal(code, seat);
+    const lobby = registry.lobbies.get(code);
+    if (lobby && resumed.game.paused) {
+      if (resumeIfBack(resumed.game, seat)) {
+        if (resumed.pauseTimer) clearTimeout(resumed.pauseTimer);
+        resumed.pauseTimer = null;
+        for (const person of humansOf(lobby)) {
+          hub.sendTo(person, { t: "resume", back: lobby.seats[seat]?.nickname ?? "A player" });
+        }
+        pauseIfAnyAbsent(code); // if someone else is still away, wait for them
+      } else {
+        const msg = pauseMsg(resumed.game, lobby);
+        if (msg) hub.sendTo(who, msg); // a page that opened mid-pause is told
+      }
+    }
   }
 
   socket.on("pong", () => missed.set(socket, 0));
@@ -367,6 +495,15 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
     hub.socketsOf.delete(who);
     const gone = setConnected(registry, who, false);
     if (gone) hub.broadcast(gone);
+    // a seated person's last connection dropped mid-room: the game waits for them
+    const code = gone?.code;
+    const seat = code ? seatOfDevice(code, who) : null;
+    if (code && seat !== null) {
+      beginPause(code, seat);
+      // a host who drops while the choice is theirs passes it on
+      const paused = games.get(code)?.game.paused;
+      if (paused?.choosing && gone?.host === who) pauseEnds(code);
+    }
   });
   hub.send(socket, { t: "welcome", who });
   record("socket.open", who, lobbyOf(who));

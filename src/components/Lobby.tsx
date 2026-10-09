@@ -47,6 +47,8 @@ export function Lobby({ code }: { code: string }) {
         // an answer about another lobby means we started a new team: follow it
         if (m.lobby.code !== code) return location.assign(`/lobby/${m.lobby.code}`);
         setLobby(m.lobby);
+        // the host gave the game up (or nobody was left): back to the lobby screen
+        if (m.lobby.phase === "open") setReveal(null);
         setHost(m.you.host);
         setMySeat(m.you.seat);
         if (!editingTeam.current) setTeam(m.lobby.teamName);

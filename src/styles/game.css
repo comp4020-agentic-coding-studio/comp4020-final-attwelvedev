@@ -247,6 +247,9 @@ body.playing main {
 .overlay p {
   margin: 0;
 }
+.countdown {
+  font-variant-numeric: tabular-nums;
+}
 
 /* the tray: three ways to talk, each with who receives it */
 .tray {

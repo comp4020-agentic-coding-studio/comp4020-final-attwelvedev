@@ -2,8 +2,7 @@ import { type Detail, redact, stdoutSink } from "./log.ts";
 import { anon } from "./requestLog.ts";
 import { sharedStats } from "./stats.ts";
 
-// Later tasks widen this: "bot.takeover" and "pause" (17),
-// "run.saved" (18), "voice.latency" (21).
+// Later tasks widen this: "run.saved" (18), "voice.latency" (21).
 export type GameEvent =
   | "socket.open"
   | "socket.close"
@@ -16,7 +15,9 @@ export type GameEvent =
   | "room.clear"
   | "channel.send"
   | "channel.refused"
-  | "caught";
+  | "caught"
+  | "pause" // a person's connection dropped mid-room and the game paused for them
+  | "bot.takeover"; // the host let a bot take a dropped seat
 
 // One line per discrete thing a player did: never per tick. `who` is a device
 // hash and `lobby` a hash of the lobby's code and age, so neither leads back to

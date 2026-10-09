@@ -24,6 +24,7 @@ import type { CrewMember, LobbyState, RoleView } from "../net/protocol.ts";
 import { type CaptionLine, Captions } from "./Captions.tsx";
 import { ConfirmButton } from "./ConfirmButton.tsx";
 import { Connection } from "./Connection.tsx";
+import { Disconnect } from "./Disconnect.tsx";
 import { RoleReveal } from "./RoleReveal.tsx";
 import { RoleShape } from "./RoleShape.tsx";
 import { RoomCleared } from "./RoomCleared.tsx";
@@ -195,6 +196,14 @@ function Hud({
   const [summary, setSummary] = useState<{ ms: number; loot: number; lootTotal: number } | null>(
     null,
   );
+  // the game is paused for a dropped seat; `until` is on this page's clock (the server says how long is left)
+  const [pause, setPause] = useState<{
+    waitingFor: string;
+    until: number;
+    choosing: boolean;
+  } | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  const [back, setBack] = useState<string | null>(null);
   const [touch, setTouch] = useState(false);
   const lastSent = useRef<string | null>(null);
   const [settings, setSettings] = useState<SettingsState>(() => loadSettings(role));
@@ -239,6 +248,38 @@ function Hud({
       socket.on("cleared", (m) => setSummary({ ms: m.ms, loot: m.loot, lootTotal: m.lootTotal })),
     [socket],
   );
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const offs = [
+      socket.on("pause", (m) => {
+        setBack(null);
+        setPause({
+          waitingFor: m.waitingFor,
+          until: performance.now() + m.left,
+          choosing: m.choosing,
+        });
+      }),
+      socket.on("resume", (m) => {
+        setPause(null);
+        setBack(m.back);
+        clearTimeout(timer);
+        if (m.back) timer = setTimeout(() => setBack(null), 4000);
+      }),
+    ];
+    return () => {
+      for (const off of offs) off();
+      clearTimeout(timer);
+    };
+  }, [socket]);
+
+  useEffect(() => {
+    if (!pause) return;
+    const tick = () => setSecondsLeft((pause.until - performance.now()) / 1000);
+    tick();
+    const timer = setInterval(tick, 250);
+    return () => clearInterval(timer);
+  }, [pause]);
 
   // Restarts the room, not the heist: everyone back to this room's start. The
   // buttons that call it (ConfirmButton) have already asked twice.
@@ -413,6 +454,12 @@ function Hud({
         {role === "blind" && <li class="hud-hint">No map. Listen.</li>}
       </ul>
 
+      {back && (
+        <p class="hud-alert" role="status">
+          {back} is back.
+        </p>
+      )}
+
       {gone.length > 0 && (
         <p class="hud-alert" role="status">
           {gone
@@ -447,6 +494,15 @@ function Hud({
             host={host}
             onNext={() => socket.send({ t: "next" })}
             onRestart={restart}
+          />
+        )}
+        {pause && (
+          <Disconnect
+            waitingFor={pause.waitingFor}
+            secondsLeft={secondsLeft}
+            choosing={pause.choosing}
+            host={host}
+            onChoice={(choice) => socket.send({ t: "host.choice", choice })}
           />
         )}
         {!online && (

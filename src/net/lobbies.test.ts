@@ -9,6 +9,7 @@ import {
   leaveLobby,
   MAX_LOBBIES,
   openLobbies,
+  reopenLobby,
   setConnected,
   setTeamName,
   startLobby,
@@ -276,5 +277,19 @@ describe("startLobby", () => {
     startLobby(reg, dev(1));
     leaveLobby(reg, dev(1));
     expect(reg.lobbies.has(lobby.code)).toBe(false);
+  });
+});
+
+describe("reopenLobby", () => {
+  it("empties the bots' seats, keeps the people's, and opens the lobby", () => {
+    const reg = createRegistry();
+    const lobby = createLobby(reg, dev(1), "Ana");
+    startLobby(reg, dev(1));
+    reopenLobby(lobby);
+    expect(lobby.phase).toBe("open");
+    expect(lobby.seats[0]).toMatchObject({ who: dev(1), nickname: "Ana", bot: false });
+    expect(lobby.seats[1]).toEqual({ who: null, nickname: null, connected: false, bot: false });
+    expect(lobby.seats[2]?.bot).toBe(false);
+    expect(openLobbies(reg).map((l) => l.code)).toEqual([lobby.code]);
   });
 });

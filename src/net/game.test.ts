@@ -4,10 +4,15 @@ import type { Seat } from "../game/types.ts";
 import {
   advanceRoom,
   applyInput,
+  chooserFor,
   crewOf,
+  PAUSE_MS,
+  pauseFor,
   restartGame,
+  resumeIfBack,
   rolesFor,
   startGame,
+  takeOverWithBot,
   tickGame,
 } from "./game.ts";
 import type { LobbyState } from "./lobbies.ts";
@@ -255,5 +260,95 @@ describe("bots in a game", () => {
     expect(game.bots[2]?.memory).not.toBe(first);
     expect(game.bots[2]?.memory.seq).toBe(0);
     expect(game.ready.has(1) && game.ready.has(2)).toBe(true);
+  });
+});
+
+describe("pausing for a dropped seat", () => {
+  const started = () => startGame(lobby("a", "b", "c"), rooms);
+  const walkers = (game: ReturnType<typeof started>) => {
+    applyInput(game, 1, { seq: 1, move: { x: 1, y: 0 }, act: false });
+  };
+
+  it("holds the seat for 45 s", () => {
+    expect(PAUSE_MS).toBe(45_000);
+    const game = started();
+    expect(game.paused).toBeNull();
+    pauseFor(game, 2, 1_000);
+    expect(game.paused).toEqual({ seat: 2, deadline: 1_000 + PAUSE_MS, choosing: false });
+  });
+
+  it("stops the game ticking: no step, no bots, no views, until the seat is back", () => {
+    const game = started();
+    walkers(game);
+    tickGame(game);
+    const at = game.world.tick;
+    const x = game.world.players[1].pos.x;
+    pauseFor(game, 2, 0);
+    for (let i = 0; i < 20; i++) expect(tickGame(game).views.size).toBe(0);
+    expect(game.world.tick).toBe(at);
+    expect(game.world.players[1].pos.x).toBe(x);
+    expect(resumeIfBack(game, 2)).toBe(true);
+    tickGame(game);
+    expect(game.world.tick).toBe(at + 1);
+  });
+
+  it("only resumes for the seat it is waiting for", () => {
+    const game = started();
+    expect(resumeIfBack(game, 2)).toBe(false); // nothing to resume
+    pauseFor(game, 2, 0);
+    expect(resumeIfBack(game, 1)).toBe(false);
+    expect(game.paused?.seat).toBe(2);
+    expect(resumeIfBack(game, 2)).toBe(true);
+    expect(game.paused).toBeNull();
+  });
+
+  it("keeps the first pause when a second seat drops", () => {
+    const game = started();
+    pauseFor(game, 2, 0);
+    pauseFor(game, 1, 500);
+    expect(game.paused).toEqual({ seat: 2, deadline: PAUSE_MS, choosing: false });
+  });
+
+  it("hands the choice to the host, or to the next connected human if the host is the one missing", () => {
+    const l = lobby("a", "b", "c");
+    expect(chooserFor(l, 2)).toBe("a");
+    expect(l.host).toBe("a");
+    expect(chooserFor(l, 0)).toBe("b"); // seat 0, the host, is the one missing
+    expect(l.host).toBe("b"); // and the next connected human becomes host
+    // a host who has dropped as well cannot choose
+    const m = lobby("a", "b", "c");
+    m.seats[0].connected = false;
+    expect(chooserFor(m, 2)).toBe("b");
+    // nobody left connected: the game is over
+    const n = lobby("a", "b", "c");
+    for (const s of n.seats) s.connected = false;
+    expect(chooserFor(n, 2)).toBeNull();
+  });
+
+  it("lets a bot take the seat over: the world and everyone's place in it are kept", () => {
+    const l = lobby("a", "b", "c");
+    const game = startGame(l, rooms);
+    applyInput(game, 1, { seq: 3, move: { x: 1, y: 0 }, act: false });
+    for (let i = 0; i < 30; i++) tickGame(game);
+    const world = game.world;
+    const where = world.players.map((p) => ({ ...p.pos }));
+    pauseFor(game, 1, 0);
+    takeOverWithBot(game, l, 1);
+    expect(game.world).toBe(world);
+    expect(world.players.map((p) => p.pos)).toEqual(where);
+    expect(l.seats[1]).toMatchObject({
+      who: null,
+      bot: true,
+      connected: true,
+      nickname: "Bot square",
+    });
+    expect(game.bots[1]?.memory.seat).toBe(1);
+    expect(game.ready.has(1)).toBe(true);
+    expect(game.inputs[1]).toBeUndefined(); // the person's held key does not walk on
+    expect(game.paused).toBeNull();
+    // and it plays on: the bot now moves the seat itself
+    const before = { ...world.players[1].pos };
+    for (let i = 0; i < 40; i++) tickGame(game);
+    expect(world.players[1].pos).not.toEqual(before);
   });
 });

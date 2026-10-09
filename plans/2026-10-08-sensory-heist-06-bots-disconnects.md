@@ -200,7 +200,7 @@ seat would receive.
 
 **Depends on:** Task 15.
 
-### Task 17: Pause on disconnect, rejoin, bot takeover
+### Task 17: Pause on disconnect, rejoin, bot takeover (done)
 
 **Files touched.** `src/net/game.ts` (+ test: state machine), `src/net/attach.ts`,
 `src/net/protocol.ts` (`pause`, `resume`, `host.choice`), `src/lib/gameLog.ts`
@@ -302,6 +302,19 @@ None.
    under it say how many bots fill. Bots' messages are not logged as `game`
    lines: bots are not players. `spec/playUi.ts` waits for the button named
    exactly "Start", so a helper never starts a game with bots by mistake.
+10. **Task 17 notes.** On the wire, `pause` is `{ waitingFor, deadline, left,
+    choosing }` (`left` is the server's count of ms to go, so a page whose clock
+    is off still counts down right; `choosing` is true once the host is asked)
+    and `resume` is `{ back }` (the nickname, or null when a bot took the seat).
+    A game pauses only while a room is being played, not on the cleared screen,
+    and a page that opens mid-pause is told. A takeover rebuilds every bot's
+    memory (who is a person changed, so their claims would disagree) and sends
+    the reveal again so the crew list shows the bot. The overlay is an
+    `alertdialog`: `spec/layout/game.test.ts` expects one `status` mentioning
+    the dropped player. `PAUSE_MS` is read once in `attach.ts`.
+11. **Not done here, found on the way.** A person who presses Leave mid-game
+    frees their seat without a bot taking it, so the game carries on short of a
+    player. That is older than this phase; it wants its own task.
 
 ## 10. Corrections log
 

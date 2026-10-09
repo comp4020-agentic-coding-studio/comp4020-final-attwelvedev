@@ -155,7 +155,7 @@ export function setTeamName(reg: Registry, who: string, name: string): LobbyStat
 }
 
 // Seat shapes name the seat, not the role (roles rotate between rooms).
-const SEAT_SHAPE = ["circle", "square", "triangle"] as const;
+export const SEAT_SHAPE = ["circle", "square", "triangle"] as const;
 
 // Host-only. Marks the lobby as playing so it leaves the open list, and fills
 // every empty seat with a bot (FR4); the caller builds the game.
@@ -214,4 +214,14 @@ export function expireIdle(
     }
   }
   return expired;
+}
+
+// The game was given up on (the host chose the lobby, or nobody was left): the bots
+// go, the people keep their seats, and the lobby is open for a fresh Start.
+export function reopenLobby(lobby: LobbyState): LobbyState {
+  lobby.seats.forEach((seat, i) => {
+    if (seat.bot) lobby.seats[i] = emptySeat();
+  });
+  lobby.phase = "open";
+  return lobby;
 }

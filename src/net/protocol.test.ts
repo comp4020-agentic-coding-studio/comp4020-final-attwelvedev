@@ -135,3 +135,21 @@ describe("parseClientMsg: channels", () => {
     expect(parseClientMsg(raw)).toEqual({ t: "show", kind: "stamp", id: "x" });
   });
 });
+
+describe("parseClientMsg: host.choice", () => {
+  it("accepts a bot or the lobby", () => {
+    expect(parseClientMsg('{"t":"host.choice","choice":"bot"}')).toEqual({
+      t: "host.choice",
+      choice: "bot",
+    });
+    expect(parseClientMsg('{"t":"host.choice","choice":"lobby"}')).toEqual({
+      t: "host.choice",
+      choice: "lobby",
+    });
+  });
+
+  it("drops anything else", () => {
+    expect(parseClientMsg('{"t":"host.choice","choice":"wait"}')).toBeNull();
+    expect(parseClientMsg('{"t":"host.choice"}')).toBeNull();
+  });
+});
