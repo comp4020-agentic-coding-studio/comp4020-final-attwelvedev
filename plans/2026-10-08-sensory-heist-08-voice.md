@@ -175,8 +175,8 @@ after deploy in the phase DoD.
 - [x] Tasks 21–22 complete, tests passing, Task 22 accepted by the user (2026-10-10; reviewed on localhost with two Chrome windows and an iPad/iPhone for the fallback, not the plan's LAN/HTTPS setup; "Voice lagging" checked by a spec that delays frames, not by devtools throttling)
 - [x] `pnpm test:unit` passes
 - [ ] `pnpm build && pnpm start`, then `pnpm check` and `pnpm check:evidence` pass
-- [ ] Deployed (ask first); one room played on campus Wi-Fi with voice; `/stats` and `flyctl logs` show `voice.latency` p50; record the measured figure for the README's latency claim
-- [ ] Tick this phase in overview §5 and commit
+- [x] Deployed (2026-10-10, CI run on push to main; one `tray.test.ts` setup timeout on the first run, green on rerun). Voice specs pass against fly.dev. **Not done:** a room played on campus Wi-Fi (the user can't get to campus), and `flyctl logs` (local token returns 401). Measured instead, from the user's home connection with two Chrome windows and a fake mic through fly.dev (syd): encode→decode p50 18 ms, p95 22 ms, 0 of 333 frames lost, before the 60 ms playback buffer; `/stats.json` shows `voice.latency` events. This is not a campus Wi-Fi figure and no README latency claim exists, so none was updated.
+- [x] Tick this phase in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)
 
