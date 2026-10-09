@@ -592,7 +592,12 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
     hub.watchers.delete(socket);
     sockets.delete(socket);
     record("socket.close", who, lobbyOf(who));
-    if (sockets.size > 0) return;
+    if (sockets.size > 0) {
+      // another page of this device is still open: if all that is left is the landing page (which
+      // opened, and asked to watch, before this game page had finished closing), this is leaving
+      if (leftForLanding(who)) departs(who);
+      return;
+    }
     hub.socketsOf.delete(who);
     const gone = setConnected(registry, who, false);
     if (gone) hub.broadcast(gone);

@@ -283,4 +283,30 @@ describe("a person leaves a running game", () => {
     expect((await host.socket.next<{ waitingFor: string }>("pause", 3000)).waitingFor).toBe("Cy");
     await closeAll([host, guest, third]);
   });
+
+  // Over a slow connection the landing page's socket opens, and asks to watch the lobby list, before the
+  // game page's has finished closing. Leaving must still be noticed once the game's socket goes.
+  it("the landing page opening before the game page has closed is still leaving", async () => {
+    const { players } = await startedGame(baseUrl);
+    ready(players);
+    const [host, guest, third] = players as [Player, Player, Player];
+    await nextView(host, 3000);
+    const home = await connect(baseUrl, third.cookie);
+    home.send({ t: "lobbies.watch" });
+    await home.next("lobbies", 3000);
+    // the game page is still open, so nothing has happened yet (older frames are drained first)...
+    while (
+      await host.socket.next("lobby", 300).then(
+        () => true,
+        () => false,
+      )
+    );
+    await expect(host.socket.next("lobby", 800)).rejects.toThrow();
+    // ...and then it closes
+    await third.socket.drop();
+    let lobby = await host.socket.next<LobbyMsg>("lobby", 5000);
+    while (!lobby.lobby.seats[2]?.bot) lobby = await host.socket.next<LobbyMsg>("lobby", 5000);
+    await closeAll([host, guest]);
+    await home.close();
+  });
 });

@@ -439,4 +439,13 @@ None.
   server only remembered a page request for 5 s, so the close looked like a plain
   drop. The window is now 15 s. Lesson: every timing in the leave logic was tuned on
   localhost; run the specs against the deployed app before calling a timing right.
+- 2026-10-09, running the specs against fly.dev again: the landing page still did not
+  leave a game in a cache-on Chrome. Cause: over a slow connection the landing page's
+  socket opened and asked to watch before the game page's had finished closing, so the
+  server saw a game page still open; when that socket then closed, the close handler
+  returned early because the device still had a socket, and nothing looked again.
+  Now it re-checks (is every remaining page a landing page?) on every close. A spec
+  opens the landing socket first. Also found: running four spec files at once against
+  the 256 MB machine makes them time out, so against the deployed app run the files
+  one at a time (`--no-file-parallelism`).
 
