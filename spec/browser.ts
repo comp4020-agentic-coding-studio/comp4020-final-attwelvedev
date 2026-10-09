@@ -13,9 +13,9 @@ export interface Viewport {
 export const PHONE: Viewport = { width: 375, height: 812 };
 export const DESKTOP: Viewport = { width: 1280, height: 800 };
 
-export async function launch(): Promise<Browser> {
+export async function launch(args: string[] = []): Promise<Browser> {
   try {
-    return await chromium.launch({ channel: "chrome" });
+    return await chromium.launch({ channel: "chrome", args });
   } catch (error) {
     throw new Error("Google Chrome isn't installed or can't be launched", { cause: error });
   }

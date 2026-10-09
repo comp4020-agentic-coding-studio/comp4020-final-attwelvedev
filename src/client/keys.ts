@@ -9,6 +9,7 @@ export type KeyAction =
   | { type: "page" } // 0: the Show hotbar moves between faces 1–6 and 7–12
   | { type: "text" } // Enter in Say: focus the text field
   | { type: "keys" } // Tab: show the key list while held
+  | { type: "talk" } // V: push to talk, while held
   | null;
 
 const OPENS: Record<string, Sheet> = { "1": "say", "2": "sound", "3": "show" };
@@ -20,6 +21,7 @@ export function keyAction(open: Sheet | null, key: string, typing: boolean): Key
   if (key === "Escape") return open ? { type: "close" } : null;
   if (typing) return null;
   if (key === "Tab") return { type: "keys" };
+  if (key.toLowerCase() === "v") return { type: "talk" };
   if (open === null) {
     const sheet = OPENS[key];
     return sheet ? { type: "open", sheet } : null;

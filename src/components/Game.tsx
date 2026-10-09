@@ -35,6 +35,7 @@ import { RoomCleared } from "./RoomCleared.tsx";
 import { Settings } from "./Settings.tsx";
 import { TouchControls } from "./TouchControls.tsx";
 import { Tray } from "./Tray.tsx";
+import { useVoice } from "./useVoice.ts";
 
 export interface Reveal {
   room: string;
@@ -236,6 +237,7 @@ function Hud({
   const [lines, setLines] = useState<CaptionLine[]>([]);
   const [cues, setCues] = useState<string[]>([]);
   const [typing, setTyping] = useState(false);
+  const voice = useVoice(socket, role, lobbySettings.voice, root);
   // Can't see and Can't speak get captions instead of game sound when the
   // host's wizard says the room's other players don't have headphones, so the
   // game's own audio never leaks out to everyone sitting around them.
@@ -558,10 +560,17 @@ function Hud({
               {c.seat === rt.view?.you.seat ? " (you)" : ""}
               {presence[c.seat] ? ` (${presence[c.seat]})` : ""}
             </span>
+            {voice.speaking.has(c.seat) && <span class="talking">talking</span>}
           </li>
         ))}
         {role === "blind" && <li class="hud-hint">No map. Listen.</li>}
       </ul>
+
+      {voice.lagging && (
+        <p class="hud-alert" role="status">
+          Voice lagging
+        </p>
+      )}
 
       {hostNote && (
         <p class="hud-alert" role="status">
@@ -648,7 +657,13 @@ function Hud({
         )}
       </div>
 
-      <Tray role={role} socket={socket} keepOpen={settings.keepOpen} onTyping={setTyping} />
+      <Tray
+        role={role}
+        socket={socket}
+        keepOpen={settings.keepOpen}
+        onTyping={setTyping}
+        voice={voice}
+      />
 
       {touch ? (
         <TouchControls disabled={cleared} />

@@ -1,4 +1,5 @@
 import type { ClientMsg, ServerMsg } from "../net/protocol.ts";
+import { offsetFromPings, type PingSample } from "./clock.ts";
 
 export type ConnectionState = "connecting" | "live" | "weak" | "offline";
 
@@ -6,13 +7,17 @@ export interface GameSocket {
   send(msg: ClientMsg): void;
   on<T extends ServerMsg["t"]>(t: T, fn: (msg: Extract<ServerMsg, { t: T }>) => void): () => void;
   onState(fn: (state: ConnectionState, rttMs: number | null) => void): () => void;
+  sendBinary(buf: Uint8Array): void; // a voice frame; dropped while the socket is not open
+  onBinary(fn: (buf: Uint8Array) => void): () => void;
+  clockOffset(): number | null; // ms the server's clock is ahead of this page's, from recent pings
   close(): void;
 }
 
 // What openSocket needs from a WebSocket, so a test can stand one in.
 interface SocketLike {
   readyState: number;
-  send(data: string): void;
+  send(data: string | Uint8Array): void;
+  binaryType?: string;
   close(): void;
   onopen: (() => void) | null;
   onmessage: ((e: { data: unknown }) => void) | null;
@@ -41,6 +46,8 @@ export function openSocket(
 ): GameSocket {
   const Impl = options.WebSocketImpl ?? (WebSocket as unknown as new (url: string) => SocketLike);
   const handlers = new Map<string, Set<(msg: never) => void>>();
+  const binaryFns = new Set<(buf: Uint8Array) => void>();
+  const pings: PingSample[] = [];
   const stateFns = new Set<(state: ConnectionState, rttMs: number | null) => void>();
   let ws: SocketLike | null = null;
   let state: ConnectionState = "connecting";
@@ -61,6 +68,7 @@ export function openSocket(
   function connect(): void {
     setState("connecting", null);
     const socket = new Impl(url);
+    socket.binaryType = "arraybuffer";
     ws = socket;
     socket.onopen = () => {
       backoff = BACKOFF_FIRST_MS;
@@ -70,7 +78,14 @@ export function openSocket(
       }, PING_MS);
     };
     socket.onmessage = (event) => {
-      let msg: { t?: unknown; at?: unknown };
+      if (typeof event.data !== "string") {
+        if (event.data instanceof ArrayBuffer) {
+          const buf = new Uint8Array(event.data);
+          for (const fn of binaryFns) fn(buf);
+        }
+        return;
+      }
+      let msg: { t?: unknown; at?: unknown; serverAt?: unknown };
       try {
         msg = JSON.parse(String(event.data));
       } catch {
@@ -78,7 +93,12 @@ export function openSocket(
       }
       if (typeof msg !== "object" || msg === null || typeof msg.t !== "string") return;
       if (msg.t === "pong" && typeof msg.at === "number") {
-        const ms = Date.now() - msg.at;
+        const received = Date.now();
+        const ms = received - msg.at;
+        if (typeof msg.serverAt === "number") {
+          pings.push({ sent: msg.at, serverAt: msg.serverAt, received });
+          if (pings.length > 5) pings.shift();
+        }
         setState(ms > WEAK_ABOVE_MS ? "weak" : "live", ms);
       }
       for (const fn of handlers.get(msg.t) ?? []) fn(msg as never);
@@ -124,6 +144,14 @@ export function openSocket(
       handlers.set(t, set);
       return () => set.delete(fn as (msg: never) => void);
     },
+    sendBinary(buf) {
+      if (ws?.readyState === OPEN) ws.send(buf);
+    },
+    onBinary(fn) {
+      binaryFns.add(fn);
+      return () => binaryFns.delete(fn);
+    },
+    clockOffset: () => offsetFromPings(pings),
     onState(fn) {
       stateFns.add(fn);
       fn(state, rtt);

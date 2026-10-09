@@ -17,6 +17,7 @@ import { SaySheet } from "./SaySheet.tsx";
 import { HOTBAR, Sheet } from "./SheetGrid.tsx";
 import { ShowSheet, type ShowTab } from "./ShowSheet.tsx";
 import { SoundSheet } from "./SoundSheet.tsx";
+import type { Voice } from "./useVoice.ts";
 
 type Clock = "say" | "sound" | "show" | "stamp";
 
@@ -25,6 +26,7 @@ const SHOW_KEYS = [
   ["1 2 3", "open Say, Sound, Show"],
   ["1–9", "pick in the open sheet"],
   ["Enter", "write a message (Say)"],
+  ["V (hold)", "talk, if your role can Say"],
   ["0", "other six faces or clips (Show, Sound)"],
   ["F  T", "Faces or Stamps (Show)"],
   ["Esc", "close"],
@@ -50,11 +52,13 @@ export function Tray({
   socket,
   keepOpen,
   onTyping,
+  voice,
 }: {
   role: Role;
   socket: GameSocket;
   keepOpen: boolean;
   onTyping: (typing: boolean) => void;
+  voice: Voice;
 }) {
   const tiles = trayFor(role);
   const [open, setOpen] = useState<SheetId | null>(null);
@@ -129,8 +133,8 @@ export function Tray({
   }, [typing, onTyping]);
 
   // The keys read the latest state through a ref, so the listener is added once.
-  const live = useRef({ open, tab, typing, page });
-  live.current = { open, tab, typing, page };
+  const live = useRef({ open, tab, typing, page, voice });
+  live.current = { open, tab, typing, page, voice };
   const pick = useRef<(index: number) => void>(() => undefined);
   pick.current = (index) => {
     const sheet = live.current.open;
@@ -160,6 +164,11 @@ export function Tray({
       const { open: shown } = live.current;
       const action = keyAction(shown, e.key, isTextField(e.target));
       if (!action) return;
+      if (action.type === "talk") {
+        e.preventDefault();
+        if (!e.repeat && live.current.voice.status === "ready") live.current.voice.talk(true);
+        return;
+      }
       if (action.type === "keys") {
         setCheat(true); // no preventDefault: Tab must still move focus
         return;
@@ -176,8 +185,12 @@ export function Tray({
     };
     const up = (e: KeyboardEvent): void => {
       if (e.key === "Tab") setCheat(false);
+      if (e.key.toLowerCase() === "v") live.current.voice.talk(false);
     };
-    const blur = (): void => setCheat(false);
+    const blur = (): void => {
+      setCheat(false);
+      live.current.voice.talk(false);
+    };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
     window.addEventListener("blur", blur);
@@ -241,6 +254,7 @@ export function Tray({
                 if (!keepOpen) close();
               }}
               onFocus={setTyping}
+              voice={voice}
             />
           )}
           {open === "sound" && (

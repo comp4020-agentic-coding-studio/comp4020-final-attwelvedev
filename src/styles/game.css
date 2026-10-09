@@ -862,3 +862,37 @@ fieldset.settings {
   border: 2px solid var(--danger);
   color: var(--ui);
 }
+
+/* push to talk: held while talking, and the badge on whoever is heard */
+.say-talk.is-talking,
+.say-talk.is-talking:hover {
+  background: var(--ui);
+  color: var(--bg);
+}
+.say-talk kbd {
+  display: none;
+  margin-right: var(--s-2);
+  font: inherit;
+  color: var(--ui-muted); /* the same grey as the other key hints */
+}
+.say-talk.is-talking kbd {
+  color: inherit; /* grey on the light pressed button would be too faint */
+}
+.say-voice-note {
+  margin: 0;
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+}
+.talking {
+  margin-left: var(--s-1);
+  padding: 0 var(--s-1);
+  border: 1px solid currentColor;
+  border-radius: var(--r);
+  font-size: var(--t-14);
+  font-weight: 700;
+}
+@media (hover: hover) and (pointer: fine) {
+  .say-talk kbd {
+    display: inline;
+  }
+}

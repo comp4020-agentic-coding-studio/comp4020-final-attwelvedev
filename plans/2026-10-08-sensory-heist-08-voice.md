@@ -172,8 +172,8 @@ after deploy in the phase DoD.
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 21–22 complete, tests passing, Task 22 accepted by the user
-- [ ] `pnpm test:unit` passes
+- [x] Tasks 21–22 complete, tests passing, Task 22 accepted by the user (2026-10-10; reviewed on localhost with two Chrome windows and an iPad/iPhone for the fallback, not the plan's LAN/HTTPS setup; "Voice lagging" checked by a spec that delays frames, not by devtools throttling)
+- [x] `pnpm test:unit` passes
 - [ ] `pnpm build && pnpm start`, then `pnpm check` and `pnpm check:evidence` pass
 - [ ] Deployed (ask first); one room played on campus Wi-Fi with voice; `/stats` and `flyctl logs` show `voice.latency` p50; record the measured figure for the README's latency claim
 - [ ] Tick this phase in overview §5 and commit

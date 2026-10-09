@@ -82,3 +82,15 @@ describe("calloutAt", () => {
     expect(calloutAt(9)).toBeUndefined();
   });
 });
+
+describe("keyAction: push to talk", () => {
+  it("V talks whether or not a sheet is open, in either case", () => {
+    for (const open of [null, "say", "sound", "show"] as const) {
+      expect(keyAction(open, "v", false)).toEqual({ type: "talk" });
+      expect(keyAction(open, "V", false)).toEqual({ type: "talk" });
+    }
+  });
+  it("a v typed into a message is just a letter", () => {
+    expect(keyAction("say", "v", true)).toBeNull();
+  });
+});

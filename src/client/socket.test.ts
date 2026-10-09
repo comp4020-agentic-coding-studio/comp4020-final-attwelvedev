@@ -14,8 +14,8 @@ class FakeSocket {
     this.url = url;
     FakeSocket.instances.push(this);
   }
-  send(data: string) {
-    this.sent.push(data);
+  send(data: string | Uint8Array) {
+    this.sent.push(data as string);
   }
   close() {
     this.readyState = 3;
@@ -211,5 +211,41 @@ describe("openSocket when the page is hidden", () => {
     const before = FakeSocket.instances.length;
     show(p, true);
     expect(FakeSocket.instances.length).toBe(before);
+  });
+});
+
+describe("openSocket: voice", () => {
+  it("hands binary frames to onBinary, and never to the JSON handlers", () => {
+    const socket = open();
+    last().open();
+    const got: Uint8Array[] = [];
+    const json = vi.fn();
+    socket.onBinary((b) => got.push(b));
+    socket.on("pong", json);
+    last().onmessage?.({ data: Uint8Array.from([1, 2, 3]).buffer });
+    expect(got).toEqual([Uint8Array.from([1, 2, 3])]);
+    expect(json).not.toHaveBeenCalled();
+    socket.close();
+  });
+
+  it("sends binary only while open", () => {
+    const socket = open();
+    socket.sendBinary(Uint8Array.from([9]));
+    expect(last().sent).toHaveLength(0);
+    last().open();
+    socket.sendBinary(Uint8Array.from([9]));
+    expect(last().sent).toHaveLength(1);
+    socket.close();
+  });
+
+  it("learns the server's clock offset from pongs that carry serverAt", () => {
+    const socket = open();
+    last().open();
+    expect(socket.clockOffset()).toBeNull();
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now + 40);
+    last().deliver({ t: "pong", at: now, serverAt: now + 20 + 500 });
+    expect(socket.clockOffset()).toBe(500);
+    socket.close();
   });
 });
