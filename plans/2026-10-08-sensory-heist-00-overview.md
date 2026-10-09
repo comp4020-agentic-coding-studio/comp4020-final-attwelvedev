@@ -221,7 +221,7 @@ hard-codes a colour.
 | 04 | `…-04-game-logging.md` | 11 | 03 | Game events logged and live on `/stats`; deployed — **week 11 crit** | [x] (`flyctl logs` check not run: local token 401) |
 | 05 | `…-05-hazards-rooms.md` | 12–14 | 04 | Guards, cameras, lasers, checkpoints, loot, flips, audio cues; rooms 2–3; role rotation (**Human review**, Task 14) | [x] |
 | 06 | `…-06-bots-disconnects.md` | 15–17 | 05 | Bots fill seats and clear every room; disconnect pause and rejoin | [x] (played in each role by the user; deployed, specs green on fly.dev) |
-| 07 | `…-07-results-polish.md` | 18–20 | 06 | Leaderboard persisted; real-life wizard and settings; spectators (**Human review**, Task 19) | [ ] |
+| 07 | `…-07-results-polish.md` | 18–20 | 06 | Leaderboard persisted; real-life wizard and settings; spectators (**Human review**, Task 19) | [x] (deployed, leaderboard persistence confirmed across a redeploy on fly.dev) |
 | 08 | `…-08-voice.md` | 21–22 | 07 | Server-relayed voice with latency logging (**Human review**, Task 22) | [ ] |
 
 Phase 04 deliberately precedes 05 so the week 11 crit is safe even if rooms

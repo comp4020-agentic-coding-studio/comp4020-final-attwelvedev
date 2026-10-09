@@ -252,8 +252,8 @@ nickname.
 - [x] Tasks 18–20 complete, tests passing, Task 19 accepted by the user
 - [x] `pnpm test:unit` passes
 - [x] `pnpm build && pnpm start`, then `pnpm check` and `pnpm check:evidence` pass
-- [ ] Deployed (ask first); after a redeploy, a run saved before it is still on `/leaderboard` (persistence on the real volume)
-- [ ] Tick this phase in overview §5 and commit
+- [x] Deployed (ask first); after a redeploy, a run saved before it is still on `/leaderboard` (persistence on the real volume)
+- [x] Tick this phase in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)
 
