@@ -20,10 +20,10 @@ import { draw, type FacePop, type Scene } from "../client/render.ts";
 import { loadSettings, type Settings as SettingsState, saveSettings } from "../client/settings.ts";
 import type { ConnectionState, GameSocket } from "../client/socket.ts";
 import { browserSpeech } from "../client/speech.ts";
-import { NET } from "../client/tokens.ts";
+import { NET, setContrast } from "../client/tokens.ts";
 import { FACE_POP_MS } from "../game/channels.ts";
 import { ROLE_LABEL, type Role, type Vec } from "../game/types.ts";
-import type { CrewMember, LobbyState, RoleView } from "../net/protocol.ts";
+import type { CrewMember, LobbySettings, LobbyState, RoleView } from "../net/protocol.ts";
 import { type CaptionLine, Captions } from "./Captions.tsx";
 import { ConfirmButton } from "./ConfirmButton.tsx";
 import { Connection } from "./Connection.tsx";
@@ -103,6 +103,7 @@ export function Game({
   host,
   hostName,
   seats,
+  lobbySettings,
 }: {
   socket: GameSocket;
   state: ConnectionState;
@@ -112,6 +113,7 @@ export function Game({
   host: boolean;
   hostName: string | null;
   seats: LobbyState["seats"] | null;
+  lobbySettings: LobbySettings;
 }) {
   const rt = useRef<Runtime>({
     view: null,
@@ -154,6 +156,7 @@ export function Game({
           setReady(true);
           socket.send({ t: "ready" });
         }}
+        lobbySettings={lobbySettings}
       />
     );
   }
@@ -169,6 +172,7 @@ export function Game({
       hostName={hostName}
       seats={seats}
       audio={audio}
+      lobbySettings={lobbySettings}
     />
   );
 }
@@ -184,6 +188,7 @@ function Hud({
   hostName,
   seats,
   audio,
+  lobbySettings,
 }: {
   rt: Runtime;
   socket: GameSocket;
@@ -195,6 +200,7 @@ function Hud({
   hostName: string | null;
   seats: LobbyState["seats"] | null;
   audio: { current: GameAudio | null };
+  lobbySettings: LobbySettings;
 }) {
   const { role } = reveal;
   const frame = useRef<HTMLDivElement>(null);
@@ -230,14 +236,36 @@ function Hud({
   const [lines, setLines] = useState<CaptionLine[]>([]);
   const [cues, setCues] = useState<string[]>([]);
   const [typing, setTyping] = useState(false);
-  const live = useRef({ settings, lineId: 0 });
+  // Can't see and Can't speak get captions instead of game sound when the
+  // host's wizard says the room's other players don't have headphones, so the
+  // game's own audio never leaks out to everyone sitting around them.
+  const forceCaptions = lobbySettings.othersSoundOff && role !== "deaf";
+  const live = useRef({ settings, lineId: 0, forceCaptions });
   live.current.settings = settings;
-  rt.soundOn = settings.sound;
+  live.current.forceCaptions = forceCaptions;
+  rt.soundOn = settings.sound && !forceCaptions;
 
   function change(next: SettingsState) {
     setSettings(next);
     saveSettings(next);
   }
+
+  useEffect(() => {
+    setContrast(settings.highContrast);
+    document.documentElement.dataset.contrast = settings.highContrast ? "high" : "";
+    return () => {
+      document.documentElement.removeAttribute("data-contrast");
+      setContrast(false);
+    };
+  }, [settings.highContrast]);
+
+  // The deaf seat's own masking noise: on only when the host turned it on for
+  // an in-person table and this seat hasn't personally turned it off, at the
+  // volume this seat chose for themselves.
+  const maskNoiseOn = role === "deaf" && lobbySettings.maskNoise && settings.maskNoiseOn;
+  useEffect(() => {
+    audio.current?.setMaskNoise(maskNoiseOn, settings.volume);
+  }, [audio, maskNoiseOn, settings.volume]);
 
   // Everything a channel message does on arrival: speak it, play it, show it.
   useEffect(() => {
@@ -245,17 +273,20 @@ function Hud({
     if (role !== "blind") preloadFaces();
     return socket.on("msg", (m) => {
       const now = performance.now();
-      const { settings: s } = live.current;
+      const { settings: s, forceCaptions } = live.current;
       if (m.family === "say") {
         speech.say(m.kind === "callout" ? CALLOUT_WORD[m.callout] : m.text);
-      } else if (m.family === "sound" && s.sound) {
+      } else if (m.family === "sound" && s.sound && !forceCaptions) {
         audio.current?.playClip(m.clip);
       } else if (m.family === "show" && m.kind === "face") {
         rt.pops.push({ seat: m.from.seat, id: m.id, at: now });
       }
       // text to Can't speak is always shown, since reading it is their only way
       const caption = captionFor(m);
-      const wanted = s.captions || (m.family === "say" && m.kind === "text" && role !== "blind");
+      const wanted =
+        s.captions ||
+        forceCaptions ||
+        (m.family === "say" && m.kind === "text" && role !== "blind");
       if (caption && wanted) {
         const line = { id: ++live.current.lineId, ...caption, until: now + CAPTION_MS };
         setLines((old) => [...old.filter((l) => l.until > now), line].slice(-3));
@@ -373,7 +404,10 @@ function Hud({
       const now = performance.now();
       rt.pops = rt.pops.filter((p) => now - p.at < FACE_POP_MS);
       setLines((old) => (old.some((l) => l.until <= now) ? old.filter((l) => l.until > now) : old));
-      const heard = live.current.settings.captions ? heardCues(rt.cueHold, now) : [];
+      const heard =
+        live.current.settings.captions || live.current.forceCaptions
+          ? heardCues(rt.cueHold, now)
+          : [];
       setCues((old) => (old.join("|") === heard.join("|") ? old : heard));
     }, 100);
     return () => {
@@ -502,6 +536,8 @@ function Hud({
           settings={settings}
           onChange={change}
           onLeave={() => socket.send({ t: "lobby.leave" })}
+          maskNoiseAvailable={lobbySettings.maskNoise}
+          othersSoundOff={lobbySettings.othersSoundOff}
         />
         {host && (
           <ConfirmButton

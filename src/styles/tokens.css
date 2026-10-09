@@ -63,3 +63,24 @@
     --ease: 0ms;
   }
 }
+
+/* The Settings panel's high-contrast toggle (src/client/settings.ts), mirrored
+   for canvas drawing by src/client/tokens.ts's setContrast. Every role's shape
+   keeps its own colour (never colour alone: the shape still carries it), just
+   each one pushed brighter against a pure black background and floor. */
+:root[data-contrast="high"] {
+  --bg: #000000;
+  --panel: #000000;
+  --ink: #000000;
+  --ui: #ffffff;
+  --ui-muted: #ffffff;
+  --danger: #ff1a1a;
+  --goal: #00ff88;
+  --camera-light: #ffff00;
+  --role-blind: #ffaa00;
+  --role-deaf: #00ccff;
+  --role-mute: #dd88ff;
+  --solid: #ffffff;
+  --floor: #000000;
+  --crate: #ffaa00;
+}

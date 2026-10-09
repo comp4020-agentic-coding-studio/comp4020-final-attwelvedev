@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { readNickname, saveNickname } from "../client/nickname.ts";
 import { qrSvg } from "../client/qr.ts";
-import type { LobbyState } from "../net/protocol.ts";
+import type { LobbySettings, LobbyState } from "../net/protocol.ts";
 import { Connection } from "./Connection.tsx";
 import { Game, type Reveal } from "./Game.tsx";
+import { RealLifeWizard } from "./RealLifeWizard.tsx";
 import { useSocket } from "./useSocket.ts";
 
 type Status = "joining" | "in" | "full" | "missing" | "failed";
@@ -35,6 +36,7 @@ export function Lobby({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
   const [reveal, setReveal] = useState<Reveal | null>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const as = useRef<"player" | "spectator">("player");
   const following = useRef(false); // this page asked to start a new team
   const editingTeam = useRef(false); // an update from the server must not overwrite what the host is typing
@@ -142,6 +144,10 @@ export function Lobby({ code }: { code: string }) {
     socket?.send({ t: "lobby.start" });
   }
 
+  function applySettings(settings: LobbySettings) {
+    socket?.send({ t: "lobby.settings", settings });
+  }
+
   const letters = code.split("");
   const heading = (
     <div class="code-block">
@@ -174,6 +180,7 @@ export function Lobby({ code }: { code: string }) {
           lobby?.seats.find((s) => s.who !== null && s.who === lobby.host)?.nickname ?? null
         }
         seats={lobby?.seats ?? null}
+        lobbySettings={lobby.settings}
       />
     );
   }
@@ -320,6 +327,29 @@ export function Lobby({ code }: { code: string }) {
           <p class="team-name">
             Team: <strong>{lobby.teamName}</strong>
           </p>
+        )}
+
+        {host && (
+          <div class="real-life">
+            <button
+              type="button"
+              class="btn"
+              aria-expanded={wizardOpen}
+              aria-controls="real-life-wizard"
+              onClick={() => setWizardOpen(!wizardOpen)}
+            >
+              {wizardOpen ? "Close real-life setup" : "Real-life setup"}
+            </button>
+            {/* stays mounted while hidden, so closing with this button (not
+               "Start over") keeps whatever step and answers were in progress */}
+            <div id="real-life-wizard" hidden={!wizardOpen}>
+              <RealLifeWizard
+                settings={lobby.settings}
+                onApply={applySettings}
+                onClose={() => setWizardOpen(false)}
+              />
+            </div>
+          </div>
         )}
 
         <h2 id="seats-title">Seats</h2>

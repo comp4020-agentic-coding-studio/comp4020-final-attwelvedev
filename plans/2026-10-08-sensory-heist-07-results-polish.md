@@ -281,3 +281,74 @@ None.
   second settings system. No harness-level prevention needed beyond what
   `execute-plan`'s Phase 1 review already does — this is exactly the "code has
   moved" case that review is for.
+
+- 2026-10-09, Task 19 human review (first pass): missing vertical spacing in
+  two spots — between the team name field/"Close real-life setup" button and
+  the lobby's next section, and between the wizard's last fieldset/checkbox
+  row and the buttons below it. Expected: consistent gaps throughout, like the
+  rest of the lobby screen. First attempt missed because `.real-life` only had
+  a bottom margin (relying on the next sibling's own top margin, which worked
+  before the wizard was inserted between other elements) and `.wizard-review`
+  had no `gap` of its own, so its children (the honour line, the rows list,
+  the actions row) touched directly. Fixed: `.real-life` gets a top margin
+  too, and `.wizard-review` is a `display: grid; gap: var(--s-3)` like its
+  sibling `.wizard`. No repeated-pattern prevention needed yet (one occurrence
+  so far); worth a lint/visual-regression check for "new block has symmetric
+  margin" if this recurs in a later phase.
+
+- 2026-10-09, Task 19 human review (second pass): a round of feedback split
+  into real gaps (fixed) and feature ideas (parked in `specs/backlog.md`).
+  Fixed: masking noise moved into the Settings panel with a personal on/off
+  toggle (mid-game, not just at setup) and volume slider, greyed out with an
+  explanation when the host hasn't turned it on; a new honour line for when
+  Can't hear has no headphones ("keep the table quiet near them"); the honour
+  line(s) only show when the team is in-person, not remote; the colour moved
+  off `--danger` (reserved for in-game danger) to the amber `--camera-light`
+  "caution" token; the wizard's radio/checkbox controls got an explicit
+  border and `accent-color` (the OS default was too dark to see against the
+  background); and the honour line now appears on every player's role-reveal
+  screen, not just inside the host-only wizard — the plan's §7 coverage table
+  credits FR7 ("honour system stated") to this task, which the host-only
+  wizard didn't actually satisfy for anyone else at the table. First attempt
+  missed these because the task matched its own written acceptance criteria
+  without checking FR7 against who actually sees the text, and because the
+  honour copy was written once and never revisited once `LobbySettings`
+  carried enough information to make it conditional. Parked: splitting the
+  headphone question per seat (and the mixed remote/in-person case it would
+  enable) reopens `presetFor`'s already-tested truth table and is a redesign,
+  not a fix; alternative masking-noise sounds raise an assets question.
+  Prevention: none added to the harness — both misses were caught by asking
+  "does this literally satisfy the FR" and "would this read the same to a
+  player who never saw the wizard", which is a review habit, not a rule a
+  lint can enforce.
+
+- 2026-10-09, Task 19 human review (third pass): two more gaps, plus a design
+  question worth recording since the first answer to it was wrong twice.
+  Fixed: "Close real-life setup" was unmounting `RealLifeWizard`, so reopening
+  it always restarted at the first question — `Lobby.tsx` now keeps it mounted
+  and toggles a `hidden` attribute instead, so only "Start over" actually
+  resets it. Fixed: the masking-noise and captions-instead-of-sound rows
+  (`rowsFor` in `RealLifeWizard.tsx`) only make sense at a shared physical
+  table, so remote now offers just the in-app-voice row, worded for remote
+  ("make sure everyone has another way to talk") instead of the in-person
+  wording ("talks in person, not through the app") it wrongly kept showing.
+  Also fixed, from the same conversation: the Settings panel's Captions/Game
+  sound checkboxes showed the player's personal preference even when the
+  host's `othersSoundOff` was forcing them regardless — now they show
+  disabled-and-forced with a note, the same pattern already used for Can't
+  hear's own disabled row, so the UI never shows a state that isn't real.
+  The design question — does muting "game sound" and substituting captions
+  make sense for Can't-see, who has no visual perception of the game world —
+  I answered wrong twice before getting it right: first claiming captions are
+  useless to a role called "Can't see" (wrong: the restriction is on what the
+  character perceives of the game world, not on what the real player's screen
+  shows — captions are ordinary on-screen text, fully readable), then
+  granting captions were visible but assuming they only replace the Say
+  channel (wrong: `cueCaptions` in `src/client/hud.ts` already carries the
+  same left/right/ahead panning information the audio does, for every sound
+  kind, per the parity invariant in `src/game/parity.test.ts`). `othersSoundOff`
+  applying to both Can't-see and Can't-speak was correct as built all along;
+  no code change came from this part of the thread. Prevention: before
+  asserting a role "can't" do something, check what the restriction actually
+  is in `src/game/types.ts`/ADR 0007 rather than reasoning from the role's
+  name.

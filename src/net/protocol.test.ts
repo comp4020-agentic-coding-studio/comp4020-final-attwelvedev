@@ -41,6 +41,11 @@ describe("parseClientMsg lobby messages", () => {
       t: "lobby.team",
       name: "Owls",
     });
+    const settings = { inPerson: true, maskNoise: true, othersSoundOff: false, voice: false };
+    expect(parseClientMsg(JSON.stringify({ t: "lobby.settings", settings }))).toEqual({
+      t: "lobby.settings",
+      settings,
+    });
   });
 
   it.each([
@@ -49,6 +54,9 @@ describe("parseClientMsg lobby messages", () => {
     '{"t":"lobby.join","code":"KMQZ","nickname":"Bo"}',
     '{"t":"lobby.join","code":"KMQZ","nickname":"Bo","as":"boss"}',
     '{"t":"lobby.team","name":null}',
+    '{"t":"lobby.settings"}',
+    '{"t":"lobby.settings","settings":{"inPerson":true}}',
+    '{"t":"lobby.settings","settings":"nope"}',
   ])("rejects %s", (raw) => {
     expect(parseClientMsg(raw)).toBeNull();
   });

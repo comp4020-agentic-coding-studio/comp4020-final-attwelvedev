@@ -13,15 +13,18 @@ import {
 import type { EntityView, RoleView, SoundCue } from "../game/perception.ts";
 import type { Family, PlayerInput, Role, Seat } from "../game/types.ts";
 import type { CrewMember } from "./game.ts";
-import type { ErrorCode, LobbyState, LobbySummary } from "./lobbies.ts";
+import type { ErrorCode, LobbySettings, LobbyState, LobbySummary } from "./lobbies.ts";
 
-// Clients import their types from here only (they never reach into lobbies.ts).
+// Clients import their types from here only (they never reach into lobbies.ts
+// at runtime: it pulls in ./codes.ts for node:crypto, which has no business
+// in the browser bundle).
 export type {
   Callout,
   ChannelMessage,
   CrewMember,
   EntityView,
   ErrorCode,
+  LobbySettings,
   LobbyState,
   LobbySummary,
   RoleView,
@@ -37,6 +40,7 @@ export type ClientMsg =
   | { t: "lobby.join"; code: string; nickname: string; as: "player" | "spectator" }
   | { t: "lobby.leave" }
   | { t: "lobby.team"; name: string }
+  | { t: "lobby.settings"; settings: LobbySettings } // host
   | { t: "lobby.start" } // host
   | { t: "ready" }
   | { t: "room.restart" } // host: everyone back to spawn, doors and crates reset
@@ -101,6 +105,17 @@ export function parseClientMsg(raw: string): ClientMsg | null {
       return { t: "lobby.leave" };
     case "lobby.team":
       return typeof m.name === "string" ? { t: "lobby.team", name: m.name } : null;
+    case "lobby.settings": {
+      const s = m.settings;
+      if (typeof s !== "object" || s === null) return null;
+      const { inPerson, maskNoise, othersSoundOff, voice } = s as Record<string, unknown>;
+      return typeof inPerson === "boolean" &&
+        typeof maskNoise === "boolean" &&
+        typeof othersSoundOff === "boolean" &&
+        typeof voice === "boolean"
+        ? { t: "lobby.settings", settings: { inPerson, maskNoise, othersSoundOff, voice } }
+        : null;
+    }
     case "lobby.start":
       return { t: "lobby.start" };
     case "ready":

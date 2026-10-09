@@ -8,6 +8,19 @@ export interface SeatState {
   connected: boolean;
   bot: boolean;
 }
+export interface LobbySettings {
+  inPerson: boolean;
+  maskNoise: boolean; // Can't-hear player's headphones play masking noise
+  othersSoundOff: boolean; // Can't see / Can't speak get captions instead of game sound
+  voice: boolean; // in-app voice (phase 08)
+}
+export const DEFAULT_SETTINGS: LobbySettings = {
+  inPerson: false,
+  maskNoise: false,
+  othersSoundOff: false,
+  voice: true,
+};
+
 export interface LobbyState {
   code: string;
   teamName: string;
@@ -16,6 +29,7 @@ export interface LobbyState {
   seats: [SeatState, SeatState, SeatState];
   spectators: { who: string; nickname: string }[];
   createdAt: number; // ms since epoch; with the code, the basis of the lobby's log key
+  settings: LobbySettings;
 }
 export interface LobbySummary {
   code: string;
@@ -88,6 +102,7 @@ export function createLobby(reg: Registry, who: string, nickname: string): Lobby
     seats: [{ who, nickname: nick, connected: true, bot: false }, emptySeat(), emptySeat()],
     spectators: [],
     createdAt: Date.now(),
+    settings: { ...DEFAULT_SETTINGS },
   };
   reg.lobbies.set(code, lobby);
   reg.byDevice.set(who, code);
@@ -155,6 +170,32 @@ export function setTeamName(reg: Registry, who: string, name: string): LobbyStat
   if (!clean) throw new LobbyError("bad-team-name", "Give the team a name.");
   if (!isAllowedName(clean)) throw new LobbyError("bad-team-name", "Pick a different team name.");
   lobby.teamName = clean;
+  return lobby;
+}
+
+// The wizard's three questions turned into settings. In person, people talk
+// to each other directly, so in-app voice is off; masking noise only helps if
+// Can't-hear is actually wearing headphones, and game sound only needs to go
+// quiet for the others if they aren't (so captions carry it instead, without
+// leaking the game's audio around the room).
+export function presetFor(answers: {
+  sameRoom: boolean;
+  deafHasHeadphones: boolean;
+  othersHaveHeadphones: boolean;
+}): LobbySettings {
+  if (!answers.sameRoom) return { ...DEFAULT_SETTINGS };
+  return {
+    inPerson: true,
+    maskNoise: answers.deafHasHeadphones,
+    othersSoundOff: !answers.othersHaveHeadphones,
+    voice: false,
+  };
+}
+
+export function setSettings(reg: Registry, who: string, settings: LobbySettings): LobbyState {
+  const lobby = reg.lobbies.get(reg.byDevice.get(who) ?? "");
+  if (!lobby || lobby.host !== who) throw new LobbyError("not-host", "Only the host can do that.");
+  lobby.settings = settings;
   return lobby;
 }
 

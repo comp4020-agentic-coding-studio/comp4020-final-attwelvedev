@@ -17,7 +17,7 @@ import {
   takeOverWithBot,
   tickGame,
 } from "./game.ts";
-import type { LobbyState } from "./lobbies.ts";
+import { DEFAULT_SETTINGS, type LobbyState } from "./lobbies.ts";
 
 const rooms = loadRooms();
 
@@ -42,6 +42,7 @@ const lobby = (...who: (string | null)[]): LobbyState => ({
   seats: [seat(who[0] ?? null), seat(who[1] ?? null), seat(who[2] ?? null)],
   spectators: [],
   createdAt: 0,
+  settings: DEFAULT_SETTINGS,
 });
 const withBots = (human: string, ...bots: number[]): LobbyState => {
   const l = lobby(human);

@@ -4,6 +4,9 @@ export interface GameAudio {
   resume(): void; // call from a tap or key press: browsers keep audio off until then
   play(sounds: SoundCue[]): void; // the sound cues of one view
   playClip(id: string): void; // a soundboard clip, from public/sounds/
+  // Masking noise for an in-person Can't-hear seat, so their own headphones
+  // stop them catching speech over the table. No asset: generated here.
+  setMaskNoise(on: boolean, volume: number): void;
   dispose(): void;
 }
 
@@ -18,9 +21,26 @@ const HUM_HZ = 110;
 // buzz for a laser, chimes, a siren and an alarm. Each is panned and scaled
 // by the cue the server computed. Nothing flashes or flickers: a steady cue is
 // a steady tone.
+// A few seconds of brown noise, looped: a leaky running sum of white noise,
+// which weights it toward the low end the way a hum or distant chatter is,
+// rather than the hiss of plain white noise.
+function brownNoiseBuffer(c: AudioContext): AudioBuffer {
+  const frames = Math.floor(c.sampleRate * 3);
+  const buffer = c.createBuffer(1, frames, c.sampleRate);
+  const data = buffer.getChannelData(0);
+  let last = 0;
+  for (let i = 0; i < frames; i++) {
+    const white = Math.random() * 2 - 1;
+    last = (last + 0.02 * white) / 1.02;
+    data[i] = last * 3.5; // the leak keeps it quiet; this brings it back up
+  }
+  return buffer;
+}
+
 export function createAudio(): GameAudio {
   let ctx: AudioContext | null = null;
   let hum: { osc: OscillatorNode; gain: GainNode } | null = null;
+  let mask: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
   let noise: AudioBuffer | null = null;
   let lastStep = 0;
   let lastOwnStep = 0;
@@ -169,6 +189,25 @@ export function createAudio(): GameAudio {
       // a plain element: the clips are short, and a blocked autoplay just stays silent
       void new Audio(`/sounds/${encodeURIComponent(id)}.mp3`).play().catch(() => undefined);
     },
+    setMaskNoise(on, volume) {
+      const c = ensure();
+      if (!c) return;
+      if (on && !mask) {
+        const src = c.createBufferSource();
+        src.buffer = brownNoiseBuffer(c);
+        src.loop = true;
+        const gain = c.createGain();
+        gain.gain.value = volume;
+        src.connect(gain).connect(c.destination);
+        src.start();
+        mask = { src, gain };
+      } else if (!on && mask) {
+        mask.src.stop();
+        mask = null;
+      } else if (mask) {
+        mask.gain.gain.setTargetAtTime(volume, c.currentTime, 0.1);
+      }
+    },
     play(sounds) {
       const c = ctx;
       if (c?.state !== "running") return;
@@ -239,6 +278,8 @@ export function createAudio(): GameAudio {
     dispose() {
       hum?.osc.stop();
       hum = null;
+      mask?.src.stop();
+      mask = null;
       void ctx?.close();
       ctx = null;
     },

@@ -116,6 +116,16 @@ body.playing main {
   align-items: center;
   gap: var(--s-3);
 }
+.reveal-honour {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s-1);
+  color: var(--camera-light);
+  font-weight: 700;
+  max-width: 32rem;
+}
 .reveal .btn {
   min-width: 12rem;
 }
@@ -647,8 +657,13 @@ button.tile.cant {
   gap: var(--s-3);
   min-height: var(--target);
 }
-.settings input {
+.settings input[type="checkbox"] {
   width: 24px;
+  height: 24px;
+}
+.settings input[type="range"] {
+  flex: 1;
+  width: auto;
   height: 24px;
 }
 
@@ -725,7 +740,8 @@ fieldset.settings {
   align-items: center;
   gap: var(--s-2);
 }
-.settings-note {
+.settings-note,
+.mask-noise-note {
   max-width: 20rem;
   margin: 0;
   color: var(--ui-muted);

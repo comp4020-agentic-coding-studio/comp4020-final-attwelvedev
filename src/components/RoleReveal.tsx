@@ -1,5 +1,6 @@
+import { honourLines } from "../client/honourLines.ts";
 import { CHANNEL_RULES, type Family, ROLE_LABEL, type Role } from "../game/types.ts";
-import type { CrewMember } from "../net/protocol.ts";
+import type { CrewMember, LobbySettings } from "../net/protocol.ts";
 import { RoleShape } from "./RoleShape.tsx";
 
 const YOU: Record<Role, string> = {
@@ -20,6 +21,7 @@ export function RoleReveal({
   from,
   ready,
   onReady,
+  lobbySettings,
 }: {
   name: string;
   index: number;
@@ -28,6 +30,7 @@ export function RoleReveal({
   from?: Role;
   ready: boolean;
   onReady: () => void;
+  lobbySettings: LobbySettings;
 }) {
   const send = FAMILIES.filter((f) => CHANNEL_RULES[f].send.includes(role)).map(
     (f) => FAMILY_NAME[f],
@@ -79,6 +82,13 @@ export function RoleReveal({
           </li>
         ))}
       </ul>
+      {honourLines(lobbySettings).length > 0 && (
+        <ul class="reveal-honour" aria-label="Real-life rules for this table">
+          {honourLines(lobbySettings).map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      )}
       <button type="button" class="btn primary" onClick={onReady} disabled={ready}>
         {ready ? "Waiting for the others…" : "Ready"}
       </button>

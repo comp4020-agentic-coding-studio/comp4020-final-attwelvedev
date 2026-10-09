@@ -1,8 +1,24 @@
 import type { Role } from "../game/types.ts";
 
-// Canvas colours mirror src/styles/tokens.css (tokens.test.ts keeps them equal).
-// Code draws with these and never writes a colour of its own.
-export const COLOR = {
+interface ColorTokens {
+  bg: string;
+  panel: string;
+  ink: string;
+  ui: string;
+  uiMuted: string;
+  danger: string;
+  goal: string;
+  cameraLight: string;
+  solid: string;
+  floor: string;
+  crate: string;
+}
+
+// Canvas colours mirror src/styles/tokens.css (tokens.test.ts keeps them equal,
+// normal and high-contrast both). Code draws with these and never writes a
+// colour of its own; setContrast mutates them in place, so render.ts (which
+// reads them fresh every frame) never needs to know contrast mode exists.
+const NORMAL: ColorTokens = {
   bg: "#0b1220",
   panel: "#141e36",
   ink: "#000000", // the Can't-see viewport
@@ -14,13 +30,40 @@ export const COLOR = {
   solid: "#3a4d7a", // walls
   floor: "#0f1830",
   crate: "#c98f5a",
-} as const;
+};
+const HIGH_CONTRAST: ColorTokens = {
+  bg: "#000000",
+  panel: "#000000",
+  ink: "#000000",
+  ui: "#ffffff",
+  uiMuted: "#ffffff",
+  danger: "#ff1a1a",
+  goal: "#00ff88",
+  cameraLight: "#ffff00",
+  solid: "#ffffff",
+  floor: "#000000",
+  crate: "#ffaa00",
+};
+export const COLOR: ColorTokens = { ...NORMAL };
 
-export const ROLE_COLOR: Record<Role, string> = {
+const ROLE_NORMAL: Record<Role, string> = {
   blind: "#f2a93b",
   deaf: "#4db3ff",
   mute: "#9b7ee0",
 };
+const ROLE_HIGH_CONTRAST: Record<Role, string> = {
+  blind: "#ffaa00",
+  deaf: "#00ccff",
+  mute: "#dd88ff",
+};
+export const ROLE_COLOR: Record<Role, string> = { ...ROLE_NORMAL };
+
+// Swaps every canvas colour to its high-contrast value (or back). Reaches
+// every reader because COLOR/ROLE_COLOR are mutated in place, not replaced.
+export function setContrast(high: boolean): void {
+  Object.assign(COLOR, high ? HIGH_CONTRAST : NORMAL);
+  Object.assign(ROLE_COLOR, high ? ROLE_HIGH_CONTRAST : ROLE_NORMAL);
+}
 
 export type Shape = "circle" | "square" | "triangle";
 export const ROLE_SHAPE: Record<Role, Shape> = {

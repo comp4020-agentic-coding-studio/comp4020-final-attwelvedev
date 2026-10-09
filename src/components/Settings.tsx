@@ -13,14 +13,25 @@ export function Settings({
   settings,
   onChange,
   onLeave,
+  maskNoiseAvailable,
+  othersSoundOff,
 }: {
   role: Role;
   settings: SettingsState;
   onChange: (next: SettingsState) => void;
   onLeave: () => void;
+  // Whether the host's real-life setup has turned masking noise on for the
+  // team; Can't hear can still choose not to use it, but can't turn on what
+  // the host hasn't.
+  maskNoiseAvailable: boolean;
+  // The host's real-life setup has turned game sound off for Can't see and
+  // Can't speak (captions carry it instead): forced on everyone, so the
+  // checkbox has to say so rather than show a personal choice that isn't one.
+  othersSoundOff: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const deaf = role === "deaf";
+  const forcedCaptions = !deaf && othersSoundOff;
   const toggle = (key: keyof SettingsState) => (e: Event) =>
     onChange({ ...settings, [key]: (e.target as HTMLInputElement).checked });
   return (
@@ -40,9 +51,11 @@ export function Settings({
           <label>
             <input
               type="checkbox"
-              checked={!deaf && settings.captions}
-              disabled={deaf}
-              aria-describedby={deaf ? "settings-note" : undefined}
+              checked={!deaf && (settings.captions || forcedCaptions)}
+              disabled={deaf || forcedCaptions}
+              aria-describedby={
+                deaf ? "settings-note" : forcedCaptions ? "others-sound-off-note" : undefined
+              }
               onChange={toggle("captions")}
             />
             Captions
@@ -50,9 +63,11 @@ export function Settings({
           <label>
             <input
               type="checkbox"
-              checked={!deaf && settings.sound}
-              disabled={deaf}
-              aria-describedby={deaf ? "settings-note" : undefined}
+              checked={!deaf && settings.sound && !forcedCaptions}
+              disabled={deaf || forcedCaptions}
+              aria-describedby={
+                deaf ? "settings-note" : forcedCaptions ? "others-sound-off-note" : undefined
+              }
               onChange={toggle("sound")}
             />
             Game sound
@@ -73,10 +88,61 @@ export function Settings({
               and spoken lines are off.
             </p>
           )}
+          {forcedCaptions && (
+            <p class="settings-note" id="others-sound-off-note">
+              The host turned off game sound for the table: captions are on for everyone instead.
+            </p>
+          )}
           <label>
             <input type="checkbox" checked={settings.keepOpen} onChange={toggle("keepOpen")} />
             Keep the comms sheet open after sending
           </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={settings.highContrast}
+              onChange={toggle("highContrast")}
+            />
+            High contrast
+          </label>
+          {deaf && (
+            <>
+              <label>
+                <input
+                  type="checkbox"
+                  name="mask-noise"
+                  checked={maskNoiseAvailable && settings.maskNoiseOn}
+                  disabled={!maskNoiseAvailable}
+                  aria-describedby={maskNoiseAvailable ? undefined : "mask-noise-note"}
+                  onChange={toggle("maskNoiseOn")}
+                />
+                Masking noise
+              </label>
+              <label>
+                Masking noise volume
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={settings.volume}
+                  disabled={!maskNoiseAvailable || !settings.maskNoiseOn}
+                  aria-describedby={maskNoiseAvailable ? undefined : "mask-noise-note"}
+                  onInput={(e) =>
+                    onChange({
+                      ...settings,
+                      volume: Number((e.target as HTMLInputElement).value),
+                    })
+                  }
+                />
+              </label>
+              {!maskNoiseAvailable && (
+                <p class="mask-noise-note" id="mask-noise-note">
+                  Turn masking noise on in the host's real-life setup first.
+                </p>
+              )}
+            </>
+          )}
           <div class="settings-leave">
             <ConfirmButton
               class="hud-btn danger"

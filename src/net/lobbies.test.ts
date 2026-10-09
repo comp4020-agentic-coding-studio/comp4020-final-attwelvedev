@@ -3,14 +3,17 @@ import {
   cleanNickname,
   createLobby,
   createRegistry,
+  DEFAULT_SETTINGS,
   expireIdle,
   joinLobby,
   LobbyError,
   leaveLobby,
   MAX_LOBBIES,
   openLobbies,
+  presetFor,
   reopenLobby,
   setConnected,
+  setSettings,
   setTeamName,
   startLobby,
 } from "./lobbies.ts";
@@ -150,6 +153,60 @@ describe("setTeamName", () => {
     const reg = createRegistry();
     createLobby(reg, dev(1), "Ana");
     expect(errorCode(() => setTeamName(reg, dev(1), "fuck"))).toBe("bad-team-name");
+  });
+});
+
+describe("presetFor", () => {
+  it("is the defaults when the team isn't in the same room", () => {
+    expect(
+      presetFor({ sameRoom: false, deafHasHeadphones: true, othersHaveHeadphones: true }),
+    ).toEqual(DEFAULT_SETTINGS);
+  });
+
+  it("turns on masking noise and turns off in-app voice when the deaf seat has headphones", () => {
+    expect(
+      presetFor({ sameRoom: true, deafHasHeadphones: true, othersHaveHeadphones: true }),
+    ).toMatchObject({ inPerson: true, maskNoise: true, voice: false });
+  });
+
+  it("leaves masking noise off when the deaf seat has no headphones", () => {
+    expect(
+      presetFor({ sameRoom: true, deafHasHeadphones: false, othersHaveHeadphones: true }),
+    ).toMatchObject({ maskNoise: false });
+  });
+
+  it("turns game sound off (captions instead) when the others have no headphones", () => {
+    expect(
+      presetFor({ sameRoom: true, deafHasHeadphones: true, othersHaveHeadphones: false }),
+    ).toMatchObject({ othersSoundOff: true });
+  });
+});
+
+describe("setSettings", () => {
+  it("is host only", () => {
+    const reg = createRegistry();
+    const { code } = createLobby(reg, dev(1), "Ana");
+    joinLobby(reg, code, dev(2), "Bo", "player");
+    expect(errorCode(() => setSettings(reg, dev(2), DEFAULT_SETTINGS))).toBe("not-host");
+  });
+
+  it("the host can set the lobby's settings", () => {
+    const reg = createRegistry();
+    createLobby(reg, dev(1), "Ana");
+    const preset = presetFor({
+      sameRoom: true,
+      deafHasHeadphones: true,
+      othersHaveHeadphones: true,
+    });
+    expect(setSettings(reg, dev(1), preset).settings).toEqual(preset);
+  });
+});
+
+describe("createLobby", () => {
+  it("starts a lobby with the default settings", () => {
+    const reg = createRegistry();
+    const lobby = createLobby(reg, dev(1), "Ana");
+    expect(lobby.settings).toEqual(DEFAULT_SETTINGS);
   });
 });
 

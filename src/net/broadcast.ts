@@ -1,6 +1,6 @@
 import { WebSocket } from "ws";
 import type { Seat } from "../game/types.ts";
-import { type LobbyState, openLobbies, type Registry } from "./lobbies.ts";
+import { DEFAULT_SETTINGS, type LobbyState, openLobbies, type Registry } from "./lobbies.ts";
 import type { ServerMsg } from "./protocol.ts";
 
 // Who is connected and who needs telling. The registry decides what changed;
@@ -84,5 +84,6 @@ function closed(code: string): LobbyState {
     seats: [empty(), empty(), empty()],
     spectators: [],
     createdAt: 0,
+    settings: DEFAULT_SETTINGS,
   };
 }

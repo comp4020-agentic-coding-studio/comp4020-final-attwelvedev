@@ -24,6 +24,14 @@ describe("defaultsFor", () => {
   it("starts with game sound and spoken lines both on, and the sheet closing after a send", () => {
     expect(defaultsFor("mute")).toMatchObject({ sound: true, speech: true, keepOpen: false });
   });
+
+  it("starts with high contrast off, masking noise on and its volume at half", () => {
+    expect(defaultsFor("deaf")).toMatchObject({
+      highContrast: false,
+      maskNoiseOn: true,
+      volume: 0.5,
+    });
+  });
 });
 
 describe("loadSettings and saveSettings", () => {
@@ -36,7 +44,18 @@ describe("loadSettings and saveSettings", () => {
   it("keeps a person's choice across roles, falling back to the role default if unset", () => {
     const s = store();
     expect(loadSettings("blind", s).captions).toBe(true);
-    saveSettings({ sound: false, speech: false, keepOpen: true, captions: null }, s);
+    saveSettings(
+      {
+        sound: false,
+        speech: false,
+        keepOpen: true,
+        captions: null,
+        highContrast: false,
+        maskNoiseOn: true,
+        volume: 0.5,
+      },
+      s,
+    );
     const loaded = loadSettings("deaf", s);
     expect(loaded).toMatchObject({ sound: false, speech: false, keepOpen: true, captions: true });
   });
@@ -52,6 +71,28 @@ describe("loadSettings and saveSettings", () => {
   it("falls back to the default for a setting saved before it existed", () => {
     const s = store({ "heist.settings": JSON.stringify({ sound: false, captions: true }) });
     expect(loadSettings("blind", s)).toMatchObject({ sound: false, speech: true });
+  });
+
+  it("round-trips high contrast, masking noise on/off and its volume", () => {
+    const s = store();
+    saveSettings(
+      { ...defaultsFor("deaf"), highContrast: true, maskNoiseOn: false, volume: 0.8 },
+      s,
+    );
+    expect(loadSettings("deaf", s)).toMatchObject({
+      highContrast: true,
+      maskNoiseOn: false,
+      volume: 0.8,
+    });
+  });
+
+  it("falls back to the default high contrast, masking noise and volume for a setting saved before they existed", () => {
+    const s = store({ "heist.settings": JSON.stringify({ sound: false, captions: true }) });
+    expect(loadSettings("blind", s)).toMatchObject({
+      highContrast: false,
+      maskNoiseOn: true,
+      volume: 0.5,
+    });
   });
 
   it("ignores junk and survives storage that throws", () => {

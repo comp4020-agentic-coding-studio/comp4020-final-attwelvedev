@@ -270,6 +270,77 @@ input {
   color: var(--ui-muted);
 }
 
+/* the real-life setup wizard */
+.real-life {
+  margin: var(--s-4) 0;
+}
+.wizard {
+  display: grid;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+}
+.wizard fieldset {
+  border: 1px solid var(--ui-muted);
+  border-radius: var(--r);
+  padding: var(--s-3);
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+}
+.wizard-actions {
+  display: flex;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  margin-top: var(--s-1);
+}
+.wizard-review {
+  display: grid;
+  gap: var(--s-3);
+}
+/* a caution, not a danger (that colour means something specific in-game) */
+.wizard-honour {
+  color: var(--camera-light);
+  font-weight: 700;
+  margin: 0;
+}
+.wizard-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s-3);
+}
+.wizard-rows p {
+  margin: var(--s-1) 0 0;
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+}
+/* checkbox/radio rows: the global `label`/`input` rules above are sized for
+   text fields, so a plain checkbox or radio here would stretch to fill the
+   row (width: 100%) and wrap its own label text underneath it. */
+.wizard label {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-bottom: 0;
+  min-height: var(--target);
+}
+.wizard input[type="checkbox"],
+.wizard input[type="radio"] {
+  width: 24px;
+  min-height: 24px;
+  flex: none;
+  /* the OS default for an unchecked control is too dark against this
+     background to see clearly; an explicit border and accent fix that for
+     both the unchecked ring and the checked fill. */
+  accent-color: var(--ui);
+  border: 2px solid var(--ui-muted);
+  background: var(--panel);
+}
+.wizard input[type="radio"] {
+  border-radius: 50%;
+}
+
 /* the stats page */
 .rows {
   list-style: none;

@@ -43,6 +43,7 @@ import {
   openLobbies,
   reopenLobby,
   setConnected,
+  setSettings,
   setTeamName,
   startLobby,
 } from "./lobbies.ts";
@@ -487,6 +488,9 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
       }
       case "lobby.team":
         change(who, () => setTeamName(registry, who, msg.name));
+        return;
+      case "lobby.settings":
+        change(who, () => setSettings(registry, who, msg.settings));
         return;
       case "lobby.start": {
         const open = registry.lobbies.get(registry.byDevice.get(who) ?? "");
