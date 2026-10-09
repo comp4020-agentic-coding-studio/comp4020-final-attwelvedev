@@ -41,8 +41,11 @@
 - **Rooms:** one file per room, `rooms/NN-slug.room` (JSON metadata, a `---`
   line, then a text grid; format in the phase 02 plan §4.1). Rooms are linted
   by `pnpm lint:rooms` (part of `pnpm check`, and run by a hook on every room
-  edit) and must be cleared by bots. Never hand-write a room without running
-  the linter; a room needs a three-plate beat and a reachable exit.
+  edit) and must be cleared by bots: `spec/rooms.test.ts` has three bots, each
+  seeing only its own role's view and talking through the channel router, clear
+  every room in every rotation of roles, never caught. A room needs `hints`
+  (jobs per beat for the bots; the linter checks them), a three-plate beat and a
+  reachable exit. Never hand-write a room without running the linter and that spec.
 - **Naming and layout:** domain services in `src/lib/` take `db` first and
   never touch requests. Unit tests sit beside the code; promises to users get
   `spec/<area>.test.ts`; browser checks get one `spec/layout/<area>.test.ts`

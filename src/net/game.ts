@@ -1,3 +1,5 @@
+import { createBotMemory } from "../game/bots/brain.ts";
+import { type BotSeat, type BotSent, botsAct } from "../game/bots/crew.ts";
 import {
   type ChannelMessage,
   type CooldownState,
@@ -10,7 +12,7 @@ import type { Room } from "../game/rooms/format.ts";
 import { step } from "../game/sim/step.ts";
 import { addStamp, createWorld, TICK_MS, type World } from "../game/sim/world.ts";
 import { type Family, type PlayerInput, ROLES, type Role, type Seat } from "../game/types.ts";
-import { LobbyError, type LobbyState } from "./lobbies.ts";
+import type { LobbyState } from "./lobbies.ts";
 
 export interface CrewMember {
   seat: Seat;
@@ -28,6 +30,7 @@ export interface Game {
   inputs: Partial<Record<Seat, PlayerInput>>;
   startedAt: number;
   cooldowns: CooldownState;
+  bots: Partial<Record<Seat, BotSeat>>; // a memory and an inbox for each seat a bot plays
 }
 
 // Seat i gets ROLES[(i + roomIndex) % 3], so everyone plays every role across three rooms.
@@ -36,14 +39,24 @@ export function rolesFor(roomIndex: number): [Role, Role, Role] {
   return [role(0), role(1), role(2)];
 }
 
-// The caller has already checked that the starter is the host.
-export function startGame(lobby: LobbyState, rooms: Room[]): Game {
-  if (lobby.seats.some((s) => s.who === null)) {
-    throw new LobbyError("need-three", "Three players are needed to start. Share the code.");
+// Bots start afresh with each room: their memory is of that room and these roles.
+// A bot is always ready.
+function seatBots(game: Game, botSeats: readonly Seat[]): void {
+  const humans = new Set<Seat>(([0, 1, 2] as const).filter((s) => !botSeats.includes(s)));
+  game.bots = {};
+  for (const seat of botSeats) {
+    game.bots[seat] = { memory: createBotMemory(seat, humans, game.roles), inbox: [] };
+    game.ready.add(seat);
   }
+}
+const botSeatsOf = (game: Game): Seat[] => ([0, 1, 2] as const).filter((s) => game.bots[s]);
+
+// The caller has already checked that the starter is the host, and startLobby has
+// filled the empty seats with bots.
+export function startGame(lobby: LobbyState, rooms: Room[]): Game {
   const room = rooms[0];
   if (!room) throw new Error("no rooms loaded");
-  return {
+  const game: Game = {
     lobby: lobby.code,
     roomIndex: 0,
     roles: rolesFor(0),
@@ -52,7 +65,13 @@ export function startGame(lobby: LobbyState, rooms: Room[]): Game {
     inputs: {},
     startedAt: Date.now(),
     cooldowns: { until: {} },
+    bots: {},
   };
+  seatBots(
+    game,
+    ([0, 1, 2] as const).filter((s) => lobby.seats[s]?.bot),
+  );
+  return game;
 }
 
 // An input is held until the next one arrives. A lower seq than the last is a
@@ -70,6 +89,7 @@ export function applyInput(game: Game, seat: Seat, input: PlayerInput): boolean 
 export function advanceRoom(game: Game, rooms: Room[]): "next" | "done" {
   const room = rooms[game.roomIndex + 1];
   if (!room) return "done";
+  const botSeats = botSeatsOf(game);
   game.roomIndex++;
   game.roles = rolesFor(game.roomIndex);
   game.world = createWorld(room);
@@ -77,6 +97,7 @@ export function advanceRoom(game: Game, rooms: Room[]): "next" | "done" {
   game.inputs = {};
   game.cooldowns = { until: {} };
   game.startedAt = Date.now();
+  seatBots(game, botSeats);
   return "next";
 }
 
@@ -86,6 +107,7 @@ export function restartGame(game: Game): void {
   game.world = createWorld(game.world.room);
   game.inputs = {};
   game.startedAt = Date.now();
+  seatBots(game, botSeatsOf(game));
 }
 
 export function crewOf(lobby: LobbyState, game: Game): CrewMember[] {
@@ -99,16 +121,34 @@ export function crewOf(lobby: LobbyState, game: Game): CrewMember[] {
 
 // One 50 ms step, then a view per seat. `full` names the seats owed a full
 // view (the first after the reveal or a reconnect), the only ones sent tiles.
+// Before the step each bot thinks and sets its seat's input; `sent` is what the
+// bots said (through `route`, like anyone), for the caller to pass on to the
+// people it was sent to. `nickname` is how a bot's messages are signed.
 export function tickGame(
   game: Game,
   full: ReadonlySet<Seat> = new Set(),
-): { views: Map<Seat, RoleView>; cleared: boolean } {
+  now: number = Date.now(),
+  nickname: (seat: Seat) => string = () => "Bot",
+): { views: Map<Seat, RoleView>; cleared: boolean; sent: BotSent[] } {
+  const acted = botsAct(
+    game.world.room,
+    game.world,
+    game.roles,
+    game.bots,
+    game.cooldowns,
+    now,
+    nickname,
+  );
+  for (const seat of botSeatsOf(game)) {
+    const input = acted.inputs[seat];
+    if (input) applyInput(game, seat, input);
+  }
   step(game.world, game.inputs, TICK_MS);
   const views = new Map<Seat, RoleView>();
   for (const seat of [0, 1, 2] as const) {
     views.set(seat, viewFor(game.world, seat, game.roles[seat], full.has(seat)));
   }
-  return { views, cleared: game.world.status === "cleared" };
+  return { views, cleared: game.world.status === "cleared", sent: acted.sent };
 }
 
 // What a client may ask to send. A stamp has no position here: the server puts it

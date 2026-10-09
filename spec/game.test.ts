@@ -21,12 +21,13 @@ describe("starting and playing a game", () => {
     await Promise.all([host.close(), guest.close()]);
   });
 
-  it("says need-three when the host starts with fewer than three seated", async () => {
+  it("lets the host start alone: the empty seats are bots (no more need-three)", async () => {
     const host = await connect(baseUrl);
     host.send({ t: "lobby.create", nickname: "Ana" });
     await host.next("lobby");
     host.send({ t: "lobby.start" });
-    expect((await host.next<ErrorMsg>("error")).code).toBe("need-three");
+    const reveal = await host.next<{ crew: { bot: boolean }[] }>("reveal");
+    expect(reveal.crew.filter((c) => c.bot)).toHaveLength(2);
     await host.close();
   });
 

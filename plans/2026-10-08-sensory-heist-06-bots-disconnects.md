@@ -169,7 +169,7 @@ callouts). `phrases.test.ts`: no phrase repeats until the list is exhausted.
 
 **Depends on:** Task 14.
 
-### Task 16: Bots fill empty seats, and three bots clear every room
+### Task 16: Bots fill empty seats, and three bots clear every room (done)
 
 **Files touched.** `src/net/game.ts` (bot seats: build view → `think` →
 inputs and routed messages each tick), `src/net/lobbies.ts` (Start marks
@@ -296,6 +296,12 @@ None.
 8. **Hum.** The Can't-see bot holds on the third tick of a hum in a row, which
    is when it has walked to the middle of the plate's tile: a bot that stopped
    on the first tick would stand at the plate's edge, in a guard's sweep.
+9. **Task 16 notes.** The lobby shows no per-seat "bot fills" tag (the spec
+   wireframe has one): `spec/layout/lobby.test.ts` finds a seat by `hasText:
+   "Bo"`, which any text containing "bot" matches. The Start button and the line
+   under it say how many bots fill. Bots' messages are not logged as `game`
+   lines: bots are not players. `spec/playUi.ts` waits for the button named
+   exactly "Start", so a helper never starts a game with bots by mistake.
 
 ## 10. Corrections log
 

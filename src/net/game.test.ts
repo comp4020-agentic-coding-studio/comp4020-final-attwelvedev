@@ -10,7 +10,7 @@ import {
   startGame,
   tickGame,
 } from "./game.ts";
-import { LobbyError, type LobbyState } from "./lobbies.ts";
+import type { LobbyState } from "./lobbies.ts";
 
 const rooms = loadRooms();
 
@@ -19,6 +19,13 @@ const seat = (n: string | null) => ({
   nickname: n ? n.toUpperCase() : null,
   connected: n !== null,
   bot: false,
+});
+// A seat that is a bot: what startLobby leaves in an empty seat
+const bot = (shape: string) => ({
+  who: null,
+  nickname: `Bot ${shape}`,
+  connected: true,
+  bot: true,
 });
 const lobby = (...who: (string | null)[]): LobbyState => ({
   code: "ABCD",
@@ -29,6 +36,11 @@ const lobby = (...who: (string | null)[]): LobbyState => ({
   spectators: [],
   createdAt: 0,
 });
+const withBots = (human: string, ...bots: number[]): LobbyState => {
+  const l = lobby(human);
+  for (const i of bots) l.seats[i] = bot(["circle", "square", "triangle"][i] as string);
+  return l;
+};
 
 describe("rolesFor", () => {
   it("gives seat i ROLES[(i + roomIndex) % 3], rotating each room", () => {
@@ -40,18 +52,19 @@ describe("rolesFor", () => {
 });
 
 describe("startGame", () => {
-  it("needs three seated players", () => {
-    for (const l of [lobby("a"), lobby("a", "b"), lobby("a", null, "c")]) {
-      const err = (() => {
-        try {
-          startGame(l, rooms);
-        } catch (e) {
-          return e;
-        }
-      })();
-      expect(err).toBeInstanceOf(LobbyError);
-      expect((err as LobbyError).code).toBe("need-three");
-    }
+  it("no longer needs three people: empty seats are bots", () => {
+    const game = startGame(withBots("a", 1, 2), rooms);
+    expect(Object.keys(game.bots).sort()).toEqual(["1", "2"]);
+    expect([...game.ready].sort()).toEqual([1, 2]); // a bot is always ready
+    expect(crewOf(withBots("a", 1, 2), game)).toEqual([
+      { seat: 0, nickname: "A", role: "blind", bot: false },
+      { seat: 1, nickname: "Bot square", role: "deaf", bot: true },
+      { seat: 2, nickname: "Bot triangle", role: "mute", bot: true },
+    ]);
+  });
+
+  it("has no bots when three people are seated", () => {
+    expect(startGame(lobby("a", "b", "c"), rooms).bots).toEqual({});
   });
 
   it("starts room 01 with distinct roles and nobody ready", () => {
@@ -186,5 +199,61 @@ describe("advanceRoom", () => {
     expect(game.world.room.id).toBe("03-vault");
     expect(advanceRoom(game, rooms)).toBe("done");
     expect(game.roomIndex).toBe(2);
+  });
+});
+
+describe("bots in a game", () => {
+  const botGame = () => startGame(withBots("a", 1, 2), rooms);
+  const tick = (game: ReturnType<typeof botGame>, n: number) => {
+    const said: ReturnType<typeof tickGame>["sent"] = [];
+    for (let i = 0; i < n; i++) said.push(...tickGame(game, new Set(), i * 50).sent);
+    return said;
+  };
+
+  it("walk their own avatars", () => {
+    const game = botGame();
+    game.ready.add(0);
+    const before = game.world.players.map((p) => ({ ...p.pos }));
+    tick(game, 60);
+    expect(game.world.players[2].pos).not.toEqual(before[2]); // the mute bot pushes the crate
+    expect(game.world.players[0].pos).toEqual(before[0]); // the human has sent nothing
+  });
+
+  it("steer a Can't-see human with callouts they receive, from the Can't-hear bot", () => {
+    const game = botGame();
+    const said = tick(game, 100);
+    const callouts = said.filter((s) => s.message.family === "say" && s.receivers.includes(0));
+    expect(callouts.length).toBeGreaterThan(0);
+    expect(callouts[0]?.from).toBe(1);
+    expect(callouts[0]?.message.from).toMatchObject({ seat: 1, role: "deaf" });
+  });
+
+  it("stay inside the same rules and cooldowns as a person", () => {
+    const game = botGame();
+    const said = tick(game, 1500);
+    for (const s of said) {
+      // a Can't-speak bot never uses Say; every sound or face went through route()
+      if (s.from === 2) expect(s.message.family).not.toBe("say");
+    }
+  });
+
+  it("do not act when the room is over, and are made afresh for the next room", () => {
+    const game = botGame();
+    const first = game.bots[1]?.memory;
+    game.world.status = "cleared";
+    expect(advanceRoom(game, rooms)).toBe("next");
+    expect(game.bots[1]?.memory).not.toBe(first);
+    expect(game.bots[1]?.memory.roles).toEqual(rolesFor(1));
+    expect([...game.ready].sort()).toEqual([1, 2]);
+  });
+
+  it("are made afresh by a restart, and stay ready", () => {
+    const game = botGame();
+    tick(game, 40);
+    const first = game.bots[2]?.memory;
+    restartGame(game);
+    expect(game.bots[2]?.memory).not.toBe(first);
+    expect(game.bots[2]?.memory.seq).toBe(0);
+    expect(game.ready.has(1) && game.ready.has(2)).toBe(true);
   });
 });

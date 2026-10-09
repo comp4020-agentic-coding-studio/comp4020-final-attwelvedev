@@ -32,9 +32,11 @@ export async function playRoom(browser: Browser, baseUrl: string): Promise<Table
     await page.waitForURL(new RegExp(`/lobby/${code}$`));
     await page.getByText("Seats").waitFor();
   }
-  const start = host.getByRole("button", { name: "Start" });
-  // click waits for the button to be enabled (all three seated), up to 5 s; a
-  // plain wait rather than expect.poll, so a spec may call this from beforeAll
+  // The button reads plain "Start" only once all three are seated; before that it
+  // reads "Start (n bots fill)" and would start a game with bots. click waits for the
+  // plain one, up to 5 s; a plain wait rather than expect.poll, so a spec may call
+  // this from beforeAll
+  const start = host.getByRole("button", { name: "Start", exact: true });
   await start.click({ timeout: 5000 });
   const pages = [host, phone, third];
   for (const page of pages) await page.getByRole("button", { name: "Ready" }).click();

@@ -67,7 +67,7 @@ export function Lobby({ code }: { code: string }) {
         setMessage(m.message);
         if (m.code === "lobby-not-found") setStatus("missing");
         else if (m.code === "lobby-full") setStatus("full");
-        else if (m.code !== "not-host" && m.code !== "need-three") setStatus("failed");
+        else if (m.code !== "not-host") setStatus("failed");
       }),
       socket.on("left", () => location.assign("/")),
     ];
@@ -251,6 +251,7 @@ export function Lobby({ code }: { code: string }) {
 
   const watching = mySeat === null;
   const seated = lobby.seats.filter((s) => s.who !== null).length;
+  const bots = 3 - seated; // Start fills every empty seat with a bot
   return (
     <div class="lobby">
       <div class="lobby-code">
@@ -335,13 +336,15 @@ export function Lobby({ code }: { code: string }) {
           <div class="start">
             {host ? (
               <>
-                <button type="button" class="btn primary" onClick={start} disabled={seated < 3}>
-                  Start
+                <button type="button" class="btn primary" onClick={start}>
+                  {bots === 0
+                    ? "Start"
+                    : `Start (${bots} ${bots === 1 ? "bot fills" : "bots fill"})`}
                 </button>
                 <p class="muted" role="status">
-                  {seated < 3
-                    ? `Needs 3 players to start (${seated} of 3 seated).`
-                    : "All three seats are filled."}
+                  {bots === 0
+                    ? "All three seats are filled."
+                    : `${seated} of 3 players here. Start now and ${bots === 1 ? "a bot takes" : "bots take"} the rest.`}
                 </p>
               </>
             ) : (

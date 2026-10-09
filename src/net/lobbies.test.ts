@@ -11,6 +11,7 @@ import {
   openLobbies,
   setConnected,
   setTeamName,
+  startLobby,
 } from "./lobbies.ts";
 
 const dev = (n: number) => `d${String(n).padStart(7, "0")}`;
@@ -213,5 +214,67 @@ describe("cleanNickname", () => {
   });
   it("throws bad-nickname when empty", () => {
     expect(errorCode(() => cleanNickname(" \t "))).toBe("bad-nickname");
+  });
+});
+
+describe("startLobby", () => {
+  it("fills every empty seat with a connected bot named for its shape, and starts", () => {
+    const reg = createRegistry();
+    const lobby = createLobby(reg, dev(1), "Ana");
+    startLobby(reg, dev(1));
+    expect(lobby.phase).toBe("playing");
+    expect(lobby.seats[0]).toMatchObject({ who: dev(1), bot: false });
+    expect(lobby.seats[1]).toEqual({
+      who: null,
+      nickname: "Bot square",
+      connected: true,
+      bot: true,
+    });
+    expect(lobby.seats[2]).toEqual({
+      who: null,
+      nickname: "Bot triangle",
+      connected: true,
+      bot: true,
+    });
+  });
+
+  it("leaves the humans alone and fills only what is empty", () => {
+    const reg = createRegistry();
+    const lobby = createLobby(reg, dev(1), "Ana");
+    joinLobby(reg, lobby.code, dev(2), "Bo", "player");
+    startLobby(reg, dev(1));
+    expect(lobby.seats.map((s) => s.bot)).toEqual([false, false, true]);
+    expect(lobby.seats[2]?.nickname).toBe("Bot triangle");
+  });
+
+  it("starts with no bots when three people are seated", () => {
+    const reg = createRegistry();
+    const lobby = createLobby(reg, dev(1), "Ana");
+    joinLobby(reg, lobby.code, dev(2), "Bo", "player");
+    joinLobby(reg, lobby.code, dev(3), "Cy", "player");
+    startLobby(reg, dev(1));
+    expect(lobby.seats.some((s) => s.bot)).toBe(false);
+  });
+
+  it("is the host's alone", () => {
+    const reg = createRegistry();
+    const lobby = createLobby(reg, dev(1), "Ana");
+    joinLobby(reg, lobby.code, dev(2), "Bo", "player");
+    expect(errorCode(() => startLobby(reg, dev(2)))).toBe("not-host");
+    expect(lobby.phase).toBe("open");
+  });
+
+  it("never says need-three any more", () => {
+    const reg = createRegistry();
+    createLobby(reg, dev(1), "Ana");
+    expect(errorCode(() => startLobby(reg, dev(1)))).toBeNull();
+  });
+
+  it("removes the lobby when its last human leaves, bots or not", () => {
+    const reg = createRegistry();
+    const lobby = createLobby(reg, dev(1), "Ana");
+    startLobby(reg, dev(1));
+    leaveLobby(reg, dev(1));
+    expect(reg.lobbies.has(lobby.code)).toBe(false);
   });
 });
