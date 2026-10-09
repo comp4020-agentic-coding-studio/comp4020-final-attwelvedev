@@ -176,9 +176,15 @@ describe("the game screen", () => {
       /Bo/,
     );
 
-    // leaving on purpose frees the seat: "left"
+    // leaving on purpose puts a bot in the seat, and the others are told
     await leaveGameAndClose(mute, baseUrl);
-    await expect.poll(() => crew(host), { timeout: 3000 }).toMatch(/Cy \(left\)/);
+    await expect.poll(() => crew(host), { timeout: 3000 }).toMatch(/Bot triangle/);
+    await expect(
+      host
+        .getByRole("status")
+        .filter({ hasText: /Cy left the game/ })
+        .innerText(),
+    ).resolves.toMatch(/A bot took their seat/);
     await leaveGameAndClose(host, baseUrl);
   });
 });

@@ -205,6 +205,8 @@ function Hud({
   } | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [back, setBack] = useState<string | null>(null);
+  const [replaced, setReplaced] = useState<string | null>(null); // someone left and a bot took their seat
+  const crewSeen = useRef(reveal.crew);
   const [caught, setCaught] = useState<string | null>(null); // why the team was just sent back
   const [touch, setTouch] = useState(false);
   const lastSent = useRef<string | null>(null);
@@ -274,6 +276,18 @@ function Hud({
       clearTimeout(timer);
     };
   }, [socket]);
+
+  // A person left the game and a bot took their seat: the crew changes under us, so say so.
+  useEffect(() => {
+    const before = crewSeen.current;
+    crewSeen.current = reveal.crew;
+    const gone = reveal.crew.find((c) => c.bot && before.some((b) => b.seat === c.seat && !b.bot));
+    if (!gone) return;
+    const who = before.find((b) => b.seat === gone.seat)?.nickname ?? "Someone";
+    setReplaced(`${who} left the game. A bot took their seat.`);
+    const timer = setTimeout(() => setReplaced(null), 6000);
+    return () => clearTimeout(timer);
+  }, [reveal.crew]);
 
   // The team was caught: say what got whom, in words on the screen for everyone and
   // spoken to Can't see, who has nothing else to go on (and in the dark, nor do the others).
@@ -477,6 +491,12 @@ function Hud({
         ))}
         {role === "blind" && <li class="hud-hint">No map. Listen.</li>}
       </ul>
+
+      {replaced && (
+        <p class="hud-alert" role="status">
+          {replaced}
+        </p>
+      )}
 
       {back && (
         <p class="hud-alert" role="status">

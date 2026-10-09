@@ -326,6 +326,16 @@ describe("pausing for a dropped seat", () => {
     expect(chooserFor(n, 2)).toBeNull();
   });
 
+  it("keeps waiting for the seat that is away when a bot takes a different one", () => {
+    // seat 2 dropped; seat 1's person leaves for good and a bot takes seat 1
+    const l = lobby("a", "b", "c");
+    const game = startGame(l, rooms);
+    pauseFor(game, 2, 0);
+    takeOverWithBot(game, l, 1);
+    expect(game.paused?.seat).toBe(2);
+    expect(game.bots[1]).toBeDefined();
+  });
+
   it("lets a bot take the seat over: the world and everyone's place in it are kept", () => {
     const l = lobby("a", "b", "c");
     const game = startGame(l, rooms);

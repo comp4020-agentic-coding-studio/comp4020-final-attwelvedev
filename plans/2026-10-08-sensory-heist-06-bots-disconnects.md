@@ -312,9 +312,14 @@ None.
     the reveal again so the crew list shows the bot. The overlay is an
     `alertdialog`: `spec/layout/game.test.ts` expects one `status` mentioning
     the dropped player. `PAUSE_MS` is read once in `attach.ts`.
-11. **Not done here, found on the way.** A person who presses Leave mid-game
-    frees their seat without a bot taking it, so the game carries on short of a
-    player. That is older than this phase; it wants its own task.
+11. **Leaving mid-game (done 2026-10-09, after the user asked).** A person who
+    presses Leave mid-game now gets a bot in their seat at once, the same step as
+    the host's "bot takes over" (`botTakesSeat`); the host role passes on as it
+    already did. The others see "Cy left the game. A bot took their seat." The
+    old `spec/layout/game.test.ts` expectation, that a leaver shows as "(left)"
+    with the seat freed, is the behaviour this replaces; its intent (the others are
+    told) is kept. `takeOverWithBot` also no longer clears a pause that is for a
+    different seat.
 
 ## 10. Corrections log
 

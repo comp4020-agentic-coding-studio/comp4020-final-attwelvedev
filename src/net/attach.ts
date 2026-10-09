@@ -250,6 +250,29 @@ function giveUp(code: string): void {
   }
 }
 
+// A bot plays the seat from now on, and everyone is told: the crew again (a bot where a
+// person was), the lobby, and that play goes on if the game was waiting for this seat.
+// Used when the host chooses a bot for a seat that stayed away, and when a person leaves.
+function botTakesSeat(code: string, seat: Seat, by: string | null): void {
+  const running = games.get(code);
+  const lobby = registry.lobbies.get(code);
+  if (!running || !lobby) return;
+  const away = lobby.seats[seat]?.who ?? null;
+  const wasWaitedFor = running.game.paused?.seat === seat;
+  takeOverWithBot(running.game, lobby, seat);
+  if (away) registry.byDevice.delete(away);
+  if (wasWaitedFor) {
+    if (running.pauseTimer) clearTimeout(running.pauseTimer);
+    running.pauseTimer = null;
+  }
+  record("bot.takeover", by, lobby);
+  for (const s of [0, 1, 2] as const) sendReveal(code, s);
+  if (wasWaitedFor)
+    for (const person of humansOf(lobby)) hub.sendTo(person, { t: "resume", back: null });
+  hub.broadcast(lobby);
+  pauseIfAnyAbsent(code); // someone else may be away too
+}
+
 function pauseIfAnyAbsent(code: string): void {
   const lobby = registry.lobbies.get(code);
   const away = lobby?.seats.findIndex((s) => s.who !== null && !s.bot && !s.connected) ?? -1;
@@ -314,8 +337,13 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
       }
       case "lobby.leave": {
         const was = lobbyOf(who);
+        const seat = was ? seatOfDevice(was.code, who) : null;
         change(who, () => leaveLobby(registry, who));
         if (was) record("lobby.leave", who, was);
+        // a person leaving a game in progress does not leave their seat empty: a bot takes it
+        if (was && seat !== null && games.has(was.code) && registry.lobbies.has(was.code)) {
+          botTakesSeat(was.code, seat, null);
+        }
         send(socket, { t: "left" });
         return;
       }
@@ -380,17 +408,7 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
           giveUp(code);
           return;
         }
-        const away = lobby.seats[paused.seat]?.who ?? null;
-        takeOverWithBot(running.game, lobby, paused.seat);
-        if (away) registry.byDevice.delete(away);
-        if (running.pauseTimer) clearTimeout(running.pauseTimer);
-        running.pauseTimer = null;
-        record("bot.takeover", who, lobby);
-        // the crew changed (a bot where a person was): everyone gets the reveal again
-        for (const seat of [0, 1, 2] as const) sendReveal(code, seat);
-        for (const person of humansOf(lobby)) hub.sendTo(person, { t: "resume", back: null });
-        hub.broadcast(lobby);
-        pauseIfAnyAbsent(code); // someone else may be away too
+        botTakesSeat(code, paused.seat, who);
         return;
       }
       case "say":

@@ -184,7 +184,7 @@ export function takeOverWithBot(game: Game, lobby: LobbyState, seat: Seat): void
     game,
     ([0, 1, 2] as const).filter((s) => lobby.seats[s]?.bot),
   );
-  game.paused = null;
+  if (game.paused?.seat === seat) game.paused = null; // another seat's pause is still on
 }
 
 // One 50 ms step, then a view per seat. `full` names the seats owed a full
