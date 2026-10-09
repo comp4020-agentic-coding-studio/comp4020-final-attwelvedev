@@ -243,9 +243,9 @@ resumes with a bot in that seat; `host.choice: lobby` returns everyone a
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 15–17 complete, tests passing
-- [ ] `pnpm test:unit` and `pnpm lint:rooms` pass
-- [ ] `pnpm build && PAUSE_MS=3000 pnpm start`, then `pnpm check` passes (disconnect timeouts included); then a normal `pnpm start` and `pnpm check:evidence`
+- [x] Tasks 15–17 complete, tests passing
+- [x] `pnpm test:unit` and `pnpm lint:rooms` pass
+- [x] `pnpm build && PAUSE_MS=3000 pnpm start`, then `pnpm check` passes (disconnect timeouts included); then a normal `pnpm start` and `pnpm check:evidence` (run on :8081, 2026-10-09: 65 files, 640 tests, 41 s; the timeout cases skip on a 45 s server)
 - [ ] Deployed (ask first); `spec/bots.test.ts` green against fly.dev
 - [ ] Manually: one person plays the whole heist solo with two bots, once in each role
 - [ ] Tick this phase in overview §5 and commit
