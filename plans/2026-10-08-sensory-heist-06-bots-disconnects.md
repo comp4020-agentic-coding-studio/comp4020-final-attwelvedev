@@ -407,4 +407,18 @@ None.
   (another tab with the game open is not leaving); the marker is only cleared when
   views were sent; the lobby page only follows a lobby it asked to start. Each has a
   failing spec first, and the first two were checked in a browser.
+- 2026-10-09, the user again: going to another page still did not count as leaving
+  (only Leave did), and the other players still saw them as active, while on :8080.
+  Expected: leaving on any navigation away. First attempt missed because every
+  check of it ran in Playwright, which switches off Chrome's back/forward cache; in a
+  person's Chrome the game page is kept alive with its socket open, so the server
+  never saw it go. (Two more slips the same hour: I rebuilt `dist` under the running
+  server, which takes it down, and I checked the not-found address in a lobby that
+  had not started, where the role screen is not re-sent.) Fixed: the socket closes
+  itself on `pagehide` and reconnects on a restored `pageshow`; a Chrome with the
+  cache on is now in the specs (`spec/layout/cache.test.ts`, including Back returning
+  to the game); a game only shows on the page whose own lobby it belongs to.
+  Prevention: test navigation in the browser a person has, not only the automation
+  default, and rebuild and restart in one step. The layout specs now launch a
+  cache-on Chrome for anything about leaving a page.
 

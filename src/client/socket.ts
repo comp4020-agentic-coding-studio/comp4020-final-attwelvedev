@@ -34,7 +34,10 @@ const defaultUrl = (): string =>
 // needs when the state goes back to live, so there is no stale queue to replay.
 export function openSocket(
   url: string = defaultUrl(),
-  options: { WebSocketImpl?: new (url: string) => SocketLike } = {},
+  options: {
+    WebSocketImpl?: new (url: string) => SocketLike;
+    page?: EventTarget; // where pagehide and pageshow are heard: the window, unless a test says
+  } = {},
 ): GameSocket {
   const Impl = options.WebSocketImpl ?? (WebSocket as unknown as new (url: string) => SocketLike);
   const handlers = new Map<string, Set<(msg: never) => void>>();
@@ -44,6 +47,7 @@ export function openSocket(
   let rtt: number | null = null;
   let backoff = BACKOFF_FIRST_MS;
   let stopped = false;
+  let hidden = false; // the page is gone from view (and may come back): no reconnecting meanwhile
   let retry: ReturnType<typeof setTimeout> | undefined;
   let pinger: ReturnType<typeof setInterval> | undefined;
 
@@ -81,13 +85,32 @@ export function openSocket(
     };
     socket.onclose = () => {
       clearInterval(pinger);
-      if (ws !== socket || stopped) return;
+      if (ws !== socket || stopped || hidden) return;
       setState("offline", null);
       retry = setTimeout(connect, backoff);
       backoff = Math.min(backoff * 2, BACKOFF_MAX_MS);
     };
   }
   connect();
+
+  // A page that is navigated away from may be kept alive (the browser's back/forward cache) with its
+  // connection still open, and the server would take the person for still being in the game. So the
+  // connection is closed when the page is hidden, and opened again if the page is brought back.
+  const page = options.page ?? (typeof window !== "undefined" ? window : undefined);
+  const hide = (): void => {
+    hidden = true;
+    clearTimeout(retry);
+    clearInterval(pinger);
+    ws?.close();
+  };
+  const show = (event: Event): void => {
+    if (!(event as PageTransitionEvent).persisted || stopped || !hidden) return;
+    hidden = false;
+    backoff = BACKOFF_FIRST_MS;
+    connect();
+  };
+  page?.addEventListener("pagehide", hide);
+  page?.addEventListener("pageshow", show);
 
   return {
     send(msg) {
@@ -105,6 +128,8 @@ export function openSocket(
       return () => stateFns.delete(fn);
     },
     close() {
+      page?.removeEventListener("pagehide", hide);
+      page?.removeEventListener("pageshow", show);
       stopped = true;
       clearTimeout(retry);
       clearInterval(pinger);

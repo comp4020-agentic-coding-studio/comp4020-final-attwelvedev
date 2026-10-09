@@ -145,3 +145,58 @@ describe("openSocket", () => {
     expect(FakeSocket.instances).toHaveLength(1);
   });
 });
+
+// A page that is navigated away from may be kept alive by the browser (the back/forward cache)
+// with its socket still open, so the server would think the person is still in the game. The
+// socket therefore closes itself when the page is hidden, and comes back when it is restored.
+describe("openSocket when the page is hidden", () => {
+  const page = () => new EventTarget();
+  const hide = (p: EventTarget) => p.dispatchEvent(new Event("pagehide"));
+  const show = (p: EventTarget, persisted: boolean) =>
+    p.dispatchEvent(Object.assign(new Event("pageshow"), { persisted }));
+  const withPage = (p: EventTarget) =>
+    openSocket("ws://test/ws", { WebSocketImpl: FakeSocket, page: p });
+
+  it("closes the connection, and does not try to reconnect while hidden", () => {
+    const p = page();
+    withPage(p);
+    last().open();
+    const before = FakeSocket.instances.length;
+    hide(p);
+    expect(last().readyState).toBe(3);
+    vi.advanceTimersByTime(30_000);
+    expect(FakeSocket.instances.length).toBe(before);
+  });
+
+  it("reconnects at once when the page comes back from the cache", () => {
+    const p = page();
+    const sock = withPage(p);
+    last().open();
+    const names = trackStates(sock);
+    hide(p);
+    const before = FakeSocket.instances.length;
+    show(p, true);
+    expect(FakeSocket.instances.length).toBe(before + 1);
+    last().open();
+    expect(names.names().at(-1)).toBe("live");
+  });
+
+  it("does nothing for a pageshow that is a fresh load, not a restore", () => {
+    const p = page();
+    withPage(p);
+    last().open();
+    const before = FakeSocket.instances.length;
+    show(p, false);
+    expect(FakeSocket.instances.length).toBe(before);
+  });
+
+  it("lets go of the page when closed", () => {
+    const p = page();
+    const sock = withPage(p);
+    last().open();
+    sock.close();
+    const before = FakeSocket.instances.length;
+    show(p, true);
+    expect(FakeSocket.instances.length).toBe(before);
+  });
+});
