@@ -207,4 +207,16 @@ describe("the game screen", () => {
     await leaveGameAndClose(deaf, baseUrl);
     await leaveGameAndClose(mute, baseUrl);
   });
+
+  it("says there is no such lobby when another code is typed into the address bar mid-game", async () => {
+    const table = await playRoom(browser, baseUrl);
+    const { blind: host, deaf, mute } = table.byRole;
+    // the page for a code that does not exist must say so, not show the game we are in
+    await deaf.goto(`${baseUrl}/lobby/ABCD`, { waitUntil: "networkidle" });
+    await deaf.getByText("No lobby ABCD.").waitFor({ timeout: 5000 });
+    expect(await deaf.locator(".frame canvas").count()).toBe(0);
+    await leaveGameAndClose(host, baseUrl);
+    await leaveGameAndClose(deaf, baseUrl);
+    await leaveGameAndClose(mute, baseUrl);
+  });
 });

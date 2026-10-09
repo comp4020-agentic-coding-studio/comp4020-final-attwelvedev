@@ -158,7 +158,9 @@ export function Lobby({ code }: { code: string }) {
     </div>
   );
 
-  if (reveal && socket) {
+  // A game is only this page's if the page is in the lobby its address names: typing another
+  // code while in a game is told about that game again on connecting, and must still say "No lobby".
+  if (reveal && socket && lobby && status === "in") {
     return (
       <Game
         key={reveal.index}
