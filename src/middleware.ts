@@ -23,13 +23,17 @@ export const onRequest = defineMiddleware(async (context, next) => {
     );
   }
   context.locals.who = token ? anon(token) : null;
-  // A page of the site, other than the lobby page itself (which reloads into a game): the
-  // socket server learns this device has gone to read something else.
+  // A page of the site was asked for: the socket server learns this device may be going to read
+  // something else, or to another lobby (a lobby's own page says which). It is only a hint; the
+  // server also checks that the device really has no game page open, and that it is not its own
+  // lobby's page being reloaded.
   const isPage =
     context.request.method === "GET" &&
-    !route?.startsWith("/lobby") &&
     (context.request.headers.get("accept") ?? "").includes("text/html");
-  if (isPage && context.locals.who) sharedPresence().pageViewed(context.locals.who);
+  if (isPage && context.locals.who) {
+    const lobby = route?.startsWith("/lobby") ? context.params.code : undefined;
+    sharedPresence().pageViewed(context.locals.who, lobby);
+  }
   // a rewrite re-enters here: the outer run already owns the line for this request
   if (!isLogged(route) || inRequest()) return next();
 

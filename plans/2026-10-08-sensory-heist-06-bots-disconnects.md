@@ -421,4 +421,17 @@ None.
   Prevention: test navigation in the browser a person has, not only the automation
   default, and rebuild and restart in one step. The layout specs now launch a
   cache-on Chrome for anything about leaving a page.
+- 2026-10-09, the user: going to another lobby, existing or not, should also leave;
+  and About/Credits briefly showed "connection dropped" to the others. First attempt
+  missed because a code that does not exist was rejected before anything else
+  happened (so the seat was kept), and the page's own socket closing as it unloads
+  reached the server before the page request had made it a leaving. Fixed: asking to
+  join any other lobby leaves the current one first (an open lobby too); a page
+  request from someone already in a lobby (another lobby's page, About, Credits, the
+  landing page; their own lobby's page reloading does not count) is remembered for
+  5 s, and a game socket closing in that time is a leaving, not a pause. Caught on
+  the way: counting page requests from someone not yet in a lobby made closing a tab
+  soon after joining look like leaving. Checked in a cache-on Chrome on :8080: no
+  "Waiting for" overlay at any sample (every 50 ms) for About, Credits or
+  /lobby/ABCD.
 

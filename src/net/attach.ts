@@ -348,12 +348,17 @@ function leftForLanding(who: string): boolean {
   return open !== undefined && open.size > 0 && [...open].every((s) => hub.watchers.has(s));
 }
 
-// Someone asked for another page of the site (About, Credits, the stats...). Those pages open no
-// socket, so the game page's socket is what tells them apart: if, a moment later, this device
-// is in a game and has no game page open, it has gone to read something else, which is leaving.
-// With the game still open in another tab, it has not.
-const PAGE_GRACE_MS = 2000; // the old page needs this long to unload and close its socket
-sharedPresence().onPageView((who) => {
+// Someone asked for a page of the site. The About, Credits and landing pages open no socket (or
+// only a watcher), and a lobby's page may be another lobby's, so this is how the server learns a
+// person has gone elsewhere. A person's own lobby page, reloaded, is not that: it is a reload.
+const PAGE_WINDOW_MS = 5000; // a socket closing this soon after such a request is the old page going
+const PAGE_GRACE_MS = 2000; // otherwise the old page needs this long to unload and close its socket
+const lastPage = new Map<string, number>(); // device -> when it last asked for a page elsewhere
+sharedPresence().onPageView((who, lobbyCode) => {
+  const own = lobbyOf(who);
+  if (!own) return; // not in a lobby: the pages that lead to joining one are not going elsewhere
+  if (lobbyCode !== undefined && normaliseLobbyCode(lobbyCode) === own.code) return;
+  lastPage.set(who, Date.now());
   setTimeout(() => {
     const lobby = lobbyOf(who);
     if (!lobby || !games.has(lobby.code) || seatOfDevice(lobby.code, who) === null) return;
@@ -383,6 +388,10 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         return;
       }
       case "lobby.join": {
+        // Joining another lobby, whether or not it exists, is leaving this one.
+        const wanted = normaliseLobbyCode(msg.code);
+        const here = lobbyOf(who);
+        if (here && here.code !== wanted) departs(who);
         if (joinThrottle.blocked(who)) {
           throw new LobbyError("throttled", "Too many wrong codes. Try again in a minute.");
         }
@@ -395,8 +404,6 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
             `No lobby with code ${shown}. Check the letters.`,
           );
         }
-        const current = lobbyOf(who);
-        if (current && current.code !== code && games.has(current.code)) departs(who);
         // someone a bot took a seat from, coming back to the lobby's code, has the seat back
         const running = games.get(code);
         const target = registry.lobbies.get(code);
@@ -591,6 +598,13 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
     const code = gone?.code;
     const seat = code ? seatOfDevice(code, who) : null;
     if (code && seat !== null) {
+      // The page asked for was another page: this is the old page going, not a dropped connection
+      const wentElsewhere = Date.now() - (lastPage.get(who) ?? 0) < PAGE_WINDOW_MS;
+      if (wentElsewhere && games.has(code)) {
+        lastPage.delete(who);
+        departs(who);
+        return;
+      }
       beginPause(code, seat);
       // a host who drops while the choice is theirs passes it on
       const paused = games.get(code)?.game.paused;

@@ -207,4 +207,80 @@ describe("a person leaves a running game", () => {
     expect(bot).toBe(false);
     await closeAll([host, guest, third]);
   });
+
+  // Joining another lobby, whether or not it exists, is leaving this one.
+  it("asking to join a lobby that does not exist leaves the game, and says so", async () => {
+    const { players } = await startedGame(baseUrl);
+    ready(players);
+    const [host, guest, third] = players as [Player, Player, Player];
+    await nextView(host, 3000);
+    third.socket.send({ t: "lobby.join", code: "ZZZY", nickname: "Cy", as: "player" });
+    expect((await third.socket.next<{ code: string }>("error", 4000)).code).toBe("lobby-not-found");
+    let lobby = await host.socket.next<LobbyMsg>("lobby", 5000);
+    while (!lobby.lobby.seats[2]?.bot) lobby = await host.socket.next<LobbyMsg>("lobby", 5000);
+    await closeAll([host, guest, third]);
+  });
+
+  it("asking to join a lobby that does not exist leaves a lobby that has not started too", async () => {
+    const host = await connect(baseUrl);
+    host.send({ t: "lobby.create", nickname: "Ana" });
+    const { lobby } = await host.next<{ lobby: { code: string } }>("lobby");
+    const guest = await connect(baseUrl);
+    guest.send({ t: "lobby.join", code: lobby.code, nickname: "Bo", as: "player" });
+    await guest.next("lobby");
+    let seen = await host.next<LobbyMsg>("lobby", 3000);
+    while (seen.lobby.seats[1]?.who === null) seen = await host.next<LobbyMsg>("lobby", 3000);
+    guest.send({ t: "lobby.join", code: "ZZZY", nickname: "Bo", as: "player" });
+    await guest.next("error", 3000);
+    let after = await host.next<LobbyMsg>("lobby", 4000);
+    while (after.lobby.seats[1]?.who !== null) after = await host.next<LobbyMsg>("lobby", 4000);
+    expect(after.lobby.seats[1]?.who).toBeNull();
+    await host.close();
+    await guest.close();
+  });
+
+  // The others should not see "connection dropped" for someone who simply went to another page:
+  // the page request tells the server it is not a drop.
+  it("going to another page shows no pause to the others, only the leaving", async () => {
+    const { players } = await startedGame(baseUrl);
+    ready(players);
+    const [host, guest, third] = players as [Player, Player, Player];
+    await nextView(host, 3000);
+    await fetch(new URL("/readme/", baseUrl), {
+      headers: { cookie: third.cookie, accept: "text/html" },
+    });
+    await third.socket.drop(); // the game page closes its socket as it unloads
+    let lobby = await host.socket.next<LobbyMsg>("lobby", 3000);
+    while (!lobby.lobby.seats[2]?.bot) lobby = await host.socket.next<LobbyMsg>("lobby", 3000);
+    await expect(host.socket.next("pause", 700)).rejects.toThrow();
+    await closeAll([host, guest]);
+  });
+
+  it("opening another lobby's page is the same: no pause, a bot takes the seat", async () => {
+    const { players } = await startedGame(baseUrl);
+    ready(players);
+    const [host, guest, third] = players as [Player, Player, Player];
+    await nextView(host, 3000);
+    await fetch(new URL("/lobby/ZZZX", baseUrl), {
+      headers: { cookie: third.cookie, accept: "text/html" },
+    });
+    await third.socket.drop();
+    let lobby = await host.socket.next<LobbyMsg>("lobby", 3000);
+    while (!lobby.lobby.seats[2]?.bot) lobby = await host.socket.next<LobbyMsg>("lobby", 3000);
+    await expect(host.socket.next("pause", 700)).rejects.toThrow();
+    await closeAll([host, guest]);
+  });
+
+  it("reloading the game's own page is still a pause, not a leaving", async () => {
+    const { players, code } = await startedGame(baseUrl);
+    ready(players);
+    const [host, guest, third] = players as [Player, Player, Player];
+    await nextView(host, 3000);
+    await fetch(new URL(`/lobby/${code}`, baseUrl), {
+      headers: { cookie: third.cookie, accept: "text/html" },
+    });
+    await third.socket.drop();
+    expect((await host.socket.next<{ waitingFor: string }>("pause", 3000)).waitingFor).toBe("Cy");
+    await closeAll([host, guest, third]);
+  });
 });
