@@ -7,7 +7,7 @@ const GRID = [
   "#1.#.........D...E.#",
   "#2.#B...p....D...E.#",
   "#3.#.p.......D...E.#",
-  "#..#....p..........#",
+  "#..#....p..K.......#",
   "####################",
 ];
 const roomWith = (hints: unknown): Room =>
@@ -121,6 +121,7 @@ describe("isDone / isOpen", () => {
     pressed: {},
     crates: { B1: { x: 4, y: 2 } },
     seq: {},
+    checkpoint: 0,
     ...over,
   });
   const jobs = hintsOf(room);
@@ -148,5 +149,33 @@ describe("isDone / isOpen", () => {
     expect(isOpen(job, known())).toBe(false);
     expect(isOpen(job, known({ pressed: { p2: true } }))).toBe(true);
     expect(isOpen(jobs[1] as Job, known())).toBe(true);
+  });
+});
+
+describe("flag jobs", () => {
+  const flagRoom = roomWith({ jobs: [{ beat: 1, goTo: "K1", all: true }] });
+  const known = (checkpoint: number): Known => ({
+    doorOpen: {},
+    pressed: {},
+    crates: {},
+    seq: {},
+    checkpoint,
+  });
+
+  it("reads a checkpoint as a job whose target is its tile", () => {
+    const job = hintsOf(flagRoom)[0] as Job;
+    expect(job.target).toEqual({ kind: "flag", id: "K1", n: 1, tile: { x: 11, y: 4 } });
+    expect(job.all).toBe(true);
+  });
+
+  it("is done once that checkpoint, or a later one, is reached", () => {
+    const job = hintsOf(flagRoom)[0] as Job;
+    expect(isDone(flagRoom, job, known(0), undefined)).toBe(false);
+    expect(isDone(flagRoom, job, known(1), undefined)).toBe(true);
+    expect(isDone(flagRoom, job, known(2), undefined)).toBe(true);
+  });
+
+  it("drops a flag that is not in the room", () => {
+    expect(hintsOf(roomWith({ jobs: [{ beat: 1, goTo: "K4" }] }))).toEqual([]);
   });
 });

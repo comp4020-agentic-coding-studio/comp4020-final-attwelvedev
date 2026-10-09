@@ -368,3 +368,16 @@ describe("a person's messages reach the bots they are sent to", () => {
     expect(game.world.players[2].pos.x).toBeGreaterThan(before.x);
   });
 });
+
+describe("being caught", () => {
+  it("is reported by tickGame: what, which player, and the checkpoint the team goes back to", () => {
+    const game = startGame(lobby("a", "b", "c"), [rooms[1] as (typeof rooms)[0]]);
+    game.ready.add(0);
+    game.world.checkpoint = 1;
+    game.world.players[1].pos = { x: 23.5, y: 4.5 }; // in L1's column (a laser column at x = 23)
+    game.world.tick = 0;
+    const caught = tickGame(game).caught;
+    expect(caught).toEqual([{ hazard: "laser", seat: 1, checkpoint: 1 }]);
+    expect(tickGame(game).caught).toEqual([]);
+  });
+});

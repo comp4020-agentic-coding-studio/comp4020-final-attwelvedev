@@ -7,6 +7,7 @@
  "objects":{"D1":{"opensWhen":["p1","p2","p3"]}},
  "hints":{"jobs":[
   {"beat":1,"push":"B1","to":[11,4],"prefer":"mute"},
+  {"beat":1,"goTo":"K1","all":true},
   {"beat":2,"goTo":"p2","prefer":"blind"},
   {"beat":2,"goTo":"p1","prefer":"deaf"},
   {"beat":2,"goTo":"p3","prefer":"mute"},

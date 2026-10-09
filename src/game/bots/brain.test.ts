@@ -221,6 +221,9 @@ describe("a seeing bot among hazards", () => {
     let lastX = 0;
     const roles = ROLES3;
     const world = createWorld(r);
+    // the other two are people already standing at the first checkpoint, so the bot is free to go
+    world.players[0].pos = { x: 6.5, y: 3.5 };
+    world.players[2].pos = { x: 6.5, y: 5.5 };
     const memory = createBotMemory(1, new Set([0, 2] as Seat[]), roles);
     let caught = 0;
     for (let i = 0; i < 900; i++) {
@@ -285,7 +288,7 @@ describe("with a person on the team", () => {
               p.pos = { x: 2.5, y: 3.5 + i };
               p.moving = false;
             });
-            world.events.push({ kind: "caught", by: "L1" });
+            world.events.push({ kind: "caught", by: "L1", hazard: "laser", seat: 0 });
             world.seqProgress = {};
           }
         },
@@ -303,6 +306,17 @@ describe("with a person on the team", () => {
         slow: { [slow]: 500 },
       });
       expect(run.world.status, `seat ${slow} slow`).toBe("cleared");
+    }
+  });
+
+  it("waits at each checkpoint for the person, so the whole team sets every one", () => {
+    for (const slow of [0, 1, 2] as const) {
+      const run = play("03-vault", ROTATION_2, [0, 1, 2], 4000, () => {}, {
+        humans: [slow],
+        slow: { [slow]: 400 },
+      });
+      expect(run.world.status, `seat ${slow} slow`).toBe("cleared");
+      expect(run.world.checkpoint, `seat ${slow} slow`).toBe(3);
     }
   });
 

@@ -193,3 +193,23 @@ export function lerpEntities(prev: EntityView[], next: EntityView[], t: number):
     };
   });
 }
+
+// The words for the team being sent back: what got whom, and where they restart. The same
+// line is shown to everyone and spoken to Can't see, so nobody has to work it out from a
+// sound, least of all in the dark where the hazards cannot be seen.
+export function caughtText(
+  c: { hazard: "guard" | "camera" | "laser"; seat: number; checkpoint: number },
+  crew: readonly { nickname: string }[],
+  mySeat: number,
+): string {
+  const you = c.seat === mySeat;
+  const who = you ? "you" : (crew[c.seat]?.nickname ?? "someone");
+  const subject = you ? "You" : who;
+  const what =
+    c.hazard === "laser"
+      ? `${subject} walked into a laser.`
+      : c.hazard === "guard"
+        ? `The guard saw ${who}.`
+        : `A camera saw ${who}.`;
+  return `${what} Back to ${c.checkpoint > 0 ? `checkpoint ${c.checkpoint}` : "the start"}.`;
+}

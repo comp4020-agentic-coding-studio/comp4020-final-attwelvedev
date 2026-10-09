@@ -198,7 +198,7 @@ function thinkBlind(view: RoleView, inbox: ChannelMessage[], m: BotMemory, now: 
 
 function ensureKnown(room: Room, m: BotMemory): Known {
   if (m.known) return m.known;
-  const known: Known = { doorOpen: {}, pressed: {}, crates: {}, seq: {} };
+  const known: Known = { doorOpen: {}, pressed: {}, crates: {}, seq: {}, checkpoint: 0 };
   for (const o of room.objects) {
     if (o.kind === "door") known.doorOpen[o.id] = false;
     else if (o.kind === "plate") known.pressed[o.id] = false;
@@ -214,7 +214,9 @@ function observe(room: Room, view: RoleView, m: BotMemory): Known {
     if (e.kind === "door") known.doorOpen[e.id] = e.state === "open";
     else if (e.kind === "plate") known.pressed[e.id] = e.state === "pressed";
     else if (e.kind === "crate") known.crates[e.id] = tileOf(e.pos);
-    else if (e.kind === "sign" && e.shows) known.seq[e.shows.join()] = e.progress ?? 0;
+    else if (e.kind === "checkpoint" && e.state === "reached") {
+      known.checkpoint = Math.max(known.checkpoint, Number(e.id.slice(1)));
+    } else if (e.kind === "sign" && e.shows) known.seq[e.shows.join()] = e.progress ?? 0;
   }
   // an alarm speeds the guards up and holds the cameras on: the forecast needs its windows
   if (view.alarm && m.alarmFrom === null) m.alarmFrom = view.tick;
@@ -411,7 +413,8 @@ function goalFor(
   // late has no business walking back to a waypoint the team passed long ago)
   const behind = (i: number) =>
     isDone(room, queue[i] as Job, known, at) ||
-    queue.slice(i + 1).some((j) => j.target.kind !== "exit" && isDone(room, j, known, at));
+    (queue[i]?.target.kind === "tile" &&
+      queue.slice(i + 1).some((j) => j.target.kind !== "exit" && isDone(room, j, known, at)));
   while (m.ptr[seat] < queue.length && behind(m.ptr[seat])) m.ptr[seat]++;
   const job = queue[m.ptr[seat]] ?? null;
   if (!job) return { goal: exitTile(room, seat), job };

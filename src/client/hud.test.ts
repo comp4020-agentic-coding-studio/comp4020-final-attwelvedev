@@ -3,6 +3,7 @@ import type { Role } from "../game/types.ts";
 import {
   CUE_HOLD_MS,
   captionFor,
+  caughtText,
   cueCaptions,
   formatTime,
   hearCues,
@@ -179,5 +180,30 @@ describe("held cue captions", () => {
     expect(held.size).toBeLessThanOrEqual(6); // old entries are dropped, not kept forever
     heardCues(held, 1000 + CUE_HOLD_MS * 3);
     expect(held.size).toBe(0);
+  });
+});
+
+describe("caughtText", () => {
+  const crew = [{ nickname: "Ana" }, { nickname: "Bo" }, { nickname: "Cy" }];
+
+  it("says what got whom, in words for any role", () => {
+    expect(caughtText({ hazard: "laser", seat: 1, checkpoint: 0 }, crew, 0)).toBe(
+      "Bo walked into a laser. Back to the start.",
+    );
+    expect(caughtText({ hazard: "guard", seat: 2, checkpoint: 2 }, crew, 0)).toBe(
+      "The guard saw Cy. Back to checkpoint 2.",
+    );
+    expect(caughtText({ hazard: "camera", seat: 0, checkpoint: 1 }, crew, 1)).toBe(
+      "A camera saw Ana. Back to checkpoint 1.",
+    );
+  });
+
+  it("says you when it was you", () => {
+    expect(caughtText({ hazard: "laser", seat: 1, checkpoint: 0 }, crew, 1)).toBe(
+      "You walked into a laser. Back to the start.",
+    );
+    expect(caughtText({ hazard: "guard", seat: 0, checkpoint: 0 }, crew, 0)).toBe(
+      "The guard saw you. Back to the start.",
+    );
   });
 });

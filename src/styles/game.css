@@ -772,3 +772,19 @@ fieldset.settings {
   justify-items: center;
   margin-top: var(--s-2);
 }
+
+/* why the team was just sent back: over the top of the map, for everyone */
+.caught-banner {
+  position: absolute;
+  top: var(--s-3);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - var(--s-4));
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  text-align: center;
+  font-weight: 700;
+  background: var(--panel);
+  border: 2px solid var(--danger);
+  color: var(--ui);
+}

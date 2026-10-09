@@ -85,7 +85,7 @@ export type WorldEvent =
   | { kind: "flag"; id: string; present: number; at: Vec } // players within reach of an unset flag changed
   | { kind: "exit"; present: number; at: Vec } // players on the exit changed
   | { kind: "seq"; door: string; result: "ok" | "wrong" | "open"; n: number; at: Vec }
-  | { kind: "caught"; by: string }
+  | { kind: "caught"; by: string; hazard: "guard" | "camera" | "laser"; seat: Seat } // `by` is the hazard's id, `seat` the player it got
   | { kind: "checkpoint"; index: number }
   | { kind: "loot"; id: string; at: Vec }
   | { kind: "cleared" };

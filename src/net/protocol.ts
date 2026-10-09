@@ -63,6 +63,7 @@ export type ServerMsg =
   // The game is paused for a dropped seat. `left` is the ms to go as the server counts them
   // (a page's clock may not agree with the server's); `choosing` once the time is up.
   | { t: "pause"; waitingFor: string; deadline: number; left: number; choosing: boolean }
+  | { t: "caught"; hazard: "guard" | "camera" | "laser"; seat: Seat; checkpoint: number } // the team was sent back
   | { t: "resume"; back: string | null }; // the person is back, or null when a bot took the seat
 
 const MAX_FRAME = 8 * 1024;

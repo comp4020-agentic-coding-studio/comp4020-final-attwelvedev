@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { loadRooms } from "../rooms/load.ts";
 import { blockedAt } from "./collide.ts";
-import { cameraWatching, caughtBy, laserOn } from "./hazards.ts";
+import { cameraWatching, caughtBy, findCatch, laserOn } from "./hazards.ts";
 import { hold, place, worldWith } from "./testing.ts";
 import { createWorld, RADIUS, TICK_MS } from "./world.ts";
 
@@ -317,4 +317,33 @@ describe("no lane past a camera", () => {
       });
     }
   }
+});
+
+describe("findCatch: who and what", () => {
+  it("names the hazard, its kind and the player it got", () => {
+    const camera = worldWith(ROOM, CAMERA);
+    place(camera, 2, tile(12, 1));
+    expect(findCatch(camera)).toEqual({ by: "C1", hazard: "camera", seat: 2 });
+    const laser = worldWith(ROOM, LASER);
+    place(laser, 1, tile(12, 3));
+    expect(findCatch(laser)).toEqual({ by: "L1", hazard: "laser", seat: 1 });
+    expect(findCatch(worldWith(ROOM, LASER))).toBeNull();
+  });
+
+  it("agrees with caughtBy", () => {
+    const world = worldWith(ROOM, CAMERA);
+    place(world, 0, tile(12, 1));
+    expect(caughtBy(world)).toBe(findCatch(world)?.by);
+  });
+});
+
+describe("the caught event", () => {
+  it("says what caught the team, which kind of hazard, and which player", () => {
+    const world = worldWith(ROOM, LASER);
+    place(world, 2, tile(12, 3));
+    world.tick = 0;
+    hold(world, {}, 1);
+    const event = world.events.find((e) => e.kind === "caught");
+    expect(event).toEqual({ kind: "caught", by: "L1", hazard: "laser", seat: 2 });
+  });
 });

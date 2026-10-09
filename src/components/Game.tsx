@@ -5,6 +5,7 @@ import { detectFx, FX_MAX, FX_MS, type Fx } from "../client/fx.ts";
 import {
   CALLOUT_WORD,
   captionFor,
+  caughtText,
   cueCaptions,
   formatTime,
   hearCues,
@@ -204,6 +205,7 @@ function Hud({
   } | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [back, setBack] = useState<string | null>(null);
+  const [caught, setCaught] = useState<string | null>(null); // why the team was just sent back
   const [touch, setTouch] = useState(false);
   const lastSent = useRef<string | null>(null);
   const [settings, setSettings] = useState<SettingsState>(() => loadSettings(role));
@@ -272,6 +274,28 @@ function Hud({
       clearTimeout(timer);
     };
   }, [socket]);
+
+  // The team was caught: say what got whom, in words on the screen for everyone and
+  // spoken to Can't see, who has nothing else to go on (and in the dark, nor do the others).
+  useEffect(() => {
+    const speech = browserSpeech(role, () => live.current.settings.speech);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const off = socket.on("caught", (m) => {
+      const text = caughtText(
+        m,
+        reveal.crew,
+        reveal.crew.findIndex((c) => c.seat === rt.view?.you.seat),
+      );
+      setCaught(text);
+      speech.say(text);
+      clearTimeout(timer);
+      timer = setTimeout(() => setCaught(null), 7000);
+    });
+    return () => {
+      off();
+      clearTimeout(timer);
+    };
+  }, [socket, role, reveal.crew, rt]);
 
   useEffect(() => {
     if (!pause) return;
@@ -495,6 +519,11 @@ function Hud({
             onNext={() => socket.send({ t: "next" })}
             onRestart={restart}
           />
+        )}
+        {caught && (
+          <p class="caught-banner" role="alert">
+            {caught}
+          </p>
         )}
         {pause && (
           <Disconnect

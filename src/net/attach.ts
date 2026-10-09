@@ -126,13 +126,16 @@ function tick(code: string): void {
   const running = games.get(code);
   const lobby = registry.lobbies.get(code);
   if (!running || !lobby) return;
-  const { views, cleared, sent } = tickGame(
+  const { views, cleared, sent, caught } = tickGame(
     running.game,
     running.full,
     Date.now(),
     (seat) => lobby.seats[seat]?.nickname ?? "Bot",
   );
   running.full.clear();
+  for (const hit of caught) {
+    for (const who of humansOf(lobby)) hub.sendTo(who, { t: "caught", ...hit });
+  }
   // what the bots said goes to the people it was sent to; bots are not players, so it is not logged
   for (const said of sent) {
     for (const receiver of said.receivers) {

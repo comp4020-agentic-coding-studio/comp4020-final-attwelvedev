@@ -1,7 +1,7 @@
 import { flipsOf } from "../rooms/format.ts";
 import type { PlayerInput, Seat, Vec } from "../types.ts";
 import { blockedAt, circleHitsTile, crateAt, crateTouching, indexOf, tileKey } from "./collide.ts";
-import { alarmOn, caughtBy, guardParams, tileOf } from "./hazards.ts";
+import { alarmOn, findCatch, guardParams, tileOf } from "./hazards.ts";
 import {
   ALARM_GUARD_SPEEDUP,
   CHECKPOINT_RADIUS,
@@ -303,7 +303,7 @@ function updateLoot(world: World) {
 
 // The whole team goes back to the last checkpoint: players, crates and loot as
 // they were when it was reached.
-function sendBack(world: World, by: string) {
+function sendBack(world: World, caught: NonNullable<ReturnType<typeof findCatch>>) {
   const { snapshot } = world;
   world.players.forEach((p, i) => {
     const to = snapshot.players[i];
@@ -319,7 +319,7 @@ function sendBack(world: World, by: string) {
     .reduce((sum, o) => sum + lootValue(o.params), 0);
   world.seqProgress = {};
   world.seqFlash = {};
-  world.events.push({ kind: "caught", by });
+  world.events.push({ kind: "caught", ...caught });
   world.alarmUntil = 0; // a retry starts clean: the alarm belongs to the attempt that set it off
 }
 
@@ -363,8 +363,8 @@ export function step(
   updateCheckpoints(world);
   updateLoot(world);
   updateExitCount(world);
-  const by = caughtBy(world);
-  if (by !== null) sendBack(world, by);
+  const caught = findCatch(world);
+  if (caught !== null) sendBack(world, caught);
   else updateExit(world);
   ageStamps(world, dtMs);
   return world;

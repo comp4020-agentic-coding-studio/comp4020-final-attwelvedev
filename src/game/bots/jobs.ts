@@ -5,6 +5,7 @@ import type { Role, Seat, Vec } from "../types.ts";
 // beat. Bots claim jobs, humans first, then follow their own queue.
 export type JobTarget =
   | { kind: "plate"; id: string; tile: Vec } // stand on it until its door opens (`until`)
+  | { kind: "flag"; id: string; tile: Vec; n: number } // stand at a checkpoint until the team has set it
   | { kind: "tile"; tile: Vec } // a waypoint
   | { kind: "exit" } // this seat's exit tile
   | { kind: "push"; crate: string; to: Vec }; // push a crate onto a tile
@@ -24,6 +25,7 @@ export interface Known {
   doorOpen: Record<string, boolean>;
   pressed: Record<string, boolean>;
   crates: Record<string, Vec>; // tile of each crate
+  checkpoint: number; // the highest checkpoint reached
   seq: Record<string, number>; // sequence signs: plates matched so far, by the plates it shows ("p7,p1,p4")
 }
 
@@ -58,6 +60,12 @@ export function parseJob(room: Room, j: unknown, index: number): Job | string {
     if (!room.objects.some((o) => o.kind === "exit"))
       return `hint job ${index + 1} goes to E, but the room has no exit`;
     target = { kind: "exit" };
+  } else if (typeof j.goTo === "string" && /^K\d+$/.test(j.goTo)) {
+    const flag = room.objects.find((o) => o.id === j.goTo && o.kind === "checkpoint");
+    const tile = flag?.tiles[0];
+    if (!flag || !tile)
+      return `hint job ${index + 1} goes to ${j.goTo}, which is not a checkpoint in this room`;
+    target = { kind: "flag", id: flag.id, tile, n: Number(flag.id.slice(1)) };
   } else if (typeof j.goTo === "string") {
     const plate = room.objects.find((o) => o.id === j.goTo && o.kind === "plate");
     const tile = plate?.tiles[0];
@@ -110,6 +118,7 @@ export function hintsOf(room: Room): Job[] {
 export function jobTile(room: Room, job: Job, seat: Seat): Vec {
   switch (job.target.kind) {
     case "plate":
+    case "flag":
     case "tile":
       return job.target.tile;
     case "exit":
@@ -191,6 +200,8 @@ export function isDone(room: Room, job: Job, known: Known, at: Vec | undefined):
       const crate = known.crates[job.target.crate];
       return crate !== undefined && crate.x === job.target.to.x && crate.y === job.target.to.y;
     }
+    case "flag":
+      return known.checkpoint >= job.target.n;
     case "tile":
       return (
         at !== undefined &&

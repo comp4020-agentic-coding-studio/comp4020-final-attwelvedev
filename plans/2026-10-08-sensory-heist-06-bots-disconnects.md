@@ -334,3 +334,15 @@ None.
   Pattern (two misses of the same kind, both "the solver has no person in it"):
   the headless solver should grow a person who is slow, wrong or absent; the
   new tests are the start of that.
+- 2026-10-09, playing room 3: (a) the bots ignored checkpoints; (b) when the team
+  failed nobody could tell who or why, least of all in the dark. Expected: bots
+  set the flags with the team, and a caught team is told what got whom. First
+  attempt missed because the hints had no checkpoint jobs (a caught team went
+  back to the start), and the server sent only a hazard id inside a sound cue.
+  Fixed: `goTo: "K1"` jobs for every checkpoint in all three rooms (done once the
+  flag is reached; the solver now requires every checkpoint), and a `caught`
+  message (hazard kind, which player, checkpoint) shown to everyone as a banner
+  and spoken to Can't see. A bug found on the way: the "skip a job once a later
+  one is done" rule skipped a push when the flag after it was set first; it now
+  applies to waypoints only.
+

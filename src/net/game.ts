@@ -32,6 +32,14 @@ export interface Paused {
   choosing: boolean;
 }
 
+// The team was caught: by a guard, camera or laser, who it saw, and the checkpoint (0 = the
+// start) the team is back at.
+export interface Caught {
+  hazard: "guard" | "camera" | "laser";
+  seat: Seat;
+  checkpoint: number;
+}
+
 export interface Game {
   lobby: string; // code
   roomIndex: number;
@@ -189,8 +197,8 @@ export function tickGame(
   full: ReadonlySet<Seat> = new Set(),
   now: number = Date.now(),
   nickname: (seat: Seat) => string = () => "Bot",
-): { views: Map<Seat, RoleView>; cleared: boolean; sent: BotSent[] } {
-  if (game.paused) return { views: new Map(), cleared: false, sent: [] };
+): { views: Map<Seat, RoleView>; cleared: boolean; sent: BotSent[]; caught: Caught[] } {
+  if (game.paused) return { views: new Map(), cleared: false, sent: [], caught: [] };
   const acted = botsAct(
     game.world.room,
     game.world,
@@ -209,7 +217,13 @@ export function tickGame(
   for (const seat of [0, 1, 2] as const) {
     views.set(seat, viewFor(game.world, seat, game.roles[seat], full.has(seat)));
   }
-  return { views, cleared: game.world.status === "cleared", sent: acted.sent };
+  // who was caught, by what, and where the team went back to: told to everyone
+  const caught = game.world.events.flatMap((e) =>
+    e.kind === "caught"
+      ? [{ hazard: e.hazard, seat: e.seat, checkpoint: game.world.checkpoint }]
+      : [],
+  );
+  return { views, cleared: game.world.status === "cleared", sent: acted.sent, caught };
 }
 
 // What a client may ask to send. A stamp has no position here: the server puts it

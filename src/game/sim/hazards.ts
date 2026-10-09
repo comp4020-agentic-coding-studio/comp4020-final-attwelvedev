@@ -1,5 +1,5 @@
 import type { Room, RoomObject } from "../rooms/format.ts";
-import type { Vec } from "../types.ts";
+import type { Seat, Vec } from "../types.ts";
 import { inCone, lineOfSight } from "./sight.ts";
 import { TICK_MS, type World } from "./world.ts";
 
@@ -98,9 +98,11 @@ export function laserBeam(room: Room, o: RoomObject): Vec[] {
 
 export const tileOf = (pos: Vec): Vec => ({ x: Math.floor(pos.x), y: Math.floor(pos.y) });
 
-// First hazard that has a player, else null. Guards and cameras cannot see a
-// player standing on a hide spot; a laser still catches one.
-export function caughtBy(world: World): string | null {
+export type HazardKind = "guard" | "camera" | "laser";
+
+// First hazard that has a player, and which player: what the team is told. Guards and
+// cameras cannot see a player standing on a hide spot; a laser still catches one.
+export function findCatch(world: World): { by: string; hazard: HazardKind; seat: Seat } | null {
   const objects = world.room.objects;
   const hides = objects.filter((o) => o.kind === "hide").flatMap((o) => o.tiles);
   const hidden = (pos: Vec) => {
@@ -118,7 +120,7 @@ export function caughtBy(world: World): string | null {
           inCone(guard.pos, guard.facing, p.pos, sightTiles, fovDeg) &&
           lineOfSight(world, guard.pos, p.pos)
         ) {
-          return o.id;
+          return { by: o.id, hazard: "guard", seat: p.seat };
         }
       }
     } else if (o.kind === "camera") {
@@ -127,16 +129,22 @@ export function caughtBy(world: World): string | null {
       const { facing, fovDeg, range } = cameraCone(o);
       for (const p of world.players) {
         if (hidden(p.pos)) continue;
-        if (inCone(at, facing, p.pos, range, fovDeg) && lineOfSight(world, at, p.pos)) return o.id;
+        if (inCone(at, facing, p.pos, range, fovDeg) && lineOfSight(world, at, p.pos)) {
+          return { by: o.id, hazard: "camera", seat: p.seat };
+        }
       }
     } else if (o.kind === "laser") {
       if (!laserOn(laserParams(o), world.tick)) continue;
       const beam = laserBeam(world.room, o);
       for (const p of world.players) {
         const t = tileOf(p.pos);
-        if (beam.some((b) => b.x === t.x && b.y === t.y)) return o.id;
+        if (beam.some((b) => b.x === t.x && b.y === t.y)) {
+          return { by: o.id, hazard: "laser", seat: p.seat };
+        }
       }
     }
   }
   return null;
 }
+
+export const caughtBy = (world: World): string | null => findCatch(world)?.by ?? null;

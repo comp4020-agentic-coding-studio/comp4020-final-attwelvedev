@@ -25,6 +25,9 @@ describe("three bots clear every room", () => {
         expect(result.ticks / 20).toBeLessThanOrEqual(budgetS);
         // a room the bots only clear by being caught and sent back is unfair play
         expect(result.caught).toBe(0);
+        // the team sets every checkpoint on the way, so being caught costs little
+        const flags = room.objects.filter((o) => o.kind === "checkpoint").length;
+        expect(result.world.checkpoint).toBe(flags);
         // a bot keeps its own cooldowns: the router never has to turn one away
         expect(result.refused).toBe(0);
       });
