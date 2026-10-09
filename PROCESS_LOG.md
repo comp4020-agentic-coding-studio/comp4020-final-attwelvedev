@@ -457,3 +457,44 @@ Done needed this to ship, `pnpm check` and the deploy stayed green without it,
 and the backlog entry names the exact interfaces a future planning pass would
 need to reopen, so the reasoning isn't lost by waiting.
 
+
+## 2026-10-10 — Chasing "choppy" voice by measuring each stage, until the cause was the browser profile
+
+9c48f74
+
+During Task 22's human review I said the voice was choppy. The obvious move
+was to start changing things: bitrate, echo cancellation, jitter buffer. The
+agent instead measured each stage with scripts that ran the real relay: frame
+arrival spacing, playback headroom, and the sample jump at every chunk seam
+(all clean on a fake mic). When I said it was still choppy, it added short-
+lived `localStorage` switches for noise suppression, echo cancellation and
+bitrate so I could compare by ear, and then ran the same measurement on my
+real mic, saving the sent and decoded audio as WAVs. That found the first
+real fault (my default input was my AirPods, so the first "real mic" run was
+silent) and showed the pipeline was clean end to end: both WAVs sounded fine
+to me. Only a Guest Chrome profile fixed the live call, so the cause was my
+main profile, not the app.
+
+It is also where the agent was wrong twice: it suggested 64 kbps, which would
+have broken the server's 400-byte frame cap and silenced the call, and it
+blamed an acoustic loop I had already ruled out with headphones. Both were
+caught by my reply rather than by a check.
+
+The code that came out of it is only what the evidence supported: no codec or
+scheduling change (a sample-snapping fix the data didn't back was reverted),
+a fix for a real leak found while reading the capture code, and a spec that
+delays frames so "Voice lagging" is exercised without devtools throttling,
+which can't slow a WebSocket.
+
+## 2026-10-10 — A held button that hid its own label, and one that kept focus
+
+9c48f74
+
+Two bugs I found by clicking the Hold to talk button instead of pressing V,
+which is the only way the first spec had tried it. A held mouse button hovered
+the control, and the existing `.btn:hover` background matched the pressed
+state's text colour, so the label vanished. Releasing it also left the button
+focused, so Space and Enter pressed it instead of acting in the game. Each got
+a spec that failed first (the first version of the hover spec passed with the
+bug, because it sampled mid-transition on a phone page that can't hover; the
+agent noticed and rewrote it before trusting it).
