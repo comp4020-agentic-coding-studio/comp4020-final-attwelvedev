@@ -360,3 +360,70 @@ How I knew it was fixed and not hidden: a 12-run soak of the whole spec project
 passed 12 of 12 with the machine at a load average over 100, against roughly one
 failure in four before. Not checked: the same soak against the deployed app.
 
+## 2026-10-09 — A fresh install would have crashed, found by the persistence test Task 18 itself demanded
+
+resolved by 69e35ea
+
+Task 18's own acceptance criterion forced a persistence test against a genuinely
+empty database — something nothing before it had done (every prior test ran
+against a `.data/app.db` that had already lived through the pivot's migration
+history incrementally). That test crashed: migration 0008 (from the
+pantry-to-heist pivot) drops `communities` before two tables that still
+reference it, which SQLite's foreign-key enforcement only catches on a database
+built from scratch in one pass.
+
+The obvious fix the agent reached for was reordering or editing that migration.
+I said no: it's already applied to the deployed volume, and editing an
+already-applied migration risks the deploy history disagreeing with what
+actually ran there. I had it toggle `foreign_keys` off only around the
+`migrate()` call in `db.ts` instead, leaving every migration file untouched.
+
+How I knew it was right: the test went from a crash to green, the full suite
+stayed green, and since this is exactly the kind of bug that only shows up on
+an install nobody's tested, I had it verify again independently on the real
+deploy days later: a run saved live, a redeploy, and the volume still had it.
+
+## 2026-10-09 — A re-export leaked node:crypto into the browser bundle, caught by a build warning
+
+resolved by 03799dd
+
+Building the real-life wizard, the agent took the fastest path to share
+`presetFor` with the client: re-exporting it as a runtime value through
+`protocol.ts`, which already re-exports server types. The next build warned
+that `node:crypto` was being externalized for the browser — `presetFor` lives
+in `net/lobbies.ts`, which imports `codes.ts` for lobby-code generation, so one
+ten-line pure function dragged a whole server module's dependency graph into
+the client bundle.
+
+The obvious move was to shrug off a dev-time warning that didn't actually
+break anything yet. I didn't let it stand: CLAUDE.md's layering rule exists so
+this boundary doesn't depend on someone noticing, and "harmless today" is how
+it erodes. I had the agent move `presetFor`/`DEFAULT_SETTINGS` into a small
+client-only mirror and revert `protocol.ts` to type-only exports, plus a test
+that imports both the client and server copies and asserts they agree across
+the whole truth table, since duplicated logic drifts silently otherwise.
+
+How I knew it held: the warning disappeared from a clean build, and the
+drift-guard test would fail loudly the day the two copies disagree.
+
+## 2026-10-09 — Wrong twice about Can't-see and captions, caught by insisting on a second check
+
+see corrections log in plans/2026-10-08-sensory-heist-07-results-polish.md
+
+Reviewing the host's "captions instead of game sound" setting, the agent told
+me it couldn't work for Can't-see — a role named that surely can't read
+captions. That didn't sit right, so I pushed back, and it turned out to be
+wrong: the restriction (ADR 0007) is on what the character perceives of the
+game world, not on what the player's own screen shows. The agent then made a
+narrower version of the same mistake, assuming captions only cover the Say
+channel. I didn't accept the correction on faith a second time either — I had
+it check the actual code, and `src/client/hud.ts`'s `cueCaptions` already
+carries the same left/right/ahead panning every sound cue has, as an enforced
+invariant (`src/game/parity.test.ts`).
+
+Nothing in the code changed — `othersSoundOff` applying to both Can't-see and
+Can't-speak was already correct as built. What I took from it: don't let a
+role's English name stand in for its actual restriction in `src/game/types.ts`
+or the relevant ADR, and don't take a correction at face value without making
+it check.
+
