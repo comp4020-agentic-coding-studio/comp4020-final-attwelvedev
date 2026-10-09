@@ -246,9 +246,9 @@ resumes with a bot in that seat; `host.choice: lobby` returns everyone a
 - [x] Tasks 15–17 complete, tests passing
 - [x] `pnpm test:unit` and `pnpm lint:rooms` pass
 - [x] `pnpm build && PAUSE_MS=3000 pnpm start`, then `pnpm check` passes (disconnect timeouts included); then a normal `pnpm start` and `pnpm check:evidence` (run on :8081, 2026-10-09: 65 files, 640 tests, 41 s; the timeout cases skip on a 45 s server)
-- [ ] Deployed (ask first); `spec/bots.test.ts` green against fly.dev
-- [ ] Manually: one person plays the whole heist solo with two bots, once in each role
-- [ ] Tick this phase in overview §5 and commit
+- [x] Deployed (ask first); `spec/bots.test.ts` green against fly.dev (also leave, pause and cache-on Chrome specs, one file at a time)
+- [x] Manually: one person plays the whole heist solo with two bots, once in each role (played by the user across the session, each role, found and fixed what it showed)
+- [x] Tick this phase in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)
 
