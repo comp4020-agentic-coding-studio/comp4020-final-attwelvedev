@@ -16,6 +16,8 @@ async function freshCookie(baseUrl: string): Promise<string> {
   return pair;
 }
 
+const CLOSE_WAIT_MS = 1500;
+
 export const wsUrl = (baseUrl: string): string => {
   const url = new URL("/ws", baseUrl);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
@@ -43,6 +45,24 @@ export async function connect(baseUrl: string, cookie?: string): Promise<Socket>
     );
   });
 
+  // Closes the connection: whatever is said first, then a polite close, then, if the other end has
+  // not answered in CLOSE_WAIT_MS, the connection is dropped. Over a real network a close can take
+  // 5-30 s to be answered (the deployed app's proxy), and no spec should wait on that.
+  const goAway = (first: () => void) =>
+    new Promise<void>((resolve) => {
+      if (socket.readyState === WebSocket.CLOSED) return resolve();
+      const timer = setTimeout(() => {
+        socket.terminate();
+        resolve();
+      }, CLOSE_WAIT_MS);
+      socket.once("close", () => {
+        clearTimeout(timer);
+        resolve();
+      });
+      first();
+      socket.close();
+    });
+
   return {
     send: (msg) => socket.send(JSON.stringify(msg)),
     async next<T>(t: string, timeoutMs = 2000): Promise<T> {
@@ -61,26 +81,9 @@ export async function connect(baseUrl: string, cookie?: string): Promise<Socket>
         });
       }
     },
-    unload: () =>
-      new Promise<void>((resolve) => {
-        if (socket.readyState === WebSocket.CLOSED) return resolve();
-        socket.once("close", () => resolve());
-        socket.send(JSON.stringify({ t: "bye" }));
-        socket.close();
-      }),
-    drop: () =>
-      new Promise<void>((resolve) => {
-        if (socket.readyState === WebSocket.CLOSED) return resolve();
-        socket.once("close", () => resolve());
-        socket.close();
-      }),
+    unload: () => goAway(() => socket.send(JSON.stringify({ t: "bye" }))),
+    drop: () => goAway(() => {}),
     // leaves any lobby first, so a spec's lobbies don't linger and fill the server
-    close: () =>
-      new Promise<void>((resolve) => {
-        if (socket.readyState === WebSocket.CLOSED) return resolve();
-        socket.once("close", () => resolve());
-        socket.send(JSON.stringify({ t: "lobby.leave" }));
-        socket.close();
-      }),
+    close: () => goAway(() => socket.send(JSON.stringify({ t: "lobby.leave" }))),
   };
 }

@@ -26,7 +26,7 @@ async function pausedGame() {
   ready(players);
   await nextView(players[0] as Player); // the game is running
   const [host, guest, third] = players as [Player, Player, Player];
-  await third.socket.drop();
+  await third.socket.unload();
   const pause = await host.socket.next<PauseMsg>("pause");
   return { players, host, guest, third, pause, code };
 }
@@ -129,7 +129,7 @@ describe("a dropped connection pauses the game", () => {
     ready(players);
     const [host, guest] = players as [Player, Player];
     await nextView(guest);
-    await host.socket.drop();
+    await host.socket.unload();
     const pause = await guest.socket.next<PauseMsg>("pause");
     if (!isShort(pause)) {
       await closeAll(players);
@@ -172,9 +172,9 @@ describe("a dropped connection pauses the game", () => {
     ready(players);
     const [host, guest, third] = players as [Player, Player, Player];
     await nextView(guest, 3000);
-    await third.socket.drop(); // the game pauses
+    await third.socket.unload(); // the game pauses
     await host.socket.next("pause");
-    await guest.socket.drop(); // and a sighted player's page reloads in the pause
+    await guest.socket.unload(); // and a sighted player's page reloads in the pause
     const again = await connect(baseUrl, guest.cookie);
     await again.next("reveal", 4000);
     await new Promise((resolve) => setTimeout(resolve, 600)); // a few paused ticks go by
