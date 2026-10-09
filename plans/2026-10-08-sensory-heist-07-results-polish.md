@@ -135,13 +135,29 @@ run after room 3; send `heist { ms, loot, lootTotal, rank }`; log
 
 ### Task 19: Real-life wizard, host settings, viewer settings, high contrast
 
+**Reconciled 2026-10-09 (Phase 1 review).** `src/client/settings.ts` and
+`src/components/Settings.tsx` already exist (built earlier, wired into
+`Game.tsx`: `settings.sound`, `.speech`, `.captions`, `.keepOpen` drive audio,
+TTS, captions and the tray right now), under storage key `heist.settings`
+with shape `{ captions, sound, speech, keepOpen }`. The plan originally wrote
+these as new files with a fresh `ViewerSettings` shape and a different
+storage key — that would have forked a second, conflicting settings system.
+User decision: **extend the existing `Settings` module in place** rather than
+replace it. `highContrast` and `volume` are added to the existing
+`Settings`/`Stored` interfaces and existing `loadSettings`/`saveSettings`;
+the storage key stays `heist.settings`; `captions`/`sound`/`speech`/`keepOpen`
+keep their current meaning and defaults untouched. No `ViewerSettings` type,
+no `loadViewerSettings`/`saveViewerSettings`, no new storage key.
+
 **Files touched.** `src/net/lobbies.ts` (`settings`), `src/net/protocol.ts`
 (`lobby.settings`), `src/net/attach.ts`, `src/components/RealLifeWizard.tsx`,
-`src/components/Settings.tsx`, `src/client/settings.ts` (+ test),
-`src/client/audio.ts` (mask noise, sound off), `src/styles/tokens.css`
-(high-contrast token set under `[data-contrast="high"]`),
-`src/client/tokens.ts` (high-contrast canvas palette),
-`spec/settings.test.ts`, `spec/layout/wizard.test.ts`.
+`src/components/Settings.tsx` (extend: add a High contrast toggle, available
+to every role, not disabled for deaf), `src/client/settings.ts` (extend, +
+test additions), `src/client/audio.ts` (mask noise, sound off; deaf HUD gets
+the masking-noise volume slider, backed by `settings.volume`),
+`src/styles/tokens.css` (high-contrast token set under
+`[data-contrast="high"]`), `src/client/tokens.ts` (high-contrast canvas
+palette), `spec/settings.test.ts`, `spec/layout/wizard.test.ts`.
 
 **Interfaces produced (exact).**
 
@@ -158,16 +174,26 @@ export function presetFor(answers: { sameRoom: boolean; deafHasHeadphones: boole
 export function setSettings(reg: Registry, who: string, settings: LobbySettings): LobbyState; // host only
 // LobbyState gains: settings: LobbySettings
 
-// src/client/settings.ts
-export interface ViewerSettings { captions: boolean; highContrast: boolean; keepSheetOpen: boolean; volume: number }
-export function loadViewerSettings(role?: Role): ViewerSettings; // captions default false for blind, false otherwise unless othersSoundOff
-export function saveViewerSettings(s: ViewerSettings): void; // try/catch around localStorage
+// src/client/settings.ts (existing file, widened — not replaced)
+export interface Settings {
+  captions: boolean;
+  sound: boolean;
+  speech: boolean;
+  keepOpen: boolean;
+  highContrast: boolean; // NEW: high-contrast HUD/canvas palette, every role, default false
+  volume: number; // NEW: 0–1 masking-noise volume, deaf role only, default 0.5
+}
+// Stored, defaultsFor, loadSettings, saveSettings keep their existing signatures
+// and storage key ("heist.settings"), widened to read/write the two new fields
+// (missing/corrupt values fall back to the defaults above, same as today).
 ```
 
 **Tests first (red).** `lobbies.test.ts`: `presetFor` truth table (same room
 + deaf headphones → maskNoise on, voice off; others without headphones →
 othersSoundOff on; remote → defaults); non-host `setSettings` → `not-host`.
-`settings.test.ts`: missing or corrupt storage returns defaults.
+`src/client/settings.test.ts` (existing file, new cases added): missing or
+corrupt storage still returns defaults including `highContrast: false` and
+`volume: 0.5`; a saved `highContrast`/`volume` round-trips.
 `spec/settings.test.ts`: host settings reach all three sockets within 1 s.
 `spec/layout/wizard.test.ts`: the wizard is keyboard-operable, each
 implication row has a toggle with its sentence, no axe violations, both
@@ -179,7 +205,10 @@ words." Captions are forced on for blind/mute clients when `othersSoundOff`.
 
 **Refactor.** None.
 
-**Acceptance criteria.** Tests green.
+**Acceptance criteria.** Tests green; existing Settings-dependent behaviour
+(TTS, captions, tray, sound toggles in `Game.tsx`) is unchanged by the
+widening — no regression in `src/client/settings.test.ts` or
+`src/components/Settings.test.ts`'s existing cases.
 
 **Human review:** on a local build, the user runs the wizard as host with
 three devices in one room (one with headphones). Pass = the deaf player
@@ -239,3 +268,16 @@ nickname.
 ## 8. Risks / open questions
 
 None.
+
+## 9. Corrections log
+
+- 2026-10-09, Phase 1 review: Task 19 planned `src/client/settings.ts` and
+  `src/components/Settings.tsx` as new files with a fresh `ViewerSettings`
+  shape, but both already existed (built earlier, wired into `Game.tsx`) under
+  a different shape and storage key. Expected: the plan to match current code.
+  Missed because the plan was written before that earlier settings work landed
+  and wasn't re-verified against the code at execution time. User decision:
+  extend the existing module in place (§Task 19 rewritten) rather than fork a
+  second settings system. No harness-level prevention needed beyond what
+  `execute-plan`'s Phase 1 review already does — this is exactly the "code has
+  moved" case that review is for.
