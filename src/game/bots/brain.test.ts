@@ -102,15 +102,28 @@ function play(
   seats: Seat[],
   ticks: number,
   watch: (tick: number, sent: ReturnType<typeof botsAct>["sent"]) => void = () => {},
+  options: {
+    humans?: Seat[]; // claimed as people by the others, though a bot still plays them
+    slow?: Partial<Record<Seat, number>>; // a seat that does nothing until this tick: a slow person
+    onTick?: (world: ReturnType<typeof createWorld>) => void;
+  } = {},
 ) {
   const r = room(roomId);
   const world = createWorld(r);
   const bots: Partial<Record<Seat, BotSeat>> = {};
-  const humans = new Set<Seat>(([0, 1, 2] as const).filter((s) => !seats.includes(s)));
-  for (const s of seats) bots[s] = { memory: createBotMemory(s, humans, roles), inbox: [] };
+  const humans = new Set<Seat>(
+    options.humans ?? ([0, 1, 2] as const).filter((s) => !seats.includes(s)),
+  );
+  const born = (s: Seat) => ({ memory: createBotMemory(s, humans, roles), inbox: [] });
+  for (const s of seats) if (!options.slow?.[s]) bots[s] = born(s);
   const cooldowns = { until: {} };
   let caught = 0;
   for (let i = 0; i < ticks && world.status !== "cleared"; i++) {
+    options.onTick?.(world);
+    // a slow person has not started yet; then they play like anyone, from where they stand
+    for (const [seat, from] of Object.entries(options.slow ?? {})) {
+      if (world.tick === from) bots[Number(seat) as Seat] = born(Number(seat) as Seat);
+    }
     const out = botsAct(r, world, roles, bots, cooldowns, world.tick * TICK_MS, (s) => `Bot ${s}`);
     watch(world.tick, out.sent);
     step(world, out.inputs, TICK_MS);
@@ -254,5 +267,54 @@ describe("a seeing bot among hazards", () => {
     expect(JSON.stringify(think(r, va, [], ma, 0).input.move)).toBe(
       JSON.stringify(think(r, vb, [], mb, 0).input.move),
     );
+  });
+});
+
+describe("with a person on the team", () => {
+  const ROTATION_2: [Role, Role, Role] = ["mute", "blind", "deaf"];
+
+  it("recovers when the team is caught and sent back, wherever they were: nobody walks on in the old direction", () => {
+    for (const when of [60, 100, 130, 170, 220, 260]) {
+      let sentBack = false;
+      const run = play("03-vault", ROTATION_2, [0, 1, 2], 2400, () => {}, {
+        onTick: (world) => {
+          // the way the simulation sends a caught team back: to the spawns, sequence forgotten
+          if (!sentBack && world.tick === when) {
+            sentBack = true;
+            world.players.forEach((p, i) => {
+              p.pos = { x: 2.5, y: 3.5 + i };
+              p.moving = false;
+            });
+            world.events.push({ kind: "caught", by: "L1" });
+            world.seqProgress = {};
+          }
+        },
+      });
+      expect(sentBack).toBe(true);
+      expect(run.world.status, `sent back at tick ${when}`).toBe("cleared");
+    }
+  });
+
+  it("clears the sequence door when the person is slow: the others step off and press again", () => {
+    // seat 0 is a person who does nothing for 25 s, longer than the 5 s the sequence allows
+    for (const slow of [0, 1, 2] as const) {
+      const run = play("03-vault", ROTATION_2, [0, 1, 2], 4000, () => {}, {
+        humans: [slow],
+        slow: { [slow]: 500 },
+      });
+      expect(run.world.status, `seat ${slow} slow`).toBe("cleared");
+    }
+  });
+
+  it("does not press the first plate until the person is at theirs", () => {
+    let pressedEarly = false;
+    play("03-vault", ROTATION_2, [0, 1, 2], 1200, () => {}, {
+      humans: [0],
+      slow: { 0: 600 },
+      onTick: (world) => {
+        if (world.tick < 500 && world.pressed.p7) pressedEarly = true;
+      },
+    });
+    expect(pressedEarly).toBe(false);
   });
 });

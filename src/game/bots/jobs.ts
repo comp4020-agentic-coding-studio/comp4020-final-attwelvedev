@@ -24,6 +24,7 @@ export interface Known {
   doorOpen: Record<string, boolean>;
   pressed: Record<string, boolean>;
   crates: Record<string, Vec>; // tile of each crate
+  seq: Record<string, number>; // sequence signs: plates matched so far, by the plates it shows ("p7,p1,p4")
 }
 
 export interface SeatInfo {

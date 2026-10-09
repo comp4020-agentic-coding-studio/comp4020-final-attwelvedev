@@ -318,4 +318,19 @@ None.
 
 ## 10. Corrections log
 
-(none yet)
+- 2026-10-09, room 3 with the user as Can't speak (seat 0): the bots ran through
+  the dark and were caught, and the two on the sequence plates just sat on them.
+  Expected: bots that cope with a person on the team. First attempt missed
+  because the solver only ever had three bots: nobody was slow, so (a) a caught
+  team's bots kept their plans and the Can't-see bot walked on in its old
+  direction, and (b) a bot pressed its sequence plate at once and held it, so
+  when the person was late the sequence reset and nothing could restart it.
+  Fixed: bots forget their plans when sent back (a jump, or the caught sound,
+  read before the inbox); sequence plates follow the sign's progress, step off
+  and press again when it resets, and the first press waits until a visible
+  person is beside their plate. Tests: sent back at six moments, a slow person
+  in each seat, no early press. Earlier the same day: a person's Say never
+  reached a bot (relay now delivers to bot inboxes).
+  Pattern (two misses of the same kind, both "the solver has no person in it"):
+  the headless solver should grow a person who is slow, wrong or absent; the
+  new tests are the start of that.

@@ -120,6 +120,7 @@ describe("isDone / isOpen", () => {
     doorOpen: { D1: false },
     pressed: {},
     crates: { B1: { x: 4, y: 2 } },
+    seq: {},
     ...over,
   });
   const jobs = hintsOf(room);

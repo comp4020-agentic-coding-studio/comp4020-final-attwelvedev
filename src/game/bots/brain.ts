@@ -47,6 +47,7 @@ export interface BotMemory {
   lastClipAt: number;
   celebrated: boolean;
   model: World | null;
+  lastPos: Vec | null; // where the bot was last tick: a jump is the team being sent back
 }
 export interface BotTurn {
   input: PlayerInput;
@@ -130,6 +131,7 @@ export function createBotMemory(
     lastClipAt: Number.NEGATIVE_INFINITY,
     celebrated: false,
     model: null,
+    lastPos: null,
   };
 }
 
@@ -162,6 +164,11 @@ export function think(
 // --- Can't see: acts on what it is told, and on what it hears -------------------
 
 function thinkBlind(view: RoleView, inbox: ChannelMessage[], m: BotMemory, now: number): BotTurn {
+  if (view.sounds.some((s) => s.kind === "caught")) {
+    // sent back to the start: whatever it was told before is about somewhere else
+    m.holding = true;
+    m.heading = { ...ZERO };
+  }
   for (const msg of inbox) {
     if (msg.family !== "say" || msg.kind !== "callout") continue; // never parses free text
     m.lastCalloutAt = now;
@@ -191,7 +198,7 @@ function thinkBlind(view: RoleView, inbox: ChannelMessage[], m: BotMemory, now: 
 
 function ensureKnown(room: Room, m: BotMemory): Known {
   if (m.known) return m.known;
-  const known: Known = { doorOpen: {}, pressed: {}, crates: {} };
+  const known: Known = { doorOpen: {}, pressed: {}, crates: {}, seq: {} };
   for (const o of room.objects) {
     if (o.kind === "door") known.doorOpen[o.id] = false;
     else if (o.kind === "plate") known.pressed[o.id] = false;
@@ -207,6 +214,7 @@ function observe(room: Room, view: RoleView, m: BotMemory): Known {
     if (e.kind === "door") known.doorOpen[e.id] = e.state === "open";
     else if (e.kind === "plate") known.pressed[e.id] = e.state === "pressed";
     else if (e.kind === "crate") known.crates[e.id] = tileOf(e.pos);
+    else if (e.kind === "sign" && e.shows) known.seq[e.shows.join()] = e.progress ?? 0;
   }
   // an alarm speeds the guards up and holds the cameras on: the forecast needs its windows
   if (view.alarm && m.alarmFrom === null) m.alarmFrom = view.tick;
@@ -350,6 +358,42 @@ function decide(
   return step;
 }
 
+// Where a plate of a sequence door stands: its place in the order, how far the sign says
+// the sequence has got, and whether it is this seat's turn to step on. The first plate also
+// waits until every person with a plate in the sequence is next to theirs (when they can be
+// seen), so a person is not left to catch up with a window that has already started.
+function sequenceTurn(
+  room: Room,
+  m: BotMemory,
+  job: Job,
+  known: Known,
+  view: RoleView,
+): { n: number; progress: number; ready: boolean } | null {
+  if (job.target.kind !== "plate") return null;
+  const plate = job.target.id;
+  const door = room.objects.find(
+    (o) => o.kind === "door" && o.mode === "sequence" && o.opensWhen?.includes(plate),
+  );
+  if (!door?.opensWhen || known.doorOpen[door.id] === true) return null;
+  const order = door.opensWhen;
+  const n = order.indexOf(plate);
+  const progress = known.seq[order.join()] ?? 0;
+  let ready = progress === n;
+  if (ready && n === 0) {
+    const queues = queuesOf(room, m, view.role);
+    for (const seat of m.humans) {
+      const theirs = queues[seat].find(
+        (j) => j.target.kind === "plate" && order.includes(j.target.id) && j !== job,
+      );
+      const body = view.entities.find((e) => e.kind === "player" && e.seat === seat);
+      if (theirs?.target.kind !== "plate" || !body) continue;
+      const t = theirs.target.tile;
+      if (Math.hypot(body.pos.x - (t.x + 0.5), body.pos.y - (t.y + 0.5)) > 2.2) ready = false;
+    }
+  }
+  return { n, progress, ready };
+}
+
 // Where a seat is headed: the first job of its queue not yet done, or the exit.
 // A plate it may not step on yet is approached as far as the tile before it.
 function goalFor(
@@ -360,6 +404,7 @@ function goalFor(
   at: Vec | undefined,
   known: Known,
   from: Vec,
+  view: RoleView,
 ): { goal: Vec; job: Job | null } {
   const queue = queuesOf(room, m, own)[seat];
   // a job is behind a seat once it is done, or once a later one is (a bot that takes over
@@ -371,6 +416,32 @@ function goalFor(
   const job = queue[m.ptr[seat]] ?? null;
   if (!job) return { goal: exitTile(room, seat), job };
   const goal = jobTile(room, job, seat);
+  const turn = job.target.kind === "plate" ? sequenceTurn(room, m, job, known, view) : null;
+  if (job.target.kind === "plate" && turn) {
+    // A sequence door counts presses, in order, each within 5 s of the last. Stand off
+    // the plate until it is this seat's turn; if the sequence starts again while on it,
+    // step off, so that the next press is a new one.
+    const on = at !== undefined && tileOf(at).x === goal.x && tileOf(at).y === goal.y;
+    const stay = on ? turn.progress > turn.n : turn.ready;
+    if (!stay) {
+      const blocked = blockedFor(room, known, goal);
+      let before: Vec | undefined;
+      if (on) {
+        // off the plate, to a free tile beside it (west first: the way the team came)
+        before = [
+          { x: goal.x - 1, y: goal.y },
+          { x: goal.x, y: goal.y - 1 },
+          { x: goal.x, y: goal.y + 1 },
+          { x: goal.x + 1, y: goal.y },
+        ].find((t) => !blocked(t.x, t.y));
+      } else {
+        const path = findPath({ width: room.width, height: room.height, blocked }, from, goal);
+        before = path && path.length >= 2 ? path[path.length - 2] : undefined;
+      }
+      if (before) return { goal: before, job };
+    }
+    return { goal, job };
+  }
   if (job.target.kind === "plate" && !isOpen(job, known)) {
     const grid = { width: room.width, height: room.height, blocked: blockedFor(room, known, goal) };
     const path = findPath(grid, from, goal);
@@ -380,8 +451,29 @@ function goalFor(
   return { goal, job };
 }
 
+// The team was caught and sent back: every plan, step under way and belief about where
+// the Can't-see seat is, is about a place nobody is in any more.
+function forgetPlans(m: BotMemory): void {
+  m.exec = null;
+  m.nav = newNav();
+  const g = m.guide;
+  g.moving = false;
+  g.heading = { ...ZERO }; // the Can't-see bot forgot its direction when it was sent back
+  g.decided = null;
+  g.nextTick = 0;
+  g.still = 0;
+  g.last = null;
+  g.est = null;
+  g.nav = newNav();
+}
+
 function thinkSighted(room: Room, view: RoleView, m: BotMemory, now: number): BotTurn {
   const known = observe(room, view, m);
+  if (view.you.pos) {
+    const last = m.lastPos;
+    if (last && Math.hypot(view.you.pos.x - last.x, view.you.pos.y - last.y) > 1.5) forgetPlans(m);
+    m.lastPos = view.you.pos;
+  }
   const pos =
     view.you.pos ?? centreOf(room.objects.find((o) => o.id === `s${m.seat + 1}`)?.tiles[0] ?? ZERO);
   let send: Outgoing | null = null;
@@ -414,7 +506,7 @@ function stamp(m: BotMemory, send: Outgoing | null, now: number): Outgoing | nul
 function moveSelf(room: Room, view: RoleView, m: BotMemory, known: Known, pos: Vec): PlayerInput {
   const seat = m.seat;
   const tile = tileOf(pos);
-  const { goal, job } = goalFor(room, m, seat, view.role, pos, known, tile);
+  const { goal, job } = goalFor(room, m, seat, view.role, pos, known, tile, view);
 
   // pushing: stand behind the crate and walk into it until it is where it belongs
   if (job?.target.kind === "push") {
@@ -502,6 +594,7 @@ function guideBlind(
   let p: Vec;
   if (seen) {
     p = seen.pos;
+    if (g.last && Math.hypot(p.x - g.last.x, p.y - g.last.y) > 1.5) forgetPlans(m); // sent back
     g.est = p;
     if (g.last && Math.hypot(p.x - g.last.x, p.y - g.last.y) < 0.01) g.still++;
     else g.still = 0;
@@ -516,7 +609,7 @@ function guideBlind(
   }
 
   const tile = tileOf(p);
-  const { goal, job } = goalFor(room, m, b as Seat, "blind", p, known, tile);
+  const { goal, job } = goalFor(room, m, b as Seat, "blind", p, known, tile, view);
   let callout: Callout | null = null;
 
   const atCentre =
