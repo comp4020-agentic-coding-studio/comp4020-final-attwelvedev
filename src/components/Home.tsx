@@ -84,7 +84,7 @@ export function Home() {
   return (
     <div class="home">
       <div class="home-start">
-        <h1>Hold three stations at once. Each of you is missing a sense.</h1>
+        <h1>A heist for three. One can’t see. One can’t hear. One can’t speak.</h1>
         <form class="stack" onSubmit={create}>
           <div class="field">
             <label for="nickname">Nickname</label>
