@@ -1,5 +1,5 @@
-import { type ChildProcess, spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { type ChildProcess, execSync, spawn } from "node:child_process";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
@@ -44,6 +44,9 @@ describe("the leaderboard", () => {
     let app: ChildProcess;
 
     beforeAll(async () => {
+      // server.ts serves the built site from dist/, which CI's checkout doesn't
+      // have (it only builds inside the Docker image)
+      if (!existsSync("dist/server/entry.mjs")) execSync("pnpm build", { stdio: "ignore" });
       app = spawn("node", ["server.ts"], {
         env: { ...process.env, PORT: String(port), DATABASE_PATH: join(dir, "app.db") },
         stdio: "ignore",
