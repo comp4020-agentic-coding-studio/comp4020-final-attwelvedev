@@ -498,3 +498,28 @@ focused, so Space and Enter pressed it instead of acting in the game. Each got
 a spec that failed first (the first version of the hover spec passed with the
 bug, because it sampled mid-transition on a phone page that can't hover; the
 agent noticed and rewrote it before trusting it).
+
+## 2026-10-13 — Putting a design pass inside brainstorming, so the first prototype is already designed
+
+2356203, 22bbaef
+
+`/brainstorm-feature` can dispatch a read-only `Plan` subagent that follows the
+`frontend-design` skill's first pass (design plan, ASCII wireframes, review
+against the brief) and hands back a proposal. The proposal is input, not a
+decision: I read it, amend it, and the feedback goes back to the same subagent
+by `SendMessage` so it revises with its context, and the skill stops after three
+rounds without convergence. The obvious way to get a UI is to prompt for it
+after the spec and iterate on the built result, which is how my earlier
+prototypes in this course got past a generic look, a few rounds late.
+
+Evidence it changed the outcome, in the heist spec §4.1 (`22bbaef`): the
+proposal's filled/hollow pip row for the channel indicator didn't read, so I
+replaced it with an arrow list of receivers, and I removed its Can't-speak
+secret layer. The first build already had a considered look, and in playtest 1
+the player said nothing ever looked ugly.
+
+Not shown by it: the same playtest found the comms sheets covered the map and
+"Say / Sound / Show" confused two of three players. A rigorous design is not a
+usable one, so the design pass sits before playtests, not instead of them.
+Those findings are logged in `playtests/2026-10-09-playtest-01.md` and not yet
+fixed.
