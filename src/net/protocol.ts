@@ -76,6 +76,12 @@ export type ServerMsg =
 
 const MAX_FRAME = 8 * 1024;
 
+// A lobby code: 4 letters, no I, L or O (they read as 1 and 0 across a room).
+// Here, not in ./codes.ts, so the home page can check what is typed: codes.ts
+// pulls in node:crypto.
+export const LOBBY_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ";
+export const LOBBY_CODE_LENGTH = 4;
+
 // Anything malformed, unknown or oversized is null: the caller drops it and
 // keeps the socket open, so one bad frame never ends a game.
 export function parseClientMsg(raw: string): ClientMsg | null {
