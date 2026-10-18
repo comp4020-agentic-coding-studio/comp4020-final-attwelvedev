@@ -13,7 +13,7 @@ export async function createLobbyAs(
 ): Promise<{ page: Page; code: string }> {
   const page = await openPage(browser, baseUrl, viewport);
   await page.getByLabel("Nickname").fill(nickname);
-  await page.getByRole("button", { name: "Create lobby" }).click();
+  await page.getByRole("button", { name: "Start a new team" }).click();
   await page.waitForURL(/\/lobby\/[A-Z]{4}$/);
   const code = new URL(page.url()).pathname.split("/").pop() ?? "";
   return { page, code };

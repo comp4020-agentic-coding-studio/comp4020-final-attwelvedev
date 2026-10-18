@@ -66,11 +66,6 @@ input {
 .btn.primary:hover {
   background: var(--ui-muted);
 }
-@media (max-width: 879px) {
-  .home .btn.primary {
-    width: 100%;
-  }
-}
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -94,20 +89,46 @@ input {
   text-transform: none;
 }
 
-/* home */
+/* home: the hero (headline + feeds) and the desk where you get in. Phone: one
+   column, desk right under the headline so joining needs no scroll. Desktop: the
+   feeds take the width, the desk is a narrow column beside them. */
 .home {
   display: grid;
+  grid-template-areas: "title" "desk" "feeds";
   gap: var(--s-6);
 }
-.home h1 {
-  margin-bottom: var(--s-5);
-  max-width: 18ch;
-  font-size: var(--t-28);
+.home-hero {
+  display: contents;
 }
-.join {
-  margin-top: var(--s-6);
-  padding-top: var(--s-5);
-  border-top: 2px solid var(--panel);
+.home h1 {
+  grid-area: title;
+}
+.feeds {
+  grid-area: feeds;
+}
+.home-desk {
+  grid-area: desk;
+}
+.home h1 {
+  font-size: clamp(30px, 8.4vw, 40px);
+  line-height: 1.02;
+  letter-spacing: -0.01em;
+}
+.home h1 > span {
+  display: block;
+}
+.home h1 .role-shape {
+  width: 0.62em;
+  height: 0.62em;
+  margin-right: 0.08em;
+  vertical-align: 0.02em;
+}
+
+/* the desk */
+.home-desk {
+  display: grid;
+  gap: var(--s-5);
+  align-content: start;
 }
 .join-row {
   display: flex;
@@ -120,13 +141,75 @@ input {
 }
 .join-row .btn {
   flex: none;
+  min-width: 96px;
   white-space: nowrap;
 }
 .code-input {
+  min-height: 64px;
+  font-size: var(--t-28);
   font-stretch: 125%;
   font-weight: 900;
   letter-spacing: 0.3em;
   text-transform: uppercase;
+}
+.code-input::placeholder {
+  color: var(--solid);
+}
+.code-hint {
+  margin: var(--s-2) 0 0;
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+}
+/* a Join that cannot go yet: still focusable, so a press can say why */
+.btn.primary[aria-disabled="true"] {
+  background: transparent;
+  color: var(--ui-muted);
+  border-color: var(--solid);
+  cursor: not-allowed;
+}
+.desk-join .btn.primary {
+  min-height: 64px;
+}
+.desk-new {
+  padding-top: var(--s-5);
+  border-top: 2px solid var(--panel);
+}
+.desk-new p {
+  margin: 0 0 var(--s-3);
+  color: var(--ui-muted);
+}
+.home-desk .conn {
+  justify-self: start;
+}
+
+/* teams waiting: only on the page when there are some, so its light means something */
+.waiting h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-bottom: var(--s-3);
+}
+.waiting-light {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--goal);
+  box-shadow: 0 0 0 0 var(--goal);
+  animation: waiting 1.6s ease-out infinite;
+}
+@keyframes waiting {
+  70% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .waiting-light {
+    animation: none;
+  }
 }
 .open-list {
   list-style: none;
@@ -135,12 +218,17 @@ input {
   display: grid;
   gap: var(--s-2);
 }
+.list-more {
+  width: 100%;
+  margin-top: var(--s-2);
+}
 .open-list li {
   display: flex;
   align-items: center;
   gap: var(--s-3);
   padding: var(--s-2) var(--s-2) var(--s-2) var(--s-4);
   background: var(--panel);
+  border-left: 4px solid var(--goal);
   border-radius: var(--r);
 }
 .open-list .team {
@@ -152,6 +240,94 @@ input {
   color: var(--ui-muted);
   font-stretch: 75%;
   font-weight: 700;
+}
+
+/* the feeds: one room, three seats. Each is a strip of the map as wide as the
+   column; the Can't-see strip is the game's own black. */
+.feeds {
+  display: grid;
+  gap: var(--s-4);
+  margin: 0;
+}
+.feed {
+  position: relative;
+  margin: 0;
+}
+.feed-screen {
+  position: relative;
+}
+.feed canvas {
+  display: block;
+  width: 100%;
+  height: 96px;
+  background: var(--ink);
+  border-radius: var(--r);
+}
+.feed figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--s-2);
+  margin-top: var(--s-2);
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+}
+.feed figcaption b {
+  color: var(--ui);
+  font-stretch: 125%;
+  font-weight: 900;
+}
+.feed-captions,
+.feed-tag {
+  position: absolute;
+  left: var(--s-2);
+  right: var(--s-2);
+  bottom: var(--s-2);
+  display: grid;
+  justify-items: end; /* the right edge: room 1's crate push happens on the left */
+  gap: 2px;
+  margin: 0;
+  pointer-events: none;
+}
+.feed-captions p,
+.feed-tag {
+  margin: 0;
+  padding: 1px var(--s-2);
+  background: rgb(11 18 32 / 85%);
+  border-radius: var(--r);
+  font-size: var(--t-14);
+  line-height: 1.4;
+}
+.feed-captions p {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+@media (max-width: 879px) {
+  .feed-captions p:not(:last-child) {
+    display: none; /* one line at a time: a phone feed is too short for more */
+  }
+}
+.feed-captions .cue {
+  color: var(--ui-muted);
+  font-style: italic;
+}
+.feed-tag {
+  left: auto;
+  color: var(--ui-muted);
+}
+.feeds-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+}
+.feeds-foot p {
+  flex: 1 1 20ch;
+  margin: 0;
 }
 
 /* lobby */
@@ -359,8 +535,32 @@ input {
 
 @media (min-width: 880px) {
   .home {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: var(--s-6) 64px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 21rem);
+    grid-template-rows: auto 1fr; /* a tall desk stretches the feeds' row, not the title's */
+    grid-template-areas: "title desk" "feeds desk";
+    gap: var(--s-5) 48px;
+    align-items: start;
+  }
+  .home h1 {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 0.4em;
+  }
+  .home h1 > span {
+    white-space: nowrap;
+  }
+  .home-desk {
+    padding: var(--s-5);
+    background: var(--panel);
+    border-radius: var(--r);
+  }
+  .home-desk input,
+  .home-desk .open-list li {
+    background: var(--bg);
+  }
+  .feed canvas {
+    height: auto;
+    aspect-ratio: 48 / 9;
   }
   .lobby {
     grid-template-columns: minmax(0, 1fr) minmax(0, 24rem);

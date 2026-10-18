@@ -53,7 +53,7 @@ describe.each([
     await page.getByRole("button", { name: "Join lobby" }).click();
     await page.getByText("No lobby ZZZY.").waitFor();
     await page.getByRole("link", { name: "Try another code" }).waitFor();
-    await page.getByRole("button", { name: "Create lobby" }).waitFor();
+    await page.getByRole("button", { name: "Start a new team" }).waitFor();
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
     expect(await axeViolations(page)).toEqual([]);
     await leaveAndClose(page);

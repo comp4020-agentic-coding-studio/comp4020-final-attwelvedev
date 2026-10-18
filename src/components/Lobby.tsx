@@ -233,7 +233,7 @@ export function Lobby({ code }: { code: string }) {
             Try another code
           </a>
           <button type="button" class="btn primary" onClick={startNewTeam}>
-            Create lobby
+            Start a new team
           </button>
         </div>
       </div>
