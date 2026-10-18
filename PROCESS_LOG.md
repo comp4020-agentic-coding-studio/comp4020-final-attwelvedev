@@ -523,3 +523,57 @@ Not shown by it: the same playtest found the comms sheets covered the map and
 usable one, so the design pass sits before playtests, not instead of them.
 Those findings are logged in `playtests/2026-10-09-playtest-01.md` and not yet
 fixed.
+
+## 2026-10-18 — Making the home page's bots look human without stranding them
+
+a2d2f4d, 9220b90
+
+I asked for the bots on the new home page to play like people: different
+paces, Can't see slower, Can't hear slow to call, some incoherence. The
+obvious build was to add every effect at once and look at it. The first such
+version cleared room 1 in 35–67 s and sent up to 600 messages a run; adding
+reaction lag made it never clear at all.
+
+Instead of tuning by eye, the agent switched each effect on alone across 10–40
+seeds. That located two causes in the guide (`guideBlind`): it only decides
+when Can't see is within 0.1 of a tile centre, and it assumes Can't see moves
+on the tick it is told. Shorter steps or wobble skip the centre; a pause
+leaves Can't see between tiles while the guide repeats "go" forever. So slowness
+became skipped ticks at full step length, which lands on the same centres;
+Can't see never pauses; and the callout delay is shown on the feeds, not
+applied to delivery.
+
+How I knew it was right: 200 of 200 seeds clear in 21–25 s, and
+`src/game/bots/attract.test.ts` now asserts every seed the page reaches
+clears in under 30 s, so a later tweak that strands the hero fails the check.
+The limit is recorded honestly: Can't see is slower, not hesitant. Real
+hesitation needs a guide that tolerates it, which would change the bots the
+solvability spec relies on, so it went to the backlog instead of into
+`brain.ts` mid-redesign.
+
+## 2026-10-18 — A layout spec that measured a stand-in for what it promised
+
+9220b90
+
+"Keeps the Join button's label on one line" asserted the button's height was
+at most 50 px: true of one line at the old 48 px target, but a proxy. Making
+the button 64 px tall on purpose failed it, with the label still on one line.
+The obvious fix was to raise the number to 66. That would keep the proxy and
+break again at the next size change, and would no longer catch a wrap on a
+taller button. The spec now counts the label's line boxes (distinct `top`s of
+its `Range.getClientRects()`), which is the promise itself. Before trusting it,
+I squeezed the button in a live page until the label wrapped: the count went
+from 1 to 4, so it fails on the bug it exists for.
+
+## 2026-10-18 — Four failing specs that were the dev server, not the code
+
+no commit: nothing was changed to make them pass
+
+`pnpm check` run against `pnpm dev` failed four specs in files the redesign
+never touched (font caching, the lobby page, the wizard's contrast). The
+obvious move was to start fixing them. CLAUDE.md says the check runs against
+the live app, started with `pnpm build && pnpm start`; Astro's dev server
+serves fonts with different cache headers and compiles pages slowly. Rerun
+against a production build, all 825 passed, so nothing was changed to make
+them pass. No new rule was needed: the existing one was right, and was not
+followed.
