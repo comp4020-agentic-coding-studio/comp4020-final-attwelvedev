@@ -253,7 +253,7 @@ like `--glass` stay CSS-only and the canvas uses `globalAlpha`).
 | Phase | File | Tasks | Needs | Ends with | Done |
 | --- | --- | --- | --- | --- | --- |
 | 01 | `…-01-comms.md` | 1–4 | — | method routing, the wheel, Enter/V, arrow captions on today's rooms; **human review** of the wheel; **playtest 3** can run | [x] |
-| 02 | `…-02-lobby-server.md` | 5–9 | 01 | lobbies of 6 people with setup and rotation, swaps, votes, leave flows, spectator chat/voice over the socket (temporary UI) | [ ] |
+| 02 | `…-02-lobby-server.md` | 5–9 | 01 | lobbies of 6 people with setup and rotation, swaps, votes, leave flows, spectator chat/voice over the socket (temporary UI) | [x] |
 | 03 | `…-03-lobby-screens.md` | 10–12 | 02 | new lobby, reveal and HUD screens, a /preferences page; **human review** of each | [ ] |
 | 04 | `…-04-line-of-sight.md` | 13–16 | 01 | glass/vents, line-of-sight views, sound occlusion, held sequences, clue sounds, new linter rules, bots under LOS, the lead-role harness | [ ] |
 | 05 | `…-05-world-renderer.md` | 17–21 | 04 | `DESIGN.md` and its rule; the tilted 3/4 world, moving figures, mist, edge pills, the world rising; **human review** | [ ] |

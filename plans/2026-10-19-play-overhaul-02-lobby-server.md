@@ -459,14 +459,17 @@ hash (fixes the cross-lobby seat key). Watchers default to the whole room:
 
 ## 6. Phase Definition of Done
 
-- [ ] Every task in §5 is complete and its tests pass
-- [ ] `pnpm test:unit` passes
-- [ ] `pnpm build && pnpm start` (and `PAUSE_MS=3000 VOTE_MS=2000 pnpm start`
+- [x] Every task in §5 is complete and its tests pass
+- [x] `pnpm test:unit` passes
+- [x] `pnpm build && pnpm start` (and `PAUSE_MS=3000 VOTE_MS=2000 pnpm start`
       for the waiting cases) then `pnpm check` passes
-- [ ] A five-person lobby can play rooms 1–3 end to end on a local build with
+- [x] A five-person lobby can play rooms 1–3 end to end on a local build with
       the temporary UI (checked by the agent with five browser contexts and
-      reported)
-- [ ] Tick this phase in overview §5 and commit
+      reported). Done on three fixture rooms (`ROOMS_DIR`), not the real rooms:
+      Ana, Bo, Cy then Ana, Di, Ed then Bo, Cy, Di played, the heist-complete
+      screen reached the last room's players and the saved record named all five.
+      The A1 leave-and-pull flow was checked in the same way.
+- [x] Tick this phase in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)
 
