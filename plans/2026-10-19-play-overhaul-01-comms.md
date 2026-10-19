@@ -380,9 +380,9 @@ sound captions at all (FR4): `Game.tsx` doesn't render `cues` for deaf.
 - [x] `pnpm build && pnpm start` then `pnpm check` passes
 - [x] Task 2's human review accepted by the user
 - [x] Bots still clear rooms 01–03 in every rotation (`spec/rooms.test.ts`)
-- [ ] Playtest 3 offered to the user (comms only; its write-up goes in
+- [x] Playtest 3 offered to the user (comms only; its write-up goes in
       `playtests/` and `PROCESS_LOG.md`)
-- [ ] Tick this phase in overview §5 and commit
+- [x] Tick this phase in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)
 
