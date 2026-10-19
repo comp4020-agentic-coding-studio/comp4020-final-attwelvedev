@@ -8,6 +8,7 @@ const ALLOWED = new Set([
   "kind",
   "count",
   "reason",
+  "result", // how a restart vote ended: passed, declined or timeout
   "role", // which handicap acted (blind/deaf/mute): never who they are
   "method", // how it was sent (callout/text/voice/clip/face/mark): never what was sent
   "room", // a room's id, e.g. loading-dock: a level, not a person

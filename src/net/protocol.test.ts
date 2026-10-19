@@ -75,7 +75,6 @@ describe("parseClientMsg game messages", () => {
   it("accepts start, ready and a well-typed input", () => {
     expect(parseClientMsg('{"t":"lobby.start"}')).toEqual({ t: "lobby.start" });
     expect(parseClientMsg('{"t":"ready"}')).toEqual({ t: "ready" });
-    expect(parseClientMsg('{"t":"room.restart"}')).toEqual({ t: "room.restart" });
     expect(parseClientMsg('{"t":"next"}')).toEqual({ t: "next" });
     expect(parseClientMsg('{"t":"input","seq":3,"move":{"x":1,"y":-0.5},"act":true}')).toEqual({
       t: "input",
@@ -230,5 +229,32 @@ describe("parseClientMsg: crew.swap", () => {
     '{"t":"crew.swap","a":-1,"b":1}',
   ])("drops %s", (raw) => {
     expect(parseClientMsg(raw)).toBeNull();
+  });
+});
+
+describe("parseClientMsg: votes", () => {
+  it("accepts a proposal of a room or a heist restart, and an answer", () => {
+    expect(parseClientMsg('{"t":"vote.propose","kind":"room"}')).toEqual({
+      t: "vote.propose",
+      kind: "room",
+    });
+    expect(parseClientMsg('{"t":"vote.propose","kind":"heist"}')).toEqual({
+      t: "vote.propose",
+      kind: "heist",
+    });
+    expect(parseClientMsg('{"t":"vote.cast","yes":false}')).toEqual({ t: "vote.cast", yes: false });
+  });
+
+  it.each([
+    '{"t":"vote.propose"}',
+    '{"t":"vote.propose","kind":"lobby"}',
+    '{"t":"vote.cast"}',
+    '{"t":"vote.cast","yes":"yes"}',
+  ])("drops %s", (raw) => {
+    expect(parseClientMsg(raw)).toBeNull();
+  });
+
+  it("no longer parses room.restart: a restart is a vote now", () => {
+    expect(parseClientMsg('{"t":"room.restart"}')).toBeNull();
   });
 });

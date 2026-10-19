@@ -26,7 +26,7 @@ import { browserSpeech } from "../client/speech.ts";
 import { NET, setContrast } from "../client/tokens.ts";
 import { quickSlot } from "../client/wheel.ts";
 import { FACE_POP_MS } from "../game/channels.ts";
-import { ROLE_LABEL, type Role, type Vec } from "../game/types.ts";
+import { ROLE_LABEL, type Role, type Seat, type Vec } from "../game/types.ts";
 import type { CrewMember, LobbyState, RealLife, RoleView } from "../net/protocol.ts";
 import { type CaptionLine, Captions } from "./Captions.tsx";
 import { type CommsApi, CommsWheel } from "./CommsWheel.tsx";
@@ -41,6 +41,7 @@ import { Settings } from "./Settings.tsx";
 import { TalkBar } from "./TalkBar.tsx";
 import { TouchControls } from "./TouchControls.tsx";
 import { useVoice } from "./useVoice.ts";
+import { type OpenVote, outcomeText, VotePrompt } from "./VotePrompt.tsx";
 
 export interface Reveal {
   room: string;
@@ -229,6 +230,9 @@ function Hud({
   } | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [back, setBack] = useState<string | null>(null);
+  const [vote, setVote] = useState<OpenVote | null>(null); // a restart is being voted on
+  const [voteLeft, setVoteLeft] = useState(0);
+  const [voteNote, setVoteNote] = useState<string | null>(null); // how the last vote ended
   const [hostNote, setHostNote] = useState<string | null>(null); // the host role passed to someone
   const hostSeen = useRef({ name: hostName, you: host });
   const [replaced, setReplaced] = useState<string | null>(null); // someone left and a bot took their seat
@@ -349,6 +353,43 @@ function Hud({
     };
   }, [socket]);
 
+  // A restart vote: opened and updated by the server, ended with one line saying how. A passed one
+  // has put everyone back at spawn, so what this page remembered of the room goes.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const offs = [
+      socket.on("vote", (m) =>
+        setVote({
+          kind: m.kind,
+          by: m.by,
+          until: performance.now() + m.left,
+          yes: m.yes,
+          no: m.no,
+          voters: m.voters,
+        }),
+      ),
+      socket.on("vote.end", (m) => {
+        setVote(null);
+        if (m.result === "passed") restarted();
+        setVoteNote(outcomeText(m.kind, m.result, m.by));
+        clearTimeout(timer);
+        timer = setTimeout(() => setVoteNote(null), 5000);
+      }),
+    ];
+    return () => {
+      for (const off of offs) off();
+      clearTimeout(timer);
+    };
+  }, [socket]);
+
+  useEffect(() => {
+    if (!vote) return;
+    const tick = () => setVoteLeft((vote.until - performance.now()) / 1000);
+    tick();
+    const timer = setInterval(tick, 250);
+    return () => clearInterval(timer);
+  }, [vote]);
+
   // The host role passed to someone: say who, so nobody has to work it out from a button.
   useEffect(() => {
     const before = hostSeen.current;
@@ -402,12 +443,16 @@ function Hud({
     return () => clearInterval(timer);
   }, [pause]);
 
-  // Restarts the room, not the heist: everyone back to this room's start. The
-  // buttons that call it (ConfirmButton) have already asked twice.
-  function restart() {
+  // Asks for a restart: the others vote, and if everyone says yes the room (or the heist) starts
+  // again. The buttons that call it (ConfirmButton) have already asked twice.
+  function ask(kind: "room" | "heist") {
+    socket.send({ t: "vote.propose", kind });
+  }
+
+  // A restart that passed puts everyone back at spawn: drop what this page remembered of the room.
+  function restarted() {
     lastSent.current = null;
     setSummary(null);
-    socket.send({ t: "room.restart" });
   }
 
   useEffect(() => {
@@ -560,14 +605,12 @@ function Hud({
           maskNoiseAvailable={real.maskNoise}
           othersSoundOff={real.soundOff}
         />
-        {host && (
-          <ConfirmButton
-            class="hud-btn"
-            label="Restart room"
-            confirmLabel="Sure? Restart room"
-            onConfirm={restart}
-          />
-        )}
+        <ConfirmButton
+          class="hud-btn"
+          label="Restart room"
+          confirmLabel="Sure? Ask to restart room"
+          onConfirm={() => ask("room")}
+        />
       </header>
 
       <ul class="hud-crew" aria-label="Your team">
@@ -606,6 +649,12 @@ function Hud({
       {back && (
         <p class="hud-alert" role="status">
           {back} is back.
+        </p>
+      )}
+
+      {voteNote && (
+        <p class="hud-alert" role="status">
+          {voteNote}
         </p>
       )}
 
@@ -672,7 +721,8 @@ function Hud({
               last={reveal.index >= reveal.rooms - 1}
               host={host}
               onNext={() => socket.send({ t: "next" })}
-              onRestart={restart}
+              onRestart={() => ask("room")}
+              onRestartHeist={() => ask("heist")}
             />
           )
         )}
@@ -680,6 +730,14 @@ function Hud({
           <p class="caught-banner" role="alert">
             {caught}
           </p>
+        )}
+        {vote && (
+          <VotePrompt
+            vote={vote}
+            seat={me as Seat}
+            secondsLeft={voteLeft}
+            onCast={(yes) => socket.send({ t: "vote.cast", yes })}
+          />
         )}
         {pause && (
           <Disconnect

@@ -85,32 +85,6 @@ describe("starting and playing a game", () => {
     await closeAll(players);
   });
 
-  it("lets only the host restart the room, which resets everyone to spawn with a full view", async () => {
-    const { players } = await startedGame(baseUrl);
-    ready(players);
-    const deaf = byRole(players, "deaf");
-    const start = (await nextView(deaf)).you.pos?.x ?? Number.NaN;
-    deaf.socket.send({ t: "input", seq: 1, move: { x: 1, y: 0 }, act: false });
-    let moved = false;
-    for (let i = 0; i < 20 && !moved; i++)
-      moved = ((await nextView(deaf)).you.pos?.x ?? 0) > start + 0.5;
-    expect(moved).toBe(true);
-    deaf.socket.send({ t: "input", seq: 2, move: { x: 0, y: 0 }, act: false });
-
-    const guest = players[1] as (typeof players)[number];
-    guest.socket.send({ t: "room.restart" });
-    expect((await guest.socket.next<ErrorMsg>("error")).code).toBe("not-host");
-
-    (players[0] as (typeof players)[number]).socket.send({ t: "room.restart" });
-    let reset = false;
-    for (let i = 0; i < 20 && !reset; i++) {
-      const view = await nextView(deaf);
-      reset = view.full && Math.abs((view.you.pos?.x ?? 0) - start) < 0.01 && view.tick < 10;
-    }
-    expect(reset).toBe(true);
-    await closeAll(players);
-  });
-
   it("lets a player who reconnects move again, though their new page counts inputs from 1", async () => {
     const { players } = await startedGame(baseUrl);
     ready(players);

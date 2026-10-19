@@ -13,7 +13,7 @@ import {
 import type { EntityView, RoleView, SoundCue } from "../game/perception.ts";
 import { parseSetup, type Setup } from "../game/setup.ts";
 import type { Method, PlayerInput, Role, Seat, Vec } from "../game/types.ts";
-import type { CrewMember, SendRequest } from "./game.ts";
+import type { CrewMember, SendRequest, VoteKind } from "./game.ts";
 import type { ErrorCode, LobbyState, LobbySummary } from "./lobbies.ts";
 import type { RealLife } from "./realLife.ts";
 
@@ -34,6 +34,7 @@ export type {
   Setup,
   SoundCue,
   Stamp,
+  VoteKind,
 };
 
 export type ClientMsg =
@@ -51,7 +52,8 @@ export type ClientMsg =
   | { t: "lobby.setup"; setup: Setup } // your own real-life setup
   | { t: "lobby.start" } // host
   | { t: "ready" }
-  | { t: "room.restart" } // host: everyone back to spawn, doors and crates reset
+  | { t: "vote.propose"; kind: VoteKind } // a player: restart the room, or the heist
+  | { t: "vote.cast"; yes: boolean } // a player: answer the open vote
   | { t: "next" } // host, once a room is cleared: on to the next room
   | { t: "host.choice"; choice: "bot" | "lobby" } // host, once a dropped seat's time is up
   | ({ t: "input" } & PlayerInput)
@@ -90,6 +92,16 @@ export type ServerMsg =
   // (a page's clock may not agree with the server's); `choosing` once the time is up.
   | { t: "pause"; waitingFor: string; deadline: number; left: number; choosing: boolean }
   | { t: "caught"; hazard: "guard" | "camera" | "laser"; seat: Seat; checkpoint: number } // the team was sent back
+  | {
+      t: "vote"; // a restart is being voted on: sent to every player when it opens and each time it changes
+      kind: VoteKind;
+      by: string; // nickname of who proposed it
+      left: number; // ms until it times out
+      yes: Seat[];
+      no: Seat[];
+      voters: Seat[];
+    }
+  | { t: "vote.end"; kind: VoteKind; result: "passed" | "declined" | "timeout"; by?: string } // by: who declined
   | { t: "resume"; back: string | null } // the person is back, or null when a bot took the seat
   | { t: "heist"; ms: number; loot: number; lootTotal: number; rank: number }; // the whole heist is done
 
@@ -161,8 +173,10 @@ export function parseClientMsg(raw: string): ClientMsg | null {
       return { t: "lobby.start" };
     case "ready":
       return { t: "ready" };
-    case "room.restart":
-      return { t: "room.restart" };
+    case "vote.propose":
+      return m.kind === "room" || m.kind === "heist" ? { t: "vote.propose", kind: m.kind } : null;
+    case "vote.cast":
+      return typeof m.yes === "boolean" ? { t: "vote.cast", yes: m.yes } : null;
     case "next":
       return { t: "next" };
     case "host.choice":

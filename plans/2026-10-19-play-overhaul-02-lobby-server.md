@@ -373,6 +373,18 @@ hash (fixes the cross-lobby seat key). Watchers default to the whole room:
 
 ### Task 8: Restart the room or the heist by unanimous vote
 
+- [x] **Done** (2026-10-19). Judgement calls: `proposeVote` returns `"refused"` as well, when the game is
+  paused or the proposer is not a voter, so nothing opens; a lone person with only bots is the only
+  voter, so their proposal passes at once; a vote is ended as `timeout` (nothing restarts) when the
+  game pauses for a dropped seat or the host moves on with `next`; a person leaving re-checks an open
+  vote, since the rest may have all said yes; only people playing hear about a vote, never watchers;
+  `RoomCleared` gives everyone the two restart buttons (Restart room, Restart heist) and the host also
+  Next room, and the HUD's Restart room is now for every player, so a guest's phone top bar carries
+  one more button (it was the host's before, with the same height); the vote bar sits on the map's
+  frame so people keep moving, and the old host-only `spec/game.test.ts` restart case is replaced by
+  `spec/vote.test.ts`. One browser spec race found and fixed in the spec, not the app: the "No" case read
+  the bar's count once, before the other page had heard the vote end.
+
 - **Description:** `Vote`, `voters`, `castVote`, `vote.propose`/`vote.cast`,
   `vote`/`vote.end` messages, 15 s timeout; remove `room.restart` and the host
   restart buttons (`Game.tsx` header ConfirmButton and `RoomCleared`'s restart

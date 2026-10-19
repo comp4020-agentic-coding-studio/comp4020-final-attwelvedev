@@ -118,15 +118,23 @@ describe("the game screen", () => {
     await leaveGameAndClose(table.byRole.mute, baseUrl);
   });
 
-  it("gives only the host a Restart that asks twice and then puts everyone back at spawn", async () => {
+  // Anyone may ask for a restart; it happens only when the other two accept.
+  const askToRestart = async (asker: Page, others: Page[]) => {
+    await asker.getByRole("button", { name: "Restart room", exact: true }).click();
+    await asker.getByRole("button", { name: "Sure? Ask to restart room", exact: true }).click();
+    for (const page of others) {
+      const prompt = page.getByRole("alertdialog");
+      await prompt.getByText(/wants to restart the room/).waitFor({ timeout: 2000 });
+      await prompt.getByRole("button", { name: "Yes" }).click();
+    }
+  };
+
+  it("gives every player a Restart that asks twice, and puts everyone back at spawn once the others accept", async () => {
     const table = await playRoom(browser, baseUrl);
     const { blind: host, deaf, mute } = table.byRole;
-    expect(await deaf.getByRole("button", { name: /Restart/ }).count()).toBe(0);
-    expect(await mute.getByRole("button", { name: /Restart/ }).count()).toBe(0);
-    const restart = async () => {
-      await host.getByRole("button", { name: "Restart room", exact: true }).click();
-      await host.getByRole("button", { name: "Sure? Restart room", exact: true }).click();
-    };
+    for (const page of [host, deaf, mute]) {
+      expect(await page.getByRole("button", { name: "Restart room", exact: true }).count()).toBe(1);
+    }
     const move = async () => {
       await deaf.keyboard.down("d");
       await deaf.waitForTimeout(800);
@@ -136,12 +144,12 @@ describe("the game screen", () => {
     // picture taken then can never match the real spawn. A restart puts everyone at the
     // spawn with the page long since loaded: take the spawn from there, then move away,
     // restart again, and check the second restart looks like the first.
-    await restart();
+    await askToRestart(host, [deaf, mute]);
     await deaf.waitForTimeout(500); // the restart reaches the page; then wait for it to stop changing
     const spawn = await settledHash(deaf);
     await move();
     expect(await settledHash(deaf)).not.toBe(spawn);
-    await restart();
+    await askToRestart(deaf, [host, mute]);
     // back at the spawn, once the scene has come to rest: not whatever frame happens to be up
     await expect.poll(() => settledHash(deaf, 1500), { timeout: 8000 }).toBe(spawn);
     await leaveGameAndClose(host, baseUrl);
@@ -149,14 +157,39 @@ describe("the game screen", () => {
     await leaveGameAndClose(mute, baseUrl);
   });
 
-  it("lets a player move again after a restart, the one who pressed it and the others", async () => {
+  it("leaves everyone where they are when one person says No: nobody goes back to spawn", async () => {
+    const table = await playRoom(browser, baseUrl);
+    const { blind: host, deaf, mute } = table.byRole;
+    // the spawn picture, from a restart that was accepted (the same way the test above takes it)
+    await askToRestart(host, [deaf, mute]);
+    await deaf.waitForTimeout(500);
+    const spawn = await settledHash(deaf);
+    await deaf.keyboard.down("d");
+    await deaf.waitForTimeout(800);
+    await deaf.keyboard.up("d");
+    expect(await settledHash(deaf)).not.toBe(spawn); // they have moved away
+
+    await host.getByRole("button", { name: "Restart room", exact: true }).click();
+    await host.getByRole("button", { name: "Sure? Ask to restart room", exact: true }).click();
+    await deaf.getByRole("alertdialog").getByRole("button", { name: "No" }).click();
+    await mute.getByText(/Bo said no/).waitFor({ timeout: 2000 });
+    // the others hear it end at slightly different moments: wait for the bar to go, don't read it once
+    await expect.poll(() => deaf.getByRole("alertdialog").count(), { timeout: 3000 }).toBe(0);
+    // the room was not restarted: the player is still away from the spawn, and stays there
+    await deaf.waitForTimeout(500);
+    expect(await settledHash(deaf)).not.toBe(spawn);
+    await leaveGameAndClose(host, baseUrl);
+    await leaveGameAndClose(deaf, baseUrl);
+    await leaveGameAndClose(mute, baseUrl);
+  });
+
+  it("lets a player move again after a restart, the one who asked and the others", async () => {
     const table = await playRoom(browser, baseUrl);
     const { blind: host, deaf, mute } = table.byRole;
     await deaf.keyboard.down("d");
     await deaf.waitForTimeout(600);
     await deaf.keyboard.up("d");
-    await host.getByRole("button", { name: "Restart room", exact: true }).click();
-    await host.getByRole("button", { name: "Sure? Restart room", exact: true }).click();
+    await askToRestart(host, [deaf, mute]);
     await deaf.waitForTimeout(500);
     for (const page of [deaf, mute]) {
       const before = await canvasHash(page);

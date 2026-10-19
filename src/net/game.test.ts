@@ -5,19 +5,25 @@ import type { Seat } from "../game/types.ts";
 import {
   advanceRoom,
   applyInput,
+  castVote,
   chooserFor,
   crewOf,
+  finishVote,
   giveSeatBack,
   markPlayed,
   PAUSE_MS,
   pauseFor,
+  proposeVote,
   relay,
   restartGame,
   resumeIfBack,
+  settleVote,
   startGame,
   swapPeople,
   takeOverWithBot,
   tickGame,
+  VOTE_MS,
+  voters,
 } from "./game.ts";
 import { type LobbyState, newPerson } from "./lobbies.ts";
 
@@ -548,3 +554,127 @@ function withSeatsOf(l: LobbyState): LobbyState {
   l.seats = [seat(l.people[0]?.who ?? null, 0), seat(l.people[1]?.who ?? null, 1), bot("triangle")];
   return l;
 }
+
+// Restarting the room, or the whole heist, needs every connected person to say yes (ADR 0013).
+describe("a restart vote", () => {
+  const three = () => {
+    const l = lobby("a", "b", "c");
+    return { l, game: startGame(l, rooms) };
+  };
+
+  it("voters are the seats with a connected person: bots and people who dropped don't vote", () => {
+    expect(voters(three().l)).toEqual([0, 1, 2]);
+    expect(voters(withBots("a", 1, 2))).toEqual([0]);
+    const l = lobby("a", "b", "c");
+    l.seats[1].connected = false;
+    expect(voters(l)).toEqual([0, 2]);
+  });
+
+  it("proposing counts as a yes, and the vote stays open until everyone has answered", () => {
+    const { l, game } = three();
+    expect(proposeVote(game, l, 0, "room", 1000)).toBe("open");
+    expect(game.vote).toMatchObject({ kind: "room", by: 0, until: 1000 + VOTE_MS });
+    expect([...(game.vote?.yes ?? [])]).toEqual([0]);
+    expect(castVote(game, l, 1, true, 2000)).toBe("open");
+    expect(castVote(game, l, 2, true, 3000)).toBe("passed");
+  });
+
+  it("passes at once for a lone person with bots, since they are the only voter", () => {
+    const l = withBots("a", 1, 2);
+    const game = startGame(l, rooms);
+    expect(proposeVote(game, l, 0, "room", 0)).toBe("passed");
+  });
+
+  it("one no declines it", () => {
+    const { l, game } = three();
+    proposeVote(game, l, 1, "room", 0);
+    expect(castVote(game, l, 2, false, 10)).toBe("declined");
+  });
+
+  it("a second proposal while one is open is ignored", () => {
+    const { l, game } = three();
+    proposeVote(game, l, 0, "room", 0);
+    expect(proposeVote(game, l, 1, "heist", 5)).toBe("open");
+    expect(game.vote?.kind).toBe("room");
+    expect(game.vote?.by).toBe(0);
+  });
+
+  it("a person who answers twice, or who is not a voter, changes nothing", () => {
+    const { l, game } = three();
+    proposeVote(game, l, 0, "room", 0);
+    expect(castVote(game, l, 1, true, 1)).toBe("open");
+    expect(castVote(game, l, 1, false, 2)).toBe("open"); // already said yes: not taken back
+    expect([...(game.vote?.yes ?? [])].sort()).toEqual([0, 1]);
+    expect(castVote(game, l, 1, true, 3)).toBe("open");
+    const stranger = withBots("a", 1, 2);
+    const g2 = startGame(stranger, rooms);
+    expect(castVote(g2, stranger, 1, false, 0)).toBe("open"); // no vote open at all
+  });
+
+  it("is not allowed while the game is paused or the room is cleared", () => {
+    const { l, game } = three();
+    pauseFor(game, 2, 0);
+    expect(proposeVote(game, l, 0, "room", 1)).toBe("refused");
+    expect(game.vote).toBeNull();
+    game.paused = null;
+    game.world.status = "cleared";
+    expect(proposeVote(game, l, 0, "room", 1)).toBe("open"); // a cleared room may be restarted
+  });
+
+  it("a person leaving can complete it: the rest have all said yes", () => {
+    const { l, game } = three();
+    proposeVote(game, l, 0, "room", 0);
+    castVote(game, l, 1, true, 1);
+    l.seats[2] = bot("triangle");
+    expect(settleVote(game, l)).toBe("passed");
+  });
+
+  it("a restart-room vote passing restarts the room, everyone back at spawn", () => {
+    const { l, game } = three();
+    game.world.players[0].pos = { x: 5, y: 5 };
+    const world = game.world;
+    expect(finishVote(game, l, rooms, "passed")).toBe(null);
+    expect(game.vote).toBeNull();
+    expect(game.world).toBe(world); // no vote open: nothing happened
+    proposeVote(game, l, 0, "room", 0);
+    castVote(game, l, 1, true, 1);
+    castVote(game, l, 2, true, 2);
+    expect(finishVote(game, l, rooms, "passed")).toBe("room");
+    expect(game.world).not.toBe(world);
+    expect(game.vote).toBeNull();
+    expect(game.roomIndex).toBe(0);
+  });
+
+  it("a restart-heist vote passing clears who has played, and returns to room 1 with a fresh crew", () => {
+    const l = lobby("a", "b", "c", "d", "e");
+    l.seats = [seat("a", 0), seat("b", 1), seat("c", 2)];
+    l.sittingOut = ["d", "e"];
+    const game = startGame(l, rooms);
+    markPlayed(game, l);
+    game.world.status = "cleared";
+    advanceRoom(game, l, rooms);
+    markPlayed(game, l);
+    expect(game.roomIndex).toBe(1);
+    expect(l.people.flatMap((p) => p.played).length).toBe(6);
+
+    proposeVote(game, l, 0, "heist", 0);
+    for (const s of l.seats) castVote(game, l, s.person as 0, true, 1); // all three seated vote yes
+    expect(finishVote(game, l, rooms, "passed")).toBe("heist");
+    expect(game.roomIndex).toBe(0);
+    expect(game.world.room.id).toBe(rooms[0]?.id);
+    expect(l.people.map((p) => p.played)).toEqual([[], [], [], [], []]);
+    expect(game.crew.people).toEqual([0, 1, 2]);
+    expect(game.heistPeople.size).toBe(0);
+    expect(game.counted).toBe(-1);
+    expect(game.ready.size).toBe(0);
+  });
+
+  it("a declined or timed-out vote changes nothing but closing", () => {
+    const { l, game } = three();
+    const world = game.world;
+    proposeVote(game, l, 0, "room", 0);
+    expect(finishVote(game, l, rooms, "declined")).toBe(null);
+    expect(game.vote).toBeNull();
+    expect(game.world).toBe(world);
+  });
+});

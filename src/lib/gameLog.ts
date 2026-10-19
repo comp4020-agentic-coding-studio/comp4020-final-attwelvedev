@@ -14,6 +14,8 @@ export type GameEvent =
   | "lobby.order" // the host reordered the people
   | "lobby.setup" // a person answered their real-life setup (the answers are never logged)
   | "crew.swap" // the host swapped two people at a reveal
+  | "vote.propose" // someone proposed restarting (detail kind: room or heist)
+  | "vote.end" // the vote closed (detail kind and result)
   | "lobby.error"
   | "game.start"
   | "room.start"

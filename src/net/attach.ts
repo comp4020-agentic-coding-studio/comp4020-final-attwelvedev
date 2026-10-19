@@ -20,21 +20,26 @@ import { normaliseLobbyCode } from "./codes.ts";
 import {
   advanceRoom,
   applyInput,
+  castVote,
   chooserFor,
   crewOf,
+  finishVote,
   forgetPerson,
   type Game,
   giveSeatBack,
   markPlayed,
   PAUSE_MS,
   pauseFor,
+  proposeVote,
   relay,
-  restartGame,
   resumeIfBack,
+  settleVote,
   startGame,
   swapPeople,
   takeOverWithBot,
   tickGame,
+  VOTE_MS,
+  voters,
 } from "./game.ts";
 import {
   cleanNickname,
@@ -81,6 +86,7 @@ interface Running {
   full: Set<Seat>; // seats owed a full view (tiles) on the next tick
   timer: ReturnType<typeof setInterval> | null;
   pauseTimer: ReturnType<typeof setTimeout> | null; // the end of a dropped seat's time
+  voteTimer: ReturnType<typeof setTimeout> | null; // the end of an open restart vote's time
   // Totalled across rooms as each is cleared, so the heist run saved after
   // room 3 is the whole heist's time and loot, not just the last room's.
   heist: { ms: number; loot: number; lootTotal: number; versions: string[] };
@@ -304,8 +310,10 @@ function tick(code: string): void {
 function stopGame(running: Running): void {
   if (running.timer) clearInterval(running.timer);
   if (running.pauseTimer) clearTimeout(running.pauseTimer);
+  if (running.voteTimer) clearTimeout(running.voteTimer);
   running.timer = null;
   running.pauseTimer = null;
+  running.voteTimer = null;
 }
 
 // --- a dropped seat ---------------------------------------------------------
@@ -334,6 +342,72 @@ function announcePause(code: string): void {
   for (const who of humansOf(lobby)) hub.sendTo(who, msg);
 }
 
+// --- a restart vote ---------------------------------------------------------
+
+// Read once, so a spec can run against a short vote.
+const VOTE_FOR = Number(process.env.VOTE_MS) > 0 ? Number(process.env.VOTE_MS) : VOTE_MS;
+
+function voteMsg(game: Game, lobby: LobbyState): ServerMsg | null {
+  const vote = game.vote;
+  if (!vote) return null;
+  return {
+    t: "vote",
+    kind: vote.kind,
+    by: lobby.seats[vote.by]?.nickname ?? "A player",
+    left: Math.max(0, vote.until - Date.now()),
+    yes: [...vote.yes],
+    no: [...vote.no],
+    voters: voters(lobby),
+  };
+}
+
+// Only the people playing hear about a vote: the others watch, and have no say.
+function announceVote(code: string): void {
+  const running = games.get(code);
+  const lobby = registry.lobbies.get(code);
+  const msg = running && lobby ? voteMsg(running.game, lobby) : null;
+  if (!msg || !lobby) return;
+  for (const who of humansOf(lobby)) hub.sendTo(who, msg);
+}
+
+// The vote is over, one way or another. A passed one acts: the room starts again, or the heist
+// goes back to its first room's reveal.
+function endVote(code: string, result: "passed" | "declined" | "timeout", by?: string): void {
+  const running = games.get(code);
+  const lobby = registry.lobbies.get(code);
+  const kind = running?.game.vote?.kind;
+  if (!running || !lobby || !kind) return;
+  if (running.voteTimer) clearTimeout(running.voteTimer);
+  running.voteTimer = null;
+  const acted = finishVote(running.game, lobby, roomList(), result);
+  record("vote.end", null, lobby, { kind, result });
+  for (const who of humansOf(lobby)) {
+    hub.sendTo(who, { t: "vote.end", kind, result, ...(by ? { by } : {}) });
+  }
+  if (acted === "room") {
+    record("room.start", null, lobby, { room: running.game.world.room.id });
+    running.full = new Set([0, 1, 2]);
+    runIfReady(code, running); // a cleared room that was restarted has everyone ready already
+  } else if (acted === "heist") {
+    if (running.timer) clearInterval(running.timer);
+    running.timer = null;
+    running.heist = { ms: 0, loot: 0, lootTotal: 0, versions: [] };
+    running.full = new Set([0, 1, 2]);
+    record("room.start", null, lobby, { room: running.game.world.room.id });
+    announceRoom(code);
+  }
+}
+
+// People came or went: an open vote may now be decided by those who are left.
+function recheckVote(code: string): void {
+  const running = games.get(code);
+  const lobby = registry.lobbies.get(code);
+  if (!running || !lobby || !running.game.vote) return;
+  const result = settleVote(running.game, lobby);
+  if (result === "open") announceVote(code);
+  else endVote(code, result);
+}
+
 // The game stops for everyone and the seat is held. A second drop while paused
 // changes nothing; once the first seat is back, whoever is still away is waited for.
 function beginPause(code: string, seat: Seat): void {
@@ -341,6 +415,7 @@ function beginPause(code: string, seat: Seat): void {
   const lobby = registry.lobbies.get(code);
   if (!running || !lobby || running.game.paused) return;
   if (running.game.world.status !== "playing" || lobby.seats[seat]?.bot) return;
+  if (running.game.vote) endVote(code, "timeout"); // nobody votes on a game that is waiting for someone
   pauseFor(running.game, seat, Date.now(), PAUSE_FOR);
   record("pause", lobby.seats[seat]?.who ?? null, lobby);
   running.pauseTimer = setTimeout(() => pauseEnds(code), PAUSE_FOR);
@@ -396,6 +471,7 @@ function botTakesSeat(code: string, seat: Seat, by: string | null, former: strin
   if (wasWaitedFor)
     for (const person of humansOf(lobby)) hub.sendTo(person, { t: "resume", back: null });
   hub.broadcast(lobby);
+  recheckVote(code); // the person who left may have been the one a vote was waiting for
   pauseIfAnyAbsent(code); // someone else may be away too
 }
 
@@ -599,6 +675,7 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
           full: new Set([0, 1, 2]),
           timer: null,
           pauseTimer: null,
+          voteTimer: null,
           heist: { ms: 0, loot: 0, lootTotal: 0, versions: [] },
         });
         announceRoom(lobby.code);
@@ -615,17 +692,35 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         runIfReady(code, running);
         return;
       }
-      case "room.restart": {
+      case "vote.propose": {
         const code = registry.byDevice.get(who);
         const running = code ? games.get(code) : undefined;
-        if (!code || !running || running.game.paused) return;
-        if (registry.lobbies.get(code)?.host !== who) {
-          throw new LobbyError("not-host", "Only the host can do that.");
-        }
-        restartGame(running.game);
-        record("room.start", who, registry.lobbies.get(code), { room: running.game.world.room.id });
-        running.full = new Set([0, 1, 2]);
-        runIfReady(code, running);
+        const lobby = code ? registry.lobbies.get(code) : undefined;
+        const seat = code ? seatOfDevice(code, who) : null;
+        if (!code || !running || !lobby || seat === null || running.game.vote) return; // one at a time
+        const result = proposeVote(running.game, lobby, seat, msg.kind, Date.now(), VOTE_FOR);
+        if (result === "refused") return;
+        record("vote.propose", who, lobby, { kind: msg.kind });
+        if (result === "open") {
+          running.voteTimer = setTimeout(() => endVote(code, "timeout"), VOTE_FOR);
+          announceVote(code);
+        } else endVote(code, "passed"); // the only person in the room: nobody else to ask
+        return;
+      }
+      case "vote.cast": {
+        const code = registry.byDevice.get(who);
+        const running = code ? games.get(code) : undefined;
+        const lobby = code ? registry.lobbies.get(code) : undefined;
+        const seat = code ? seatOfDevice(code, who) : null;
+        if (!code || !running || !lobby || seat === null || !running.game.vote) return;
+        const result = castVote(running.game, lobby, seat, msg.yes, Date.now());
+        if (result === "open") announceVote(code);
+        else
+          endVote(
+            code,
+            result,
+            result === "declined" ? (lobby.seats[seat]?.nickname ?? undefined) : undefined,
+          );
         return;
       }
       case "next": {
@@ -635,6 +730,7 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         if (!code || !running || !lobby || running.game.paused) return;
         if (lobby.host !== who) throw new LobbyError("not-host", "Only the host can do that.");
         if (running.game.world.status !== "cleared") return;
+        if (running.game.vote) endVote(code, "timeout"); // a vote about the room just left
         if (advanceRoom(running.game, lobby, roomList()) === "done") return;
         running.full = new Set([0, 1, 2]);
         announceRoom(code);
@@ -810,6 +906,9 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
     delete resumed.game.inputs[seat];
     resumed.full.add(seat);
     sendReveal(code, seat);
+    const lobbyNow = registry.lobbies.get(code);
+    const open = lobbyNow ? voteMsg(resumed.game, lobbyNow) : null;
+    if (open) hub.sendTo(who, open); // a page that opened mid-vote is told
     // Back, or only the landing page opening a socket? A page says which within moments (the
     // landing page asks to watch the lobby list), so the game is only resumed after that.
     setTimeout(() => {

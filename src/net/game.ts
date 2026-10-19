@@ -49,6 +49,19 @@ export interface Caught {
   checkpoint: number;
 }
 
+export type VoteKind = "room" | "heist";
+
+// A restart waiting on the people in the room: proposing is a yes, and it ends the moment everyone has
+// said yes (it passes) or anyone says no (it is declined). `until` is when it times out.
+export interface Vote {
+  kind: VoteKind;
+  by: Seat;
+  until: number;
+  yes: Set<Seat>;
+  no: Set<Seat>;
+}
+export const VOTE_MS = 15_000;
+
 export interface Game {
   lobby: string; // code
   roomIndex: number;
@@ -61,6 +74,7 @@ export interface Game {
   cooldowns: CooldownState;
   bots: Partial<Record<Seat, BotSeat>>; // a memory and an inbox for each seat a bot plays
   paused: Paused | null;
+  vote: Vote | null;
   vacated: Partial<Record<Seat, string>>; // the device that left a seat a bot now plays, who may take it back
   heistPeople: Map<string, { nickname: string; bot: boolean }>; // everyone who played any room, for the heist record
   counted: number; // the last room whose crew was written to people's `played` (a restart is not a second play)
@@ -97,6 +111,7 @@ export function startGame(lobby: LobbyState, rooms: Room[]): Game {
     cooldowns: { until: {} },
     bots: {},
     paused: null,
+    vote: null,
     vacated: {},
     heistPeople: new Map(),
     counted: -1,
@@ -183,6 +198,88 @@ export function markPlayed(game: Game, lobby: LobbyState): boolean {
     }
   }
   return true;
+}
+
+// The seats whose vote counts: a connected person. A bot says yes to anything, and a person whose
+// connection dropped is waited for by the pause, not by a vote.
+export function voters(lobby: LobbyState): Seat[] {
+  return ([0, 1, 2] as const).filter((s) => {
+    const seat = lobby.seats[s];
+    return seat !== undefined && seat.who !== null && !seat.bot && seat.connected;
+  });
+}
+
+// Where an open vote stands, now that people may have changed: everyone who can vote has said yes,
+// or someone said no.
+export function settleVote(game: Game, lobby: LobbyState): "passed" | "declined" | "open" {
+  const vote = game.vote;
+  if (!vote) return "open";
+  if (vote.no.size > 0) return "declined";
+  return voters(lobby).every((s) => vote.yes.has(s)) ? "passed" : "open";
+}
+
+// Opens a vote, the proposer's yes counted. Only one at a time, and not while the game waits for
+// someone or a room is being left. "refused" says nothing was opened and nothing was open.
+export function proposeVote(
+  game: Game,
+  lobby: LobbyState,
+  seat: Seat,
+  kind: VoteKind,
+  now: number,
+  ms: number = VOTE_MS,
+): "passed" | "declined" | "open" | "refused" {
+  if (game.vote) return "open"; // one at a time: the proposal is ignored
+  if (game.paused) return "refused";
+  if (!voters(lobby).includes(seat)) return "refused";
+  game.vote = { kind, by: seat, until: now + ms, yes: new Set([seat]), no: new Set() };
+  return settleVote(game, lobby);
+}
+
+// A person's answer. Someone who has answered already keeps their answer; anyone who isn't a voter
+// is ignored.
+export function castVote(
+  game: Game,
+  lobby: LobbyState,
+  seat: Seat,
+  yes: boolean,
+  _now: number,
+): "passed" | "declined" | "open" {
+  const vote = game.vote;
+  if (!vote || !voters(lobby).includes(seat)) return "open";
+  if (vote.yes.has(seat) || vote.no.has(seat)) return settleVote(game, lobby);
+  (yes ? vote.yes : vote.no).add(seat);
+  return settleVote(game, lobby);
+}
+
+// The vote is over. A passed one acts: the room restarts, or the heist goes back to room 1 with
+// nobody having played yet. Returns what was restarted, or null if nothing was.
+export function finishVote(
+  game: Game,
+  lobby: LobbyState,
+  rooms: Room[],
+  result: "passed" | "declined" | "timeout",
+): VoteKind | null {
+  const vote = game.vote;
+  game.vote = null;
+  if (!vote || result !== "passed") return null;
+  if (vote.kind === "room") {
+    restartGame(game);
+    return "room";
+  }
+  const first = rooms[0];
+  if (!first) return null;
+  for (const person of lobby.people) person.played = [];
+  game.roomIndex = 0;
+  game.heistPeople = new Map();
+  game.counted = -1;
+  setCrew(game, lobby, crewFor(lobby, 0));
+  game.world = createWorld(first);
+  game.ready.clear();
+  game.inputs = {};
+  game.cooldowns = { until: {} };
+  game.startedAt = Date.now();
+  seatBots(game, botSeatsIn(lobby));
+  return "heist";
 }
 
 // A fresh world for the same room: everyone back at spawn, crates and doors

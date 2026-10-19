@@ -961,3 +961,28 @@ fieldset.settings {
     animation: fade 100ms ease-out both;
   }
 }
+
+/* a restart vote: a bar along the foot of the map, so people keep moving while they decide */
+.vote-prompt {
+  position: absolute;
+  left: var(--s-2);
+  right: var(--s-2);
+  bottom: var(--s-2);
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border: 2px solid var(--ui);
+  border-radius: var(--r);
+  background: rgb(11 18 32 / 92%);
+}
+.vote-prompt p {
+  margin: 0;
+}
+.vote-actions {
+  display: flex;
+  gap: var(--s-2);
+}
