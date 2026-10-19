@@ -577,3 +577,59 @@ serves fonts with different cache headers and compiles pages slowly. Rerun
 against a production build, all 825 passed, so nothing was changed to make
 them pass. No new rule was needed: the existing one was right, and was not
 followed.
+
+## 2026-10-19 — A wheel that passed every spec I wrote and failed the first person to use it
+
+7263836
+
+Playing the comms wheel took a minute and gave eight corrections: I steered a
+dot instead of aiming with my own cursor, the slots were small and the faces
+overlapped, the plate had a pointless dash, "hears this" was wrong for faces,
+neither Q nor 1-9 was shown anywhere, and sending a mark at a wall replaced
+the whole game with "Problem: Your role can't send that." The agent's
+specs had been green throughout.
+
+The obvious reply was to nudge sizes until my screenshot looked right. I had
+the agent find why the specs passed instead. The overlap test compared slot
+centres, so boxes could overlap and still pass; the phone spec asserted nothing
+about size; and the "Problem" screen was a latent bug, since any socket error
+(a cooldown, say) sent the lobby page to its failed state, and the new
+out-of-sight refusal was the first route to it that people actually take. The
+fix went in three places: geometry now sits in one module that drawing and
+hit-testing both read, tested on boxes and on "any point inside a box selects
+that box" for every page in both layouts; the lobby ignores in-game refusals
+by name; and each correction got its own measured spec. One decision stayed
+mine, because it changed the design: a 12-slot ring of 48 px targets cannot
+fit a 350 px phone, so on a phone Faces and Clips are a 4x3 grid.
+
+Checked by rerunning from a fresh server. A long-lived one filled its 40-lobby
+cap with leftovers of earlier runs and failed unrelated specs with timeouts,
+which looked like regressions and were not.
+
+## 2026-10-19 — Retries were hiding five different flaky specs
+
+de360e7
+
+I had been rerunning failing `pnpm check` runs until they passed, which cost minutes
+and tokens each time. I asked the agent to stop retrying and find the causes. The
+obvious fix was to raise timeouts, which would have hidden them. It ran the whole suite
+repeatedly with a JSON reporter on a fresh server each time and sorted what failed:
+failures that were identical in every run were real bugs in the new code, and the ones
+that came and went were five separate things. Two compared a number read earlier against
+a page other test files were changing; one counted views in a window whose edge the test
+runner's own latency decided; one timed a keyboard flick from the runner, where each
+step is a round trip longer than the 200 ms it was testing; one captured a "spawn"
+picture on the game's first half-drawn frame. The first fix for that last one made it
+fail more often, which is what sent the agent to sample the canvas and see the three
+distinct frames instead of guessing a second time. Each was fixed at its cause, and
+the unit tests got a timeout that reflects a suite sharing a CPU with a dozen browsers.
+
+Checked by running the whole suite eight times, half with four processes burning the CPU:
+922 passing each time, against four failing runs out of six before.
+
+Afterwards: the tool that found them became part of the harness (`pnpm check:flaky`,
+and a CLAUDE.md section naming the causes), and the first time it ran for real it found
+a sixth, a cache spec that stalled once in about forty runs and left its lobby and two
+browsers behind. I could not reproduce it, so I fixed what I could see (cleanup in a
+`finally`) and logged that it was not proven gone, instead of calling it fixed.
+
