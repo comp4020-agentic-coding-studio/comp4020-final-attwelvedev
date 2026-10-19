@@ -317,27 +317,32 @@ sound captions at all (FR4): `Game.tsx` doesn't render `cues` for deaf.
   they are walking; receiver lines read clearly. Pass = the user says so.
 - **Depends on:** Task 1.
 
-### Task 3: Enter to write, V to talk (hold or toggle), mic live
+### Task 3: V to talk, hold or toggle, with a Mic live chip
 
-- **Description:** Text entry and voice controls outside the wheel (this
-  file's §4 "Talk keys").
-- **Files touched:** new `src/components/TalkBar.tsx` (text field + mic button
-  + "Mic live" chip), `src/components/useVoice.ts` (a `mode` argument;
-  `talk(on)` unchanged; new `toggle()`), `src/client/settings.ts` (+ test),
-  `src/components/Settings.tsx` (the voice-mode choice),
-  `src/components/Game.tsx`, `src/styles/game.css`,
-  `spec/layout/voice.test.ts` (updated: the hold-to-talk button lives in the
-  TalkBar; new toggle cases).
-- **Tests first (red):** `settings.test.ts`: `voiceMode` defaults to `"hold"`
-  and persists. `spec/layout/voice.test.ts`: "Enter opens the text field,
-  Enter sends to Can't speak, Esc closes, and movement keys don't move the
-  avatar while typing"; "in toggle mode, V turns the mic on, Mic live shows, a
-  second V turns it off"; "leaving the tab turns a toggled mic off"; keep
-  "Can't speak has no push to talk at all" (mic button hatched with "Can't
-  talk") and the blocked/no-encoder cases.
-- **Implementation (green):** per §4.
+- **Already built in Task 2 (7263836), so not redone here:** `src/components/TalkBar.tsx`
+  exists with the Enter text field, the hold-to-talk mic button (hatched "Can't talk" for
+  Can't speak), the voice-status notes and the Comms button; `Game.tsx` mounts it;
+  `spec/layout/voice.test.ts` covers hold-V, Enter-to-write and the blocked and no-encoder
+  cases against it. `Settings` already has `voiceMode: "hold" | "toggle"` (default
+  `"hold"`, round-trips, tested) but nothing reads it yet.
+- **Description:** Make `voiceMode` do something: in `"toggle"` mode V (or the mic
+  button) flips the mic on and off instead of needing to be held, with a "Mic live" chip
+  (a pulsing dot, static under reduced motion) while it is on; blur, leaving the page or
+  Esc turns it off. Add the Settings choice for it.
+- **Files touched:** `src/components/useVoice.ts` (a `mode` argument; `talk(on)`
+  unchanged; new `toggle()`), `src/components/TalkBar.tsx` (the chip; the button's
+  behaviour by mode), `src/components/CommsWheel.tsx` (the V handler: hold vs toggle; it
+  currently calls `voice.talk(true/false)` on keydown/keyup), `src/components/Game.tsx`,
+  `src/components/Settings.tsx` (the voice-mode choice) and its test,
+  `src/styles/game.css`, `spec/layout/voice.test.ts` (new toggle cases).
+- **Tests first (red):** `spec/layout/voice.test.ts`: "in toggle mode, V turns the mic
+  on, Mic live shows, a second V turns it off"; "leaving the tab turns a toggled mic
+  off"; "Esc turns a toggled mic off". A unit test for the mode logic if it is kept
+  pure.
+- **Implementation (green):** per §4 "Talk keys".
 - **Acceptance criteria:** specs green; text sent by a Can't-see player still
-  reaches Can't speak and is spoken for Can't see's receivers as today.
+  reaches Can't speak and is spoken for Can't see's receivers as today; hold mode
+  behaves exactly as before.
 - **Depends on:** Task 2.
 
 ### Task 4: Captions point with drawn arrows; only what you receive
