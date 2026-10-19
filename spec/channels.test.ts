@@ -100,6 +100,14 @@ describe("channels: who hears what", () => {
     await closeAll(players);
   });
 
+  it("a mark on a wall is not-in-sight, not 'your role can't send that', and reaches nobody", async () => {
+    const { players, blind, deaf, mute } = await crew();
+    deaf.socket.send({ t: "send", msg: { method: "mark", id: "key", at: { x: 0.5, y: 0.5 } } });
+    expect((await deaf.socket.next<ErrorMsg>("error")).code).toBe("not-in-sight");
+    await Promise.all([silent(blind), silent(mute)]);
+    await closeAll(players);
+  });
+
   it("a face from Can't see reaches Can't hear and Can't speak, with the sender's position", async () => {
     const { players, blind, deaf, mute } = await crew();
     blind.socket.send({ t: "send", msg: { method: "face", id: "f01" } });

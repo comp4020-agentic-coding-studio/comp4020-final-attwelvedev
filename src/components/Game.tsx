@@ -16,15 +16,17 @@ import {
 } from "../client/hud.ts";
 import { createInput } from "../client/input.ts";
 import { createPredictor, type Predictor } from "../client/predict.ts";
-import { draw, type FacePop, type Scene } from "../client/render.ts";
+import { camera, draw, type FacePop, type Scene } from "../client/render.ts";
 import { loadSettings, type Settings as SettingsState, saveSettings } from "../client/settings.ts";
 import type { ConnectionState, GameSocket } from "../client/socket.ts";
 import { browserSpeech } from "../client/speech.ts";
 import { NET, setContrast } from "../client/tokens.ts";
+import { quickSlot } from "../client/wheel.ts";
 import { FACE_POP_MS } from "../game/channels.ts";
 import { ROLE_LABEL, type Role, type Vec } from "../game/types.ts";
 import type { CrewMember, LobbySettings, LobbyState, RoleView } from "../net/protocol.ts";
 import { type CaptionLine, Captions } from "./Captions.tsx";
+import { type CommsApi, CommsWheel } from "./CommsWheel.tsx";
 import { ConfirmButton } from "./ConfirmButton.tsx";
 import { Connection } from "./Connection.tsx";
 import { Disconnect } from "./Disconnect.tsx";
@@ -33,8 +35,8 @@ import { RoleReveal } from "./RoleReveal.tsx";
 import { RoleShape } from "./RoleShape.tsx";
 import { RoomCleared } from "./RoomCleared.tsx";
 import { Settings } from "./Settings.tsx";
+import { TalkBar } from "./TalkBar.tsx";
 import { TouchControls } from "./TouchControls.tsx";
-import { Tray } from "./Tray.tsx";
 import { useVoice } from "./useVoice.ts";
 
 export interface Reveal {
@@ -62,6 +64,7 @@ interface Runtime {
   cueHold: Map<string, number>; // cue captions and when to let each go
   fx: { fx: Fx; at: number }[]; // small effects for what just changed, by when they started
   soundOn: boolean;
+  cam: { scale: number; ox: number; oy: number } | null; // the last frame's map camera, to turn a tap into a tile
 }
 
 const CAPTION_MS = 5000;
@@ -128,6 +131,7 @@ export function Game({
     fx: [],
     cueHold: new Map(),
     soundOn: true,
+    cam: null,
   });
   const audio = useRef<GameAudio | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -237,6 +241,9 @@ function Hud({
   const [lines, setLines] = useState<CaptionLine[]>([]);
   const [cues, setCues] = useState<string[]>([]);
   const [typing, setTyping] = useState(false);
+  const [writing, setWriting] = useState(false);
+  const field = useRef<HTMLInputElement>(null);
+  const comms = useRef<CommsApi | null>(null);
   const voice = useVoice(socket, role, lobbySettings.voice, root);
   // Can't see and Can't speak get captions instead of game sound when the
   // host's wizard says the room's other players don't have headphones, so the
@@ -246,6 +253,20 @@ function Hud({
   live.current.settings = settings;
   live.current.forceCaptions = forceCaptions;
   rt.soundOn = settings.sound && !forceCaptions;
+
+  // The tile centre under a client point, for placing a mark; `open` is false
+  // for a wall (the server decides what is in sight).
+  function toTile(clientX: number, clientY: number): { at: Vec; open: boolean } | null {
+    const box = canvas.current?.getBoundingClientRect();
+    const cam = rt.cam;
+    const tiles = rt.tiles;
+    if (!box || !cam || !tiles) return null;
+    const tx = Math.floor((clientX - box.left - cam.ox) / cam.scale);
+    const ty = Math.floor((clientY - box.top - cam.oy) / cam.scale);
+    const row = tiles[ty];
+    if (row === undefined || tx < 0 || tx >= row.length) return null;
+    return { at: { x: tx + 0.5, y: ty + 0.5 }, open: row[tx] !== "#" };
+  }
 
   function change(next: SettingsState) {
     setSettings(next);
@@ -473,6 +494,7 @@ function Hud({
         nowMs: now,
         reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
       };
+      rt.cam = camera(scene);
       draw(ctx, scene);
     };
     raf = requestAnimationFrame(frameLoop);
@@ -514,6 +536,8 @@ function Hud({
   const gone = reveal.crew.flatMap((c, i) =>
     presence[i] ? [{ name: c.nickname, how: presence[i] }] : [],
   );
+  // each role appears once in a crew, so the seat that has this page's role is this page's seat
+  const me = reveal.crew.find((c) => c.role === role)?.seat ?? 0;
   const label = ROLE_LABEL[role];
   return (
     <div class="game" ref={root} style={{ "--frame": `var(--role-${role})` }}>
@@ -607,6 +631,28 @@ function Hud({
           aria-label={role === "blind" ? "No map. Listen to the room." : "Map of the room"}
         />
         <Captions lines={lines} cues={cues} />
+        <CommsWheel
+          role={role}
+          me={me}
+          crew={reveal.crew}
+          socket={socket}
+          quick={settings.quick}
+          voice={voice}
+          api={comms}
+          typing={typing}
+          toTile={toTile}
+          onPin={(id) => change({ ...settings, quick: id })}
+          onText={() => {
+            if (role === "mute") return;
+            setWriting(true);
+            setTimeout(() => field.current?.focus(), 0);
+          }}
+          onClose={() => setWriting(false)}
+          onOwnFace={(id) => {
+            // Can't see has no map, so there is no character to put it over
+            if (role !== "blind") rt.pops.push({ seat: me, id, at: performance.now() });
+          }}
+        />
         {typing && (
           <span class="typing-badge" role="status">
             Typing
@@ -654,20 +700,31 @@ function Hud({
         )}
       </div>
 
-      <Tray
+      <TalkBar
         role={role}
-        socket={socket}
-        keepOpen={settings.keepOpen}
-        onTyping={setTyping}
         voice={voice}
-        at={() => {
-          const p = rt.self ?? rt.view?.you.pos ?? { x: 0, y: 0 };
-          return { x: Math.floor(p.x) + 0.5, y: Math.floor(p.y) + 0.5 };
+        writing={writing}
+        field={field}
+        onWrite={() => {
+          setWriting(true);
+          setTimeout(() => field.current?.focus(), 0);
         }}
+        onText={(text) => {
+          if (text.trim() === "") return;
+          socket.send({ t: "send", msg: { method: "text", text } });
+          setWriting(false);
+        }}
+        onFocus={setTyping}
+        onComms={touch ? undefined : () => comms.current?.toggle()}
+        commsDisabled={cleared}
       />
 
       {touch ? (
-        <TouchControls disabled={cleared} />
+        <TouchControls
+          disabled={cleared}
+          comms={comms}
+          quickLabel={quickSlot(role, settings.quick).name}
+        />
       ) : (
         <p class={cleared ? "keys is-off" : "keys"}>WASD or arrows move · Space acts</p>
       )}

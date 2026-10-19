@@ -37,6 +37,14 @@
   --floor: #0f1830; /* map floor */
   --crate: #c98f5a;
   --paper: #ffffff; /* the QR code's quiet zone: scanners need dark on light */
+  /* spec §4.1 shell tokens: every chip over the world sits on --glass (--ui on it is >= 10:1) */
+  --glass: rgb(20 30 54 / 88%);
+  --scrim: rgb(11 18 32 / 62%);
+  --hatch: repeating-linear-gradient(
+    45deg,
+    rgb(154 167 194 / 35%) 0 2px,
+    transparent 2px 6px
+  ); /* "can't": 45-degree stripes of --ui-muted */
 
   --font: "Archivo", "Archivo fallback", system-ui, sans-serif;
   --t-14: 14px;
@@ -83,4 +91,7 @@
   --solid: #ffffff;
   --floor: #000000;
   --crate: #ffaa00;
+  --glass: rgb(0 0 0 / 92%);
+  --scrim: rgb(0 0 0 / 70%);
+  --hatch: repeating-linear-gradient(45deg, rgb(255 255 255 / 55%) 0 2px, transparent 2px 6px);
 }

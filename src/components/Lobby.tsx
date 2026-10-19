@@ -74,6 +74,8 @@ export function Lobby({ code }: { code: string }) {
         })),
       ),
       socket.on("error", (m) => {
+        // a refused send (too soon, not allowed, not in sight) is the wheel's to show, never the lobby failing
+        if (m.code === "cooldown" || m.code === "cant-send" || m.code === "not-in-sight") return;
         setMessage(m.message);
         if (m.code === "lobby-not-found") setStatus("missing");
         else if (m.code === "lobby-full") setStatus("full");

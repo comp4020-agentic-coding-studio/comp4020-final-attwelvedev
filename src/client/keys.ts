@@ -1,36 +1,40 @@
-import { CALLOUTS, type Callout } from "../game/channels.ts";
+import type { Role } from "../game/types.ts";
+import { PAGES, type Page } from "./wheel.ts";
 
-export type Sheet = "say" | "sound" | "show";
 export type KeyAction =
-  | { type: "open"; sheet: Sheet }
-  | { type: "close" }
-  | { type: "pick"; index: number } // slot in the open sheet, from 0
-  | { type: "tab"; tab: "faces" | "stamps" } // F and T inside Show
-  | { type: "page" } // 0: the Show hotbar moves between faces 1–6 and 7–12
-  | { type: "text" } // Enter in Say: focus the text field
+  | { type: "wheel" } // Q: open the wheel, while held
+  | { type: "page"; page: Page } // 1-4 while the wheel is held
+  | { type: "text" } // Enter: open the text field
   | { type: "keys" } // Tab: show the key list while held
-  | { type: "talk" } // V: push to talk, while held
+  | { type: "talk" } // V: talk (hold, or press to toggle)
+  | { type: "close" } // Esc: close or cancel whatever is open
   | null;
 
-const OPENS: Record<string, Sheet> = { "1": "say", "2": "sound", "3": "show" };
-
-// What a key does to the tray. `open` is the sheet showing (null when none);
-// `typing` is true while a text field has focus. Then the field owns every key
-// but Esc, so a digit typed into a message never picks a callout.
-export function keyAction(open: Sheet | null, key: string, typing: boolean): KeyAction {
-  if (key === "Escape") return open ? { type: "close" } : null;
-  if (typing) return null;
-  if (key === "Tab") return { type: "keys" };
-  if (key.toLowerCase() === "v") return { type: "talk" };
-  if (open === null) {
-    const sheet = OPENS[key];
-    return sheet ? { type: "open", sheet } : null;
-  }
-  if (key === "0") return { type: "page" };
-  if (open === "show" && key.toLowerCase() === "f") return { type: "tab", tab: "faces" };
-  if (open === "show" && key.toLowerCase() === "t") return { type: "tab", tab: "stamps" };
-  if (key === "Enter") return open === "say" ? { type: "text" } : null;
-  return /^[1-9]$/.test(key) ? { type: "pick", index: Number(key) - 1 } : null;
+export interface KeyEvent {
+  key: string;
+  code: string;
+  shiftKey: boolean;
 }
 
-export const calloutAt = (index: number): Callout | undefined => CALLOUTS[index];
+// What a key does to the comms. Sending is by the wheel, never by a number you
+// would have to remember: 1-4 only switch pages while the wheel is held. `wheel`
+// is true while it is held open; `typing` is true while a text field has focus,
+// when the field owns every key but Esc.
+export function keyAction(
+  _role: Role,
+  state: { wheel: boolean; typing: boolean },
+  e: KeyEvent,
+): KeyAction {
+  if (e.key === "Escape") return { type: "close" };
+  if (state.typing) return null;
+  if (e.key === "Tab") return { type: "keys" };
+  const lower = e.key.toLowerCase();
+  if (lower === "q") return { type: "wheel" };
+  if (lower === "v") return { type: "talk" };
+  if (e.key === "Enter") return { type: "text" };
+  if (!state.wheel) return null;
+  // the physical key, so Shift or another layout does not change which page it is
+  const digit = /^Digit([1-4])$/.exec(e.code)?.[1] ?? (/^[1-4]$/.test(e.key) ? e.key : null);
+  const page = digit ? PAGES[Number(digit) - 1] : undefined;
+  return page ? { type: "page", page } : null;
+}

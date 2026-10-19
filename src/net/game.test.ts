@@ -381,6 +381,29 @@ describe("a person's messages reach the bots they are sent to", () => {
   });
 });
 
+describe("a mark must be on a tile the sender can see", () => {
+  const first = (game: ReturnType<typeof startGame>, role: "deaf" | "blind" | "mute") =>
+    game.roles.indexOf(role) as Seat;
+
+  it("is refused as not-in-sight on a wall, not as the role being unable to send", () => {
+    const l = withBots("a", 1, 2);
+    const game = startGame(l, rooms);
+    const deaf = first(game, "deaf");
+    const sent = relay(game, l, deaf, { method: "mark", id: "x", at: { x: 0.5, y: 0.5 } }, 1_000);
+    expect(sent).toEqual({ ok: false, code: "not-in-sight" });
+    expect(game.world.stamps).toHaveLength(0);
+  });
+
+  it("is still cant-send for a role that can't send marks at all", () => {
+    const l = withBots("a", 1, 2);
+    const game = startGame(l, rooms);
+    const blind = first(game, "blind");
+    const here = game.world.players[blind].pos;
+    const sent = relay(game, l, blind, { method: "mark", id: "x", at: here }, 1_000);
+    expect(sent).toEqual({ ok: false, code: "cant-send" });
+  });
+});
+
 describe("being caught", () => {
   it("is reported by tickGame: what, which player, and the checkpoint the team goes back to", () => {
     const game = startGame(lobby("a", "b", "c"), [rooms[1] as (typeof rooms)[0]]);

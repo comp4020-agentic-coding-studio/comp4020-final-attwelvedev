@@ -1,5 +1,5 @@
 import { type Callout, CLIPS, type Stamp } from "../game/channels.ts";
-import { canReceive, canSend, type Method, ROLES, type Role } from "../game/types.ts";
+import type { Role } from "../game/types.ts";
 import type { ChannelMessage, EntityView, SoundCue } from "../net/protocol.ts";
 
 export const ROLE_GLYPH: Record<Role, string> = { blind: "●", deaf: "■", mute: "▲" };
@@ -145,34 +145,6 @@ export function heardCues(held: Map<string, number>, now: number): string[] {
 export function formatTime(ms: number): string {
   const total = Math.floor(ms / 1000);
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
-}
-
-// Temporary: the tray's three tiles stand for a method each until the comms
-// wheel (Task 2) replaces them.
-export type TrayKind = "say" | "sound" | "show";
-export interface TrayTile {
-  family: TrayKind;
-  label: string;
-  canSend: boolean;
-  receivers: Role[]; // who it goes to, in role order
-  youReceive: boolean;
-}
-
-const TILES: [TrayKind, string, Method][] = [
-  ["say", "Say", "callout"],
-  ["sound", "Sound", "clip"],
-  ["show", "Show", "face"],
-];
-
-// A tile a role can't send on stays in the tray (shown as "Can't send"), never hidden.
-export function trayFor(role: Role): TrayTile[] {
-  return TILES.map(([family, label, method]) => ({
-    family,
-    label,
-    canSend: canSend(role, method),
-    receivers: ROLES.filter((r) => canReceive(r, method)),
-    youReceive: canReceive(role, method),
-  }));
 }
 
 const JUMP_TILES = 3; // further than this in one view is a push or a reconnect, not a walk

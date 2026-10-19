@@ -11,7 +11,6 @@ import {
   heardCues,
   hostChangeText,
   lerpEntities,
-  trayFor,
 } from "./hud.ts";
 
 describe("formatTime", () => {
@@ -21,25 +20,6 @@ describe("formatTime", () => {
     expect(formatTime(1000)).toBe("0:01");
     expect(formatTime(102_000)).toBe("1:42");
     expect(formatTime(3_725_000)).toBe("62:05");
-  });
-});
-
-describe("trayFor", () => {
-  it("lists Say, Sound and Show with who receives each, from the method table", () => {
-    const blind = trayFor("blind");
-    expect(blind.map((t) => t.label)).toEqual(["Say", "Sound", "Show"]);
-    expect(blind.map((t) => t.canSend)).toEqual([true, false, true]); // ADR 0011: no clips
-    expect(blind[0]?.receivers).toEqual(["blind", "mute"]);
-    expect(blind[2]?.receivers).toEqual(["deaf", "mute"]);
-    expect(blind.map((t) => t.youReceive)).toEqual([true, true, false]);
-  });
-
-  it("marks a family the role can't send on, but keeps it listed", () => {
-    const mute = trayFor("mute");
-    expect(mute[0]).toMatchObject({ label: "Say", canSend: false, youReceive: true });
-    expect(mute[1]?.canSend).toBe(true);
-    const deaf = trayFor("deaf");
-    expect(deaf.map((t) => t.youReceive)).toEqual([false, false, true]);
   });
 });
 

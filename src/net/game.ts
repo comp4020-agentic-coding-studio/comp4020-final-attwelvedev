@@ -13,6 +13,7 @@ import { lineOfSight } from "../game/sim/sight.ts";
 import { step } from "../game/sim/step.ts";
 import { addStamp, createWorld, TICK_MS, type World } from "../game/sim/world.ts";
 import {
+  canSend,
   type Method,
   type PlayerInput,
   ROLES,
@@ -279,7 +280,7 @@ export type Relayed =
       receivers: Seat[];
       cooldown: { method: Method; until: number } | null;
     }
-  | { ok: false; code: "cant-send" | "cooldown"; until?: number }
+  | { ok: false; code: "cant-send" | "cooldown" | "not-in-sight"; until?: number }
   | null; // nothing to send
 
 const tenth = (n: number): number => Math.round(n * 10) / 10;
@@ -302,10 +303,12 @@ export function relay(
     out = { method: "text", text };
   } else if (req.method === "mark") {
     // the centre of the floor tile picked, which the sender must be able to see
+    // (a role that can't send marks at all is refused first, whatever tile it picked)
+    if (!canSend(game.roles[from], "mark")) return { ok: false, code: "cant-send" };
     const at = { x: Math.floor(req.at.x) + 0.5, y: Math.floor(req.at.y) + 0.5 };
     const ch = game.world.room.grid[Math.floor(at.y)]?.[Math.floor(at.x)];
     if (ch === undefined || ch === "#" || !lineOfSight(game.world, pos, at)) {
-      return { ok: false, code: "cant-send" };
+      return { ok: false, code: "not-in-sight" };
     }
     out = { method: "mark", id: req.id, at };
   } else {

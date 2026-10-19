@@ -42,6 +42,7 @@ export function Home() {
         if (going.current) location.assign(`/lobby/${m.lobby.code}`);
       }),
       socket.on("error", (m) => {
+        if (m.code === "cooldown" || m.code === "cant-send" || m.code === "not-in-sight") return;
         going.current = false;
         // a full lobby is not an error here: its page offers Watch or Start a new team
         if (m.code === "lobby-full" && target.current) location.assign(`/lobby/${target.current}`);

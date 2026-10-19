@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 import { ROLE_LABEL } from "../../src/game/types.ts";
 import { axeViolations, horizontalOverflow, launch } from "../browser.ts";
 import { leaveGameAndClose } from "../lobbyUi.ts";
-import { canvasHash, playRoom } from "../playUi.ts";
+import { canvasHash, playRoom, settledHash } from "../playUi.ts";
 
 const baseUrl = inject("baseUrl");
 let browser: Browser;
@@ -62,18 +62,18 @@ describe("the game screen", () => {
     await leaveGameAndClose(table.byRole.mute, baseUrl);
   });
 
-  it("puts the joystick and Act on touch, clear of the tray, and no key hints there", async () => {
+  it("puts the joystick and Act on touch, clear of the talk bar, and no key hints there", async () => {
     const table = await playRoom(browser, baseUrl);
     const { phone } = table;
     await phone.locator("[data-joystick]").waitFor();
     await phone.locator("[data-act]").waitFor();
-    const tray = await phone.locator(".tray").boundingBox();
+    const bar = await phone.locator(".talk-bar").boundingBox();
     const stick = await phone.locator("[data-joystick]").boundingBox();
     const act = await phone.locator("[data-act]").boundingBox();
-    expect(tray && stick && act).toBeTruthy();
-    if (tray && stick && act) {
-      expect(stick.y).toBeGreaterThanOrEqual(tray.y + tray.height);
-      expect(act.y).toBeGreaterThanOrEqual(tray.y + tray.height);
+    expect(bar && stick && act).toBeTruthy();
+    if (bar && stick && act) {
+      expect(stick.y).toBeGreaterThanOrEqual(bar.y + bar.height);
+      expect(act.y).toBeGreaterThanOrEqual(bar.y + bar.height);
       expect(stick.x).toBeLessThan(act.x);
       expect(act.width).toBeGreaterThanOrEqual(48);
     }
@@ -123,17 +123,27 @@ describe("the game screen", () => {
     const { blind: host, deaf, mute } = table.byRole;
     expect(await deaf.getByRole("button", { name: /Restart/ }).count()).toBe(0);
     expect(await mute.getByRole("button", { name: /Restart/ }).count()).toBe(0);
-    await deaf.waitForTimeout(300);
-    const spawn = await canvasHash(deaf);
-    await deaf.keyboard.down("d");
-    await deaf.waitForTimeout(800);
-    await deaf.keyboard.up("d");
-    await deaf.waitForTimeout(300);
-    expect(await canvasHash(deaf)).not.toBe(spawn);
-
-    await host.getByRole("button", { name: "Restart room", exact: true }).click();
-    await host.getByRole("button", { name: "Sure? Restart room", exact: true }).click();
-    await expect.poll(() => canvasHash(deaf), { timeout: 3000 }).toBe(spawn);
+    const restart = async () => {
+      await host.getByRole("button", { name: "Restart room", exact: true }).click();
+      await host.getByRole("button", { name: "Sure? Restart room", exact: true }).click();
+    };
+    const move = async () => {
+      await deaf.keyboard.down("d");
+      await deaf.waitForTimeout(800);
+      await deaf.keyboard.up("d");
+    };
+    // The first frames of a new game are not the scene yet (a reveal fades into it), so a
+    // picture taken then can never match the real spawn. A restart puts everyone at the
+    // spawn with the page long since loaded: take the spawn from there, then move away,
+    // restart again, and check the second restart looks like the first.
+    await restart();
+    await deaf.waitForTimeout(500); // the restart reaches the page; then wait for it to stop changing
+    const spawn = await settledHash(deaf);
+    await move();
+    expect(await settledHash(deaf)).not.toBe(spawn);
+    await restart();
+    // back at the spawn, once the scene has come to rest: not whatever frame happens to be up
+    await expect.poll(() => settledHash(deaf, 1500), { timeout: 8000 }).toBe(spawn);
     await leaveGameAndClose(host, baseUrl);
     await leaveGameAndClose(deaf, baseUrl);
     await leaveGameAndClose(mute, baseUrl);

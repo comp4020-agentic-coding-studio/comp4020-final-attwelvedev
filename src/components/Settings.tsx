@@ -94,10 +94,6 @@ export function Settings({
             </p>
           )}
           <label>
-            <input type="checkbox" checked={settings.keepOpen} onChange={toggle("keepOpen")} />
-            Keep the comms sheet open after sending
-          </label>
-          <label>
             <input
               type="checkbox"
               checked={settings.highContrast}

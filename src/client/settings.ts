@@ -4,7 +4,8 @@ export interface Settings {
   captions: boolean;
   sound: boolean; // game sound: footsteps, hums, clicks and soundboard clips
   speech: boolean; // Say text and callouts read aloud
-  keepOpen: boolean; // leave a comms sheet open after sending
+  voiceMode: "hold" | "toggle"; // V: hold to talk, or press to turn the mic on and off
+  quick: string | null; // the phone quick slot's pinned wheel slot, e.g. "face:f03"; null = the role's default
   highContrast: boolean; // high-contrast HUD and canvas palette, every role
   maskNoiseOn: boolean; // the deaf seat's own choice, when the host has turned masking noise on
   volume: number; // 0-1: the deaf seat's masking-noise volume
@@ -28,7 +29,8 @@ export const defaultsFor = (_role: Role): Settings => ({
   captions: true,
   sound: true,
   speech: true,
-  keepOpen: false,
+  voiceMode: "hold",
+  quick: null,
   highContrast: false,
   maskNoiseOn: true,
   volume: 0.5,
@@ -54,7 +56,8 @@ export function loadSettings(role: Role, store: Store | null = browserStore()): 
       captions: typeof saved.captions === "boolean" ? saved.captions : base.captions,
       sound: typeof saved.sound === "boolean" ? saved.sound : base.sound,
       speech: typeof saved.speech === "boolean" ? saved.speech : base.speech,
-      keepOpen: typeof saved.keepOpen === "boolean" ? saved.keepOpen : base.keepOpen,
+      voiceMode: saved.voiceMode === "toggle" ? "toggle" : "hold",
+      quick: typeof saved.quick === "string" ? saved.quick : null,
       highContrast:
         typeof saved.highContrast === "boolean" ? saved.highContrast : base.highContrast,
       maskNoiseOn: typeof saved.maskNoiseOn === "boolean" ? saved.maskNoiseOn : base.maskNoiseOn,

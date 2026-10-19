@@ -47,7 +47,8 @@ export type ErrorCode =
   | "need-three"
   | "throttled"
   | "cooldown"
-  | "cant-send";
+  | "cant-send"
+  | "not-in-sight"; // a mark on a tile the sender can't see
 export class LobbyError extends Error {
   code: ErrorCode;
   constructor(code: ErrorCode, message: string) {

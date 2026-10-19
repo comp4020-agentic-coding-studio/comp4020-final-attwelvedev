@@ -22,7 +22,7 @@ so playtest 3 can follow straight after.
 ### 2.1 Functional
 
 FR1, FR2 (in-game wording), FR3 (server-side check; until Task 14 "in sight"
-is the existing `lineOfSight`), FR4, FR26, FR27, FR28, FR30; FR8's server half
+is the existing `lineOfSight`), FR4, FR26, FR27, FR28 (phone quick slot only; the desktop number keys were dropped, see §4), FR30; FR8's server half
 (`from.pos` on faces); A4's `CLAUDE.md` "Shape of the app" line.
 
 ### 2.2 Non-functional
@@ -144,9 +144,20 @@ frame:
   follows the pointer; a click or tap on a tile sends `{ method: "mark", id,
   at }`; Esc or the wheel button cancels; a tile out of sight shows "not in
   sight" and doesn't send.
-- Number keys without the wheel (also the masked Can't-see path): 1–9 send the
-  callout at that grid index (the old `CALLOUTS` order) when the role sends
-  callouts, otherwise faces 1–9. Shift+1–9 send faces 1–9 for callout roles.
+- **No number-key shortcuts** (user decision 2026-10-19, replacing the original FR28
+  desktop half): nobody remembers which digit is which callout, so 1–9 and Shift+1–9
+  are gone. Sending is by the wheel only. While the wheel is open, 1–4 switch page.
+  Can't see keeps its wheel and controls (only the world is dark), so the masked case
+  is covered by the wheel and the Comms button.
+- **Comms button:** a visible "Q Comms" button beside the key hint opens the wheel and
+  leaves it open: click a page label, then a slot to send; Esc, a click outside, or the
+  button again closes. Holding Q or the right mouse button and flicking stays the fast
+  path. On a phone a quick tap on the wheel button does the same; hold-and-drag still works.
+- **Wheel shape:** Talk and Marks are a ring of eight round a small centre disc (Stop,
+  and a cross), so most of the middle of the map stays visible; Faces and Clips are a ring
+  of twelve on desktop and a 4x3 grid on a phone.
+- **Verbs:** only text is "reads this"; callouts, clips and voice are "hears this" (Can't
+  speak can't talk but can hear); faces and marks are "sees this".
 - Phone quick slot: one 48 px button beside Act; long-press (500 ms) on any
   wheel slot pins it (stored in `Settings.quick`); defaults: Can't see
   `callout:here`, Can't hear `callout:go`, Can't speak `face:f01`.
@@ -239,6 +250,11 @@ sound captions at all (FR4): `Game.tsx` doesn't render `cues` for deaf.
 
 ### Task 2: The comms wheel replaces the tray
 
+- [x] **Done and accepted by the user** (2026-10-19), after two review rounds (§9). A
+  minimal `TalkBar` (the Comms button, Enter text field, hold-V mic button and a hatched
+  "Can't talk") was pulled forward from Task 3 so the voice specs stay green; Task 3 still
+  owns toggle mode, the "Mic live" chip and the Settings choice. `Settings.keepOpen` was
+  removed with the sheets it served.
 - **Description:** Build `CommsWheel` (this file's §4 "The wheel"),
   `ReceiverLine`, the phone wheel and quick-slot buttons, and number-key
   sending; remove the tray and sheets.
@@ -246,7 +262,7 @@ sound captions at all (FR4): `Game.tsx` doesn't render `cues` for deaf.
   `src/components/ReceiverLine.tsx`, `src/client/wheel.ts` (pure: slot layout,
   `slotAt(page, dx, dy): number | null`, flick vs hold decision,
   `receiversOf(method, crew, me)`), `src/client/wheel.test.ts`;
-  `src/client/keys.ts` (+ test) rewritten for Q, 1–9, Shift+1–9, Enter, V, Esc,
+  `src/client/keys.ts` (+ test) rewritten for Q, 1–4 (pages, wheel open), Enter, V, Esc,
   Tab; `src/components/TouchControls.tsx` (wheel button, quick slot);
   `src/client/settings.ts` (+ test: `quick: string | null`, `voiceMode`);
   `src/components/Game.tsx` (mount the wheel instead of the tray);
@@ -379,3 +395,66 @@ sound captions at all (FR4): `Game.tsx` doesn't render `cues` for deaf.
 ## 8. Risks / open questions
 
 None.
+
+## 9. Corrections log
+
+What the user redirected after seeing a result, and why the first attempt missed.
+
+| When | Expected | Wanted | Why the first attempt missed |
+| --- | --- | --- | --- |
+| Task 2 review, 2026-10-19 | Aim the wheel with the cursor itself | I steered a dot by the cursor's movement since Q went down; the wheel is fixed, the cursor wasn't | Spec says the wheel always opens in one place, and I aimed by offset from the press point instead of the cursor's real position over the drawn wheel. Fixed: a drawn wheel is aimed by the cursor over it (Q and right mouse); movement only for undrawn flicks and for touch (a thumb is on the button, so it gets a small dot) |
+| ″ | A roomy wheel | Small and cramped: faces overlapped, single words wrapped | Sizes picked from slot counts, not from the arc between neighbours or the real label widths. The unit test that "checked overlap" compared centre distances, so it passed while boxes overlapped |
+| ″ | Item name on its own line | The em dash after the item name is noise | Copied the spec's wireframe punctuation literally |
+| ″ | Verbs that fit the role | "hears this" is wrong for faces and marks (seen), and for Can't speak, who reads callouts | One verb for every method |
+| ″ | The number keys visible | Nothing showed that 1-9 pair with the callouts | Added the keys but not their hints |
+| ″ | The Q key visible | Nothing said Q opens the comms | Same |
+| ″ | A mark out of sight is refused politely | The game screen was replaced by "Problem: Your role can't send that." | Two bugs: the server called an out-of-sight mark `cant-send`, and `Lobby.tsx`/`Home.tsx` treated *any* socket error as the lobby failing (latent since the old tray's cooldown errors) |
+
+**Found while fixing, same review:** the first spec of the phone wheel passed
+while its slots were 66x47 px (under the plan's 48 px target) and two of them
+overlapped; a plate wrapped to four lines and ran off the frame; page labels
+poked out of a phone frame. The specs asserted what I had thought to look
+for, not the promise. Each is now a measured check: slot boxes never touch
+(`wheelLayout.test.ts`, every page in both modes), every target is 48 px or
+more, a corner of any box selects its own slot, the plate's text is never
+clipped, and labels and plate stay inside the frame for every role and page.
+
+**Second review round, 2026-10-19:**
+
+| Expected | Wanted | Why the first attempt missed |
+| --- | --- | --- |
+| Can't speak "reads" callouts and clips | They hear them: they can't talk, not hear | Conflated "gets captions" with "reads"; the verb depended on the role when it only depends on the method |
+| Number-key shortcuts as the plan's FR28 said | Drop them: nobody remembers a 1-9 map, so use the wheel | Built the spec's list literally; never asked who would remember it |
+| A wheel held open with Q | Also a Comms button to click, then click an option | The spec only had the hold-and-flick gesture, but not everyone wants to hold a key |
+| 3x3 grid for Talk and Marks | A ring like the others, so the middle of the map shows | Chose a grid for easy hit-testing; it hid the map |
+
+**Decision (user, 2026-10-19):** on a phone the frame is ~350 px wide, too small
+for a 12-slot ring of 48 px targets. Faces and Clips are a 4x3 grid there (the
+same hold-drag-release gesture); the ring stays on desktop. Talk and Marks are a
+3x3 on both.
+
+**Prevention.** (1) A refused send never renders `.error`: a spec in
+`spec/layout/wheel.test.ts`, and the lobby/home pages now ignore the three
+in-game refusal codes by name. (2) Geometry lives in one module,
+`src/client/wheelLayout.ts`, that drawing and hit-testing both read, so they
+cannot drift; its tests check boxes, not centres. The pattern across these
+misses is "built to the spec's wireframe without playing it, and tested what
+I expected rather than what the user would see", which is why Task 2 carries a
+Human review.
+
+**Flaky specs (user, second round):** several runs needed retries. Measured over
+fresh-server runs, then fixed at the cause, not by retrying: (1) a Restart spec
+captured its "spawn" picture on the game's first, half-drawn frame, which can never
+match the real one (it now takes the spawn after a restart, from a settled scene);
+(2) a "four waiting teams" spec compared the row count to a total read earlier, while
+other spec files add and drop lobbies on the same server (it now asserts what the page
+promises); (3) a "15 views per second" spec counted a one-second window that could lose
+one view off its edge (it now times 30 views); (4) the flick spec timed a gesture from
+the test runner, where each step is a round trip that can outlast the wheel's 200 ms
+(it now dispatches the gesture inside the page); (5) a 60-run bot simulation unit test
+had the default 5 s budget while sharing the CPU with a dozen browsers (the unit
+project's timeout is 20 s, with the reason beside it). After: 8 of 8 full runs clean,
+half with the machine deliberately starved, against 4 failing runs of 6 before. A server
+reused across many runs also fills its 40-lobby cap with leftovers and times out
+unrelated specs; that is the reuse, not the suite, and CI starts fresh.
+

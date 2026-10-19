@@ -319,56 +319,6 @@ body.playing main {
   font-variant-numeric: tabular-nums;
 }
 
-/* the tray: three ways to talk, each with who receives it */
-.tray {
-  flex: none;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--s-2);
-  margin: 0;
-  padding: var(--s-2) var(--s-3);
-  list-style: none;
-}
-.tile {
-  display: grid;
-  gap: 2px;
-  min-height: 56px;
-  padding: var(--s-1) var(--s-2);
-  background: var(--panel);
-  border: 2px solid var(--ui-muted);
-  border-radius: var(--r);
-  font-size: var(--t-14);
-  font-stretch: 75%;
-  font-weight: 700;
-}
-.tile kbd,
-.tab kbd {
-  display: none;
-  font: inherit;
-  color: var(--ui-muted);
-}
-.tab kbd {
-  font-size: var(--t-14); /* the tile's size, inside a tab that is larger */
-}
-.tile.cant {
-  border-style: dashed;
-  background: repeating-linear-gradient(135deg, var(--panel) 0 6px, var(--bg) 6px 8px);
-}
-.tile-cant {
-  justify-self: start;
-  padding: 0 var(--s-1);
-  background: var(--panel);
-}
-.glyph {
-  display: inline-block;
-  padding: 0 2px;
-  color: var(--ui);
-}
-.glyph.me {
-  border: 2px solid var(--ui);
-  border-radius: var(--r);
-}
-
 .keys {
   flex: none;
   margin: 0;
@@ -377,20 +327,10 @@ body.playing main {
   font-size: var(--t-14);
 }
 @media (min-width: 720px) {
-  .tile kbd,
-  .tab kbd {
-    display: inline;
-  }
-  .tray {
-    max-width: 44rem;
-    margin: 0 auto;
-    width: 100%;
-  }
   .keys {
     text-align: center;
   }
 }
-
 /* touch: joystick bottom-left, Act bottom-right; the tray never overlaps them */
 .touch-zone {
   flex: none;
@@ -444,221 +384,6 @@ body.playing main {
 .act:active {
   background: var(--ui);
   color: var(--bg);
-}
-
-/* the tray as buttons: a tile opens its sheet (spec §4.1 "Comms sheets") */
-.tray-wrap {
-  position: relative;
-  flex: none;
-}
-.tray > li {
-  display: flex;
-}
-button.tile {
-  position: relative;
-  flex: 1;
-  align-content: center;
-  width: 100%;
-  min-width: 0;
-  color: var(--ui);
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-button.tile[aria-expanded="true"] {
-  border-color: var(--ui);
-}
-button.tile.cant {
-  cursor: not-allowed;
-}
-/* the cooldown: a ring that empties, with the seconds left in it as a number */
-.cd {
-  --p: 1;
-  position: absolute;
-  top: var(--s-1);
-  right: var(--s-1);
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: conic-gradient(var(--ui) calc(var(--p) * 360deg), var(--bg) 0);
-}
-.cd::before {
-  content: "";
-  position: absolute;
-  inset: 3px;
-  border-radius: 50%;
-  background: var(--panel);
-}
-.cd-n {
-  position: relative;
-  font-size: var(--t-14);
-  line-height: 1;
-}
-
-.sheet {
-  position: absolute;
-  left: var(--s-3);
-  right: var(--s-3);
-  bottom: 100%;
-  z-index: 5;
-  display: grid;
-  gap: var(--s-2);
-  max-height: min(60dvh, 26rem);
-  margin-bottom: var(--s-1);
-  padding: var(--s-3);
-  overflow: auto;
-  background: var(--panel);
-  border: 2px solid var(--frame, var(--ui-muted));
-  border-radius: var(--r);
-}
-.sheet-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--s-2) var(--s-3);
-}
-.sheet-head h2 {
-  margin: 0;
-  font-size: var(--t-18);
-}
-.sheet-note {
-  color: var(--ui-muted);
-  font-size: var(--t-14);
-}
-.sheet-wait {
-  margin: 0;
-  font-weight: 700;
-}
-.sheet-empty {
-  margin: 0;
-  color: var(--ui-muted);
-}
-.cells {
-  display: grid;
-  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
-  gap: var(--s-2);
-}
-.cell {
-  position: relative;
-  display: grid;
-  place-items: center;
-  min-width: var(--target);
-  min-height: var(--target);
-  padding: var(--s-1);
-  background: var(--bg);
-  color: var(--ui);
-  border: 2px solid var(--ui-muted);
-  border-radius: var(--r);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-.cell.cooling {
-  border-style: dashed;
-  cursor: not-allowed;
-}
-.cell kbd {
-  position: absolute;
-  top: 2px;
-  left: var(--s-1);
-  display: none;
-  color: var(--ui-muted);
-  font: inherit;
-  font-size: var(--t-14);
-}
-.cell-face {
-  font-size: var(--t-18);
-}
-.cell,
-.cell img {
-  -webkit-touch-callout: none; /* no iOS long-press menu */
-  -webkit-user-select: none;
-  user-select: none; /* a face is a picture to tap, not to select */
-}
-.cell img {
-  display: block;
-  -webkit-user-drag: none; /* nor to drag out */
-  pointer-events: none;
-}
-.tabs {
-  display: flex;
-  gap: var(--s-2);
-}
-.tab {
-  min-width: var(--target);
-  min-height: var(--target);
-  padding: 0 var(--s-4);
-  background: var(--bg);
-  color: var(--ui);
-  border: 2px solid var(--ui-muted);
-  border-radius: var(--r);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-.tab[aria-pressed="true"] {
-  border-color: var(--ui);
-  box-shadow: inset 0 -4px 0 var(--ui); /* a bar under it, so it is not colour alone */
-}
-.say-text {
-  display: flex;
-  gap: var(--s-2);
-}
-.say-text input {
-  flex: 1;
-  min-width: 0;
-  min-height: var(--target);
-  padding: 0 var(--s-3);
-  background: var(--bg);
-  color: var(--ui);
-  border: 2px solid var(--ui);
-  border-radius: var(--r);
-  font: inherit;
-  font-size: 16px; /* anything smaller makes iOS zoom the page on focus */
-}
-.say-write kbd {
-  display: none;
-  margin-right: var(--s-2);
-  font: inherit;
-  color: var(--ui-muted);
-}
-
-.toast,
-.cheat {
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
-  z-index: 6;
-  max-width: calc(100% - var(--s-5));
-  margin: 0 0 var(--s-1);
-  transform: translateX(-50%);
-}
-.toast {
-  padding: var(--s-2) var(--s-3);
-  background: var(--ui);
-  color: var(--bg);
-  border-radius: var(--r);
-  font-weight: 700;
-}
-.cheat {
-  display: grid;
-  gap: var(--s-1);
-  padding: var(--s-3);
-  background: var(--panel);
-  border: 2px solid var(--ui);
-  border-radius: var(--r);
-}
-.cheat div {
-  display: flex;
-  gap: var(--s-3);
-}
-.cheat dt {
-  min-width: 9rem;
-}
-.cheat dd {
-  margin: 0;
 }
 
 /* captions over the lower map; a polite live region */
@@ -724,73 +449,12 @@ button.tile.cant {
   width: auto;
   height: 24px;
 }
-
-@media (min-width: 720px) {
-  .sheet {
-    right: auto;
-    left: 50%;
-    width: min(44rem, calc(100% - var(--s-5)));
-    transform: translateX(-50%);
-  }
-  .cell kbd,
-  .say-write kbd {
-    display: inline;
-  }
-}
-
-/* fieldsets used as plain groups: no browser border or padding */
-fieldset.cells,
-fieldset.tabs,
+/* a fieldset used as a plain group: no browser min-width or margin */
 fieldset.settings {
   min-width: 0;
   margin: 0;
-  border: 0;
-}
-fieldset.cells,
-fieldset.tabs {
-  padding: 0;
-}
-fieldset.settings {
   border: 2px solid var(--ui);
   padding: var(--s-3);
-}
-
-/* hints about keys mean nothing on a touch phone */
-.key-only {
-  display: none;
-  margin: 0;
-}
-@media (min-width: 720px) {
-  .key-only {
-    display: block;
-  }
-}
-
-/* faces are pictures: bigger, in taller rows */
-.cells.faces .cell {
-  min-height: 76px;
-}
-.cells.faces img {
-  width: 56px;
-  height: 56px;
-}
-/* soundboard labels: condensed and small enough that no word breaks mid-word */
-.cell-label {
-  font-size: var(--t-14);
-  font-stretch: 75%;
-  line-height: 1.1;
-  overflow-wrap: normal;
-  word-break: keep-all;
-  hyphens: none;
-}
-@media (min-width: 720px) {
-  .cells.faces .cell {
-    min-height: 84px;
-  }
-  .cells.faces img {
-    width: 64px;
-    height: 64px;
-  }
 }
 
 .captions p {
@@ -862,27 +526,6 @@ fieldset.settings {
   border: 2px solid var(--danger);
   color: var(--ui);
 }
-
-/* push to talk: held while talking, and the badge on whoever is heard */
-.say-talk.is-talking,
-.say-talk.is-talking:hover {
-  background: var(--ui);
-  color: var(--bg);
-}
-.say-talk kbd {
-  display: none;
-  margin-right: var(--s-2);
-  font: inherit;
-  color: var(--ui-muted); /* the same grey as the other key hints */
-}
-.say-talk.is-talking kbd {
-  color: inherit; /* grey on the light pressed button would be too faint */
-}
-.say-voice-note {
-  margin: 0;
-  color: var(--ui-muted);
-  font-size: var(--t-14);
-}
 .talking {
   margin-left: var(--s-1);
   padding: 0 var(--s-1);
@@ -891,8 +534,396 @@ fieldset.settings {
   font-size: var(--t-14);
   font-weight: 700;
 }
+
+/* the comms wheel (spec §4.1 "Wheel"): a marking menu over the map. It is drawn
+   only after a 200 ms still hold; a flick sends without it. Everything on it
+   sits on --glass, over a field that is 70% see-through. The cursor itself
+   aims: whichever slot it is over is the one that sends. */
+.comms-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  overflow: hidden;
+  pointer-events: none;
+}
+.wheel {
+  position: absolute;
+  width: 1px; /* not 0: an empty box counts as hidden to assistive tech and to specs */
+  height: 1px;
+}
+.wheel-outline {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid var(--ui);
+  border-radius: 28px;
+  background: rgb(11 18 32 / 30%); /* the field is 70% transparent */
+}
+.wheel-outline.is-circle {
+  border-radius: 50%;
+}
+.wheel-slots,
+.wheel-tabs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wheel-slot,
+.wheel-tab {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+.wheel-slot {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  padding: 0 var(--s-1);
+  background: var(--glass);
+  border: 2px solid var(--ui-muted);
+  border-radius: var(--r);
+  color: var(--ui);
+  font-size: var(--t-18);
+  font-stretch: 75%;
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+  white-space: nowrap; /* a single word never wraps; the slot is sized to hold it */
+}
+/* a slot's size is set inline from client/wheelLayout.ts, whose tests check it for overlap */
+/* the middle of Talk and Marks: a round disc, so it reads as the centre and not one more of the ring */
+.wheel-slot.is-centre {
+  border-radius: 50%;
+}
+.wheel-slot.page-faces {
+  padding-top: 8px; /* room for the key hint above the picture */
+}
+.wheel-slot.page-clips {
+  font-size: var(--t-14);
+}
+.wheel-slot.is-aimed {
+  border-color: var(--ui);
+  background: var(--ui);
+  color: var(--bg);
+  outline: 2px solid var(--ui);
+  outline-offset: 2px;
+}
+.wheel-slot.page-faces.is-aimed {
+  background: var(--glass); /* a face is a picture: the frame lights, the picture stays */
+  color: var(--ui);
+  border-color: var(--ui);
+  outline-width: 3px;
+}
+/* what the role can't send: hatched, never just dimmed */
+.wheel-slot.cant {
+  border-style: dashed;
+  background: var(--hatch), var(--glass);
+}
+.wheel-slot.cant.is-aimed {
+  background: var(--hatch), var(--glass);
+  color: var(--ui);
+}
+.wheel-slot img {
+  display: block;
+  width: 44px;
+  height: 44px;
+  user-select: none;
+  pointer-events: none;
+}
+/* the key that sends this slot without the wheel */
+.wheel-key {
+  position: absolute;
+  top: 1px;
+  left: 3px;
+  font: inherit;
+  font-size: 10px;
+  font-stretch: 100%;
+  line-height: 1;
+  color: var(--ui-muted);
+}
+.wheel-slot.is-aimed:not(.page-faces) .wheel-key {
+  color: inherit;
+}
+/* touch only: the thumb is on the wheel button, so this shows which way it has moved */
+.wheel-finger {
+  position: absolute;
+  left: -6px;
+  top: -6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--ui);
+  outline: 2px solid var(--bg);
+  pointer-events: none;
+}
+.wheel-cd {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--scrim);
+  color: var(--ui);
+  font-size: var(--t-18);
+  font-variant-numeric: tabular-nums;
+}
+.wheel-tab {
+  padding: var(--s-1) var(--s-3);
+  background: var(--glass);
+  border: 2px solid var(--ui-muted);
+  border-radius: var(--r);
+  color: var(--ui);
+  font-size: var(--t-18);
+  font-stretch: 75%;
+  font-weight: 700;
+  white-space: nowrap;
+}
+/* four labels in a phone-wide row: tighter, so each fits its 82 px share */
+.wheel.is-narrow .wheel-tab {
+  padding: var(--s-1) var(--s-2);
+  font-size: var(--t-14);
+}
+.wheel-tab.is-page {
+  border-color: var(--ui);
+  box-shadow: inset 0 -4px 0 var(--ui); /* a bar under it, so it is not colour alone */
+}
+.wheel-tab.is-aimed {
+  border-style: dashed;
+  border-color: var(--ui);
+}
+.wheel-tab kbd {
+  font: inherit;
+  color: var(--ui-muted);
+}
+.wheel-plate {
+  position: absolute;
+  left: 0;
+  top: var(--plate-top);
+  display: grid;
+  gap: 2px;
+  box-sizing: border-box;
+  width: max-content;
+  /* PLATE_PX in client/wheelLayout.ts is this plate's height budget: its text always fits */
+  max-width: min(36rem, calc(100vw - var(--s-5)));
+  max-height: 80px;
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  overflow: hidden;
+  transform: translateX(-50%);
+  background: var(--glass);
+  border: 2px solid var(--ui-muted);
+  border-radius: var(--r);
+  color: var(--ui);
+  font-size: var(--t-14);
+  line-height: 1.25;
+  text-align: center;
+}
+.wheel-name {
+  font-size: var(--t-18);
+  line-height: 1.1;
+}
+.receiver-line {
+  display: inline;
+  font-size: var(--t-14);
+}
+.receiver {
+  white-space: nowrap;
+}
+.receiver .role-shape,
+.wheel-plate .role-shape {
+  vertical-align: -2px;
+}
+.receiver.cant span:last-child {
+  text-decoration: underline dashed;
+  text-underline-offset: 3px;
+}
+
+/* a wheel opened by click takes clicks on its slots and labels (a held one never does:
+   the pointer is busy aiming, and must reach nothing underneath) */
+.wheel.is-click .wheel-slot,
+.wheel.is-click .wheel-tab {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.comms-toast,
+.comms-place-note {
+  position: absolute;
+  left: 50%;
+  bottom: var(--s-2);
+  max-width: calc(100% - var(--s-5));
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  transform: translateX(-50%);
+  background: var(--glass);
+  border: 2px solid var(--ui);
+  border-radius: var(--r);
+  color: var(--ui);
+  font-weight: 700;
+  text-align: center;
+}
+.comms-place-note {
+  top: var(--s-2);
+  bottom: auto;
+}
+.comms-ghost {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  min-width: 32px;
+  height: 32px;
+  transform: translate(-50%, -50%);
+  background: var(--glass);
+  border: 2px dashed var(--ui);
+  border-radius: var(--r);
+  color: var(--ui);
+  font-weight: 700;
+}
+.comms-keys {
+  position: absolute;
+  left: 50%;
+  bottom: var(--s-2);
+  display: grid;
+  gap: var(--s-1);
+  margin: 0;
+  padding: var(--s-3);
+  transform: translateX(-50%);
+  background: var(--glass);
+  border: 2px solid var(--ui);
+  border-radius: var(--r);
+}
+.comms-keys div {
+  display: flex;
+  gap: var(--s-3);
+}
+.comms-keys dt {
+  min-width: 9rem;
+}
+.comms-keys dd {
+  margin: 0;
+}
+
+/* talking outside the wheel: Enter writes, V talks */
+.talk-bar {
+  flex: none;
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+}
+.talk-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  justify-content: center;
+}
+.talk-text {
+  display: flex;
+  gap: var(--s-2);
+  max-width: 44rem;
+  margin: 0 auto;
+  width: 100%;
+}
+.talk-text input {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--target);
+  padding: 0 var(--s-3);
+  background: var(--bg);
+  color: var(--ui);
+  border: 2px solid var(--ui);
+  border-radius: var(--r);
+  font: inherit;
+  font-size: 16px; /* anything smaller makes iOS zoom the page on focus */
+}
+.talk-bar .btn,
+.talk-mic {
+  min-height: var(--target);
+  min-width: var(--target);
+}
+.talk-bar kbd {
+  display: none;
+  margin-right: var(--s-2);
+  font: inherit;
+  color: var(--ui-muted);
+}
+.talk-mic.is-talking,
+.talk-mic.is-talking:hover {
+  background: var(--ui);
+  color: var(--bg);
+}
+.talk-mic.is-talking kbd {
+  color: inherit; /* grey on the light pressed button would be too faint */
+}
+.talk-mic.cant {
+  display: inline-grid;
+  place-items: center;
+  padding: 0 var(--s-3);
+  border: 2px dashed var(--ui-muted);
+  border-radius: var(--r);
+  background: var(--hatch), var(--panel);
+  color: var(--ui);
+}
+.talk-note {
+  margin: 0;
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+  text-align: center;
+}
 @media (hover: hover) and (pointer: fine) {
-  .say-talk kbd {
+  .talk-bar kbd {
     display: inline;
+  }
+}
+
+/* phone: the wheel button (56) over the quick slot (48), in a column just left of Act */
+.touch-zone {
+  position: relative;
+}
+.touch-comms {
+  position: absolute;
+  right: calc(var(--s-5) + 96px + var(--s-3));
+  bottom: var(--s-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+}
+.wheel-btn,
+.quick-btn {
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--ui);
+  background: var(--panel);
+  color: var(--ui);
+  font: inherit;
+  font-weight: 700;
+  font-stretch: 75%;
+  cursor: pointer;
+  touch-action: none;
+}
+.wheel-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  font-size: var(--t-14);
+}
+.quick-btn {
+  width: 56px;
+  height: var(--target);
+  padding: 0 var(--s-1);
+  border-radius: var(--r);
+  font-size: var(--t-14);
+}
+.quick-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wheel-btn:active {
+  background: var(--ui);
+  color: var(--bg);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .wheel {
+    animation: fade 100ms ease-out both;
   }
 }

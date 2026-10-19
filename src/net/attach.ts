@@ -622,7 +622,9 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
             sent.code,
             sent.code === "cooldown"
               ? `Wait ${wait} s before sending that again.`
-              : "Your role can't send that.",
+              : sent.code === "not-in-sight"
+                ? "Not in sight."
+                : "Your role can't send that.",
           );
         }
         // the method and role, never what was said or picked
