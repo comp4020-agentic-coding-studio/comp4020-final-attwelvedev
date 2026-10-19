@@ -230,7 +230,7 @@ describe("bots in a game", () => {
   it("steer a Can't-see human with callouts they receive, from the Can't-hear bot", () => {
     const game = botGame();
     const said = tick(game, 100);
-    const callouts = said.filter((s) => s.message.family === "say" && s.receivers.includes(0));
+    const callouts = said.filter((s) => s.message.method === "callout" && s.receivers.includes(0));
     expect(callouts.length).toBeGreaterThan(0);
     expect(callouts[0]?.from).toBe(1);
     expect(callouts[0]?.message.from).toMatchObject({ seat: 1, role: "deaf" });
@@ -240,8 +240,8 @@ describe("bots in a game", () => {
     const game = botGame();
     const said = tick(game, 1500);
     for (const s of said) {
-      // a Can't-speak bot never uses Say; every sound or face went through route()
-      if (s.from === 2) expect(s.message.family).not.toBe("say");
+      // a Can't-speak bot never says callouts or text; everything went through route()
+      if (s.from === 2) expect(["callout", "text"]).not.toContain(s.message.method);
     }
   });
 
@@ -374,7 +374,7 @@ describe("a person's messages reach the bots they are sent to", () => {
     advanceRoom(game, rooms); // room 2: seat 0 is Can't hear, seat 2 is Can't see
     expect(game.roles).toEqual(["deaf", "mute", "blind"]);
     const before = { ...game.world.players[2].pos };
-    const sent = relay(game, l, 0, { t: "say", kind: "callout", callout: "right" }, 1_000);
+    const sent = relay(game, l, 0, { method: "callout", callout: "right" }, 1_000);
     expect(sent).toMatchObject({ ok: true });
     for (let i = 0; i < 10; i++) tickGame(game, new Set(), 1_000 + i * 50);
     expect(game.world.players[2].pos.x).toBeGreaterThan(before.x);

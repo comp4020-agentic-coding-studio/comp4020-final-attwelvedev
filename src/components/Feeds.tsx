@@ -76,7 +76,7 @@ function advance(run: Run, now: number) {
   }
   for (const { message, receivers } of tick.heard) {
     for (const seat of receivers) {
-      if (message.family === "show" && message.kind === "face") {
+      if (message.method === "face") {
         run.pops[seat]?.push({ seat: message.from.seat, id: message.id, at: now });
         continue;
       }

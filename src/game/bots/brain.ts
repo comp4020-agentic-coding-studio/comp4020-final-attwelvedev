@@ -183,7 +183,7 @@ function thinkBlind(view: RoleView, inbox: ChannelMessage[], m: BotMemory, now: 
     m.heading = { ...ZERO };
   }
   for (const msg of inbox) {
-    if (msg.family !== "say" || msg.kind !== "callout") continue; // never parses free text
+    if (msg.method !== "callout") continue; // never parses free text
     m.lastCalloutAt = now;
     const dir = DIRECTIONS[msg.callout];
     if (dir) {
@@ -500,9 +500,9 @@ function thinkSighted(room: Room, view: RoleView, m: BotMemory, now: number): Bo
     if (!m.celebrated) {
       m.celebrated = true;
       if (view.role === "mute") {
-        send = { family: "show", kind: "face", id: "f02" };
+        send = { method: "face", id: "f02" };
       } else {
-        send = { family: "say", kind: "text", text: pickPhrase("cleared", m.usedPhrases, m.seq) };
+        send = { method: "text", text: pickPhrase("cleared", m.usedPhrases, m.seq) };
       }
     }
     return { input: idle(m), send: stamp(m, send, now) };
@@ -719,17 +719,17 @@ function guideBlind(
   if (callout) {
     g.lastSentAt = now;
     g.lastSent = callout;
-    return { family: "say", kind: "callout", callout };
+    return { method: "callout", callout };
   }
   if (tap) {
     g.lastSentAt = now;
-    return { family: "say", kind: "text", text: tap };
+    return { method: "text", text: tap };
   }
   if (now - m.lastFlavourAt >= FLAVOUR_MS && now - g.lastSentAt >= 1000) {
     const situation: Situation = !g.started ? "start" : g.moving ? "moving" : "waiting";
     g.started = true;
     m.lastFlavourAt = now;
-    return { family: "say", kind: "text", text: pickPhrase(situation, m.usedPhrases, m.seq) };
+    return { method: "text", text: pickPhrase(situation, m.usedPhrases, m.seq) };
   }
   return null;
 }
@@ -835,5 +835,5 @@ function muteClip(view: RoleView, m: BotMemory, now: number): Outgoing | null {
   );
   if (!wrong) return null;
   m.lastClipAt = now;
-  return { family: "sound", clip: "airhorn" };
+  return { method: "clip", clip: "airhorn" };
 }

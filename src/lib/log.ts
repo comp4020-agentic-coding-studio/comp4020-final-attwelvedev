@@ -9,7 +9,7 @@ const ALLOWED = new Set([
   "count",
   "reason",
   "role", // which handicap acted (blind/deaf/mute): never who they are
-  "family", // which channel (say/sound/show): never what was sent
+  "method", // how it was sent (callout/text/voice/clip/face/mark): never what was sent
   "room", // a room's id, e.g. loading-dock: a level, not a person
   "seat", // 0-2: a place in a crew, not a person
   "ms", // a duration, e.g. how long a room took

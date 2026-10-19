@@ -2,16 +2,9 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { trayFor } from "../client/hud.ts";
 import { keyAction, type Sheet as SheetId } from "../client/keys.ts";
 import type { GameSocket } from "../client/socket.ts";
-import {
-  CALLOUTS,
-  CLIPS,
-  COOLDOWN_MS,
-  FACES,
-  STAMP_COOLDOWN_MS,
-  STAMPS,
-} from "../game/channels.ts";
-import { ROLE_LABEL, type Role } from "../game/types.ts";
-import type { ClientMsg } from "../net/protocol.ts";
+import { CALLOUTS, CLIPS, COOLDOWN_MS, FACES, STAMPS } from "../game/channels.ts";
+import { ROLE_LABEL, type Role, type Vec } from "../game/types.ts";
+import type { SendRequest } from "../net/protocol.ts";
 import { ROLE_GLYPH } from "./RoleShape.tsx";
 import { SaySheet } from "./SaySheet.tsx";
 import { HOTBAR, Sheet } from "./SheetGrid.tsx";
@@ -19,7 +12,10 @@ import { ShowSheet, type ShowTab } from "./ShowSheet.tsx";
 import { SoundSheet } from "./SoundSheet.tsx";
 import type { Voice } from "./useVoice.ts";
 
-type Clock = "say" | "sound" | "show" | "stamp";
+type Clock = "clip" | "face" | "mark";
+
+// The cooldown each tile runs on (Say has none).
+const TILE_CLOCK: Record<SheetId, Clock | null> = { say: null, sound: "clip", show: "face" };
 
 const TOAST_MS = 3000;
 const SHOW_KEYS = [
@@ -53,12 +49,14 @@ export function Tray({
   keepOpen,
   onTyping,
   voice,
+  at,
 }: {
   role: Role;
   socket: GameSocket;
   keepOpen: boolean;
   onTyping: (typing: boolean) => void;
   voice: Voice;
+  at: () => Vec; // where this player stands: Task 2's wheel lets them pick a tile instead
 }) {
   const tiles = trayFor(role);
   const [open, setOpen] = useState<SheetId | null>(null);
@@ -89,12 +87,12 @@ export function Tray({
 
   // `clock` is the cooldown this send will start, so a press during it is
   // refused here with a number rather than round-tripping to the server.
-  function send(msg: ClientMsg, clock: Clock | null): void {
+  function send(msg: SendRequest, clock: Clock | null): void {
     if (clock && wait(clock) > 0) {
       say(`Wait ${wait(clock)} s`);
       return;
     }
-    socket.send(msg);
+    socket.send({ t: "send", msg });
     if (!keepOpen) close();
   }
 
@@ -102,9 +100,8 @@ export function Tray({
   // so a phone whose clock is off still counts down truthfully.
   useEffect(() => {
     const offCooldown = socket.on("cooldown", (m) => {
-      const clock: Clock = m.stamp ? "stamp" : m.family;
-      const ms = m.stamp ? STAMP_COOLDOWN_MS : COOLDOWN_MS[m.family];
-      setUntil((u) => ({ ...u, [clock]: Date.now() + ms }));
+      if (m.method !== "clip" && m.method !== "face" && m.method !== "mark") return;
+      setUntil((u) => ({ ...u, [m.method]: Date.now() + COOLDOWN_MS[m.method] }));
       setNow(Date.now());
     });
     const offError = socket.on("error", (m) => {
@@ -140,17 +137,17 @@ export function Tray({
     const sheet = live.current.open;
     if (sheet === "say") {
       const callout = CALLOUTS[index];
-      if (callout) send({ t: "say", kind: "callout", callout }, null);
+      if (callout) send({ method: "callout", callout }, null);
     } else if (sheet === "sound") {
       const clip = index < HOTBAR ? CLIPS[live.current.page * HOTBAR + index] : undefined;
-      if (clip) send({ t: "sound", clip: clip.id }, "sound");
+      if (clip) send({ method: "clip", clip: clip.id }, "clip");
     } else if (sheet === "show") {
       if (live.current.tab === "faces") {
         const face = index < HOTBAR ? FACES[live.current.page * HOTBAR + index] : undefined;
-        if (face) send({ t: "show", kind: "face", id: face.id }, "show");
+        if (face) send({ method: "face", id: face.id }, "face");
       } else {
         const stamp = STAMPS[index];
-        if (stamp) send({ t: "show", kind: "stamp", id: stamp }, "stamp");
+        if (stamp) send({ method: "mark", id: stamp, at: at() }, "mark");
       }
     }
   };
@@ -240,17 +237,17 @@ export function Tray({
           label={tile.label}
           receivers={tile.receivers}
           youReceive={tile.youReceive}
-          wait={wait(open === "show" && tab === "stamps" ? "stamp" : open)}
+          wait={wait(open === "show" && tab === "stamps" ? "mark" : (TILE_CLOCK[open] ?? "clip"))}
         >
           {open === "say" && (
             <SaySheet
-              onCallout={(callout) => send({ t: "say", kind: "callout", callout }, null)}
+              onCallout={(callout) => send({ method: "callout", callout }, null)}
               writing={writing}
               onWrite={() => setWriting(true)}
               field={field}
               onText={(text) => {
                 if (text.trim() === "") return;
-                socket.send({ t: "say", kind: "text", text });
+                socket.send({ t: "send", msg: { method: "text", text } });
                 if (!keepOpen) close();
               }}
               onFocus={setTyping}
@@ -259,9 +256,9 @@ export function Tray({
           )}
           {open === "sound" && (
             <SoundSheet
-              wait={wait("sound")}
+              wait={wait("clip")}
               page={page}
-              onClip={(clip) => send({ t: "sound", clip }, "sound")}
+              onClip={(clip) => send({ method: "clip", clip }, "clip")}
             />
           )}
           {open === "show" && (
@@ -269,17 +266,18 @@ export function Tray({
               tab={tab}
               onTab={setTab}
               page={page}
-              faceWait={wait("show")}
-              stampWait={wait("stamp")}
-              onFace={(id) => send({ t: "show", kind: "face", id }, "show")}
-              onStamp={(id) => send({ t: "show", kind: "stamp", id }, "stamp")}
+              faceWait={wait("face")}
+              stampWait={wait("mark")}
+              onFace={(id) => send({ method: "face", id }, "face")}
+              onStamp={(id) => send({ method: "mark", id, at: at() }, "mark")}
             />
           )}
         </Sheet>
       )}
       <ul class="tray" aria-label="Ways to talk">
         {tiles.map((t, i) => {
-          const left = wait(t.family);
+          const clock = TILE_CLOCK[t.family];
+          const left = clock ? wait(clock) : 0;
           return (
             <li key={t.family}>
               <button
@@ -313,7 +311,7 @@ export function Tray({
                 {left > 0 && (
                   <span
                     class="cd"
-                    style={{ "--p": left / (COOLDOWN_MS[t.family] / 1000) }}
+                    style={{ "--p": left / (COOLDOWN_MS[clock as Clock] / 1000) }}
                     role="timer"
                     aria-label={`${t.label} ready in ${left} seconds`}
                   >

@@ -51,9 +51,9 @@ describe("the heist moves on from a cleared room", () => {
     // comms stay open on the cleared screen: Can't hear still reaches Can't see
     const deaf = players.find((p) => p.role === "deaf");
     const blind = players.find((p) => p.role === "blind");
-    deaf?.socket.send({ t: "say", kind: "callout", callout: "wait" });
-    expect(await blind?.socket.next<{ family: string }>("msg", 2000)).toMatchObject({
-      family: "say",
+    deaf?.socket.send({ t: "send", msg: { method: "callout", callout: "wait" } });
+    expect(await blind?.socket.next<{ method: string }>("msg", 2000)).toMatchObject({
+      method: "callout",
     });
 
     players[0]?.socket.send({ t: "next" });

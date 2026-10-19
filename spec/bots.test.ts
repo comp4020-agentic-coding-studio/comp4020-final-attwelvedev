@@ -11,7 +11,7 @@ interface RevealMsg {
 }
 interface MsgMsg {
   t: "msg";
-  family: string;
+  method: string;
   kind?: string;
   callout?: string;
   from: { role: string; nickname: string };
@@ -42,7 +42,7 @@ describe("bots fill the empty seats", () => {
     expect(reveal.role).toBe("blind"); // seat 0 is Can't see in room 1
     host.send({ t: "ready" });
     const msg = await host.next<MsgMsg>("msg", 5000);
-    expect(msg).toMatchObject({ family: "say" });
+    expect(msg).toMatchObject({ method: "callout" });
     expect(msg.from).toMatchObject({ role: "deaf", nickname: "Bot square" });
     await host.close();
   });

@@ -174,6 +174,7 @@ sound captions at all (FR4): `Game.tsx` doesn't render `cues` for deaf.
 
 ### Task 1: Route messages by method under the new table
 
+- [x] **Done** (2026-10-19).
 - **Description:** Replace families with methods end to end on the server and
   in bots: the tables in overview §4.2, `route` excluding the sender,
   per-method cooldowns, marks placed at a sent tile with a line-of-sight check,

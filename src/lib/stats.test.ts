@@ -101,16 +101,16 @@ describe("game stats", () => {
     ...(detail ? { detail } : {}),
   });
 
-  it("counts events by name and channel use by role and family", () => {
+  it("counts events by name and channel use by role and method", () => {
     const stats = createStats(T0);
     stats.recordGame(game("lobby.create"));
-    stats.recordGame(game("channel.send", { family: "say", role: "deaf", kind: "callout" }));
-    stats.recordGame(game("channel.send", { family: "say", role: "deaf", kind: "text" }));
-    stats.recordGame(game("channel.send", { family: "show", role: "mute", kind: "face" }));
-    stats.recordGame(game("channel.refused", { family: "sound", reason: "cooldown" }));
+    stats.recordGame(game("channel.send", { method: "callout", role: "deaf" }));
+    stats.recordGame(game("channel.send", { method: "text", role: "deaf" }));
+    stats.recordGame(game("channel.send", { method: "face", role: "mute" }));
+    stats.recordGame(game("channel.refused", { method: "clip", reason: "cooldown" }));
     const { game: g } = stats.snapshot(T0);
     expect(g.events).toEqual({ "lobby.create": 1, "channel.send": 3, "channel.refused": 1 });
-    expect(g.channelsByRole).toEqual({ deaf: { say: 2 }, mute: { show: 1 } });
+    expect(g.channelsByRole).toEqual({ deaf: { callout: 1, text: 1 }, mute: { face: 1 } });
   });
 
   it("merges the live provider's counts, and is all zero without one", () => {

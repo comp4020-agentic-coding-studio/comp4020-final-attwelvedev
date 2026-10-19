@@ -10,8 +10,11 @@
 - **Dependencies:** adding one needs a reason (and an ADR if it shapes the
   app). The machine has 256 MB; check the cost before adding.
 - **Shape of the app:** a three-player browser co-op heist where each player is
-  missing a channel (Can't see, Can't hear, Can't speak) and they coordinate
-  through role-gated channels (Say, Sound, Show). A person is an anonymous
+  missing a channel (Can't see, Can't hear, Can't speak) and they coordinate by
+  sending messages by *method*: callout, text, voice, clip, face and mark. Who
+  may send and who receives each is the `SENDS`/`RECEIVES` table in
+  `src/game/types.ts` (ADR 0011); the sender never gets its own message back.
+  A person is an anonymous
   device cookie plus a nickname (ADR 0008). The server runs a headless
   simulation per room over WebSockets (ADR 0007). See
   `specs/2026-10-08-sensory-heist.md` and `plans/2026-10-08-sensory-heist-00-overview.md`.
@@ -134,7 +137,7 @@ A log line is the app's account of what users did, so:
   event with `logGame`, one line per discrete event and never per tick; its
   `GameEvent` name is added to the union. Never put chat text, callout or clip
   choices, face or stamp ids, nicknames, team names or codes in `detail`: log
-  the *kind* of thing (`family`, `role`, `kind`), not its content. `/stats`
+  the *kind* of thing (`method`, `role`, `kind`), not its content. `/stats`
   shows the same events as counts, plus lobbies, games, players and memory now.
 
 ## Decisions (ADRs)

@@ -68,14 +68,14 @@ describe("a spectator follows a running game", () => {
     await spectator.next<{ view: RoleView }>("view");
 
     // say: deaf sends, blind and mute receive — the spectator is following blind
-    deaf.socket.send({ t: "say", kind: "callout", callout: "wait" });
-    const msg = await spectator.next<{ family: string }>("msg", 2000);
-    expect(msg.family).toBe("say");
+    deaf.socket.send({ t: "send", msg: { method: "callout", callout: "wait" } });
+    const msg = await spectator.next<{ method: string }>("msg", 2000);
+    expect(msg.method).toBe("callout");
 
     for (const attempt of [
-      { t: "say", kind: "callout", callout: "wait" },
-      { t: "sound", clip: "airhorn" },
-      { t: "show", kind: "face", id: "f01" },
+      { t: "send", msg: { method: "callout", callout: "wait" } },
+      { t: "send", msg: { method: "clip", clip: "airhorn" } },
+      { t: "send", msg: { method: "face", id: "f01" } },
     ] as const) {
       spectator.send(attempt);
       const err = await spectator.next<{ code: string }>("error");

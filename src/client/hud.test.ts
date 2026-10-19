@@ -25,10 +25,10 @@ describe("formatTime", () => {
 });
 
 describe("trayFor", () => {
-  it("lists Say, Sound and Show with who receives each, from CHANNEL_RULES", () => {
+  it("lists Say, Sound and Show with who receives each, from the method table", () => {
     const blind = trayFor("blind");
     expect(blind.map((t) => t.label)).toEqual(["Say", "Sound", "Show"]);
-    expect(blind.map((t) => t.canSend)).toEqual([true, true, true]);
+    expect(blind.map((t) => t.canSend)).toEqual([true, false, true]); // ADR 0011: no clips
     expect(blind[0]?.receivers).toEqual(["blind", "mute"]);
     expect(blind[2]?.receivers).toEqual(["deaf", "mute"]);
     expect(blind.map((t) => t.youReceive)).toEqual([true, true, false]);
@@ -70,32 +70,30 @@ describe("captionFor", () => {
 
   it("gives every caption the sender's role and name, then what they said", () => {
     const callout = {
-      family: "say",
-      kind: "callout",
+      method: "callout",
       callout: "left",
       from: from("deaf", "Bo"),
       ...at,
     } as const;
     expect(captionFor(callout)).toEqual({ role: "deaf", name: "Bo", text: "Left" });
     const text = {
-      family: "say",
-      kind: "text",
+      method: "text",
       text: "door east",
       from: from("blind"),
       ...at,
     } as const;
     expect(captionFor(text)).toEqual({ role: "blind", name: "Ana", text: "door east" });
-    const clip = { family: "sound", clip: "airhorn", from: from("mute", "Cy"), ...at } as const;
+    const clip = { method: "clip", clip: "airhorn", from: from("mute", "Cy"), ...at } as const;
     expect(captionFor(clip)).toEqual({ role: "mute", name: "Cy", text: "[Air horn]" });
   });
 
   it("writes a sound in square brackets, as captions do, and falls back to its id", () => {
-    const clip = { family: "sound", clip: "not-listed", from: from("mute"), ...at } as const;
+    const clip = { method: "clip", clip: "not-listed", from: from("mute"), ...at } as const;
     expect(captionFor(clip)?.text).toBe("[not-listed]");
   });
 
-  it("has no caption for faces and stamps, which are already pictures", () => {
-    const face = { family: "show", kind: "face", id: "f01", from: from("blind"), ...at } as const;
+  it("has no caption for faces and marks, which are already pictures", () => {
+    const face = { method: "face", id: "f01", from: from("blind"), ...at } as const;
     expect(captionFor(face)).toBeNull();
   });
 });

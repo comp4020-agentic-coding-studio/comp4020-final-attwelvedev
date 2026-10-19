@@ -5,12 +5,21 @@ export const ROLE_LABEL: Record<Role, string> = {
   deaf: "Can't hear",
   mute: "Can't speak",
 };
-export type Family = "say" | "sound" | "show";
-export const CHANNEL_RULES: Record<Family, { send: readonly Role[]; receive: readonly Role[] }> = {
-  say: { send: ["blind", "deaf"], receive: ["blind", "mute"] },
-  sound: { send: ["blind", "deaf", "mute"], receive: ["blind", "mute"] },
-  show: { send: ["blind", "deaf", "mute"], receive: ["deaf", "mute"] },
+export type Method = "callout" | "text" | "voice" | "clip" | "face" | "mark";
+export const METHODS: readonly Method[] = ["callout", "text", "voice", "clip", "face", "mark"];
+// ADR 0011: who may send and who receives, per method.
+export const SENDS: Record<Role, readonly Method[]> = {
+  blind: ["callout", "text", "voice", "face"],
+  deaf: ["callout", "text", "voice", "clip", "face", "mark"],
+  mute: ["clip", "face", "mark"],
 };
+export const RECEIVES: Record<Role, readonly Method[]> = {
+  blind: ["callout", "text", "voice", "clip"],
+  deaf: ["face", "mark"],
+  mute: ["callout", "text", "voice", "clip", "face", "mark"],
+};
+export const canSend = (role: Role, method: Method): boolean => SENDS[role].includes(method);
+export const canReceive = (role: Role, method: Method): boolean => RECEIVES[role].includes(method);
 export interface Vec {
   x: number; // tiles, may be fractional
   y: number;

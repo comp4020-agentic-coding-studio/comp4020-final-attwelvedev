@@ -82,7 +82,7 @@ const spectating = new Map<string, Seat>(); // spectator's device hash → the s
 
 let rooms: Room[] | null = null;
 const roomList = (): Room[] => {
-  rooms ??= loadRooms();
+  rooms ??= loadRooms(process.env.ROOMS_DIR ?? "./rooms"); // ROOMS_DIR: a test seam for fixture rooms
   return rooms;
 };
 
@@ -599,9 +599,7 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         sendSpectatorReveal(code, who); // the newly followed seat's role
         return;
       }
-      case "say":
-      case "sound":
-      case "show": {
+      case "send": {
         const code = registry.byDevice.get(who);
         const running = code ? games.get(code) : undefined;
         const lobby = code ? registry.lobbies.get(code) : undefined;
@@ -613,11 +611,11 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
           }
           return;
         }
-        const sent = relay(running.game, lobby, seat, msg, Date.now());
+        const sent = relay(running.game, lobby, seat, msg.msg, Date.now());
         if (sent === null) return;
-        const family = msg.t;
+        const method = msg.msg.method;
         if (!sent.ok) {
-          record("channel.refused", who, lobby, { family, reason: sent.code });
+          record("channel.refused", who, lobby, { method, reason: sent.code });
           refused = true;
           const wait = sent.until ? Math.ceil((sent.until - Date.now()) / 1000) : 0;
           throw new LobbyError(
@@ -627,12 +625,8 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
               : "Your role can't send that.",
           );
         }
-        record("channel.send", who, lobby, {
-          family,
-          role: sent.message.from.role,
-          // the kind of thing sent, never what it said
-          kind: "kind" in sent.message ? sent.message.kind : "clip",
-        });
+        // the method and role, never what was said or picked
+        record("channel.send", who, lobby, { method, role: sent.message.from.role });
         for (const receiver of sent.receivers) {
           const to = lobby.seats[receiver]?.who;
           if (to) hub.sendTo(to, { t: "msg", ...sent.message });
@@ -677,8 +671,8 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
 
 const voiceLimit = createRateLimiter();
 
-// A voice frame from a seat: parsed, checked against the Say rule and the rate limit, then handed to
-// the seats that may hear Say and to spectators following them. Never logged, never kept.
+// A voice frame from a seat: parsed, checked against the voice rule and the rate limit, then handed to
+// the seats that may hear voice and to spectators following them. Never logged, never kept.
 function relayVoice(socket: WebSocket, who: string, data: Uint8Array): void {
   const code = registry.byDevice.get(who);
   const running = code ? games.get(code) : undefined;
@@ -689,7 +683,7 @@ function relayVoice(socket: WebSocket, who: string, data: Uint8Array): void {
   if (!frame) return;
   const receivers = voiceReceivers(running.game.roles, seat, lobby.settings.voice);
   if (receivers === null) {
-    record("channel.refused", who, lobby, { family: "say", reason: "cant-send" });
+    record("channel.refused", who, lobby, { method: "voice", reason: "cant-send" });
     hub.send(socket, { t: "error", code: "cant-send", message: "Your role can't send voice." });
     return;
   }

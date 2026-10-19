@@ -1,5 +1,5 @@
 import { honourLines } from "../client/honourLines.ts";
-import { CHANNEL_RULES, type Family, ROLE_LABEL, type Role } from "../game/types.ts";
+import { canReceive, canSend, type Method, ROLE_LABEL, type Role } from "../game/types.ts";
 import type { CrewMember, LobbySettings } from "../net/protocol.ts";
 import { RoleShape } from "./RoleShape.tsx";
 
@@ -8,8 +8,18 @@ const YOU: Record<Role, string> = {
   deaf: "You can't hear",
   mute: "You can't speak",
 };
-const FAMILY_NAME: Record<Family, string> = { say: "Say", sound: "Sound", show: "Show" };
-const FAMILIES: Family[] = ["say", "sound", "show"];
+// Temporary: the reveal's send/receive lines name a method each until Task 11.
+const FAMILY_NAME: Record<"say" | "sound" | "show", string> = {
+  say: "Say",
+  sound: "Sound",
+  show: "Show",
+};
+const FAMILIES = ["say", "sound", "show"] as const;
+const REPRESENTS: Record<(typeof FAMILIES)[number], Method> = {
+  say: "callout",
+  sound: "clip",
+  show: "face",
+};
 
 const list = (names: string[]): string => (names.length > 0 ? names.join(", ") : "nothing");
 
@@ -32,10 +42,8 @@ export function RoleReveal({
   onReady: () => void;
   lobbySettings: LobbySettings;
 }) {
-  const send = FAMILIES.filter((f) => CHANNEL_RULES[f].send.includes(role)).map(
-    (f) => FAMILY_NAME[f],
-  );
-  const receive = FAMILIES.filter((f) => CHANNEL_RULES[f].receive.includes(role)).map(
+  const send = FAMILIES.filter((f) => canSend(role, REPRESENTS[f])).map((f) => FAMILY_NAME[f]);
+  const receive = FAMILIES.filter((f) => canReceive(role, REPRESENTS[f])).map(
     (f) => FAMILY_NAME[f],
   );
   // a new room hands you a new role: the old shape turns into the new one

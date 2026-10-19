@@ -14,8 +14,7 @@ const ROLES3: [Role, Role, Role] = ["blind", "deaf", "mute"];
 
 const callout = (c: string, from: Seat = 1): ChannelMessage =>
   ({
-    family: "say",
-    kind: "callout",
+    method: "callout",
     callout: c,
     from: { seat: from, role: "deaf", nickname: "Bot" },
     sentAt: 0,
@@ -88,7 +87,7 @@ describe("a Can't-see bot", () => {
     const m = createBotMemory(0);
     const text = {
       ...callout("left"),
-      kind: "text",
+      method: "text",
       text: "go left now",
     } as unknown as ChannelMessage;
     expect(think(r, blindView(1), [text], m, 50).input.move).toEqual({ x: 0, y: 0 });
@@ -140,7 +139,7 @@ describe("a Can't-hear bot guiding a Can't-see teammate", () => {
     let said = 0;
     const run = play("01-loading-dock", ROLES3, [0, 1, 2], 600, (_tick, sent) => {
       for (const s of sent) {
-        if (s.message.family !== "say" || s.message.kind !== "callout") continue;
+        if (s.message.method !== "callout") continue;
         said++;
         const { callout, sentAt } = s.message;
         if (previous && previous.callout === callout) repeats.push(sentAt - previous.at);
@@ -155,8 +154,7 @@ describe("a Can't-hear bot guiding a Can't-see teammate", () => {
   it("steers a blind bot to the plates with callouts alone", () => {
     const said = new Set<string>();
     const run = play("01-loading-dock", ROLES3, [0, 1, 2], 600, (_t, sent) => {
-      for (const s of sent)
-        if (s.message.family === "say" && s.message.kind === "callout") said.add(s.message.callout);
+      for (const s of sent) if (s.message.method === "callout") said.add(s.message.callout);
     });
     expect(run.world.status).toBe("cleared");
     expect(said.has("right")).toBe(true);
@@ -166,8 +164,7 @@ describe("a Can't-hear bot guiding a Can't-see teammate", () => {
   it("says a phrase now and then, at most one every 10 s", () => {
     const texts: number[] = [];
     play("02-cameras-lasers", ROLES3, [0, 1, 2], 2000, (_t, sent) => {
-      for (const s of sent)
-        if (s.message.family === "say" && s.message.kind === "text") texts.push(s.message.sentAt);
+      for (const s of sent) if (s.message.method === "text") texts.push(s.message.sentAt);
     });
     expect(texts.length).toBeGreaterThan(0);
     for (let i = 1; i < texts.length; i++)
@@ -182,7 +179,9 @@ describe("a Can't-speak bot", () => {
     const m = createBotMemory(2, new Set(), ROLES3);
     for (let i = 0; i < 400; i++) {
       const turn = think(r, viewFor(world, 2, "mute", true), [], m, world.tick * TICK_MS);
-      expect(turn.send === null || turn.send.family !== "say").toBe(true);
+      expect(
+        turn.send === null || (turn.send.method !== "callout" && turn.send.method !== "text"),
+      ).toBe(true);
       step(world, { 2: turn.input }, TICK_MS);
     }
   });
@@ -194,7 +193,7 @@ describe("a Can't-speak bot", () => {
     world.players[2].pos = { x: 35.5, y: 4.5 }; // mute, east of it
     const m = createBotMemory(2, new Set(), ROLES3);
     const turn = think(r, viewFor(world, 2, "mute", true), [], m, 20_000);
-    expect(turn.send).toMatchObject({ family: "sound" });
+    expect(turn.send).toMatchObject({ method: "clip" });
     // and not again straight away: sound has a cooldown, and the bot keeps its own
     expect(think(r, viewFor(world, 2, "mute", true), [], m, 20_050).send).toBeNull();
   });
@@ -205,8 +204,7 @@ describe("a Can't-speak bot", () => {
     world.status = "cleared";
     const m = createBotMemory(2, new Set(), ROLES3);
     expect(think(r, viewFor(world, 2, "mute", true), [], m, 0).send).toMatchObject({
-      family: "show",
-      kind: "face",
+      method: "face",
     });
     expect(think(r, viewFor(world, 2, "mute", true), [], m, 50).send).toBeNull();
   });
@@ -347,9 +345,9 @@ function reactiveBlind(lagTicks = 6) {
     ];
   return {
     hear(tick: number, m: ChannelMessage) {
-      if (m.family !== "say") return;
-      const word = m.kind === "callout" ? m.callout : null;
-      const taps = m.kind === "text" ? /^Tap (\w+)\./.exec(m.text)?.[1] : undefined;
+      if (m.method !== "callout" && m.method !== "text") return;
+      const word = m.method === "callout" ? m.callout : null;
+      const taps = m.method === "text" ? /^Tap (\w+)\./.exec(m.text)?.[1] : undefined;
       if (word && dirOf(word)) {
         due.push({ at: tick + lagTicks, run: () => (heading = dirOf(word) as typeof heading) });
       } else if (word === "stop" || word === "wait") {
@@ -433,8 +431,8 @@ describe("steering a person who cannot see", () => {
     for (let i = 0; i < 80; i++) {
       const out = botsAct(r, world, roles, bots, { until: {} }, world.tick * TICK_MS, () => "Bot");
       for (const s of out.sent) {
-        if (s.message.family === "say") {
-          said.push(s.message.kind === "callout" ? s.message.callout : s.message.text);
+        if (s.message.method === "callout" || s.message.method === "text") {
+          said.push(s.message.method === "callout" ? s.message.callout : s.message.text);
         }
       }
       step(world, out.inputs, TICK_MS);

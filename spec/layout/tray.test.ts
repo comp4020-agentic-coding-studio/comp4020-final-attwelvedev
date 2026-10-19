@@ -1,6 +1,13 @@
 import type { Browser, Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, inject, it } from "vitest";
-import { CHANNEL_RULES, type Family, ROLE_LABEL, type Role } from "../../src/game/types.ts";
+import {
+  canReceive,
+  canSend,
+  type Method,
+  ROLE_LABEL,
+  ROLES,
+  type Role,
+} from "../../src/game/types.ts";
 import { axeViolations, launch } from "../browser.ts";
 import { leaveGameAndClose } from "../lobbyUi.ts";
 import { playRoom, type Table } from "../playUi.ts";
@@ -43,7 +50,19 @@ afterEach(async () => {
   }
 });
 
+// The temporary tray's three tiles, each standing for one method (until Task 2).
+type Family = "say" | "sound" | "show";
 const FAMILIES: Family[] = ["say", "sound", "show"];
+const METHOD: Record<Family, Method> = { say: "callout", sound: "clip", show: "face" };
+const CHANNEL_RULES = Object.fromEntries(
+  FAMILIES.map((f) => [
+    f,
+    {
+      send: ROLES.filter((r) => canSend(r, METHOD[f])),
+      receive: ROLES.filter((r) => canReceive(r, METHOD[f])),
+    },
+  ]),
+) as Record<Family, { send: Role[]; receive: Role[] }>;
 const KEY: Record<Family, string> = { say: "1", sound: "2", show: "3" };
 const tile = (page: Page, family: Family) =>
   page.locator(".tray .tile").nth(FAMILIES.indexOf(family));

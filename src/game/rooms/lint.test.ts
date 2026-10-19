@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseRoom } from "./format.ts";
 import { lintRoom } from "./lint.ts";
+import { loadRooms } from "./load.ts";
 
 const header = (opensWhen = `["p1","p2","p3"]`, beatX = "[8,19]") =>
   `{"id":"t-room","name":"Test room","version":1,"beats":[{"name":"Three hands","x":${beatX},"intent":{"blind":"b","deaf":"d","mute":"m"}}],"objects":{"D1":{"opensWhen":${opensWhen}}},"hints":{"jobs":[{"beat":1,"goTo":"p1"}]}}`;
@@ -241,5 +242,14 @@ describe("lintRoom hints", () => {
     expect(messages(withHints([...ok, { beat: 1, goTo: [0, 0] }]))).toContainEqual(
       expect.stringMatching(/not floor/),
     );
+  });
+});
+
+describe("the fixture rooms", () => {
+  // spec/fixtures/rooms is what ROOMS_DIR points the server at in specs that need a tiny room
+  it("load and pass the linter", () => {
+    const rooms = loadRooms("./spec/fixtures/rooms");
+    expect(rooms.map((r) => r.id)).toEqual(["01-tiny"]);
+    for (const r of rooms) expect(lintRoom(r)).toEqual([]);
   });
 });

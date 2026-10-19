@@ -11,8 +11,8 @@ import {
   type Stamp,
 } from "../game/channels.ts";
 import type { EntityView, RoleView, SoundCue } from "../game/perception.ts";
-import type { Family, PlayerInput, Role, Seat } from "../game/types.ts";
-import type { CrewMember } from "./game.ts";
+import type { Method, PlayerInput, Role, Seat, Vec } from "../game/types.ts";
+import type { CrewMember, SendRequest } from "./game.ts";
 import type { ErrorCode, LobbySettings, LobbyState, LobbySummary } from "./lobbies.ts";
 
 // Clients import their types from here only (they never reach into lobbies.ts
@@ -28,6 +28,7 @@ export type {
   LobbyState,
   LobbySummary,
   RoleView,
+  SendRequest,
   SoundCue,
   Stamp,
 };
@@ -47,11 +48,7 @@ export type ClientMsg =
   | { t: "next" } // host, once a room is cleared: on to the next room
   | { t: "host.choice"; choice: "bot" | "lobby" } // host, once a dropped seat's time is up
   | ({ t: "input" } & PlayerInput)
-  | { t: "say"; kind: "callout"; callout: Callout }
-  | { t: "say"; kind: "text"; text: string }
-  | { t: "sound"; clip: string }
-  | { t: "show"; kind: "face"; id: string }
-  | { t: "show"; kind: "stamp"; id: Stamp } // the server places it at the sender's tile
+  | { t: "send"; msg: SendRequest }
   | { t: "spectate"; seat: Seat } // a spectator: follow this seat instead
   | { t: "voice.stats"; p50: number; p95: number; dropped: number }; // a receiver's voice latency, ms
 
@@ -65,8 +62,8 @@ export type ServerMsg =
   | { t: "reveal"; room: string; name: string; index: number; role: Role; crew: CrewMember[] }
   | { t: "view"; view: RoleView }
   | { t: "cleared"; room: string; ms: number; loot: number; lootTotal: number }
-  | ({ t: "msg" } & ChannelMessage) // only ever sent to a seat whose role receives the family
-  | { t: "cooldown"; family: Family; until: number; stamp?: true } // stamp: the 1 s stamp clock, not the face clock
+  | ({ t: "msg" } & ChannelMessage) // only ever sent to a seat whose role receives the method
+  | { t: "cooldown"; method: Method; until: number }
   // The game is paused for a dropped seat. `left` is the ms to go as the server counts them
   // (a page's clock may not agree with the server's); `choosing` once the time is up.
   | { t: "pause"; waitingFor: string; deadline: number; left: number; choosing: boolean }
@@ -154,27 +151,40 @@ export function parseClientMsg(raw: string): ClientMsg | null {
       const clamp = (n: number) => Math.max(-1, Math.min(1, n));
       return { t: "input", seq: m.seq as number, move: { x: clamp(x), y: clamp(y) }, act: m.act };
     }
-    case "say":
-      if (m.kind === "callout") {
-        return (CALLOUTS as readonly unknown[]).includes(m.callout)
-          ? { t: "say", kind: "callout", callout: m.callout as Callout }
-          : null;
-      }
-      return m.kind === "text" && typeof m.text === "string"
-        ? { t: "say", kind: "text", text: m.text }
+    case "send": {
+      const msg = parseSendRequest(m.msg);
+      return msg ? { t: "send", msg } : null;
+    }
+    default:
+      return null;
+  }
+}
+
+const finite = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+
+// A send the server may act on: ids are checked against the bundled sets, and a
+// mark's tile must be two finite numbers (whether it is in sight is the sim's call).
+function parseSendRequest(raw: unknown): SendRequest | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const m = raw as Record<string, unknown>;
+  switch (m.method) {
+    case "callout":
+      return (CALLOUTS as readonly unknown[]).includes(m.callout)
+        ? { method: "callout", callout: m.callout as Callout }
         : null;
-    case "sound":
+    case "text":
+      return typeof m.text === "string" ? { method: "text", text: m.text } : null;
+    case "clip":
       // only a clip on the soundboard: an id that is not one is dropped
-      return CLIPS.some((c) => c.id === m.clip) ? { t: "sound", clip: m.clip as string } : null;
-    case "show":
-      if (m.kind === "face") {
-        return FACES.some((f) => f.id === m.id)
-          ? { t: "show", kind: "face", id: m.id as string }
-          : null;
-      }
-      return m.kind === "stamp" && (STAMPS as readonly unknown[]).includes(m.id)
-        ? { t: "show", kind: "stamp", id: m.id as Stamp }
-        : null;
+      return CLIPS.some((c) => c.id === m.clip) ? { method: "clip", clip: m.clip as string } : null;
+    case "face":
+      return FACES.some((f) => f.id === m.id) ? { method: "face", id: m.id as string } : null;
+    case "mark": {
+      if (!(STAMPS as readonly unknown[]).includes(m.id)) return null;
+      const at = m.at as Partial<Vec> | null | undefined;
+      if (!at || !finite(at.x) || !finite(at.y)) return null;
+      return { method: "mark", id: m.id as Stamp, at: { x: at.x, y: at.y } };
+    }
     default:
       return null;
   }

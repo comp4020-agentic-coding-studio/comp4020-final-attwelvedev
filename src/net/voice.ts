@@ -1,4 +1,4 @@
-import { CHANNEL_RULES, type Role, type Seat } from "../game/types.ts";
+import { canReceive, canSend, type Role, type Seat } from "../game/types.ts";
 
 // Wire format (phase 08 §4). In: [0x01][u32 seq][f64 captureServerMs][opus…].
 // Out: [0x01][u8 seat][u32 seq][f64 captureServerMs][opus…]. Voice frames are the
@@ -35,16 +35,15 @@ export function encodeVoiceOut(seat: Seat, frame: VoiceFrameIn): Uint8Array {
   return out;
 }
 
-// Who hears this sender, from the Say rule; null when the sender may not speak
+// Who hears this sender, from the voice rule; null when the sender may not speak
 // (or voice is off), which the caller answers with cant-send.
 export function voiceReceivers(
   roles: [Role, Role, Role],
   from: Seat,
   voiceOn: boolean,
 ): Seat[] | null {
-  const say = CHANNEL_RULES.say;
-  if (!voiceOn || !say.send.includes(roles[from])) return null;
-  return ([0, 1, 2] as const).filter((s) => s !== from && say.receive.includes(roles[s]));
+  if (!voiceOn || !canSend(roles[from], "voice")) return null;
+  return ([0, 1, 2] as const).filter((s) => s !== from && canReceive(roles[s], "voice"));
 }
 
 export interface RateLimiter {

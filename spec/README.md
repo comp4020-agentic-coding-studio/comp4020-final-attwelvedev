@@ -30,3 +30,11 @@ can judge; those are left to the crit and the marker.
 At a crit, a green `check` job is half the shipped mark, but it's never the
 judgement of the work: your tutor checks what you deployed against the published
 spec.
+
+## Fixture rooms
+
+`ROOMS_DIR` (default `./rooms`) is where the server loads its rooms from. A spec
+that needs a tiny, fast room starts its own app with
+`ROOMS_DIR=spec/fixtures/rooms`; `spec/fixtures/rooms/01-tiny.room` has three
+spawns, one three-plate door and an exit, the bots clear it in seconds, and
+`src/game/rooms/lint.test.ts` keeps it lint-clean.

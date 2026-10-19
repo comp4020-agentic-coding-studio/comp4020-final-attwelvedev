@@ -80,10 +80,10 @@ describe("game logging and the live stats", () => {
     const { players } = await startedGame(baseUrl);
     ready(players);
     const deaf = byRole(players, "deaf");
-    deaf.socket.send({ t: "say", kind: "callout", callout: "left" });
+    deaf.socket.send({ t: "send", msg: { method: "callout", callout: "left" } });
     const after = await until(
       read,
-      (g) => (g.channelsByRole.deaf?.say ?? 0) > (before.channelsByRole.deaf?.say ?? 0),
+      (g) => (g.channelsByRole.deaf?.callout ?? 0) > (before.channelsByRole.deaf?.callout ?? 0),
     );
     expect(after.events["game.start"]).toBeGreaterThanOrEqual(
       (before.events["game.start"] ?? 0) + 1,
@@ -107,7 +107,7 @@ describe("game logging and the live stats", () => {
     await watcher.next("lobby");
     ready(players);
     const deaf = byRole(players, "deaf");
-    deaf.socket.send({ t: "say", kind: "callout", callout: "left" });
+    deaf.socket.send({ t: "send", msg: { method: "callout", callout: "left" } });
     await new Promise((resolve) => setTimeout(resolve, 500));
     const data = await (await fetch(new URL("/stats.json", baseUrl))).text();
     const page = await (await fetch(new URL("/stats", baseUrl))).text();

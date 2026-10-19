@@ -276,19 +276,16 @@ function Hud({
     return socket.on("msg", (m) => {
       const now = performance.now();
       const { settings: s, forceCaptions } = live.current;
-      if (m.family === "say") {
-        speech.say(m.kind === "callout" ? CALLOUT_WORD[m.callout] : m.text);
-      } else if (m.family === "sound" && s.sound && !forceCaptions) {
+      if (m.method === "callout" || m.method === "text") {
+        speech.say(m.method === "callout" ? CALLOUT_WORD[m.callout] : m.text);
+      } else if (m.method === "clip" && s.sound && !forceCaptions) {
         audio.current?.playClip(m.clip);
-      } else if (m.family === "show" && m.kind === "face") {
+      } else if (m.method === "face") {
         rt.pops.push({ seat: m.from.seat, id: m.id, at: now });
       }
       // text to Can't speak is always shown, since reading it is their only way
       const caption = captionFor(m);
-      const wanted =
-        s.captions ||
-        forceCaptions ||
-        (m.family === "say" && m.kind === "text" && role !== "blind");
+      const wanted = s.captions || forceCaptions || (m.method === "text" && role !== "blind");
       if (caption && wanted) {
         const line = { id: ++live.current.lineId, ...caption, until: now + CAPTION_MS };
         setLines((old) => [...old.filter((l) => l.until > now), line].slice(-3));
@@ -663,6 +660,10 @@ function Hud({
         keepOpen={settings.keepOpen}
         onTyping={setTyping}
         voice={voice}
+        at={() => {
+          const p = rt.self ?? rt.view?.you.pos ?? { x: 0, y: 0 };
+          return { x: Math.floor(p.x) + 0.5, y: Math.floor(p.y) + 0.5 };
+        }}
       />
 
       {touch ? (

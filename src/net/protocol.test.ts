@@ -96,51 +96,46 @@ describe("parseClientMsg game messages", () => {
   });
 });
 
-describe("parseClientMsg: channels", () => {
-  it("parses a callout, text, a sound, a face and a stamp", () => {
-    expect(parseClientMsg('{"t":"say","kind":"callout","callout":"left"}')).toEqual({
-      t: "say",
-      kind: "callout",
-      callout: "left",
-    });
-    expect(parseClientMsg('{"t":"say","kind":"text","text":"door is east"}')).toEqual({
-      t: "say",
-      kind: "text",
-      text: "door is east",
-    });
-    expect(parseClientMsg('{"t":"sound","clip":"airhorn"}')).toEqual({
-      t: "sound",
-      clip: "airhorn",
-    });
-    expect(parseClientMsg('{"t":"show","kind":"face","id":"f07"}')).toEqual({
-      t: "show",
-      kind: "face",
-      id: "f07",
-    });
-    expect(parseClientMsg('{"t":"show","kind":"stamp","id":"key"}')).toEqual({
-      t: "show",
-      kind: "stamp",
-      id: "key",
-    });
+describe("parseClientMsg: send", () => {
+  const send = (msg: unknown) => parseClientMsg(JSON.stringify({ t: "send", msg }));
+
+  it("parses a callout, text, a clip, a face and a mark", () => {
+    for (const msg of [
+      { method: "callout", callout: "left" },
+      { method: "text", text: "door is east" },
+      { method: "clip", clip: "airhorn" },
+      { method: "face", id: "f07" },
+      { method: "mark", id: "key", at: { x: 3.5, y: 4.5 } },
+    ]) {
+      expect(send(msg)).toEqual({ t: "send", msg });
+    }
   });
 
   it.each([
-    ["an unknown callout", '{"t":"say","kind":"callout","callout":"dance"}'],
-    ["non-string text", '{"t":"say","kind":"text","text":5}'],
-    ["an unknown say kind", '{"t":"say","kind":"shout","text":"x"}'],
-    ["a non-string clip", '{"t":"sound","clip":3}'],
-    ["a clip id with a path in it", '{"t":"sound","clip":"../x"}'],
-    ["a well-formed clip that is not on the soundboard", '{"t":"sound","clip":"not-a-clip"}'],
-    ["a face out of range", '{"t":"show","kind":"face","id":"f13"}'],
-    ["a face not an id", '{"t":"show","kind":"face","id":"smile"}'],
-    ["an unknown stamp", '{"t":"show","kind":"stamp","id":"skull"}'],
-  ])("returns null for %s", (_name, raw) => {
-    expect(parseClientMsg(raw)).toBeNull();
+    ["an unknown method", { method: "shout", text: "x" }],
+    ["voice, which is a binary stream", { method: "voice" }],
+    ["an unknown callout", { method: "callout", callout: "dance" }],
+    ["non-string text", { method: "text", text: 5 }],
+    ["a non-string clip", { method: "clip", clip: 3 }],
+    ["a clip id with a path in it", { method: "clip", clip: "../x" }],
+    ["a clip that is not on the soundboard", { method: "clip", clip: "not-a-clip" }],
+    ["a face out of range", { method: "face", id: "f13" }],
+    ["a face not an id", { method: "face", id: "smile" }],
+    ["an unknown mark", { method: "mark", id: "skull", at: { x: 1, y: 1 } }],
+    ["a mark with no position", { method: "mark", id: "x" }],
+    ["a mark with a non-numeric position", { method: "mark", id: "x", at: { x: "1", y: 1 } }],
+    ["a mark at infinity", { method: "mark", id: "x", at: { x: Number.POSITIVE_INFINITY, y: 1 } }],
+  ])("returns null for %s", (_name, msg) => {
+    expect(send(msg)).toBeNull();
   });
 
-  it("never reads a stamp position from the client", () => {
-    const raw = '{"t":"show","kind":"stamp","id":"x","at":{"x":1,"y":1}}';
-    expect(parseClientMsg(raw)).toEqual({ t: "show", kind: "stamp", id: "x" });
+  it("returns null for a send with no msg", () => {
+    expect(parseClientMsg('{"t":"send"}')).toBeNull();
+  });
+
+  it.each(["say", "sound", "show"])("no longer accepts %s", (t) => {
+    expect(parseClientMsg(JSON.stringify({ t, kind: "callout", callout: "go" }))).toBeNull();
+    expect(parseClientMsg(JSON.stringify({ t, clip: "airhorn" }))).toBeNull();
   });
 });
 

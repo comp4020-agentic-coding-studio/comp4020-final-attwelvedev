@@ -1,5 +1,5 @@
 import { type Callout, CLIPS, type Stamp } from "../game/channels.ts";
-import { CHANNEL_RULES, type Family, type Role } from "../game/types.ts";
+import { canReceive, canSend, type Method, ROLES, type Role } from "../game/types.ts";
 import type { ChannelMessage, EntityView, SoundCue } from "../net/protocol.ts";
 
 export const ROLE_GLYPH: Record<Role, string> = { blind: "●", deaf: "■", mute: "▲" };
@@ -56,13 +56,13 @@ export interface Caption {
   text: string;
 }
 
-// Null when the message is already a picture (faces and stamps).
+// Null when the message is already a picture (faces and marks).
 export function captionFor(m: ChannelMessage): Caption | null {
   const who = { role: m.from.role, name: m.from.nickname };
-  if (m.family === "say") {
-    return { ...who, text: m.kind === "callout" ? CALLOUT_WORD[m.callout] : m.text };
+  if (m.method === "callout" || m.method === "text") {
+    return { ...who, text: m.method === "callout" ? CALLOUT_WORD[m.callout] : m.text };
   }
-  if (m.family === "sound") {
+  if (m.method === "clip") {
     return { ...who, text: `[${CLIPS.find((c) => c.id === m.clip)?.label ?? m.clip}]` };
   }
   return null;
@@ -147,32 +147,32 @@ export function formatTime(ms: number): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
+// Temporary: the tray's three tiles stand for a method each until the comms
+// wheel (Task 2) replaces them.
+export type TrayKind = "say" | "sound" | "show";
 export interface TrayTile {
-  family: Family;
+  family: TrayKind;
   label: string;
   canSend: boolean;
   receivers: Role[]; // who it goes to, in role order
   youReceive: boolean;
 }
 
-const FAMILIES: [Family, string][] = [
-  ["say", "Say"],
-  ["sound", "Sound"],
-  ["show", "Show"],
+const TILES: [TrayKind, string, Method][] = [
+  ["say", "Say", "callout"],
+  ["sound", "Sound", "clip"],
+  ["show", "Show", "face"],
 ];
 
-// A family a role can't send on stays in the tray (shown as "Can't send"), never hidden.
+// A tile a role can't send on stays in the tray (shown as "Can't send"), never hidden.
 export function trayFor(role: Role): TrayTile[] {
-  return FAMILIES.map(([family, label]) => {
-    const rule = CHANNEL_RULES[family];
-    return {
-      family,
-      label,
-      canSend: rule.send.includes(role),
-      receivers: [...rule.receive],
-      youReceive: rule.receive.includes(role),
-    };
-  });
+  return TILES.map(([family, label, method]) => ({
+    family,
+    label,
+    canSend: canSend(role, method),
+    receivers: ROLES.filter((r) => canReceive(r, method)),
+    youReceive: canReceive(role, method),
+  }));
 }
 
 const JUMP_TILES = 3; // further than this in one view is a push or a reconnect, not a walk

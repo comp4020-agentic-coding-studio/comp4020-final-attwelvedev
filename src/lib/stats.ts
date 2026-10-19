@@ -47,11 +47,11 @@ export function createStats(since = Date.now()) {
   return {
     recordGame(line: GameLine): void {
       events[line.event] = (events[line.event] ?? 0) + 1;
-      const { role, family } = line.detail ?? {};
-      if (line.event === "channel.send" && typeof role === "string" && typeof family === "string") {
-        const byFamily = channelsByRole[role] ?? {};
-        byFamily[family] = (byFamily[family] ?? 0) + 1;
-        channelsByRole[role] = byFamily;
+      const { role, method } = line.detail ?? {};
+      if (line.event === "channel.send" && typeof role === "string" && typeof method === "string") {
+        const byMethod = channelsByRole[role] ?? {};
+        byMethod[method] = (byMethod[method] ?? 0) + 1;
+        channelsByRole[role] = byMethod;
       }
     },
 
@@ -97,7 +97,7 @@ export function createStats(since = Date.now()) {
           ...live(),
           events: { ...events },
           channelsByRole: Object.fromEntries(
-            Object.entries(channelsByRole).map(([role, byFamily]) => [role, { ...byFamily }]),
+            Object.entries(channelsByRole).map(([role, byMethod]) => [role, { ...byMethod }]),
           ),
           rssMb: Math.round(process.memoryUsage.rss() / (1024 * 1024)),
         },
