@@ -165,3 +165,56 @@ describe("voice: the microphone refused, or no encoder", () => {
     expect(await deaf.getByRole("button", { name: /hold to talk/i }).count()).toBe(0);
   });
 });
+
+describe("voice: toggle mode", () => {
+  let browser: Browser;
+  let table: Table;
+  beforeAll(async () => {
+    browser = await launch(FAKE_MIC);
+    table = await playRoom(browser, baseUrl);
+    // a person who chose "press to toggle" in Settings: stored by the page, read on load
+    for (const page of [table.byRole.deaf, table.byRole.blind]) {
+      await page.evaluate(() => {
+        const saved = JSON.parse(localStorage.getItem("heist.settings") ?? "{}");
+        localStorage.setItem("heist.settings", JSON.stringify({ ...saved, voiceMode: "toggle" }));
+      });
+      await page.reload({ waitUntil: "networkidle" });
+      await page.locator(".frame canvas").waitFor({ timeout: 10_000 });
+    }
+  }, HOOK_MS);
+  afterAll(async () => {
+    for (const page of table?.pages ?? []) await leaveGameAndClose(page, baseUrl);
+    await browser?.close();
+  }, HOOK_MS);
+
+  it("V turns the mic on, Mic live shows, a second V turns it off", async () => {
+    const { deaf, mute } = table.byRole;
+    await deaf.getByRole("button", { name: /talk/i }).waitFor();
+    expect(await deaf.getByText("Mic live").count()).toBe(0);
+    await deaf.keyboard.press("v"); // pressed and released: still open
+    await deaf.getByText("Mic live").waitFor({ timeout: 1000 });
+    await mute.waitForFunction(
+      () => Number(document.querySelector(".game")?.getAttribute("data-voice-frames")) > 0,
+      null,
+      { timeout: 2000 },
+    );
+    await deaf.keyboard.press("v");
+    await deaf.getByText("Mic live").waitFor({ state: "detached", timeout: 1000 });
+  });
+
+  it("Esc turns a toggled mic off", async () => {
+    const { deaf } = table.byRole;
+    await deaf.keyboard.press("v");
+    await deaf.getByText("Mic live").waitFor({ timeout: 1000 });
+    await deaf.keyboard.press("Escape");
+    await deaf.getByText("Mic live").waitFor({ state: "detached", timeout: 1000 });
+  });
+
+  it("leaving the tab turns a toggled mic off", async () => {
+    const { deaf } = table.byRole;
+    await deaf.keyboard.press("v");
+    await deaf.getByText("Mic live").waitFor({ timeout: 1000 });
+    await deaf.evaluate(() => window.dispatchEvent(new Event("blur")));
+    await deaf.getByText("Mic live").waitFor({ state: "detached", timeout: 1000 });
+  });
+});

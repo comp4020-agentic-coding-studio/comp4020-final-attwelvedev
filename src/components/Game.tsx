@@ -244,7 +244,7 @@ function Hud({
   const [writing, setWriting] = useState(false);
   const field = useRef<HTMLInputElement>(null);
   const comms = useRef<CommsApi | null>(null);
-  const voice = useVoice(socket, role, lobbySettings.voice, root);
+  const voice = useVoice(socket, role, lobbySettings.voice, root, settings.voiceMode);
   // Can't see and Can't speak get captions instead of game sound when the
   // host's wizard says the room's other players don't have headphones, so the
   // game's own audio never leaks out to everyone sitting around them.

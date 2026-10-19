@@ -99,20 +99,20 @@ export function TalkBar({
             aria-keyshortcuts="V"
             onPointerDown={(e) => {
               e.currentTarget.setPointerCapture(e.pointerId);
-              voice.talk(true);
+              voice.mic("down");
             }}
             // let go of focus as well, or Space and Enter would press this button instead of the game
             onPointerUp={(e) => {
-              voice.talk(false);
+              voice.mic("up");
               e.currentTarget.blur();
             }}
             onPointerCancel={(e) => {
-              voice.talk(false);
+              voice.mic("up");
               e.currentTarget.blur();
             }}
             onContextMenu={(e) => e.preventDefault()}
           >
-            <kbd>V</kbd> Hold to talk
+            <kbd>V</kbd> {voice.mode === "hold" ? "Hold to talk" : "Talk"}
           </button>
         )}
         {!speaks && (
@@ -121,6 +121,11 @@ export function TalkBar({
           </span>
         )}
       </div>
+      {speaks && voice.talking && voice.mode === "toggle" && (
+        <p class="mic-live" role="status">
+          <span class="mic-dot" aria-hidden="true" /> Mic live
+        </p>
+      )}
       {speaks && voice.status !== "ready" && VOICE_NOTE[voice.status] && (
         <p class="talk-note" role="status">
           {VOICE_NOTE[voice.status]}

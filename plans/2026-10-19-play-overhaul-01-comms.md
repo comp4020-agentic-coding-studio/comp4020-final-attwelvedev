@@ -319,6 +319,7 @@ sound captions at all (FR4): `Game.tsx` doesn't render `cues` for deaf.
 
 ### Task 3: V to talk, hold or toggle, with a Mic live chip
 
+- [x] **Done** (2026-10-19).
 - **Already built in Task 2 (7263836), so not redone here:** `src/components/TalkBar.tsx`
   exists with the Enter text field, the hold-to-talk mic button (hatched "Can't talk" for
   Can't speak), the voice-status notes and the Comms button; `Game.tsx` mounts it;

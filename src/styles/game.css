@@ -861,6 +861,30 @@ fieldset.settings {
   background: var(--hatch), var(--panel);
   color: var(--ui);
 }
+.mic-live {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  margin: 0;
+  font-weight: 700;
+}
+.mic-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--ui);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .mic-dot {
+    animation: mic-pulse 1s ease-in-out infinite;
+  }
+}
+@keyframes mic-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
 .talk-note {
   margin: 0;
   color: var(--ui-muted);

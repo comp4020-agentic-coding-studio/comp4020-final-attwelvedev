@@ -448,11 +448,12 @@ export function CommsWheel({
       }
       if (a.type === "talk") {
         e.preventDefault();
-        if (!e.repeat && l.voice.status === "ready") l.voice.talk(true);
+        if (!e.repeat && l.voice.status === "ready") l.voice.mic("down");
         return;
       }
       e.preventDefault();
       if (a.type === "close") {
+        l.voice.mic("off");
         if (hold.current) finish(false);
         setPlacing(null);
         setGhost(null);
@@ -468,12 +469,12 @@ export function CommsWheel({
       if (e.key === "Tab") setKeys(false);
       const k = e.key.toLowerCase();
       if (k === "q" && hold.current?.source === "key") finish(true);
-      if (k === "v") live.current.voice.talk(false);
+      if (k === "v") live.current.voice.mic("up");
     };
     const blur = (): void => {
       setKeys(false);
       finish(false);
-      live.current.voice.talk(false);
+      live.current.voice.mic("off");
     };
     const move = (e: PointerEvent): void => {
       pointer.current = { x: e.clientX, y: e.clientY };

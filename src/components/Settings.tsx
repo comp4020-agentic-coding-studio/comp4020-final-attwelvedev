@@ -93,6 +93,21 @@ export function Settings({
               The host turned off game sound for the table: captions are on for everyone instead.
             </p>
           )}
+          {role !== "mute" && (
+            <label>
+              <input
+                type="checkbox"
+                checked={settings.voiceMode === "toggle"}
+                onChange={(e) =>
+                  onChange({
+                    ...settings,
+                    voiceMode: (e.target as HTMLInputElement).checked ? "toggle" : "hold",
+                  })
+                }
+              />
+              Press V to turn the mic on and off
+            </label>
+          )}
           <label>
             <input
               type="checkbox"
