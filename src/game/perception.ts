@@ -98,6 +98,9 @@ export interface SoundCue {
     | "bump"; // you are pushing at a wall, door or crate and getting nowhere
   pan: number;
   gain: number;
+  // unit vector from the listener to the source, rounded to 0.01, for a sound that comes from
+  // somewhere: what a caption's arrow points along. Absent for your own and team-wide sounds.
+  dir?: Vec;
   n?: number; // flag, exit and seq-ok: a count that sets the pitch and the caption
 }
 
@@ -273,11 +276,19 @@ function signProgress(
 const panOf = (source: Vec, listener: Vec): number =>
   Math.max(-1, Math.min(1, (source.x - listener.x) / PAN_RANGE));
 
+function dirTo(source: Vec, listener: Vec): { dir: Vec } | Record<string, never> {
+  const dx = source.x - listener.x;
+  const dy = source.y - listener.y;
+  const d = Math.hypot(dx, dy);
+  if (d < 0.01) return {};
+  return { dir: { x: Math.round((dx / d) * 100) / 100, y: Math.round((dy / d) * 100) / 100 } };
+}
+
 function cue(kind: SoundCue["kind"], source: Vec, listener: Vec): SoundCue | null {
   const range = RANGE[kind] ?? HEARING_RANGE;
   const gain = 1 - Math.hypot(source.x - listener.x, source.y - listener.y) / range;
   if (gain <= 0) return null;
-  return { kind, pan: panOf(source, listener), gain };
+  return { kind, pan: panOf(source, listener), gain, ...dirTo(source, listener) };
 }
 
 // What a hearing role is told: others' footsteps, a hum while standing on a
@@ -313,7 +324,7 @@ function soundsFor(world: World, seat: Seat): SoundCue[] {
       const c = cue("door", e.at, me);
       if (c) out.push(c);
     } else if (e.kind === "loot") {
-      out.push({ kind: "loot", pan: panOf(e.at, me), gain: 1 }); // the whole team hears it
+      out.push({ kind: "loot", pan: panOf(e.at, me), gain: 1, ...dirTo(e.at, me) }); // the whole team hears it
     } else if (e.kind === "checkpoint") {
       out.push({ kind: "checkpoint", pan: 0, gain: 1 });
     } else if (e.kind === "caught") {
@@ -326,12 +337,12 @@ function soundsFor(world: World, seat: Seat): SoundCue[] {
       const c = cue("crate", e.at, me);
       if (c) out.push(c);
     } else if (e.kind === "flag") {
-      out.push({ kind: "flag", pan: panOf(e.at, me), gain: 1, n: e.present });
+      out.push({ kind: "flag", pan: panOf(e.at, me), gain: 1, n: e.present, ...dirTo(e.at, me) });
     } else if (e.kind === "exit") {
-      out.push({ kind: "exit", pan: panOf(e.at, me), gain: 1, n: e.present });
+      out.push({ kind: "exit", pan: panOf(e.at, me), gain: 1, n: e.present, ...dirTo(e.at, me) });
     } else if (e.kind === "seq") {
       const kind = e.result === "ok" ? "seq-ok" : e.result === "open" ? "seq-open" : "seq-wrong";
-      out.push({ kind, pan: panOf(e.at, me), gain: 1, n: e.n });
+      out.push({ kind, pan: panOf(e.at, me), gain: 1, n: e.n, ...dirTo(e.at, me) });
     } else if (e.kind === "hide") {
       const own = e.seat === seat;
       const c = own
@@ -369,7 +380,12 @@ function hazardSounds(world: World, me: Vec, out: SoundCue[]): void {
         .map((t) => ({ t, d: Math.hypot(t.x - me.x, t.y - me.y) }))
         .sort((a, b) => a.d - b.d)[0];
       if (near && near.d <= LASER_HUM_RANGE) {
-        out.push({ kind: "laser", pan: panOf(near.t, me), gain: 1 - near.d / LASER_HUM_RANGE });
+        out.push({
+          kind: "laser",
+          pan: panOf(near.t, me),
+          gain: 1 - near.d / LASER_HUM_RANGE,
+          ...dirTo(near.t, me),
+        });
       }
     }
   }

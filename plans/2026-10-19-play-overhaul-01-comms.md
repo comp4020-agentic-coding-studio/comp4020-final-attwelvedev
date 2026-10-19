@@ -348,6 +348,7 @@ sound captions at all (FR4): `Game.tsx` doesn't render `cues` for deaf.
 
 ### Task 4: Captions point with drawn arrows; only what you receive
 
+- [x] **Done** (2026-10-19). One judgement call: the `seq-ok` caption "right plate" became "correct plate", since beside an arrow "right" reads as a direction (the "never left/right/ahead" test caught it).
 - **Description:** Directional sound captions as `DirArrow` + word; message
   captions by method; Can't hear has no sound captions.
 - **Files touched:** `src/game/perception.ts` (`SoundCue` gains `dir?: Vec`;
@@ -374,11 +375,11 @@ sound captions at all (FR4): `Game.tsx` doesn't render `cues` for deaf.
 
 ## 6. Phase Definition of Done
 
-- [ ] Every task in §5 is complete and its tests pass
-- [ ] `pnpm test:unit` passes
-- [ ] `pnpm build && pnpm start` then `pnpm check` passes
-- [ ] Task 2's human review accepted by the user
-- [ ] Bots still clear rooms 01–03 in every rotation (`spec/rooms.test.ts`)
+- [x] Every task in §5 is complete and its tests pass
+- [x] `pnpm test:unit` passes
+- [x] `pnpm build && pnpm start` then `pnpm check` passes
+- [x] Task 2's human review accepted by the user
+- [x] Bots still clear rooms 01–03 in every rotation (`spec/rooms.test.ts`)
 - [ ] Playtest 3 offered to the user (comms only; its write-up goes in
       `playtests/` and `PROCESS_LOG.md`)
 - [ ] Tick this phase in overview §5 and commit

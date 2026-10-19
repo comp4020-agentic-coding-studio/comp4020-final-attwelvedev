@@ -4,11 +4,14 @@ import { faceImage, preloadFaces } from "../client/faces.ts";
 import { detectFx, FX_MAX, FX_MS, type Fx } from "../client/fx.ts";
 import {
   CALLOUT_WORD,
+  type CueCaption,
   captionFor,
   caughtText,
   crewChangeText,
   cueCaptions,
+  cueKey,
   formatTime,
+  type HeldCues,
   hearCues,
   heardCues,
   hostChangeText,
@@ -61,7 +64,7 @@ interface Runtime {
   self: Vec | null; // where we think we are
   shown: Vec | null; // where we draw ourselves (self, eased)
   pops: { seat: number; id: string; at: number }[]; // faces on show, by when they landed
-  cueHold: Map<string, number>; // cue captions and when to let each go
+  cueHold: HeldCues; // cue captions and when to let each go
   fx: { fx: Fx; at: number }[]; // small effects for what just changed, by when they started
   soundOn: boolean;
   cam: { scale: number; ox: number; oy: number } | null; // the last frame's map camera, to turn a tap into a tile
@@ -239,7 +242,7 @@ function Hud({
   const lastSent = useRef<string | null>(null);
   const [settings, setSettings] = useState<SettingsState>(() => loadSettings(role));
   const [lines, setLines] = useState<CaptionLine[]>([]);
-  const [cues, setCues] = useState<string[]>([]);
+  const [cues, setCues] = useState<CueCaption[]>([]);
   const [typing, setTyping] = useState(false);
   const [writing, setWriting] = useState(false);
   const field = useRef<HTMLInputElement>(null);
@@ -424,11 +427,12 @@ function Hud({
       const now = performance.now();
       rt.pops = rt.pops.filter((p) => now - p.at < FACE_POP_MS);
       setLines((old) => (old.some((l) => l.until <= now) ? old.filter((l) => l.until > now) : old));
+      // Can't hear is never given a sound caption: nothing is played to them to caption
       const heard =
-        live.current.settings.captions || live.current.forceCaptions
+        role !== "deaf" && (live.current.settings.captions || live.current.forceCaptions)
           ? heardCues(rt.cueHold, now)
           : [];
-      setCues((old) => (old.join("|") === heard.join("|") ? old : heard));
+      setCues((old) => (cueKey(old) === cueKey(heard) ? old : heard));
     }, 100);
     return () => {
       document.body.classList.remove("playing");

@@ -518,6 +518,29 @@ describe("the comms wheel", () => {
     expect(await settledPicture(mute)).toBe(before);
   });
 
+  it("Can't speak's captions show an arrow image with an accessible direction, and Can't hear's frame has no sound captions", async () => {
+    const { blind, mute, deaf } = table.byRole;
+    // Can't hear even asks for captions: nothing is played to them, so none are shown
+    await deaf.evaluate(() => {
+      const saved = JSON.parse(localStorage.getItem("heist.settings") ?? "{}");
+      localStorage.setItem("heist.settings", JSON.stringify({ ...saved, captions: true }));
+    });
+    await deaf.reload({ waitUntil: "networkidle" });
+    await deaf.locator(".frame canvas").waitFor({ timeout: 10_000 });
+    // Can't see walks, so the others hear footsteps from somewhere
+    await blind.keyboard.down("d");
+    const arrow = mute.locator(".captions .cue .dir-arrow").first();
+    await arrow.waitFor({ timeout: 4000 });
+    expect(await arrow.getAttribute("role")).toBe("img");
+    expect(await arrow.getAttribute("aria-label")).toMatch(
+      /^from (above|below|the (upper |lower )?(left|right))$/,
+    );
+    expect(await mute.locator(".captions .cue").innerText()).not.toMatch(/\b(left|right|ahead)\b/);
+    await deaf.waitForTimeout(600);
+    expect(await deaf.locator(".captions .cue").count()).toBe(0);
+    await blind.keyboard.up("d");
+  });
+
   it("says nothing in the game UI about Say, Sound, Show or channels", async () => {
     for (const page of table.pages) {
       const text = await page.locator(".game").innerText();

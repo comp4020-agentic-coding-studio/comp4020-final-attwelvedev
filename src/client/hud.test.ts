@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
+import type { SoundCue } from "../game/perception.ts";
 import type { Role } from "../game/types.ts";
 import {
   CUE_HOLD_MS,
+  CUE_WORD,
   captionFor,
   caughtText,
   crewChangeText,
   cueCaptions,
+  dirOf,
   formatTime,
+  type HeldCues,
   hearCues,
   heardCues,
   hostChangeText,
@@ -78,55 +82,95 @@ describe("captionFor", () => {
   });
 });
 
+describe("dirOf", () => {
+  it("buckets a unit vector into eight 45 degree sectors, screen up being north", () => {
+    expect(dirOf({ x: 0, y: -1 })).toBe("N");
+    expect(dirOf({ x: 0.7, y: -0.7 })).toBe("NE");
+    expect(dirOf({ x: 1, y: 0 })).toBe("E");
+    expect(dirOf({ x: 0.7, y: 0.7 })).toBe("SE");
+    expect(dirOf({ x: 0, y: 1 })).toBe("S");
+    expect(dirOf({ x: -0.7, y: 0.7 })).toBe("SW");
+    expect(dirOf({ x: -1, y: 0 })).toBe("W");
+    expect(dirOf({ x: -0.7, y: -0.7 })).toBe("NW");
+  });
+
+  it("switches sector at 22.5 degrees either side of each direction", () => {
+    const at = (deg: number) => ({
+      x: Math.sin((deg * Math.PI) / 180),
+      y: -Math.cos((deg * Math.PI) / 180),
+    });
+    expect(dirOf(at(22))).toBe("N");
+    expect(dirOf(at(23))).toBe("NE");
+    expect(dirOf(at(67))).toBe("NE");
+    expect(dirOf(at(68))).toBe("E");
+    expect(dirOf(at(-22))).toBe("N");
+    expect(dirOf(at(-23))).toBe("NW");
+    expect(dirOf(at(179))).toBe("S");
+    expect(dirOf(at(-179))).toBe("S");
+  });
+});
+
 describe("cueCaptions", () => {
-  it("describes each sound once, with which side it came from", () => {
+  const east = { x: 1, y: 0 };
+  const west = { x: -1, y: 0 };
+
+  it("describes each sound once per direction, with the direction as data", () => {
     const cues = [
-      { kind: "footsteps", pan: -0.8, gain: 0.5 },
-      { kind: "footsteps", pan: -0.5, gain: 0.4 },
-      { kind: "footsteps", pan: 0.9, gain: 0.3 },
+      { kind: "footsteps", pan: -0.8, gain: 0.5, dir: west },
+      { kind: "footsteps", pan: -0.5, gain: 0.4, dir: west },
+      { kind: "footsteps", pan: 0.9, gain: 0.3, dir: east },
       { kind: "hum", pan: 0, gain: 1 },
-      { kind: "door", pan: 0.05, gain: 0.7 },
+      { kind: "door", pan: 0.05, gain: 0.7, dir: { x: 0, y: -1 } },
     ] as const;
     expect(cueCaptions([...cues])).toEqual([
-      "[footsteps, left]",
-      "[footsteps, right]",
-      "[hum]",
-      "[door click, ahead]",
+      { text: "footsteps", dir: "W" },
+      { text: "footsteps", dir: "E" },
+      { text: "hum", dir: null },
+      { text: "door click", dir: "N" },
     ]);
   });
 
-  it("captions the hazard cues, and names no side for team-wide ones", () => {
+  it("gives team-wide sounds, the hum and a sound with no direction dir null", () => {
     const cues = [
-      { kind: "guard", pan: -0.6, gain: 0.7 },
-      { kind: "camera", pan: 0.5, gain: 0.5 },
-      { kind: "laser", pan: 0.1, gain: 0.5 },
-      { kind: "loot", pan: -0.9, gain: 1 },
       { kind: "checkpoint", pan: 0, gain: 1 },
       { kind: "caught", pan: 0, gain: 1 },
       { kind: "alarm", pan: 0, gain: 1 },
+      { kind: "cleared", pan: 0, gain: 1 },
+      { kind: "bump", pan: 0, gain: 0.8 },
+      { kind: "hum", pan: 0, gain: 1 },
+      { kind: "guard", pan: 0.5, gain: 0.5, dir: { x: 0, y: 1 } },
     ] as const;
     expect(cueCaptions([...cues])).toEqual([
-      "[guard footsteps, left]",
-      "[camera whir, right]",
-      "[laser hum, ahead]",
-      "[loot chime, left]",
-      "[checkpoint chime]",
-      "[siren]",
-      "[alarm]",
+      { text: "checkpoint chime", dir: null },
+      { text: "siren", dir: null },
+      { text: "alarm", dir: null },
+      { text: "room cleared", dir: null },
+      { text: "you bump into something", dir: null },
+      { text: "hum", dir: null },
+      { text: "guard footsteps", dir: "S" },
     ]);
+  });
+
+  it("never writes left, right or ahead", () => {
+    const kinds = Object.keys(CUE_WORD) as SoundCue["kind"][];
+    for (const kind of kinds) {
+      for (const c of cueCaptions([{ kind, pan: 0.5, gain: 1, n: 2, dir: east }])) {
+        expect(c.text).not.toMatch(/\b(left|right|ahead)\b/);
+      }
+    }
   });
 
   it("does not caption your own steps (you made them), but does caption a bump", () => {
     expect(cueCaptions([{ kind: "step", pan: 0, gain: 0.6 }])).toEqual([]);
     expect(cueCaptions([{ kind: "bump", pan: 0, gain: 0.8 }])).toEqual([
-      "[you bump into something]",
+      { text: "you bump into something", dir: null },
     ]);
     expect(
       cueCaptions([
         { kind: "step", pan: 0, gain: 0.6 },
-        { kind: "footsteps", pan: -0.7, gain: 0.5 },
+        { kind: "footsteps", pan: -0.7, gain: 0.5, dir: west },
       ]),
-    ).toEqual(["[footsteps, left]"]);
+    ).toEqual([{ text: "footsteps", dir: "W" }]);
   });
 
   it("is empty when nothing is audible", () => {
@@ -138,25 +182,41 @@ describe("cueCaptions", () => {
 // 50 ms view. If captions only showed the newest view they would almost never be
 // seen, so each caption is held for a moment after it was last heard.
 describe("held cue captions", () => {
+  const cam = { text: "camera whir", dir: "E" } as const;
+
   it("keeps a one-tick sound on screen for a while, then lets it go", () => {
-    const held = new Map<string, number>();
-    hearCues(held, ["[camera whir, right]"], 1000);
-    expect(heardCues(held, 1000)).toEqual(["[camera whir, right]"]);
-    expect(heardCues(held, 1000 + CUE_HOLD_MS - 1)).toEqual(["[camera whir, right]"]);
+    const held: HeldCues = new Map();
+    hearCues(held, [cam], 1000);
+    expect(heardCues(held, 1000)).toEqual([cam]);
+    expect(heardCues(held, 1000 + CUE_HOLD_MS - 1)).toEqual([cam]);
     expect(heardCues(held, 1000 + CUE_HOLD_MS + 1)).toEqual([]);
   });
 
   it("keeps a repeated or continuous sound up for as long as it keeps coming", () => {
-    const held = new Map<string, number>();
-    for (let t = 0; t < 5000; t += 50) hearCues(held, ["[footsteps, left]"], t);
-    expect(heardCues(held, 5000)).toEqual(["[footsteps, left]"]);
+    const held: HeldCues = new Map();
+    const steps = { text: "footsteps", dir: "W" } as const;
+    for (let t = 0; t < 5000; t += 50) hearCues(held, [steps], t);
+    expect(heardCues(held, 5000)).toEqual([steps]);
+  });
+
+  it("holds the same sound from two directions as two captions", () => {
+    const held: HeldCues = new Map();
+    hearCues(
+      held,
+      [
+        { text: "footsteps", dir: "W" },
+        { text: "footsteps", dir: "E" },
+      ],
+      1000,
+    );
+    expect(heardCues(held, 1000)).toHaveLength(2);
   });
 
   it("shows a few at once, newest last, and forgets the old ones", () => {
-    const held = new Map<string, number>();
+    const held: HeldCues = new Map();
     for (const [i, w] of ["a", "b", "c", "d", "e", "f"].entries())
-      hearCues(held, [`[${w}]`], 1000 + i);
-    expect(heardCues(held, 1010)).toEqual(["[c]", "[d]", "[e]", "[f]"]);
+      hearCues(held, [{ text: w, dir: null }], 1000 + i);
+    expect(heardCues(held, 1010).map((c) => c.text)).toEqual(["c", "d", "e", "f"]);
     expect(held.size).toBeLessThanOrEqual(6); // old entries are dropped, not kept forever
     heardCues(held, 1000 + CUE_HOLD_MS * 3);
     expect(held.size).toBe(0);

@@ -119,6 +119,25 @@ describe("viewFor: what each role is told", () => {
     expect(hum[0]?.pan).toBe(0);
   });
 
+  it("gives a directional sound the unit vector to its source, rounded to 0.01", () => {
+    const w = worldFrom(
+      ["##########", "#1.pD...E#", "#2..D...E#", "#3..D...E#", "##########"],
+      ["p1"],
+    );
+    place(w, 0, { x: 3, y: 1 });
+    place(w, 1, { x: 2.5, y: 3.5 }); // the door opens to the east and north of this seat
+    step(w, {}, TICK_MS);
+    const click = viewFor(w, 1, "blind", false).sounds.find((s) => s.kind === "door");
+    expect(click?.dir?.x).toBeGreaterThan(0);
+    expect(click?.dir?.y).toBeLessThan(0);
+    const { x, y } = click?.dir ?? { x: 0, y: 0 };
+    expect(Math.hypot(x, y)).toBeCloseTo(1, 1);
+    expect(Math.round(x * 100) / 100).toBe(x);
+    // your own steps and the team-wide sounds point nowhere
+    const own = viewFor(w, 0, "blind", false).sounds.filter((s) => s.kind === "step");
+    for (const o of own) expect(o.dir).toBeUndefined();
+  });
+
   it("clicks when a door opens, panned from the door", () => {
     const w = worldFrom(
       ["##########", "#1.pD...E#", "#2..D...E#", "#3..D...E#", "##########"],

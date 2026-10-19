@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import roomText from "../../rooms/01-loading-dock.room?raw";
 import { faceImage } from "../client/faces.ts";
 import { detectFx, FX_MAX, FX_MS, type Fx } from "../client/fx.ts";
-import { captionFor, cueCaptions, hearCues, heardCues } from "../client/hud.ts";
+import { captionFor, cueCaptions, type HeldCues, hearCues, heardCues } from "../client/hud.ts";
 import { draw, type FacePop, type Scene } from "../client/render.ts";
 import { MAP } from "../client/tokens.ts";
 import { type AttractTick, createAttract } from "../game/bots/attract.ts";
@@ -37,7 +37,7 @@ interface Run {
   clearedAt: number | null;
   fx: { fx: Fx; at: number }[][]; // per seat
   pops: { seat: Seat; id: string; at: number }[][];
-  cues: Map<string, number>[];
+  cues: HeldCues[];
   lines: Line[][];
 }
 
@@ -72,7 +72,7 @@ function advance(run: Run, now: number) {
       ...run.fx[seat].filter((f) => now - f.at < FX_MS),
       ...detectFx(run.last.views[seat].entities, view.entities).map((fx) => ({ fx, at: now })),
     ].slice(-FX_MAX);
-    hearCues(run.cues[seat] as Map<string, number>, cueCaptions(view.sounds), now);
+    hearCues(run.cues[seat] as HeldCues, cueCaptions(view.sounds), now);
   }
   for (const { message, receivers } of tick.heard) {
     for (const seat of receivers) {
@@ -156,9 +156,9 @@ function paint(canvas: HTMLCanvasElement, run: Run, seat: Seat, now: number, cal
 function captionsOf(run: Run, seat: Seat, now: number): Line[] {
   const lines = (run.lines[seat] ?? []).filter((l) => l.until > now).slice(-MAX_LINES);
   run.lines[seat] = lines;
-  const cues = heardCues(run.cues[seat] as Map<string, number>, now)
+  const cues = heardCues(run.cues[seat] as HeldCues, now)
     .slice(-1)
-    .map((text, i) => ({ id: -1 - i, text, until: now }));
+    .map((c, i) => ({ id: -1 - i, text: c.text, until: now }));
   return [...cues, ...lines];
 }
 

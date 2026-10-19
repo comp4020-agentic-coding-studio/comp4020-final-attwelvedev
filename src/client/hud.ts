@@ -68,8 +68,7 @@ export function captionFor(m: ChannelMessage): Caption | null {
   return null;
 }
 
-const SIDE = 0.2;
-const CUE_WORD: Record<SoundCue["kind"], string> = {
+export const CUE_WORD: Record<SoundCue["kind"], string> = {
   footsteps: "footsteps",
   hum: "hum",
   door: "door click",
@@ -87,7 +86,7 @@ const CUE_WORD: Record<SoundCue["kind"], string> = {
   crate: "crate scrape",
   flag: "at the flag",
   exit: "on the exit",
-  "seq-ok": "right plate",
+  "seq-ok": "correct plate",
   "seq-wrong": "wrong plate",
   "seq-open": "sequence door unlocked",
   hide: "rustle",
@@ -104,42 +103,55 @@ function word(s: SoundCue): string {
   return CUE_WORD[s.kind];
 }
 
-// What the room sounds like right now, as captions: one per sound and side.
-export function cueCaptions(sounds: SoundCue[]): string[] {
-  const out = new Set<string>();
+export type Dir8 = "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW";
+const DIR8: Dir8[] = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+
+// The eight-way sector of a direction on screen, screen up being north.
+export function dirOf(v: { x: number; y: number }): Dir8 {
+  const deg = (Math.atan2(v.x, -v.y) * 180) / Math.PI; // 0 = up, clockwise
+  return DIR8[Math.round((deg + 360) / 45) % 8] as Dir8;
+}
+
+export interface CueCaption {
+  text: string;
+  dir: Dir8 | null; // where it came from, drawn as an arrow; null for the whole room
+}
+
+// What the room sounds like right now, as captions: one per sound and direction.
+export function cueCaptions(sounds: SoundCue[]): CueCaption[] {
+  const out = new Map<string, CueCaption>();
   for (const s of sounds) {
     if (s.kind === "step") continue; // you made it: nothing to caption
-    if (s.kind === "hum") {
-      out.add("[hum]");
-      continue;
-    }
-    if (EVERYWHERE.has(s.kind)) {
-      out.add(`[${word(s)}]`);
-      continue;
-    }
-    const side = s.pan < -SIDE ? "left" : s.pan > SIDE ? "right" : "ahead";
-    out.add(`[${word(s)}, ${side}]`);
+    const dir = s.kind === "hum" || EVERYWHERE.has(s.kind) || !s.dir ? null : dirOf(s.dir);
+    const text = s.kind === "hum" ? "hum" : word(s);
+    out.set(`${text}|${dir}`, { text, dir });
   }
-  return [...out];
+  return [...out.values()];
 }
 
 export const CUE_HOLD_MS = 2000; // how long a cue caption stays after it was last heard
 const MAX_CUES = 4;
 
+export const cueKey = (cues: CueCaption[]): string =>
+  cues.map((c) => `${c.text}|${c.dir}`).join(",");
+
+export type HeldCues = Map<string, { cue: CueCaption; until: number }>;
+
 // Remembers each cue caption until CUE_HOLD_MS after it last came in, newest last.
 // A one-shot sound lives in a single 50 ms view, so showing only the newest view
 // would almost never show it; this is what makes a camera whir readable.
-export function hearCues(held: Map<string, number>, captions: string[], now: number): void {
+export function hearCues(held: HeldCues, captions: CueCaption[], now: number): void {
   for (const c of captions) {
-    held.delete(c); // so a repeat moves to the end
-    held.set(c, now + CUE_HOLD_MS);
+    const key = `${c.text}|${c.dir}`;
+    held.delete(key); // so a repeat moves to the end
+    held.set(key, { cue: c, until: now + CUE_HOLD_MS });
   }
 }
 
 // The captions still within their hold, forgetting the rest.
-export function heardCues(held: Map<string, number>, now: number): string[] {
-  for (const [caption, until] of held) if (until <= now) held.delete(caption);
-  return [...held.keys()].slice(-MAX_CUES);
+export function heardCues(held: HeldCues, now: number): CueCaption[] {
+  for (const [key, h] of held) if (h.until <= now) held.delete(key);
+  return [...held.values()].map((h) => h.cue).slice(-MAX_CUES);
 }
 
 export function formatTime(ms: number): string {

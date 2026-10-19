@@ -386,6 +386,16 @@ body.playing main {
   color: var(--bg);
 }
 
+.cue-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin-right: var(--s-3);
+}
+.dir-arrow {
+  flex: none;
+}
+
 /* captions over the lower map; a polite live region */
 .captions {
   position: absolute;
