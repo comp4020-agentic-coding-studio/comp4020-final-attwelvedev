@@ -1,6 +1,5 @@
-import { honourLines } from "../client/honourLines.ts";
 import { canReceive, canSend, type Method, ROLE_LABEL, type Role } from "../game/types.ts";
-import type { CrewMember, LobbySettings } from "../net/protocol.ts";
+import type { CrewMember, RealLife } from "../net/protocol.ts";
 import { RoleShape } from "./RoleShape.tsx";
 
 const YOU: Record<Role, string> = {
@@ -31,7 +30,7 @@ export function RoleReveal({
   from,
   ready,
   onReady,
-  lobbySettings,
+  real,
 }: {
   name: string;
   index: number;
@@ -40,7 +39,7 @@ export function RoleReveal({
   from?: Role;
   ready: boolean;
   onReady: () => void;
-  lobbySettings: LobbySettings;
+  real: RealLife;
 }) {
   const send = FAMILIES.filter((f) => canSend(role, REPRESENTS[f])).map((f) => FAMILY_NAME[f]);
   const receive = FAMILIES.filter((f) => canReceive(role, REPRESENTS[f])).map(
@@ -90,9 +89,9 @@ export function RoleReveal({
           </li>
         ))}
       </ul>
-      {honourLines(lobbySettings).length > 0 && (
-        <ul class="reveal-honour" aria-label="Real-life rules for this table">
-          {honourLines(lobbySettings).map((line) => (
+      {real.lines.length > 0 && (
+        <ul class="reveal-honour" aria-label="Real-life rules for you">
+          {real.lines.map((line) => (
             <li key={line}>{line}</li>
           ))}
         </ul>

@@ -331,6 +331,13 @@ hash (fixes the cross-lobby seat key). Watchers default to the whole room:
 
 ### Task 7: Per-person setup and real-life settings per room; the wizard goes
 
+- [x] **Done** (2026-10-19). Judgement calls: `Setup` and its parser live in `src/game/setup.ts` (pure, so
+  the browser's `preferences.ts` and the protocol share one shape; `lobbies.ts` re-exports it);
+  `lobby.setup` answers always mark `done: true`, and the lobby page only sends a saved setup on join
+  if it was ever answered; a person sitting out gets `real` computed from their own setup and the
+  role of the seat they watch; in-app voice is off only when all three seats are people who said
+  they are in the room (a bot in the crew keeps it on); the team-wide `LobbyState.settings` is gone.
+
 - **Description:** `Setup`, `lobby.setup`, `realLifeFor`, `reveal.real`, voice
   relay honouring `real.voice`, `Game.tsx` reading `reveal.real` (mask noise,
   forced captions, honour lines); delete the team-wide settings and wizard.

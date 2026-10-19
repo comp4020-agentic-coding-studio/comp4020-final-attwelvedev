@@ -41,10 +41,17 @@ describe("parseClientMsg lobby messages", () => {
       t: "lobby.team",
       name: "Owls",
     });
-    const settings = { inPerson: true, maskNoise: true, othersSoundOff: false, voice: false };
-    expect(parseClientMsg(JSON.stringify({ t: "lobby.settings", settings }))).toEqual({
-      t: "lobby.settings",
-      settings,
+    const setup = {
+      headphones: false,
+      inRoom: true,
+      captions: false,
+      earplugs: true,
+      mask: false,
+      done: true,
+    };
+    expect(parseClientMsg(JSON.stringify({ t: "lobby.setup", setup }))).toEqual({
+      t: "lobby.setup",
+      setup,
     });
   });
 
@@ -54,9 +61,11 @@ describe("parseClientMsg lobby messages", () => {
     '{"t":"lobby.join","code":"KMQZ","nickname":"Bo"}',
     '{"t":"lobby.join","code":"KMQZ","nickname":"Bo","as":"boss"}',
     '{"t":"lobby.team","name":null}',
-    '{"t":"lobby.settings"}',
-    '{"t":"lobby.settings","settings":{"inPerson":true}}',
-    '{"t":"lobby.settings","settings":"nope"}',
+    '{"t":"lobby.setup"}',
+    '{"t":"lobby.setup","setup":{"inRoom":true}}',
+    '{"t":"lobby.setup","setup":"nope"}',
+    '{"t":"lobby.setup","setup":{"headphones":1,"inRoom":true,"captions":false,"earplugs":false,"mask":false,"done":true}}',
+    '{"t":"lobby.settings","settings":{"inPerson":true,"maskNoise":true,"othersSoundOff":false,"voice":false}}',
   ])("rejects %s", (raw) => {
     expect(parseClientMsg(raw)).toBeNull();
   });

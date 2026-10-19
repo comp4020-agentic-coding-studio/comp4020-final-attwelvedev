@@ -3,7 +3,7 @@ import {
   cleanNickname,
   createLobby,
   createRegistry,
-  DEFAULT_SETTINGS,
+  DEFAULT_SETUP,
   expireIdle,
   joinLobby,
   LobbyError,
@@ -11,13 +11,12 @@ import {
   MAX_LOBBIES,
   MAX_PEOPLE,
   openLobbies,
-  presetFor,
   reopenLobby,
   setConnected,
   setNickname,
   setOrder,
   setPrivate,
-  setSettings,
+  setSetup,
   setTeamName,
   startLobby,
 } from "./lobbies.ts";
@@ -194,57 +193,27 @@ describe("setTeamName", () => {
   });
 });
 
-describe("presetFor", () => {
-  it("is the defaults when the team isn't in the same room", () => {
-    expect(
-      presetFor({ sameRoom: false, deafHasHeadphones: true, othersHaveHeadphones: true }),
-    ).toEqual(DEFAULT_SETTINGS);
-  });
-
-  it("turns on masking noise and turns off in-app voice when the deaf seat has headphones", () => {
-    expect(
-      presetFor({ sameRoom: true, deafHasHeadphones: true, othersHaveHeadphones: true }),
-    ).toMatchObject({ inPerson: true, maskNoise: true, voice: false });
-  });
-
-  it("leaves masking noise off when the deaf seat has no headphones", () => {
-    expect(
-      presetFor({ sameRoom: true, deafHasHeadphones: false, othersHaveHeadphones: true }),
-    ).toMatchObject({ maskNoise: false });
-  });
-
-  it("turns game sound off (captions instead) when the others have no headphones", () => {
-    expect(
-      presetFor({ sameRoom: true, deafHasHeadphones: true, othersHaveHeadphones: false }),
-    ).toMatchObject({ othersSoundOff: true });
-  });
-});
-
-describe("setSettings", () => {
-  it("is host only", () => {
+describe("setSetup", () => {
+  it("stores a person's own setup, which is marked answered", () => {
     const reg = createRegistry();
     const { code } = createLobby(reg, dev(1), "Ana");
     joinLobby(reg, code, dev(2), "Bo", "player");
-    expect(errorCode(() => setSettings(reg, dev(2), DEFAULT_SETTINGS))).toBe("not-host");
+    const mine = { ...DEFAULT_SETUP, inRoom: true, mask: true, done: false };
+    const lobby = setSetup(reg, dev(2), mine);
+    expect(lobby.people[1]?.setup).toEqual({ ...mine, done: true });
+    expect(lobby.people[0]?.setup).toEqual(DEFAULT_SETUP); // not anyone else's
   });
 
-  it("the host can set the lobby's settings", () => {
+  it("starts as the defaults, not answered", () => {
     const reg = createRegistry();
-    createLobby(reg, dev(1), "Ana");
-    const preset = presetFor({
-      sameRoom: true,
-      deafHasHeadphones: true,
-      othersHaveHeadphones: true,
-    });
-    expect(setSettings(reg, dev(1), preset).settings).toEqual(preset);
+    expect(createLobby(reg, dev(1), "Ana").people[0]?.setup).toEqual(DEFAULT_SETUP);
+    expect(DEFAULT_SETUP.done).toBe(false);
   });
-});
 
-describe("createLobby", () => {
-  it("starts a lobby with the default settings", () => {
-    const reg = createRegistry();
-    const lobby = createLobby(reg, dev(1), "Ana");
-    expect(lobby.settings).toEqual(DEFAULT_SETTINGS);
+  it("is for someone in the lobby", () => {
+    expect(errorCode(() => setSetup(createRegistry(), dev(9), DEFAULT_SETUP))).toBe(
+      "lobby-not-found",
+    );
   });
 });
 

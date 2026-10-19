@@ -12,6 +12,7 @@ export type GameEvent =
   | "lobby.nickname" // a person changed their name (the name is never logged)
   | "lobby.private" // the host made the lobby private or public (detail kind: on/off)
   | "lobby.order" // the host reordered the people
+  | "lobby.setup" // a person answered their real-life setup (the answers are never logged)
   | "crew.swap" // the host swapped two people at a reveal
   | "lobby.error"
   | "game.start"

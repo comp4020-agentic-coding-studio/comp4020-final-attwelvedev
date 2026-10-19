@@ -105,7 +105,7 @@ describe("Settings: masking noise", () => {
     expect(document.body.textContent).not.toMatch(/masking noise/i);
   });
 
-  it("offers a toggle and a volume slider when the host has turned it on", async () => {
+  it("offers a toggle and a volume slider when their setup has headphones", async () => {
     await openAs("deaf", true);
     const toggle = document.querySelector('input[type="checkbox"][name="mask-noise"]');
     const slider = document.querySelector('input[type="range"]');
@@ -113,13 +113,13 @@ describe("Settings: masking noise", () => {
     expect((slider as HTMLInputElement)?.disabled).toBe(false);
   });
 
-  it("is greyed out with an explanation when the host hasn't turned it on", async () => {
+  it("is greyed out with an explanation when their setup has no headphones", async () => {
     await openAs("deaf", false);
     const toggle = document.querySelector('input[type="checkbox"][name="mask-noise"]');
     const slider = document.querySelector('input[type="range"]');
     expect((toggle as HTMLInputElement)?.disabled).toBe(true);
     expect((slider as HTMLInputElement)?.disabled).toBe(true);
-    expect(document.body.textContent).toMatch(/real-life setup/i);
+    expect(document.body.textContent).toMatch(/headphones/i);
   });
 
   it("calls onChange with maskNoiseOn flipped", async () => {
@@ -133,7 +133,7 @@ describe("Settings: masking noise", () => {
   });
 });
 
-describe("Settings: forced captions (host turned off game sound)", () => {
+describe("Settings: forced captions (no headphones, so game sound is off)", () => {
   it("shows captions checked and disabled, and game sound unchecked and disabled, with a note", async () => {
     await openAs("blind", false, () => {}, true);
     const checkbox = (label: string) =>
@@ -146,12 +146,12 @@ describe("Settings: forced captions (host turned off game sound)", () => {
     expect(captions.disabled).toBe(true);
     expect(sound.checked).toBe(false);
     expect(sound.disabled).toBe(true);
-    expect(document.body.textContent).toMatch(/host turned off game sound/i);
+    expect(document.body.textContent).toMatch(/no headphones, so game sound is off/i);
   });
 
   it("does not disable captions or sound for Can't hear, who has their own note already", async () => {
     await openAs("deaf", false, () => {}, true);
-    expect(document.body.textContent).not.toMatch(/host turned off game sound/i);
+    expect(document.body.textContent).not.toMatch(/no headphones, so game sound is off/i);
   });
 
   it("leaves spoken lines alone: the say channel is unaffected", async () => {

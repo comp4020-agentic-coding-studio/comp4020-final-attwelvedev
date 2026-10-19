@@ -4,6 +4,7 @@ import { type RawData, type WebSocket, WebSocketServer } from "ws";
 import { spectatorView } from "../game/perception.ts";
 import type { Room } from "../game/rooms/format.ts";
 import { loadRooms } from "../game/rooms/load.ts";
+import { DEFAULT_SETUP } from "../game/setup.ts";
 import { TICK_MS } from "../game/sim/world.ts";
 import type { Role, Seat } from "../game/types.ts";
 import { db } from "../lib/db.ts";
@@ -50,11 +51,12 @@ import {
   setNickname,
   setOrder,
   setPrivate,
-  setSettings,
+  setSetup,
   setTeamName,
   startLobby,
 } from "./lobbies.ts";
 import { type ClientMsg, parseClientMsg, type ServerMsg } from "./protocol.ts";
+import { type RealLife, realLifeFor } from "./realLife.ts";
 import { createRateLimiter, encodeVoiceOut, parseVoiceFrame, voiceReceivers } from "./voice.ts";
 
 const HEARTBEAT_MS = 15_000;
@@ -126,7 +128,26 @@ const watchersOf = (lobby: LobbyState): string[] => [
   ...lobby.sittingOut,
 ];
 
-function revealFor(lobby: LobbyState, running: Running, role: Role): ServerMsg {
+// What a person's own setup means for them in this room: their role, and the setups of the
+// three who play it (a person sitting out has none of their own to apply, so they follow the
+// seat they watch).
+function realFor(lobby: LobbyState, running: Running, who: string, role: Role): RealLife {
+  const setups = running.game.crew.people.flatMap((at) =>
+    at === null ? [] : (lobby.people[at]?.setup ?? []),
+  );
+  const mine = lobby.people.find((p) => p.who === who)?.setup ?? DEFAULT_SETUP;
+  return realLifeFor(role, mine, setups);
+}
+
+// The in-app voice rule for one seat: off when the whole crew is in one room. A bot has no setup, so
+// a crew with a bot in it is not all in one room.
+function voiceOn(lobby: LobbyState, running: Running): boolean {
+  const { people } = running.game.crew;
+  const setups = people.map((at) => (at === null ? undefined : lobby.people[at]?.setup));
+  return !setups.every((s) => s?.inRoom === true);
+}
+
+function revealFor(lobby: LobbyState, running: Running, role: Role, who: string): ServerMsg {
   const { game } = running;
   return {
     t: "reveal",
@@ -140,6 +161,7 @@ function revealFor(lobby: LobbyState, running: Running, role: Role): ServerMsg {
       (w) => lobby.people.find((p) => p.who === w)?.nickname ?? [],
     ),
     played: Object.fromEntries(lobby.people.map((p) => [p.nickname, p.played])),
+    real: realFor(lobby, running, who, role),
   };
 }
 
@@ -148,7 +170,7 @@ function sendReveal(code: string, seat: Seat): void {
   const running = games.get(code);
   const who = lobby?.seats[seat]?.who;
   if (!lobby || !running || !who) return;
-  hub.sendTo(who, revealFor(lobby, running, running.game.roles[seat] as Role));
+  hub.sendTo(who, revealFor(lobby, running, running.game.roles[seat] as Role, who));
 }
 
 // A watcher never occupies a seat, so it gets the same `reveal` (room, crew and every
@@ -158,7 +180,7 @@ function sendSpectatorReveal(code: string, who: string): void {
   const running = games.get(code);
   if (!lobby || !running) return;
   const followSeat = spectating.get(who) ?? 0;
-  hub.sendTo(who, revealFor(lobby, running, running.game.roles[followSeat] as Role));
+  hub.sendTo(who, revealFor(lobby, running, running.game.roles[followSeat] as Role, who));
 }
 
 // The lobby first, so a page knows whether it has a seat before the reveal says which room.
@@ -563,8 +585,9 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         change(who, () => setOrder(registry, who, msg.order));
         record("lobby.order", who, lobbyOf(who));
         return;
-      case "lobby.settings":
-        change(who, () => setSettings(registry, who, msg.settings));
+      case "lobby.setup":
+        change(who, () => setSetup(registry, who, msg.setup));
+        record("lobby.setup", who, lobbyOf(who));
         return;
       case "lobby.start": {
         const open = registry.lobbies.get(registry.byDevice.get(who) ?? "");
@@ -740,7 +763,7 @@ function relayVoice(socket: WebSocket, who: string, data: Uint8Array): void {
   if (!running || !lobby || seat === null || running.game.paused) return;
   const frame = parseVoiceFrame(data);
   if (!frame) return;
-  const receivers = voiceReceivers(running.game.roles, seat, lobby.settings.voice);
+  const receivers = voiceReceivers(running.game.roles, seat, voiceOn(lobby, running));
   if (receivers === null) {
     record("channel.refused", who, lobby, { method: "voice", reason: "cant-send" });
     hub.send(socket, { t: "error", code: "cant-send", message: "Your role can't send voice." });

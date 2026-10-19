@@ -1,4 +1,5 @@
 import { type CrewPick, pickCrew } from "../game/crew.ts";
+import { DEFAULT_SETUP, type Setup } from "../game/setup.ts";
 import type { Role } from "../game/types.ts";
 import { isAllowedName } from "../lib/names.ts";
 import { newLobbyCode } from "./codes.ts";
@@ -11,24 +12,7 @@ export interface SeatState {
   bot: boolean;
   person: number | null; // index into LobbyState.people, null for a bot or an empty seat
 }
-// What a person has said about how they are playing in real life. It never gates
-// anything: it only decides what the reveal tells them (ADR 0013).
-export interface Setup {
-  headphones: boolean;
-  inRoom: boolean; // in the same room as the others
-  captions: boolean; // always show captions
-  earplugs: boolean;
-  mask: boolean; // sleep mask or blindfold
-  done: boolean; // answered at least once ("Set up" in the lobby)
-}
-export const DEFAULT_SETUP: Setup = {
-  headphones: true,
-  inRoom: false,
-  captions: false,
-  earplugs: false,
-  mask: false,
-  done: false,
-};
+export { DEFAULT_SETUP, type Setup };
 export interface Person {
   who: string; // device hash
   nickname: string;
@@ -37,19 +21,6 @@ export interface Person {
   played: Role[]; // roles played this heist, in order
 }
 export const MAX_PEOPLE = 6;
-export interface LobbySettings {
-  inPerson: boolean;
-  maskNoise: boolean; // Can't-hear player's headphones play masking noise
-  othersSoundOff: boolean; // Can't see / Can't speak get captions instead of game sound
-  voice: boolean; // in-app voice (phase 08)
-}
-export const DEFAULT_SETTINGS: LobbySettings = {
-  inPerson: false,
-  maskNoise: false,
-  othersSoundOff: false,
-  voice: true,
-};
-
 export interface LobbyState {
   code: string;
   teamName: string;
@@ -61,7 +32,6 @@ export interface LobbyState {
   sittingOut: string[]; // device hashes of people not in this room's crew
   spectators: { who: string; nickname: string }[]; // watch-only joiners
   createdAt: number; // ms since epoch; with the code, the basis of the lobby's log key
-  settings: LobbySettings;
 }
 export interface LobbySummary {
   code: string;
@@ -164,7 +134,6 @@ export function createLobby(reg: Registry, who: string, nickname: string): Lobby
     sittingOut: [],
     spectators: [],
     createdAt: Date.now(),
-    settings: { ...DEFAULT_SETTINGS },
   };
   reg.lobbies.set(code, lobby);
   reg.byDevice.set(who, code);
@@ -285,29 +254,13 @@ export function setOrder(reg: Registry, who: string, order: readonly number[]): 
   return lobby;
 }
 
-// The wizard's three questions turned into settings. In person, people talk
-// to each other directly, so in-app voice is off; masking noise only helps if
-// Can't-hear is actually wearing headphones, and game sound only needs to go
-// quiet for the others if they aren't (so captions carry it instead, without
-// leaking the game's audio around the room).
-export function presetFor(answers: {
-  sameRoom: boolean;
-  deafHasHeadphones: boolean;
-  othersHaveHeadphones: boolean;
-}): LobbySettings {
-  if (!answers.sameRoom) return { ...DEFAULT_SETTINGS };
-  return {
-    inPerson: true,
-    maskNoise: answers.deafHasHeadphones,
-    othersSoundOff: !answers.othersHaveHeadphones,
-    voice: false,
-  };
-}
-
-export function setSettings(reg: Registry, who: string, settings: LobbySettings): LobbyState {
+// A person's own answers about how they are playing in real life. Answering at all marks them
+// set up; it never gates Start.
+export function setSetup(reg: Registry, who: string, setup: Setup): LobbyState {
   const lobby = reg.lobbies.get(reg.byDevice.get(who) ?? "");
-  if (!lobby || lobby.host !== who) throw new LobbyError("not-host", "Only the host can do that.");
-  lobby.settings = settings;
+  const person = lobby?.people.find((p) => p.who === who);
+  if (!lobby || !person) throw new LobbyError("lobby-not-found", "You are not in a lobby.");
+  person.setup = { ...setup, done: true };
   return lobby;
 }
 

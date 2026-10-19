@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { readNickname, saveNickname } from "../client/nickname.ts";
+import { loadSetup, saveSetup } from "../client/preferences.ts";
 import { qrSvg } from "../client/qr.ts";
-import type { LobbySettings, LobbyState } from "../net/protocol.ts";
+import type { LobbyState, Setup } from "../net/protocol.ts";
 import { Connection } from "./Connection.tsx";
 import { Game, type Reveal } from "./Game.tsx";
-import { RealLifeWizard } from "./RealLifeWizard.tsx";
 import { Spectator } from "./Spectator.tsx";
 import { useSocket } from "./useSocket.ts";
 
@@ -24,6 +24,83 @@ function SeatShape({ shape }: { shape: (typeof SEAT_SHAPE)[number] }) {
   );
 }
 
+// Temporary until Task 10 replaces it with the designed panel: two radio pairs and three
+// checkboxes, each answer sent as it is made.
+function SetupForm({ setup, onChange }: { setup: Setup; onChange: (next: Setup) => void }) {
+  const set = (patch: Partial<Setup>) => onChange({ ...setup, ...patch });
+  return (
+    <form class="setup stack" aria-labelledby="setup-title" onSubmit={(e) => e.preventDefault()}>
+      <h2 id="setup-title">Your setup</h2>
+      <fieldset>
+        <legend>Where are you?</legend>
+        <label>
+          <input
+            type="radio"
+            name="where"
+            checked={!setup.inRoom}
+            onChange={() => set({ inRoom: false })}
+          />
+          Remote
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="where"
+            checked={setup.inRoom}
+            onChange={() => set({ inRoom: true })}
+          />
+          In the same room as the others
+        </label>
+      </fieldset>
+      <fieldset>
+        <legend>Headphones?</legend>
+        <label>
+          <input
+            type="radio"
+            name="phones"
+            checked={setup.headphones}
+            onChange={() => set({ headphones: true })}
+          />
+          I have headphones
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="phones"
+            checked={!setup.headphones}
+            onChange={() => set({ headphones: false })}
+          />
+          No headphones
+        </label>
+      </fieldset>
+      <label>
+        <input
+          type="checkbox"
+          checked={setup.captions}
+          onChange={(e) => set({ captions: e.currentTarget.checked })}
+        />
+        Always show captions
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={setup.earplugs}
+          onChange={(e) => set({ earplugs: e.currentTarget.checked })}
+        />
+        I have earplugs
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={setup.mask}
+          onChange={(e) => set({ mask: e.currentTarget.checked })}
+        />
+        I have a sleep mask or blindfold
+      </label>
+    </form>
+  );
+}
+
 export function Lobby({ code }: { code: string }) {
   const { socket, state, rttMs, online } = useSocket();
   const [nickname, setNickname] = useState<string | null>(null); // null until read from this browser
@@ -38,12 +115,16 @@ export function Lobby({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
   const [reveal, setReveal] = useState<Reveal | null>(null);
-  const [wizardOpen, setWizardOpen] = useState(false);
+  const [setup, setSetup] = useState<Setup | null>(null); // your own answers, from this browser
+  const sentSetup = useRef(false); // the saved setup goes to the server once per page, when the join is confirmed
   const as = useRef<"player" | "spectator">("player");
   const following = useRef(false); // this page asked to start a new team
   const editingTeam = useRef(false); // an update from the server must not overwrite what the host is typing
 
-  useEffect(() => setNickname(readNickname()), []);
+  useEffect(() => {
+    setNickname(readNickname());
+    setSetup(loadSetup());
+  }, []);
 
   useEffect(() => {
     if (!socket) return;
@@ -71,6 +152,7 @@ export function Lobby({ code }: { code: string }) {
           index: m.index,
           role: m.role,
           crew: m.crew,
+          real: m.real,
           rooms: m.rooms,
           sittingOut: m.sittingOut,
           played: m.played,
@@ -92,6 +174,15 @@ export function Lobby({ code }: { code: string }) {
       for (const off of offs) off();
     };
   }, [socket, code]);
+
+  // The saved setup is sent as soon as the first `lobby` message confirms this page is a person of
+  // it, so a person who answered in an earlier lobby shows "Set up" with no clicks. Only if they
+  // ever answered: nothing saved means the defaults, left as "not set up".
+  useEffect(() => {
+    if (!socket || !setup || myPerson === null || sentSetup.current) return;
+    sentSetup.current = true;
+    if (setup.done) socket.send({ t: "lobby.setup", setup });
+  }, [socket, setup, myPerson]);
 
   // joining again after a reconnect is a rejoin: the server hands back the same seat
   const joinActive = status === "joining" || status === "in";
@@ -152,8 +243,10 @@ export function Lobby({ code }: { code: string }) {
     socket?.send({ t: "lobby.start" });
   }
 
-  function applySettings(settings: LobbySettings) {
-    socket?.send({ t: "lobby.settings", settings });
+  function answer(next: Setup) {
+    setSetup(next);
+    saveSetup({ ...next, done: true });
+    socket?.send({ t: "lobby.setup", setup: next });
   }
 
   const letters = code.split("");
@@ -199,7 +292,6 @@ export function Lobby({ code }: { code: string }) {
         host={host}
         hostName={lobby?.people.find((p) => p.who === lobby.host)?.nickname ?? null}
         seats={lobby?.seats ?? null}
-        lobbySettings={lobby.settings}
       />
     );
   }
@@ -348,29 +440,6 @@ export function Lobby({ code }: { code: string }) {
           </p>
         )}
 
-        {host && (
-          <div class="real-life">
-            <button
-              type="button"
-              class="btn"
-              aria-expanded={wizardOpen}
-              aria-controls="real-life-wizard"
-              onClick={() => setWizardOpen(!wizardOpen)}
-            >
-              {wizardOpen ? "Close real-life setup" : "Real-life setup"}
-            </button>
-            {/* stays mounted while hidden, so closing with this button (not
-               "Start over") keeps whatever step and answers were in progress */}
-            <div id="real-life-wizard" hidden={!wizardOpen}>
-              <RealLifeWizard
-                settings={lobby.settings}
-                onApply={applySettings}
-                onClose={() => setWizardOpen(false)}
-              />
-            </div>
-          </div>
-        )}
-
         <h2 id="seats-title">People</h2>
         <ul class="seats" aria-labelledby="seats-title">
           {lobby.people.map((person, i) => (
@@ -380,6 +449,7 @@ export function Lobby({ code }: { code: string }) {
               <span class="nick">{person.nickname}</span>
               {lobby.host === person.who && <span class="tag">host</span>}
               {myPerson === i && <span class="tag">you</span>}
+              {person.setup.done && <span class="tag">set up</span>}
               {!person.connected && <span class="tag">away</span>}
             </li>
           ))}
@@ -387,6 +457,8 @@ export function Lobby({ code }: { code: string }) {
         {lobby.spectators.length > 0 && (
           <p class="spectators">Spectators: {lobby.spectators.map((s) => s.nickname).join(", ")}</p>
         )}
+
+        {!watching && setup && <SetupForm setup={setup} onChange={answer} />}
 
         {!watching && (
           <div class="start">

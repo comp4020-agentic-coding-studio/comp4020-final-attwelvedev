@@ -230,3 +230,20 @@ describe("the game screen", () => {
     await leaveGameAndClose(mute, baseUrl);
   });
 });
+
+describe("high contrast", () => {
+  it("passes axe contrast checks in the HUD chrome, at both viewports", async () => {
+    const table = await playRoom(browser, baseUrl);
+    for (const page of [table.byRole.blind, table.byRole.deaf, table.byRole.mute]) {
+      await page.getByRole("button", { name: "Settings" }).click();
+      await page.getByLabel("High contrast").check();
+      await page.getByRole("button", { name: "Settings" }).click(); // close the panel
+    }
+    await canvasHash(table.byRole.blind); // let one frame draw with the new palette
+    for (const page of [table.byRole.blind, table.byRole.deaf, table.byRole.mute]) {
+      expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
+      expect(await axeViolations(page)).toEqual([]);
+    }
+    for (const page of table.pages) await page.context().close();
+  });
+});

@@ -27,7 +27,7 @@ import { NET, setContrast } from "../client/tokens.ts";
 import { quickSlot } from "../client/wheel.ts";
 import { FACE_POP_MS } from "../game/channels.ts";
 import { ROLE_LABEL, type Role, type Vec } from "../game/types.ts";
-import type { CrewMember, LobbySettings, LobbyState, RoleView } from "../net/protocol.ts";
+import type { CrewMember, LobbyState, RealLife, RoleView } from "../net/protocol.ts";
 import { type CaptionLine, Captions } from "./Captions.tsx";
 import { type CommsApi, CommsWheel } from "./CommsWheel.tsx";
 import { ConfirmButton } from "./ConfirmButton.tsx";
@@ -51,6 +51,7 @@ export interface Reveal {
   rooms: number; // how many rooms the heist has
   sittingOut: string[]; // nicknames of the people not playing this room
   played: Record<string, Role[]>; // by nickname: roles played so far
+  real: RealLife; // what your setup means for you in this room
   from?: Role; // your role in the room before, so the shape can morph into the new one
 }
 
@@ -111,7 +112,6 @@ export function Game({
   host,
   hostName,
   seats,
-  lobbySettings,
 }: {
   socket: GameSocket;
   state: ConnectionState;
@@ -121,7 +121,6 @@ export function Game({
   host: boolean;
   hostName: string | null;
   seats: LobbyState["seats"] | null;
-  lobbySettings: LobbySettings;
 }) {
   const rt = useRef<Runtime>({
     view: null,
@@ -165,7 +164,6 @@ export function Game({
           setReady(true);
           socket.send({ t: "ready" });
         }}
-        lobbySettings={lobbySettings}
       />
     );
   }
@@ -181,7 +179,6 @@ export function Game({
       hostName={hostName}
       seats={seats}
       audio={audio}
-      lobbySettings={lobbySettings}
     />
   );
 }
@@ -197,7 +194,6 @@ function Hud({
   hostName,
   seats,
   audio,
-  lobbySettings,
 }: {
   rt: Runtime;
   socket: GameSocket;
@@ -209,9 +205,8 @@ function Hud({
   hostName: string | null;
   seats: LobbyState["seats"] | null;
   audio: { current: GameAudio | null };
-  lobbySettings: LobbySettings;
 }) {
-  const { role } = reveal;
+  const { role, real } = reveal;
   const frame = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -248,11 +243,10 @@ function Hud({
   const [writing, setWriting] = useState(false);
   const field = useRef<HTMLInputElement>(null);
   const comms = useRef<CommsApi | null>(null);
-  const voice = useVoice(socket, role, lobbySettings.voice, root, settings.voiceMode);
-  // Can't see and Can't speak get captions instead of game sound when the
-  // host's wizard says the room's other players don't have headphones, so the
-  // game's own audio never leaks out to everyone sitting around them.
-  const forceCaptions = lobbySettings.othersSoundOff && role !== "deaf";
+  const voice = useVoice(socket, role, real.voice, root, settings.voiceMode);
+  // A hearing role without headphones gets captions instead of game sound, so the game's own
+  // audio never leaks out to everyone sitting around them.
+  const forceCaptions = real.soundOff;
   const live = useRef({ settings, lineId: 0, forceCaptions });
   live.current.settings = settings;
   live.current.forceCaptions = forceCaptions;
@@ -286,10 +280,9 @@ function Hud({
     };
   }, [settings.highContrast]);
 
-  // The deaf seat's own masking noise: on only when the host turned it on for
-  // an in-person table and this seat hasn't personally turned it off, at the
-  // volume this seat chose for themselves.
-  const maskNoiseOn = role === "deaf" && lobbySettings.maskNoise && settings.maskNoiseOn;
+  // The deaf seat's own masking noise: on when their setup says they have headphones, unless they
+  // turned it off, at the volume they chose.
+  const maskNoiseOn = real.maskNoise && settings.maskNoiseOn;
   useEffect(() => {
     audio.current?.setMaskNoise(maskNoiseOn, settings.volume);
   }, [audio, maskNoiseOn, settings.volume]);
@@ -564,8 +557,8 @@ function Hud({
           settings={settings}
           onChange={change}
           onLeave={() => socket.send({ t: "lobby.leave" })}
-          maskNoiseAvailable={lobbySettings.maskNoise}
-          othersSoundOff={lobbySettings.othersSoundOff}
+          maskNoiseAvailable={real.maskNoise}
+          othersSoundOff={real.soundOff}
         />
         {host && (
           <ConfirmButton

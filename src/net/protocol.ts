@@ -11,9 +11,11 @@ import {
   type Stamp,
 } from "../game/channels.ts";
 import type { EntityView, RoleView, SoundCue } from "../game/perception.ts";
+import { parseSetup, type Setup } from "../game/setup.ts";
 import type { Method, PlayerInput, Role, Seat, Vec } from "../game/types.ts";
 import type { CrewMember, SendRequest } from "./game.ts";
-import type { ErrorCode, LobbySettings, LobbyState, LobbySummary } from "./lobbies.ts";
+import type { ErrorCode, LobbyState, LobbySummary } from "./lobbies.ts";
+import type { RealLife } from "./realLife.ts";
 
 // Clients import their types from here only (they never reach into lobbies.ts
 // at runtime: it pulls in ./codes.ts for node:crypto, which has no business
@@ -24,11 +26,12 @@ export type {
   CrewMember,
   EntityView,
   ErrorCode,
-  LobbySettings,
   LobbyState,
   LobbySummary,
+  RealLife,
   RoleView,
   SendRequest,
+  Setup,
   SoundCue,
   Stamp,
 };
@@ -45,7 +48,7 @@ export type ClientMsg =
   | { t: "lobby.private"; on: boolean } // host
   | { t: "lobby.order"; order: number[] } // host: a permutation of the person indexes
   | { t: "crew.swap"; a: number; b: number } // host, during a reveal: person indexes
-  | { t: "lobby.settings"; settings: LobbySettings } // host
+  | { t: "lobby.setup"; setup: Setup } // your own real-life setup
   | { t: "lobby.start" } // host
   | { t: "ready" }
   | { t: "room.restart" } // host: everyone back to spawn, doors and crates reset
@@ -77,6 +80,7 @@ export type ServerMsg =
       rooms: number; // how many rooms the heist has
       sittingOut: string[]; // nicknames of the people not in this room's crew
       played: Record<string, Role[]>; // by nickname: the roles each person has played so far
+      real: RealLife; // what this person's setup means for them in this room
     }
   | { t: "view"; view: RoleView }
   | { t: "cleared"; room: string; ms: number; loot: number; lootTotal: number }
@@ -149,16 +153,9 @@ export function parseClientMsg(raw: string): ClientMsg | null {
         (m.b as number) >= 0
         ? { t: "crew.swap", a: m.a as number, b: m.b as number }
         : null;
-    case "lobby.settings": {
-      const s = m.settings;
-      if (typeof s !== "object" || s === null) return null;
-      const { inPerson, maskNoise, othersSoundOff, voice } = s as Record<string, unknown>;
-      return typeof inPerson === "boolean" &&
-        typeof maskNoise === "boolean" &&
-        typeof othersSoundOff === "boolean" &&
-        typeof voice === "boolean"
-        ? { t: "lobby.settings", settings: { inPerson, maskNoise, othersSoundOff, voice } }
-        : null;
+    case "lobby.setup": {
+      const setup = parseSetup(m.setup);
+      return setup ? { t: "lobby.setup", setup } : null;
     }
     case "lobby.start":
       return { t: "lobby.start" };
