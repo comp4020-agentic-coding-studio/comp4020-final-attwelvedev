@@ -129,7 +129,7 @@ export function cueCaptions(sounds: SoundCue[]): CueCaption[] {
   return [...out.values()];
 }
 
-export const CUE_HOLD_MS = 2000; // how long a cue caption stays after it was last heard
+export const CUE_HOLD_MS = 3500; // how long a cue caption stays after it was last heard (playtest 1: 2 s was too quick to read)
 const MAX_CUES = 4;
 
 export const cueKey = (cues: CueCaption[]): string =>
