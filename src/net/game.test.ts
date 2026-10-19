@@ -17,15 +17,16 @@ import {
   takeOverWithBot,
   tickGame,
 } from "./game.ts";
-import { DEFAULT_SETTINGS, type LobbyState } from "./lobbies.ts";
+import { DEFAULT_SETTINGS, type LobbyState, newPerson } from "./lobbies.ts";
 
 const rooms = loadRooms();
 
-const seat = (n: string | null) => ({
+const seat = (n: string | null, person: number | null = n === null ? null : 0) => ({
   who: n,
   nickname: n ? n.toUpperCase() : null,
   connected: n !== null,
   bot: false,
+  person,
 });
 // A seat that is a bot: what startLobby leaves in an empty seat
 const bot = (shape: string) => ({
@@ -33,13 +34,17 @@ const bot = (shape: string) => ({
   nickname: `Bot ${shape}`,
   connected: true,
   bot: true,
+  person: null,
 });
 const lobby = (...who: (string | null)[]): LobbyState => ({
   code: "ABCD",
   teamName: "Team",
   host: "a",
   phase: "open",
-  seats: [seat(who[0] ?? null), seat(who[1] ?? null), seat(who[2] ?? null)],
+  private: false,
+  people: who.flatMap((w) => (w === null ? [] : [newPerson(w, w.toUpperCase())])),
+  seats: [seat(who[0] ?? null, 0), seat(who[1] ?? null, 1), seat(who[2] ?? null, 2)],
+  sittingOut: [],
   spectators: [],
   createdAt: 0,
   settings: DEFAULT_SETTINGS,

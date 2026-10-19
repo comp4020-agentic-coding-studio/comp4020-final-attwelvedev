@@ -191,7 +191,7 @@ export function Home() {
               {(showAll ? list : list.slice(0, LIST_ROWS)).map((lobby) => (
                 <li key={lobby.code}>
                   <span class="team">{lobby.teamName}</span>
-                  <span class="filled">{lobby.filled}/3</span>
+                  <span class="filled">{lobby.filled}/6</span>
                   <button
                     type="button"
                     class="btn"

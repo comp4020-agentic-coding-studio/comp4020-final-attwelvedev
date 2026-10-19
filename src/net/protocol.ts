@@ -41,6 +41,9 @@ export type ClientMsg =
   | { t: "lobby.join"; code: string; nickname: string; as: "player" | "spectator" }
   | { t: "lobby.leave" }
   | { t: "lobby.team"; name: string }
+  | { t: "lobby.nickname"; nickname: string } // your own name, in the lobby
+  | { t: "lobby.private"; on: boolean } // host
+  | { t: "lobby.order"; order: number[] } // host: a permutation of the person indexes
   | { t: "lobby.settings"; settings: LobbySettings } // host
   | { t: "lobby.start" } // host
   | { t: "ready" }
@@ -56,7 +59,11 @@ export type ServerMsg =
   | { t: "welcome"; who: string }
   | { t: "pong"; at: number; serverAt: number } // serverAt: the server's clock, for the voice clock offset
   | { t: "lobbies"; list: LobbySummary[] }
-  | { t: "lobby"; lobby: LobbyState; you: { seat: Seat | null; host: boolean } }
+  | {
+      t: "lobby";
+      lobby: LobbyState;
+      you: { seat: Seat | null; host: boolean; person: number | null }; // person: your index in lobby.people
+    }
   | { t: "left" } // answers lobby.leave, so the page can navigate once the server has acted
   | { t: "error"; code: ErrorCode; message: string }
   | { t: "reveal"; room: string; name: string; index: number; role: Role; crew: CrewMember[] }
@@ -116,6 +123,14 @@ export function parseClientMsg(raw: string): ClientMsg | null {
       return { t: "lobby.leave" };
     case "lobby.team":
       return typeof m.name === "string" ? { t: "lobby.team", name: m.name } : null;
+    case "lobby.nickname":
+      return typeof m.nickname === "string" ? { t: "lobby.nickname", nickname: m.nickname } : null;
+    case "lobby.private":
+      return typeof m.on === "boolean" ? { t: "lobby.private", on: m.on } : null;
+    case "lobby.order":
+      return Array.isArray(m.order) && m.order.length <= 6 && m.order.every(Number.isInteger)
+        ? { t: "lobby.order", order: m.order as number[] }
+        : null;
     case "lobby.settings": {
       const s = m.settings;
       if (typeof s !== "object" || s === null) return null;

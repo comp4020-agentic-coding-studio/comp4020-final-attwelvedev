@@ -263,6 +263,11 @@ hash (fixes the cross-lobby seat key). Watchers default to the whole room:
 
 ### Task 5: A lobby is a list of up to six people (nicknames, private, order)
 
+- [x] **Done** (2026-10-19). Judgement calls: `LobbyState.settings` stays until Task 7 deletes it; `lobby` messages
+  also carry `you.person` (your index in `people`), since a person has no seat before Start; the new
+  `bad-order` error code covers a non-permutation or an order sent after Start; a rejoining person a
+  bot had replaced is put back into `people` by `giveSeatBack`. Home's open list now reads `n/6`.
+
 - **Description:** `Person`, `MAX_PEOPLE`, `private`, `people`, unique
   nicknames, nickname edits, host order, private filtering; seats filled only
   at start (from `people[0..2]` for now — Task 6 generalises).

@@ -33,6 +33,7 @@ export function Lobby({ code }: { code: string }) {
   const [lobby, setLobby] = useState<LobbyState | null>(null);
   const [host, setHost] = useState(false);
   const [mySeat, setMySeat] = useState<number | null>(null);
+  const [myPerson, setMyPerson] = useState<number | null>(null); // your place in the lobby's list of people
   const [team, setTeam] = useState("");
   const [copied, setCopied] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
@@ -59,6 +60,7 @@ export function Lobby({ code }: { code: string }) {
         if (m.lobby.phase === "open") setReveal(null);
         setHost(m.you.host);
         setMySeat(m.you.seat);
+        setMyPerson(m.you.person);
         if (!editingTeam.current) setTeam(m.lobby.teamName);
         setStatus("in");
       }),
@@ -192,9 +194,7 @@ export function Lobby({ code }: { code: string }) {
         online={online}
         reveal={reveal}
         host={host}
-        hostName={
-          lobby?.seats.find((s) => s.who !== null && s.who === lobby.host)?.nickname ?? null
-        }
+        hostName={lobby?.people.find((p) => p.who === lobby.host)?.nickname ?? null}
         seats={lobby?.seats ?? null}
         lobbySettings={lobby.settings}
       />
@@ -285,9 +285,9 @@ export function Lobby({ code }: { code: string }) {
     );
   }
 
-  const watching = mySeat === null;
-  const seated = lobby.seats.filter((s) => s.who !== null).length;
-  const bots = 3 - seated; // Start fills every empty seat with a bot
+  const watching = myPerson === null;
+  const here = lobby.people.length;
+  const bots = Math.max(0, 3 - here); // Start fills every empty seat with a bot
   return (
     <div class="lobby">
       <div class="lobby-code">
@@ -368,22 +368,16 @@ export function Lobby({ code }: { code: string }) {
           </div>
         )}
 
-        <h2 id="seats-title">Seats</h2>
+        <h2 id="seats-title">People</h2>
         <ul class="seats" aria-labelledby="seats-title">
-          {lobby.seats.map((seat, i) => (
-            <li key={SEAT_SHAPE[i]} class={seat.who ? "seat" : "seat empty"}>
-              <SeatShape shape={SEAT_SHAPE[i] ?? "circle"} />
-              <span class="sr-only">Seat {i + 1}: </span>
-              {seat.who ? (
-                <>
-                  <span class="nick">{seat.nickname}</span>
-                  {lobby.host === seat.who && <span class="tag">host</span>}
-                  {mySeat === i && <span class="tag">you</span>}
-                  {!seat.connected && <span class="tag">away</span>}
-                </>
-              ) : (
-                <span class="nick">Empty seat</span>
-              )}
+          {lobby.people.map((person, i) => (
+            <li key={person.who} class="seat">
+              <SeatShape shape={SEAT_SHAPE[i % 3] ?? "circle"} />
+              <span class="sr-only">Person {i + 1}: </span>
+              <span class="nick">{person.nickname}</span>
+              {lobby.host === person.who && <span class="tag">host</span>}
+              {myPerson === i && <span class="tag">you</span>}
+              {!person.connected && <span class="tag">away</span>}
             </li>
           ))}
         </ul>
@@ -402,8 +396,8 @@ export function Lobby({ code }: { code: string }) {
                 </button>
                 <p class="muted" role="status">
                   {bots === 0
-                    ? "All three seats are filled."
-                    : `${seated} of 3 players here. Start now and ${bots === 1 ? "a bot takes" : "bots take"} the rest.`}
+                    ? `${here} ${here === 1 ? "person is" : "people are"} here.`
+                    : `${here} of 3 players here. Start now and ${bots === 1 ? "a bot takes" : "bots take"} the rest.`}
                 </p>
               </>
             ) : (

@@ -9,7 +9,11 @@ interface RevealMsg {
   crew: { seat: number; bot: boolean }[];
 }
 interface LobbyMsg {
-  lobby: { phase: string; seats: { bot: boolean; who: string | null }[] };
+  lobby: {
+    phase: string;
+    seats: { bot: boolean; who: string | null }[];
+    people: { who: string }[];
+  };
   you: { seat: number | null; host: boolean };
 }
 
@@ -229,12 +233,12 @@ describe("a person leaves a running game", () => {
     guest.send({ t: "lobby.join", code: lobby.code, nickname: "Bo", as: "player" });
     await guest.next("lobby");
     let seen = await host.next<LobbyMsg>("lobby", 3000);
-    while (seen.lobby.seats[1]?.who === null) seen = await host.next<LobbyMsg>("lobby", 3000);
+    while (seen.lobby.people.length < 2) seen = await host.next<LobbyMsg>("lobby", 3000);
     guest.send({ t: "lobby.join", code: "ZZZY", nickname: "Bo", as: "player" });
     await guest.next("error", 3000);
     let after = await host.next<LobbyMsg>("lobby", 4000);
-    while (after.lobby.seats[1]?.who !== null) after = await host.next<LobbyMsg>("lobby", 4000);
-    expect(after.lobby.seats[1]?.who).toBeNull();
+    while (after.lobby.people.length > 1) after = await host.next<LobbyMsg>("lobby", 4000);
+    expect(after.lobby.people).toHaveLength(1);
     await host.close();
     await guest.close();
   });

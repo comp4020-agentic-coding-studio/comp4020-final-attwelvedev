@@ -44,6 +44,9 @@ import {
   openLobbies,
   reopenLobby,
   setConnected,
+  setNickname,
+  setOrder,
+  setPrivate,
   setSettings,
   setTeamName,
   startLobby,
@@ -519,6 +522,18 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
       }
       case "lobby.team":
         change(who, () => setTeamName(registry, who, msg.name));
+        return;
+      case "lobby.nickname":
+        change(who, () => setNickname(registry, who, msg.nickname));
+        record("lobby.nickname", who, lobbyOf(who));
+        return;
+      case "lobby.private":
+        change(who, () => setPrivate(registry, who, msg.on));
+        record("lobby.private", who, lobbyOf(who), { kind: msg.on ? "on" : "off" });
+        return;
+      case "lobby.order":
+        change(who, () => setOrder(registry, who, msg.order));
+        record("lobby.order", who, lobbyOf(who));
         return;
       case "lobby.settings":
         change(who, () => setSettings(registry, who, msg.settings));

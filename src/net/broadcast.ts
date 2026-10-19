@@ -24,7 +24,7 @@ export function createHub(registry: Registry) {
   }
 
   const membersOf = (lobby: LobbyState): string[] => [
-    ...lobby.seats.flatMap((s) => (s.who && !s.bot ? [s.who] : [])),
+    ...lobby.people.map((p) => p.who),
     ...lobby.spectators.map((s) => s.who),
   ];
 
@@ -36,10 +36,15 @@ export function createHub(registry: Registry) {
       lastMembers.set(lobby.code, members);
       for (const who of members) {
         const seat = lobby.seats.findIndex((s) => s.who === who);
+        const person = lobby.people.findIndex((p) => p.who === who);
         sendTo(who, {
           t: "lobby",
           lobby,
-          you: { seat: seat >= 0 ? (seat as Seat) : null, host: lobby.host === who },
+          you: {
+            seat: seat >= 0 ? (seat as Seat) : null,
+            host: lobby.host === who,
+            person: person >= 0 ? person : null,
+          },
         });
       }
     } else {
@@ -75,13 +80,16 @@ export function createHub(registry: Registry) {
 
 // A lobby that vanished still needs its code to tell its people.
 function closed(code: string): LobbyState {
-  const empty = () => ({ who: null, nickname: null, connected: false, bot: false });
+  const empty = () => ({ who: null, nickname: null, connected: false, bot: false, person: null });
   return {
     code,
     teamName: "",
     host: "",
     phase: "done",
+    private: false,
+    people: [],
     seats: [empty(), empty(), empty()],
+    sittingOut: [],
     spectators: [],
     createdAt: 0,
     settings: DEFAULT_SETTINGS,

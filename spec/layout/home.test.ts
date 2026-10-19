@@ -206,7 +206,7 @@ describe("the home page by keyboard and over the socket", () => {
     const { page: host, code } = await createLobbyAs(browser, baseUrl, "Ana", PHONE);
     const row = watcher.getByRole("listitem").filter({ hasText: `Team ${code}` });
     await row.waitFor({ timeout: 1500 });
-    expect(await row.textContent()).toContain("1/3");
+    expect(await row.textContent()).toContain("1/6");
     await leaveAndClose(host);
     await leaveAndClose(watcher);
   });

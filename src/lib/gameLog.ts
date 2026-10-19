@@ -9,6 +9,9 @@ export type GameEvent =
   | "lobby.create"
   | "lobby.join"
   | "lobby.leave"
+  | "lobby.nickname" // a person changed their name (the name is never logged)
+  | "lobby.private" // the host made the lobby private or public (detail kind: on/off)
+  | "lobby.order" // the host reordered the people
   | "lobby.error"
   | "game.start"
   | "room.start"

@@ -176,3 +176,34 @@ describe("parseClientMsg: bye", () => {
     expect(parseClientMsg('{"t":"bye"}')).toEqual({ t: "bye" });
   });
 });
+
+describe("parseClientMsg: lobby.nickname, lobby.private and lobby.order", () => {
+  it("accepts a well-typed body of each", () => {
+    expect(parseClientMsg('{"t":"lobby.nickname","nickname":"Ana"}')).toEqual({
+      t: "lobby.nickname",
+      nickname: "Ana",
+    });
+    expect(parseClientMsg('{"t":"lobby.private","on":true}')).toEqual({
+      t: "lobby.private",
+      on: true,
+    });
+    expect(parseClientMsg('{"t":"lobby.order","order":[2,0,1]}')).toEqual({
+      t: "lobby.order",
+      order: [2, 0, 1],
+    });
+  });
+
+  it.each([
+    '{"t":"lobby.nickname"}',
+    '{"t":"lobby.nickname","nickname":5}',
+    '{"t":"lobby.private"}',
+    '{"t":"lobby.private","on":"yes"}',
+    '{"t":"lobby.order"}',
+    '{"t":"lobby.order","order":"0,1"}',
+    '{"t":"lobby.order","order":[0,"1"]}',
+    '{"t":"lobby.order","order":[0,1.5]}',
+    '{"t":"lobby.order","order":[0,1,2,3,4,5,6]}',
+  ])("drops %s", (raw) => {
+    expect(parseClientMsg(raw)).toBeNull();
+  });
+});

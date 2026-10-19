@@ -16,7 +16,7 @@ describe.each([
   ["phone", PHONE],
   ["desktop", DESKTOP],
 ])("the lobby page at %s width", (_name, viewport) => {
-  it("has no horizontal overflow and no axe violations, with seats and spectators filled", async () => {
+  it("has no horizontal overflow and no axe violations, with people and spectators listed", async () => {
     const { page, code } = await createLobbyAs(browser, baseUrl, "Ana the Magnificent", viewport);
     const other = await joinWithCode(browser, baseUrl, code, "Bo", viewport);
     await page.getByText("Bo").first().waitFor();
@@ -96,16 +96,20 @@ describe("the lobby over the socket", () => {
     await leaveAndClose(other);
   });
 
-  it("offers Watch or Start a new team to a fourth joiner", async () => {
+  it("lists everyone in the lobby, and offers Watch or Start a new team to a seventh joiner", async () => {
     const { page: host, code } = await createLobbyAs(browser, baseUrl, "Ana", DESKTOP);
-    const crew = [
-      await joinWithCode(browser, baseUrl, code, "Bo", PHONE),
-      await joinWithCode(browser, baseUrl, code, "Cy", PHONE),
-    ];
-    const fourth = await joinWithCode(browser, baseUrl, code, "Di", PHONE);
-    await fourth.getByRole("button", { name: "Watch" }).click();
-    await host.getByText("Spectators: Di").waitFor({ timeout: 1500 });
-    for (const p of [host, fourth, ...crew]) await leaveAndClose(p);
+    const crew = [];
+    for (const name of ["Bo", "Cy", "Di", "Ed", "Flo"]) {
+      crew.push(await joinWithCode(browser, baseUrl, code, name, PHONE));
+    }
+    for (const name of ["Bo", "Cy", "Di", "Ed", "Flo"]) {
+      await host.getByRole("listitem").filter({ hasText: name }).waitFor({ timeout: 1500 });
+    }
+    expect(await host.locator(".seats li").count()).toBe(6);
+    const seventh = await joinWithCode(browser, baseUrl, code, "Gus", PHONE);
+    await seventh.getByRole("button", { name: "Watch" }).click();
+    await host.getByText("Spectators: Gus").waitFor({ timeout: 1500 });
+    for (const p of [host, seventh, ...crew]) await leaveAndClose(p);
   });
 
   it("takes someone back home when they leave", async () => {

@@ -21,7 +21,7 @@ import {
   type Seat,
   type Vec,
 } from "../game/types.ts";
-import { type LobbyState, SEAT_SHAPE } from "./lobbies.ts";
+import { type LobbyState, MAX_PEOPLE, newPerson, SEAT_SHAPE } from "./lobbies.ts";
 
 export interface CrewMember {
   seat: Seat;
@@ -195,6 +195,7 @@ export function takeOverWithBot(
     nickname: `Bot ${SEAT_SHAPE[seat]}`,
     connected: true,
     bot: true,
+    person: null,
   };
   delete game.inputs[seat]; // the person's held key does not walk on
   seatBots(
@@ -214,7 +215,13 @@ export function giveSeatBack(
 ): Seat | null {
   const seat = ([0, 1, 2] as const).find((s) => game.vacated[s] === who && lobby.seats[s]?.bot);
   if (seat === undefined) return null;
-  lobby.seats[seat] = { who, nickname, connected: true, bot: false };
+  // they left the lobby when a bot took the seat: they are a person of it again
+  let at = lobby.people.findIndex((p) => p.who === who);
+  if (at < 0) {
+    if (lobby.people.length >= MAX_PEOPLE) return null;
+    at = lobby.people.push(newPerson(who, nickname)) - 1;
+  }
+  lobby.seats[seat] = { who, nickname, connected: true, bot: false, person: at };
   delete game.vacated[seat];
   delete game.inputs[seat];
   seatBots(
