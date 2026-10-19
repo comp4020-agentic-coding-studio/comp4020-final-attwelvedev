@@ -986,3 +986,34 @@ fieldset.settings {
   display: flex;
   gap: var(--s-2);
 }
+
+/* the watchers' chat, under the map: plain until the spectator panel is restyled */
+.watch-chat {
+  display: grid;
+  gap: var(--s-2);
+  padding: 0 var(--s-3);
+}
+.watch-chat h2 {
+  margin: 0;
+  font-size: var(--t-18);
+}
+.watch-chat p {
+  margin: 0;
+}
+.watch-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 7rem;
+  overflow-y: auto;
+  display: grid;
+  gap: var(--s-1);
+}
+.watch-say {
+  display: flex;
+  gap: var(--s-2);
+}
+.watch-say input {
+  flex: 1;
+  min-width: 0;
+}

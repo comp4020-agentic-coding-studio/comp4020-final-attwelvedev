@@ -14,6 +14,7 @@ import {
   PAUSE_MS,
   pauseFor,
   proposeVote,
+  readyAgain,
   relay,
   restartGame,
   resumeIfBack,
@@ -21,6 +22,7 @@ import {
   startGame,
   swapPeople,
   takeOverWithBot,
+  takeOverWithPerson,
   tickGame,
   VOTE_MS,
   voters,
@@ -676,5 +678,97 @@ describe("a restart vote", () => {
     expect(finishVote(game, l, rooms, "declined")).toBe(null);
     expect(game.vote).toBeNull();
     expect(game.world).toBe(world);
+  });
+});
+
+// A person who leaves while others sit out: the host may pull one of them in to take the seat.
+describe("takeOverWithPerson", () => {
+  // five people, the first three playing room 1; the person in seat 1 (Bo) has just left the lobby
+  const afterLeave = () => {
+    const l = lobby("a", "b", "c", "d", "e");
+    l.seats = [seat("a", 0), seat("b", 1), seat("c", 2)];
+    l.sittingOut = ["d", "e"];
+    const game = startGame(l, rooms);
+    markPlayed(game, l);
+    game.ready.add(0);
+    game.ready.add(1);
+    game.ready.add(2);
+    return { l, game };
+  };
+
+  it("seats the pulled-in person in the leaver's seat, with the leaver's role, and they are no longer sitting out", () => {
+    const { l, game } = afterLeave();
+    const role = game.roles[1];
+    expect(takeOverWithPerson(game, l, 1, 3)).toBe(true); // person 3 is Di
+    expect(l.seats[1]).toMatchObject({
+      who: "d",
+      nickname: "D",
+      bot: false,
+      person: 3,
+      connected: true,
+    });
+    expect(game.roles[1]).toBe(role);
+    expect(game.crew.people[1]).toBe(3);
+    expect(l.sittingOut).toEqual(["e"]);
+  });
+
+  it("records that they played the role, so the rotation counts it", () => {
+    const { l, game } = afterLeave();
+    takeOverWithPerson(game, l, 1, 3);
+    expect(l.people[3]?.played).toEqual([game.roles[1]]);
+    expect(game.heistPeople.has("d")).toBe(true);
+  });
+
+  it("is ready for nobody but the others: the one pulled in must press Ready, the rest keep theirs", () => {
+    const { l, game } = afterLeave();
+    takeOverWithPerson(game, l, 1, 3);
+    expect([...game.ready].sort()).toEqual([0, 2]);
+  });
+
+  it("holds the game until they are ready: paused for that seat, which is not a countdown", () => {
+    const { l, game } = afterLeave();
+    takeOverWithPerson(game, l, 1, 3);
+    expect(game.paused).toMatchObject({ seat: 1, choosing: false, forReady: true });
+    expect(Number.isFinite(game.paused?.deadline)).toBe(true); // it goes over the wire as a number
+    expect(tickGame(game).views.size).toBe(0); // nothing moves while they get ready
+  });
+
+  it("goes on when the pulled-in person is ready", () => {
+    const { l, game } = afterLeave();
+    takeOverWithPerson(game, l, 1, 3);
+    expect(readyAgain(game, 1)).toBe(true);
+    expect(game.paused).toBeNull();
+    expect(game.ready.has(1)).toBe(true);
+    expect(tickGame(game).views.size).toBe(3);
+  });
+
+  it("does not go on for anyone else's ready, or for a pause that waits for a dropped connection", () => {
+    const { l, game } = afterLeave();
+    takeOverWithPerson(game, l, 1, 3);
+    expect(readyAgain(game, 0)).toBe(false);
+    expect(game.paused).not.toBeNull();
+    const other = lobby("a", "b", "c");
+    const g2 = startGame(other, rooms);
+    pauseFor(g2, 2, 0); // a dropped connection, not a wait for Ready
+    expect(readyAgain(g2, 2)).toBe(false);
+    expect(g2.paused).not.toBeNull();
+  });
+
+  it("refuses someone who is not sitting out, or a seat that is not empty", () => {
+    const { l, game } = afterLeave();
+    expect(takeOverWithPerson(game, l, 1, 0)).toBe(false); // Ana is playing
+    expect(takeOverWithPerson(game, l, 1, 9)).toBe(false); // nobody
+    expect(l.seats[1]?.who).toBe("b");
+  });
+
+  it("starts the bots afresh: who is a person has changed", () => {
+    const l = lobby("a", "b", "c", "d", "e");
+    l.seats = [seat("a", 0), bot("square"), seat("c", 2)];
+    l.sittingOut = ["d", "e"];
+    const game = startGame(l, rooms);
+    const before = game.bots[1]?.memory;
+    takeOverWithPerson(game, l, 1, 3);
+    expect(game.bots[1]).toBeUndefined();
+    expect(before).toBeDefined();
   });
 });

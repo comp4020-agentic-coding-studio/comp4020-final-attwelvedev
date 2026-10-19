@@ -720,3 +720,34 @@ describe("spectatorView: a full view regardless of the followed role", () => {
     expect(view.tiles?.[2]?.slice(10, 15)).not.toBe("     ");
   });
 });
+
+describe("spectatorView with nobody followed: the whole room, no sounds", () => {
+  it("has the tiles and every player and object, but hears nothing", () => {
+    const w = world();
+    place(w, 0, { x: 10, y: 1 });
+    place(w, 1, { x: 5, y: 1 });
+    w.players[1].moving = true;
+    w.alarmUntil = w.tick + 100; // the alarm is on
+    const view = spectatorView(w, null, ["blind", "deaf", "mute"], true);
+    expect(view.tiles).toHaveLength(5);
+    expect(view.entities.filter((e) => e.kind === "player")).toHaveLength(3);
+    expect(view.sounds).toEqual([]);
+    expect(view.alarm).toBe(false);
+    expect(view.dark).toBe(false);
+  });
+
+  it("shows what Can't hear would see, even when seat 0 is Can't see", () => {
+    const w = world();
+    const some = spectatorView(w, null, ["blind", "deaf", "mute"], true);
+    const deaf = spectatorView(w, 1, ["blind", "deaf", "mute"], true);
+    // the same things drawn; only the followed seat's own marker (`role`) can differ
+    const ids = (v: ReturnType<typeof spectatorView>) => v.entities.map((e) => `${e.kind}:${e.id}`);
+    expect(ids(some)).toEqual(ids(deaf));
+    expect(some.entities.some((e) => e.kind === "player" && e.role !== undefined)).toBe(true);
+  });
+
+  it("points the camera at no one: no position for you", () => {
+    const view = spectatorView(world(), null, ["blind", "deaf", "mute"], false);
+    expect(view.you.pos).toBeUndefined();
+  });
+});

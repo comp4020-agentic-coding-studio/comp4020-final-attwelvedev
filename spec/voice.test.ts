@@ -61,6 +61,23 @@ describe("voice relay", () => {
     await closeAll(players);
   });
 
+  // The rate limit used to be keyed by seat number, so seat 0 of every lobby shared one budget.
+  it("one lobby's talker does not use up another lobby's voice budget", async () => {
+    const one = await crew();
+    const two = await crew();
+    const talkerOne = byRole(one.players, "deaf"); // Can't hear, the same seat in both lobbies
+    const talkerTwo = byRole(two.players, "deaf");
+    expect(talkerOne.seat).toBe(talkerTwo.seat);
+    const listenerTwo = byRole(two.players, "blind");
+
+    for (let seq = 0; seq < 60; seq++) talkerOne.socket.sendBinary(frame(seq)); // far over 25 a second
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    talkerTwo.socket.sendBinary(frame(1000));
+    const heard = await listenerTwo.socket.nextBinary(1500);
+    expect(new DataView(heard.buffer, heard.byteOffset).getUint32(2)).toBe(1000);
+    await closeAll([...one.players, ...two.players]);
+  });
+
   it("a voice.stats message becomes a voice.latency event on /stats.json", async () => {
     const read = async () =>
       (

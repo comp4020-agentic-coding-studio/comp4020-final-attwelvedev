@@ -55,10 +55,11 @@ export type ClientMsg =
   | { t: "vote.propose"; kind: VoteKind } // a player: restart the room, or the heist
   | { t: "vote.cast"; yes: boolean } // a player: answer the open vote
   | { t: "next" } // host, once a room is cleared: on to the next room
-  | { t: "host.choice"; choice: "bot" | "lobby" } // host, once a dropped seat's time is up
+  | { t: "host.choice"; choice: "bot" | "lobby" | "pull"; person?: number } // host, once a seat is empty: pull = pull in the sitting-out person at this index of `people`
   | ({ t: "input" } & PlayerInput)
   | { t: "send"; msg: SendRequest }
-  | { t: "spectate"; seat: Seat } // a spectator: follow this seat instead
+  | { t: "spectate"; seat: Seat | null } // a watcher: follow this seat, or null for the whole room with no sound
+  | { t: "spec.say"; text: string } // a watcher (a spectator, or someone sitting this room out): to the other watchers
   | { t: "voice.stats"; p50: number; p95: number; dropped: number }; // a receiver's voice latency, ms
 
 export type ServerMsg =
@@ -90,7 +91,15 @@ export type ServerMsg =
   | { t: "cooldown"; method: Method; until: number }
   // The game is paused for a dropped seat. `left` is the ms to go as the server counts them
   // (a page's clock may not agree with the server's); `choosing` once the time is up.
-  | { t: "pause"; waitingFor: string; deadline: number; left: number; choosing: boolean }
+  | {
+      t: "pause";
+      waitingFor: string;
+      deadline: number;
+      left: number;
+      choosing: boolean;
+      forReady?: boolean; // someone was pulled in and the game waits for their Ready, not a connection
+      gone?: boolean; // the person pressed Leave: nothing to wait for, so the host chooses at once
+    }
   | { t: "caught"; hazard: "guard" | "camera" | "laser"; seat: Seat; checkpoint: number } // the team was sent back
   | {
       t: "vote"; // a restart is being voted on: sent to every player when it opens and each time it changes
@@ -101,6 +110,7 @@ export type ServerMsg =
       no: Seat[];
       voters: Seat[];
     }
+  | { t: "spec.msg"; nickname: string; text: string; at: number } // watchers' chat: never sent to a player
   | { t: "vote.end"; kind: VoteKind; result: "passed" | "declined" | "timeout"; by?: string } // by: who declined
   | { t: "resume"; back: string | null } // the person is back, or null when a bot took the seat
   | { t: "heist"; ms: number; loot: number; lootTotal: number; rank: number }; // the whole heist is done
@@ -180,11 +190,18 @@ export function parseClientMsg(raw: string): ClientMsg | null {
     case "next":
       return { t: "next" };
     case "host.choice":
-      return m.choice === "bot" || m.choice === "lobby"
-        ? { t: "host.choice", choice: m.choice }
-        : null;
+      if (m.choice === "bot" || m.choice === "lobby") return { t: "host.choice", choice: m.choice };
+      if (m.choice === "pull") {
+        return Number.isInteger(m.person) && (m.person as number) >= 0
+          ? { t: "host.choice", choice: "pull", person: m.person as number }
+          : null;
+      }
+      return null;
     case "spectate":
+      if (m.seat === null) return { t: "spectate", seat: null };
       return m.seat === 0 || m.seat === 1 || m.seat === 2 ? { t: "spectate", seat: m.seat } : null;
+    case "spec.say":
+      return typeof m.text === "string" ? { t: "spec.say", text: m.text } : null;
     case "input": {
       const move = m.move;
       if (typeof move !== "object" || move === null) return null;

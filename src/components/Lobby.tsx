@@ -292,6 +292,11 @@ export function Lobby({ code }: { code: string }) {
         host={host}
         hostName={lobby?.people.find((p) => p.who === lobby.host)?.nickname ?? null}
         seats={lobby?.seats ?? null}
+        sitting={lobby.sittingOut.flatMap((who) => {
+          const index = lobby.people.findIndex((p) => p.who === who);
+          const person = lobby.people[index];
+          return person ? [{ index, nickname: person.nickname }] : [];
+        })}
       />
     );
   }

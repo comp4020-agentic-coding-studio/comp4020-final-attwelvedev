@@ -4,59 +4,24 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 import type { RoleView } from "../src/game/perception.ts";
-import type { Role, Seat } from "../src/game/types.ts";
+import type { Seat } from "../src/game/types.ts";
 import { clearTinyRoom } from "./heistPlay.ts";
 import { text } from "./http.ts";
-import type { Player } from "./play.ts";
-import { connect, type Socket } from "./ws.ts";
+import { FIVE, type Five, type Player, type RevealMsg, startedFive } from "./play.ts";
+import type { Socket } from "./ws.ts";
 
 const baseUrl = inject("baseUrl");
 
-interface RevealMsg {
-  t: "reveal";
-  room: string;
-  index: number;
-  role: Role;
-  crew: { seat: Seat; role: Role; nickname: string; bot: boolean }[];
-  rooms: number;
-  sittingOut: string[];
-  played: Record<string, Role[]>;
-}
 interface ErrorMsg {
   t: "error";
   code: string;
 }
-interface LobbyMsg {
-  lobby: { code: string };
-}
-
-const NAMES = ["Ana", "Bo", "Cy", "Di", "Ed"];
-
-interface Table {
-  sockets: Socket[]; // by person: 0 is the host
-  cookies: string[];
-  code: string;
-}
+type Table = Five;
 
 // Five people in a lobby, started: the first three play room 1, Di and Ed sit it out.
-async function startedFive(url: string): Promise<{ table: Table; reveals: RevealMsg[] }> {
-  const cookies = await Promise.all(
-    NAMES.map(async () => {
-      const res = await fetch(new URL("/", url));
-      return res.headers.getSetCookie()[0]?.split(";")[0] ?? "";
-    }),
-  );
-  const sockets = await Promise.all(cookies.map((c) => connect(url, c)));
-  const [host, ...rest] = sockets as [Socket, ...Socket[]];
-  host.send({ t: "lobby.create", nickname: "Ana" });
-  const { lobby } = await host.next<LobbyMsg>("lobby");
-  for (const [i, s] of rest.entries()) {
-    s.send({ t: "lobby.join", code: lobby.code, nickname: NAMES[i + 1], as: "player" });
-    await s.next("lobby");
-  }
-  host.send({ t: "lobby.start" });
-  const reveals = await Promise.all(sockets.map((s) => s.next<RevealMsg>("reveal", 3000)));
-  return { table: { sockets, cookies, code: lobby.code }, reveals };
+async function startedFiveHere(url: string): Promise<{ table: Table; reveals: RevealMsg[] }> {
+  const table = await startedFive(baseUrl, url);
+  return { table, reveals: table.reveals };
 }
 
 const closeTable = (table: Table) => Promise.all(table.sockets.map((s) => s.close()));
@@ -67,8 +32,8 @@ const noMessage = (s: Socket, t: string, ms = 700) => expect(s.next(t, ms)).reje
 
 describe("a lobby of five", () => {
   it("the first reveal names two sitting out, and they get spectator views", async () => {
-    const { table, reveals } = await startedFive(baseUrl);
-    expect(reveals.map((r) => r.sittingOut)).toEqual(NAMES.map(() => ["Di", "Ed"]));
+    const { table, reveals } = await startedFiveHere(baseUrl);
+    expect(reveals.map((r) => r.sittingOut)).toEqual(FIVE.map(() => ["Di", "Ed"]));
     expect(reveals[0]?.crew.map((c) => c.nickname)).toEqual(["Ana", "Bo", "Cy"]);
     expect(reveals.slice(0, 3).map((r) => r.role)).toEqual(["blind", "deaf", "mute"]);
     expect(reveals[0]).toMatchObject({ index: 0, rooms: 3 });
@@ -82,7 +47,7 @@ describe("a lobby of five", () => {
   });
 
   it("the host's swap during the reveal changes both roles and clears everyone's ready", async () => {
-    const { table } = await startedFive(baseUrl);
+    const { table } = await startedFiveHere(baseUrl);
     sendReady(table, [0, 1]); // two of three are ready
     table.sockets[0]?.send({ t: "crew.swap", a: 0, b: 2 });
     const after = await Promise.all(table.sockets.map((s) => s.next<RevealMsg>("reveal", 3000)));
@@ -100,7 +65,7 @@ describe("a lobby of five", () => {
   });
 
   it("a swap after Ready has started the room is refused", async () => {
-    const { table } = await startedFive(baseUrl);
+    const { table } = await startedFiveHere(baseUrl);
     sendReady(table, [0, 1, 2]);
     await (table.sockets[0] as Socket).next("view", 3000);
     table.sockets[0]?.send({ t: "crew.swap", a: 0, b: 2 });
@@ -110,7 +75,7 @@ describe("a lobby of five", () => {
   });
 
   it("a non-host swap is not-host", async () => {
-    const { table } = await startedFive(baseUrl);
+    const { table } = await startedFiveHere(baseUrl);
     table.sockets[1]?.send({ t: "crew.swap", a: 0, b: 2 });
     expect((await (table.sockets[1] as Socket).next<ErrorMsg>("error", 3000)).code).toBe(
       "not-host",
@@ -155,7 +120,7 @@ describe("the heist record", () => {
   });
 
   it("names everyone who played any room, and not someone who only sat in the lobby", async () => {
-    const { table, reveals } = await startedFive(ownUrl);
+    const { table, reveals } = await startedFiveHere(ownUrl);
     expect(reveals[0]?.rooms).toBe(1);
     // Ed takes Bo's seat before the room starts: Bo and Di never play
     table.sockets[0]?.send({ t: "crew.swap", a: 1, b: 4 });

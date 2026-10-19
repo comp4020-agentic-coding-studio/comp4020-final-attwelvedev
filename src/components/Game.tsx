@@ -113,6 +113,7 @@ export function Game({
   host,
   hostName,
   seats,
+  sitting,
 }: {
   socket: GameSocket;
   state: ConnectionState;
@@ -122,6 +123,7 @@ export function Game({
   host: boolean;
   hostName: string | null;
   seats: LobbyState["seats"] | null;
+  sitting: { index: number; nickname: string }[]; // people sitting out, whom the host may pull in
 }) {
   const rt = useRef<Runtime>({
     view: null,
@@ -179,6 +181,7 @@ export function Game({
       host={host}
       hostName={hostName}
       seats={seats}
+      sitting={sitting}
       audio={audio}
     />
   );
@@ -194,6 +197,7 @@ function Hud({
   host,
   hostName,
   seats,
+  sitting,
   audio,
 }: {
   rt: Runtime;
@@ -205,6 +209,7 @@ function Hud({
   host: boolean;
   hostName: string | null;
   seats: LobbyState["seats"] | null;
+  sitting: { index: number; nickname: string }[];
   audio: { current: GameAudio | null };
 }) {
   const { role, real } = reveal;
@@ -227,6 +232,8 @@ function Hud({
     waitingFor: string;
     until: number;
     choosing: boolean;
+    gone: boolean;
+    forReady: boolean;
   } | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [back, setBack] = useState<string | null>(null);
@@ -338,6 +345,8 @@ function Hud({
           waitingFor: m.waitingFor,
           until: performance.now() + m.left,
           choosing: m.choosing,
+          gone: m.gone ?? false,
+          forReady: m.forReady ?? false,
         });
       }),
       socket.on("resume", (m) => {
@@ -745,7 +754,12 @@ function Hud({
             secondsLeft={secondsLeft}
             choosing={pause.choosing}
             host={host}
-            onChoice={(choice) => socket.send({ t: "host.choice", choice })}
+            sitting={sitting}
+            gone={pause.gone}
+            forReady={pause.forReady}
+            onChoice={(choice, person) =>
+              socket.send({ t: "host.choice", choice, ...(person === undefined ? {} : { person }) })
+            }
           />
         )}
         {!online && (

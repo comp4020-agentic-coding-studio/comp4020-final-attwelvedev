@@ -411,6 +411,24 @@ hash (fixes the cross-lobby seat key). Watchers default to the whole room:
 
 ### Task 9: Leaving with people sitting out; the watchers' chat and voice
 
+- [x] **Done** (2026-10-19). Judgement calls: with someone sitting out, a leaving person's seat stays
+  **empty** (keeping the leaver's nickname, so the crew and the pause can name them) while the host
+  chooses, instead of a bot standing in it; `Paused` gains `gone` (they pressed Leave: no countdown,
+  the host is asked at once) and `forReady` (someone was pulled in: the game is held until their Ready,
+  not a connection), both sent on `pause`; "pull" holds the game with `readyAgain` rather than a
+  deadline, since `Infinity` doesn't survive JSON; `spectatorView(world, null, …)` is the whole room as
+  Can't hear would draw it, with no sounds, no alarm and no camera position, and the watchers'
+  default is now that (not seat 0); `RateLimiter` is keyed by device and gains `sweep`/`size`
+  because a device-keyed map would otherwise grow forever (the one-minute sweep calls it);
+  watcher chat is limited to a line a second per person and `cleanText`'s 120 characters, and the
+  sender gets their own line back; `startedFive` moved from `spec/crew.test.ts` into `spec/play.ts`
+  for the leave, disconnect and spectator specs to share. **Not done, by design:** the watcher
+  voice *client* (playback of `0x02`, a push-to-talk for watchers): `playback.ts` drops any frame
+  whose first byte isn't `1`, so a watcher's voice reaches the server and the other watchers' sockets
+  but nothing in the page plays it yet. The plan's Task 9 names only the server relay and a minimal
+  chat/follow UI for the page; the player is Task 12's (the spectator panel), and the measured
+  `voice.latency` for spectator receivers likewise needs that client.
+
 - **Description:** A1 leave flow with `pull`; `pull` also after a dropped
   connection's 45 s; `spec.say`/`spec.msg`; watcher voice; device-keyed voice
   rate limit; watchers default to the whole room.

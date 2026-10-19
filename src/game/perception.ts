@@ -489,26 +489,29 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
 // sight they're given always agree.
 export function spectatorView(
   world: World,
-  follow: Seat,
+  follow: Seat | null,
   roles: [Role, Role, Role],
   full: boolean,
 ): RoleView {
-  const role = roles[follow];
-  const alarm = world.tick < world.alarmUntil;
+  // Nobody followed: the whole room as someone who can see it, and nothing to hear. Seat 0 is only
+  // the nominal viewpoint, and the camera is given no position to follow.
+  const seat: Seat = follow ?? 0;
+  const role: Role = follow === null ? "deaf" : (roles[follow] as Role);
+  const alarm = follow !== null && world.tick < world.alarmUntil;
   const view: RoleView = {
     tick: world.tick,
     ack: 0,
     room: world.room.id,
     role,
     full,
-    you: { seat: follow, pos: rounded(world.players[follow].pos) },
-    entities: entitiesFor(world, follow, role),
+    you: follow === null ? { seat } : { seat, pos: rounded(world.players[seat].pos) },
+    entities: entitiesFor(world, seat, role),
     sounds:
-      role === "deaf"
+      follow === null || role === "deaf"
         ? []
         : alarm
           ? [{ kind: "alarm", pan: 0, gain: 1 }]
-          : soundsFor(world, follow),
+          : soundsFor(world, seat),
     status: world.status,
     elapsedMs: world.tick * TICK_MS,
     alarm: role === "deaf" ? false : alarm,

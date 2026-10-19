@@ -39,6 +39,8 @@ export interface Paused {
   seat: Seat;
   deadline: number;
   choosing: boolean;
+  forReady?: boolean; // someone was pulled in and must press Ready: no countdown, and Ready ends it
+  gone?: boolean; // the person left on purpose, so there is no connection to wait for
 }
 
 // The team was caught: by a guard, camera or laser, who it saw, and the checkpoint (0 = the
@@ -328,6 +330,47 @@ export function chooserFor(lobby: LobbyState, missing: Seat): string | null {
   const who = next === undefined ? null : (lobby.seats[next]?.who ?? null);
   if (who) lobby.host = who;
   return who;
+}
+
+// A person who was sitting out takes a seat that is free now (its person left): the leaver's role,
+// the world as it is. The game is held until they press Ready, and the others keep their Ready.
+// False if that person isn't sitting out or the seat isn't free.
+export function takeOverWithPerson(
+  game: Game,
+  lobby: LobbyState,
+  seat: Seat,
+  person: number,
+): boolean {
+  const who = lobby.people[person]?.who;
+  const taken = lobby.seats[seat];
+  if (!who || !taken || !lobby.sittingOut.includes(who)) return false;
+  const role = game.roles[seat] as Role;
+  lobby.seats[seat] = {
+    who,
+    nickname: lobby.people[person]?.nickname ?? "",
+    connected: lobby.people[person]?.connected ?? true,
+    bot: false,
+    person,
+  };
+  lobby.sittingOut = lobby.sittingOut.filter((w) => w !== who);
+  game.crew.people[seat] = person;
+  delete game.vacated[seat];
+  delete game.inputs[seat];
+  game.ready.delete(seat);
+  lobby.people[person]?.played.push(role);
+  game.heistPeople.set(who, { nickname: lobby.people[person]?.nickname ?? "", bot: false });
+  seatBots(game, botSeatsIn(lobby)); // who is a person has changed
+  game.paused = { seat, deadline: Date.now(), choosing: false, forReady: true };
+  return true;
+}
+
+// The pulled-in person pressed Ready: the game goes on. Any other Ready, or a pause for a dropped
+// connection, changes nothing here.
+export function readyAgain(game: Game, seat: Seat): boolean {
+  if (!game.paused?.forReady || game.paused.seat !== seat) return false;
+  game.paused = null;
+  game.ready.add(seat);
+  return true;
 }
 
 // A bot plays the seat from here on: the world is kept as it is, and every bot

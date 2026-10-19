@@ -159,9 +159,21 @@ describe("parseClientMsg: host.choice", () => {
     });
   });
 
+  it("accepts pulling in a sitting-out person, by their index in the lobby", () => {
+    expect(parseClientMsg('{"t":"host.choice","choice":"pull","person":3}')).toEqual({
+      t: "host.choice",
+      choice: "pull",
+      person: 3,
+    });
+  });
+
   it("drops anything else", () => {
     expect(parseClientMsg('{"t":"host.choice","choice":"wait"}')).toBeNull();
     expect(parseClientMsg('{"t":"host.choice"}')).toBeNull();
+    expect(parseClientMsg('{"t":"host.choice","choice":"pull"}')).toBeNull(); // pull whom?
+    expect(parseClientMsg('{"t":"host.choice","choice":"pull","person":"3"}')).toBeNull();
+    expect(parseClientMsg('{"t":"host.choice","choice":"pull","person":-1}')).toBeNull();
+    expect(parseClientMsg('{"t":"host.choice","choice":"pull","person":1.5}')).toBeNull();
   });
 });
 
@@ -170,6 +182,10 @@ describe("parseClientMsg: spectate", () => {
     for (const seat of [0, 1, 2]) {
       expect(parseClientMsg(`{"t":"spectate","seat":${seat}}`)).toEqual({ t: "spectate", seat });
     }
+  });
+
+  it("accepts null: the whole room, following nobody", () => {
+    expect(parseClientMsg('{"t":"spectate","seat":null}')).toEqual({ t: "spectate", seat: null });
   });
 
   it("drops anything else", () => {
@@ -257,4 +273,20 @@ describe("parseClientMsg: votes", () => {
   it("no longer parses room.restart: a restart is a vote now", () => {
     expect(parseClientMsg('{"t":"room.restart"}')).toBeNull();
   });
+});
+
+describe("parseClientMsg: spec.say", () => {
+  it("accepts text", () => {
+    expect(parseClientMsg('{"t":"spec.say","text":"nice"}')).toEqual({
+      t: "spec.say",
+      text: "nice",
+    });
+  });
+
+  it.each(['{"t":"spec.say"}', '{"t":"spec.say","text":5}', '{"t":"spec.say","text":null}'])(
+    "drops %s",
+    (raw) => {
+      expect(parseClientMsg(raw)).toBeNull();
+    },
+  );
 });

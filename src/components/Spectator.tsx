@@ -6,14 +6,15 @@ import { ROLE_LABEL, type Role, type Seat } from "../game/types.ts";
 import type { LobbyState, RoleView } from "../net/protocol.ts";
 import { type CaptionLine, Captions } from "./Captions.tsx";
 import { Connection } from "./Connection.tsx";
+import { WatchChat, type WatchLine } from "./WatchChat.tsx";
 
 const SEATS = [0, 1, 2] as const;
 const CAPTION_MS = 4000;
 
-// A grey dashed frame, no role shape and no tray (spec §4.1): a spectator
-// plays nothing, so the chrome that belongs to a seat is left off. The view
-// itself (src/game/perception.ts: spectatorView) is always the full room,
-// whichever seat is followed.
+// A grey dashed frame, no role shape and no tray (spec §4.1): a watcher plays nothing, so the chrome
+// that belongs to a seat is left off. The view itself (src/game/perception.ts: spectatorView) is
+// always the full room; it starts with nobody followed and no sound, and following a seat adds
+// what that seat hears. A spectator and someone sitting this room out share a chat (ADR 0015).
 export function Spectator({
   socket,
   state,
@@ -31,7 +32,9 @@ export function Spectator({
   const canvas = useRef<HTMLCanvasElement>(null);
   const view = useRef<RoleView | null>(null);
   const roles = useRef<[Role, Role, Role]>(["blind", "deaf", "mute"]);
-  const [follow, setFollow] = useState<Seat>(0);
+  const [follow, setFollow] = useState<Seat | null>(null); // null: the whole room, no sound
+  const [chat, setChat] = useState<WatchLine[]>([]);
+  const chatId = useRef(0);
   const [lines, setLines] = useState<CaptionLine[]>([]);
   const lineId = useRef(0);
 
@@ -69,7 +72,17 @@ export function Spectator({
     [socket],
   );
 
-  function followSeat(seat: Seat) {
+  useEffect(
+    () =>
+      socket.on("spec.msg", (m) =>
+        setChat((old) =>
+          [...old, { id: ++chatId.current, nickname: m.nickname, text: m.text }].slice(-50),
+        ),
+      ),
+    [socket],
+  );
+
+  function followSeat(seat: Seat | null) {
     setFollow(seat);
     socket.send({ t: "spectate", seat });
   }
@@ -134,12 +147,24 @@ export function Spectator({
         <canvas
           ref={canvas}
           role="img"
-          aria-label={`Spectator view, following ${ROLE_LABEL[roles.current[follow]]}`}
+          aria-label={
+            follow === null
+              ? "Spectator view of the whole room"
+              : `Spectator view, following ${ROLE_LABEL[roles.current[follow]]}`
+          }
         />
         <Captions lines={lines} cues={[]} />
       </div>
       <fieldset class="spectator-follow">
         <legend>Follow</legend>
+        <button
+          type="button"
+          class="btn"
+          aria-pressed={follow === null}
+          onClick={() => followSeat(null)}
+        >
+          Whole room
+        </button>
         {SEATS.map((seat) => (
           <button
             key={seat}
@@ -153,6 +178,7 @@ export function Spectator({
           </button>
         ))}
       </fieldset>
+      <WatchChat lines={chat} onSay={(text) => socket.send({ t: "spec.say", text })} />
       <button type="button" class="btn primary" onClick={onStartNewTeam}>
         Start a new team
       </button>

@@ -1,6 +1,7 @@
 import type { IncomingMessage, Server } from "node:http";
 import type { Duplex } from "node:stream";
 import { type RawData, type WebSocket, WebSocketServer } from "ws";
+import { cleanText } from "../game/channels.ts";
 import { spectatorView } from "../game/perception.ts";
 import type { Room } from "../game/rooms/format.ts";
 import { loadRooms } from "../game/rooms/load.ts";
@@ -31,12 +32,14 @@ import {
   PAUSE_MS,
   pauseFor,
   proposeVote,
+  readyAgain,
   relay,
   resumeIfBack,
   settleVote,
   startGame,
   swapPeople,
   takeOverWithBot,
+  takeOverWithPerson,
   tickGame,
   VOTE_MS,
   voters,
@@ -62,7 +65,13 @@ import {
 } from "./lobbies.ts";
 import { type ClientMsg, parseClientMsg, type ServerMsg } from "./protocol.ts";
 import { type RealLife, realLifeFor } from "./realLife.ts";
-import { createRateLimiter, encodeVoiceOut, parseVoiceFrame, voiceReceivers } from "./voice.ts";
+import {
+  createRateLimiter,
+  encodeVoiceOut,
+  encodeWatcherVoice,
+  parseVoiceFrame,
+  voiceReceivers,
+} from "./voice.ts";
 
 const HEARTBEAT_MS = 15_000;
 const MAX_MISSED = 2;
@@ -92,7 +101,8 @@ interface Running {
   heist: { ms: number; loot: number; lootTotal: number; versions: string[] };
 }
 const games = new Map<string, Running>(); // lobby code → game
-const spectating = new Map<string, Seat>(); // spectator's device hash → the seat they're watching
+// A watcher's device hash → the seat they follow. Nothing here means the whole room, with no sound.
+const spectating = new Map<string, Seat | null>();
 
 let rooms: Room[] | null = null;
 const roomList = (): Room[] => {
@@ -185,8 +195,10 @@ function sendSpectatorReveal(code: string, who: string): void {
   const lobby = registry.lobbies.get(code);
   const running = games.get(code);
   if (!lobby || !running) return;
-  const followSeat = spectating.get(who) ?? 0;
-  hub.sendTo(who, revealFor(lobby, running, running.game.roles[followSeat] as Role, who));
+  const followSeat = spectating.get(who) ?? null;
+  // watching the whole room: the reveal still needs a role to show, so it is seat 0's
+  const role = running.game.roles[followSeat ?? 0] as Role;
+  hub.sendTo(who, revealFor(lobby, running, role, who));
 }
 
 // The lobby first, so a page knows whether it has a seat before the reveal says which room.
@@ -239,7 +251,7 @@ function tick(code: string): void {
     if (who) hub.sendTo(who, { t: "view", view });
   }
   for (const watcher of watchersOf(lobby)) {
-    const followSeat = spectating.get(watcher) ?? 0;
+    const followSeat = spectating.get(watcher) ?? null;
     const view = spectatorView(running.game.world, followSeat, running.game.roles, true);
     hub.sendTo(watcher, { t: "view", view });
   }
@@ -331,6 +343,8 @@ function pauseMsg(game: Game, lobby: LobbyState): ServerMsg | null {
     deadline: paused.deadline,
     left: Math.max(0, paused.deadline - Date.now()),
     choosing: paused.choosing,
+    ...(paused.forReady ? { forReady: true } : {}),
+    ...(paused.gone ? { gone: true } : {}),
   };
 }
 
@@ -524,19 +538,44 @@ function deviceToken(req: IncomingMessage): string | null {
   return null;
 }
 
+// The seat is empty and nobody has a claim on it: the game holds, and the host chooses at once what
+// takes it (a bot, someone sitting out, or the lobby), with no countdown. The same question is asked
+// when a dropped connection's time is up.
+function askHost(code: string, seat: Seat): void {
+  const running = games.get(code);
+  const lobby = registry.lobbies.get(code);
+  if (!running || !lobby) return;
+  if (running.game.vote) endVote(code, "timeout"); // nobody votes on a game that is waiting
+  if (running.game.paused) return; // already waiting on someone: that one is asked first
+  running.game.paused = { seat, deadline: Date.now(), choosing: true, gone: true };
+  record("pause", null, lobby);
+  announcePause(code);
+}
+
 // A person leaves their lobby, on purpose: pressing Leave, going to the landing page, or
-// starting or joining another lobby. In a running game a bot takes their seat at once.
+// starting or joining another lobby. In a running game a bot takes their seat at once when nobody
+// sits out; otherwise the game holds and the host chooses (A1).
 function departs(who: string): void {
   const was = lobbyOf(who);
   const seat = was ? seatOfDevice(was.code, who) : null;
   const at = was?.people.findIndex((p) => p.who === who) ?? -1;
+  const name = was?.people.find((p) => p.who === who)?.nickname ?? null;
   hub.change(who, () => leaveLobby(registry, who));
   spectating.delete(who);
   if (was) record("lobby.leave", who, was);
   const running = was ? games.get(was.code) : undefined;
   if (running && at >= 0) forgetPerson(running.game, at); // later people moved up a place
-  if (was && seat !== null && games.has(was.code) && registry.lobbies.has(was.code)) {
-    botTakesSeat(was.code, seat, null, who);
+  if (running && was && seat !== null && registry.lobbies.has(was.code)) {
+    if (was.sittingOut.length === 0) botTakesSeat(was.code, seat, null, who);
+    else {
+      // the seat stays empty while the host chooses: the game is held, so nobody needs to stand in it
+      running.game.vacated[seat] = who; // so they can be given the seat back if the host picks a bot
+      delete running.game.inputs[seat];
+      const empty = was.seats[seat];
+      if (empty) empty.nickname = name; // the seat keeps their name, so the crew and the pause can say who left
+      askHost(was.code, seat);
+      for (const s of [0, 1, 2] as const) sendReveal(was.code, s);
+    }
   }
 }
 
@@ -687,7 +726,17 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         const code = registry.byDevice.get(who);
         const running = code ? games.get(code) : undefined;
         const seat = code ? seatOfDevice(code, who) : null;
-        if (!code || !running || seat === null || running.game.paused) return;
+        if (!code || !running || seat === null) return;
+        if (running.game.paused) {
+          // the one pulled in pressing Ready is what the game was held for; anyone else's is not asked for
+          const lobby = registry.lobbies.get(code);
+          if (lobby && readyAgain(running.game, seat)) {
+            for (const person of humansOf(lobby)) {
+              hub.sendTo(person, { t: "resume", back: lobby.seats[seat]?.nickname ?? "A player" });
+            }
+          }
+          return;
+        }
         running.game.ready.add(seat);
         runIfReady(code, running);
         return;
@@ -765,6 +814,18 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
           giveUp(code);
           return;
         }
+        if (msg.choice === "pull") {
+          const person = msg.person ?? -1;
+          if (!takeOverWithPerson(running.game, lobby, paused.seat, person)) return; // not someone sitting out
+          if (running.pauseTimer) clearTimeout(running.pauseTimer);
+          running.pauseTimer = null;
+          record("host.pull", who, lobby);
+          running.full.add(paused.seat); // their first view carries the map
+          hub.broadcast(lobby);
+          announceRoom(code);
+          announcePause(code); // everyone is told the game is waiting for them to be ready
+          return;
+        }
         botTakesSeat(code, paused.seat, who, null);
         return;
       }
@@ -772,8 +833,24 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         const code = registry.byDevice.get(who);
         const lobby = code ? registry.lobbies.get(code) : undefined;
         if (!code || !lobby || !watchersOf(lobby).includes(who)) return;
-        spectating.set(who, msg.seat);
+        spectating.set(who, msg.seat); // null: the whole room, with no sound
         sendSpectatorReveal(code, who); // the newly followed seat's role
+        return;
+      }
+      case "spec.say": {
+        // only watchers speak here, and only to each other: a player's text goes by the wheel
+        const code = registry.byDevice.get(who);
+        const lobby = code ? registry.lobbies.get(code) : undefined;
+        if (!code || !lobby || !watchersOf(lobby).includes(who)) return;
+        const text = cleanText(msg.text);
+        const nickname =
+          lobby.spectators.find((s) => s.who === who)?.nickname ??
+          lobby.people.find((p) => p.who === who)?.nickname;
+        if (!text || !nickname) return;
+        if (!specLimit.allow(who, Date.now())) return; // one line a second per person
+        const out: ServerMsg = { t: "spec.msg", nickname, text, at: Date.now() };
+        for (const watcher of watchersOf(lobby)) hub.sendTo(watcher, out);
+        record("spec.say", who, lobby); // that they spoke, never what
         return;
       }
       case "send": {
@@ -811,9 +888,10 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
           if (to) hub.sendTo(to, { t: "msg", ...sent.message });
         }
         for (const watcher of watchersOf(lobby)) {
-          const followSeat = spectating.get(watcher) ?? 0;
-          if (sent.receivers.includes(followSeat))
+          const followSeat = spectating.get(watcher) ?? null;
+          if (followSeat !== null && sent.receivers.includes(followSeat)) {
             hub.sendTo(watcher, { t: "msg", ...sent.message });
+          }
         }
         if (sent.cooldown) send(socket, { t: "cooldown", ...sent.cooldown });
         return;
@@ -848,32 +926,55 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
 }
 
 const voiceLimit = createRateLimiter();
+// Watchers' chat: one line a second per person, so a watcher can't flood the others.
+const specLimit = {
+  last: new Map<string, number>(),
+  allow(who: string, now: number): boolean {
+    const before = this.last.get(who);
+    if (before !== undefined && now - before < 1000) return false;
+    this.last.set(who, now);
+    return true;
+  },
+};
 
-// A voice frame from a seat: parsed, checked against the voice rule and the rate limit, then handed to
-// the seats that may hear voice and to spectators following them. Never logged, never kept.
+// A voice frame, parsed, checked and then handed on. From a seat, it goes to the seats that may hear
+// voice and to watchers following them (0x01, with the seat). From a watcher, it goes to the other
+// watchers only (0x02, with the watcher's place in the list), never to a player. Rate limited per
+// device, so one lobby's talker can't use up another's budget. Never logged, never kept.
 function relayVoice(socket: WebSocket, who: string, data: Uint8Array): void {
   const code = registry.byDevice.get(who);
   const running = code ? games.get(code) : undefined;
   const lobby = code ? registry.lobbies.get(code) : undefined;
+  if (!running || !lobby) return;
   const seat = code ? seatOfDevice(code, who) : null;
-  if (!running || !lobby || seat === null || running.game.paused) return;
+  const watchers = watchersOf(lobby);
+  if (seat === null && !watchers.includes(who)) return;
+  if (running.game.paused && seat !== null) return;
   const frame = parseVoiceFrame(data);
   if (!frame) return;
-  const receivers = voiceReceivers(running.game.roles, seat, voiceOn(lobby, running));
-  if (receivers === null) {
-    record("channel.refused", who, lobby, { method: "voice", reason: "cant-send" });
-    hub.send(socket, { t: "error", code: "cant-send", message: "Your role can't send voice." });
-    return;
-  }
-  if (!voiceLimit.allow(seat, Date.now())) return;
-  const out = encodeVoiceOut(seat, frame);
   const to = new Set<string>();
-  for (const receiver of receivers) {
-    const device = lobby.seats[receiver]?.who;
-    if (device) to.add(device);
-  }
-  for (const watcher of watchersOf(lobby)) {
-    if (receivers.includes(spectating.get(watcher) ?? 0)) to.add(watcher);
+  let out: Uint8Array;
+  if (seat === null) {
+    if (!voiceLimit.allow(who, Date.now())) return;
+    out = encodeWatcherVoice(watchers.indexOf(who), frame);
+    for (const watcher of watchers) if (watcher !== who) to.add(watcher);
+  } else {
+    const receivers = voiceReceivers(running.game.roles, seat, voiceOn(lobby, running));
+    if (receivers === null) {
+      record("channel.refused", who, lobby, { method: "voice", reason: "cant-send" });
+      hub.send(socket, { t: "error", code: "cant-send", message: "Your role can't send voice." });
+      return;
+    }
+    if (!voiceLimit.allow(who, Date.now())) return;
+    out = encodeVoiceOut(seat, frame);
+    for (const receiver of receivers) {
+      const device = lobby.seats[receiver]?.who;
+      if (device) to.add(device);
+    }
+    for (const watcher of watchers) {
+      const following = spectating.get(watcher) ?? null;
+      if (following !== null && receivers.includes(following)) to.add(watcher);
+    }
   }
   for (const device of to) {
     for (const s of hub.socketsOf.get(device) ?? []) {
@@ -986,6 +1087,8 @@ setInterval(() => {
   for (const lobby of expireIdle(registry, idleSince, Date.now(), IDLE_LOBBY_MS))
     hub.broadcast(lobby);
   reapGames();
+  voiceLimit.sweep(Date.now()); // forget devices that have gone quiet, so these maps stay small
+  for (const [who, at] of specLimit.last) if (Date.now() - at >= 1000) specLimit.last.delete(who);
 }, SWEEP_MS).unref();
 
 // Only /ws is ours; any other upgrade (Vite's HMR socket in dev) is left alone.

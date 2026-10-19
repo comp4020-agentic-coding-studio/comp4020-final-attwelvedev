@@ -11,19 +11,25 @@ export function Disconnect({
   secondsLeft,
   choosing,
   host,
+  sitting,
+  gone = false,
+  forReady = false,
   onChoice,
 }: {
   waitingFor: string;
   secondsLeft: number;
   choosing: boolean;
   host: boolean;
-  onChoice: (choice: "bot" | "lobby") => void;
+  sitting: { index: number; nickname: string }[]; // people sitting out, who the host may pull in
+  gone?: boolean; // they pressed Leave, so there is no connection to wait for
+  forReady?: boolean; // someone was pulled in and the game waits for their Ready
+  onChoice: (choice: "bot" | "lobby" | "pull", person?: number) => void;
 }) {
   return (
     <div class="overlay" role="alertdialog" aria-labelledby="pause-title">
       <h2 id="pause-title">
         Waiting for {waitingFor}
-        {!choosing && (
+        {!choosing && !forReady && (
           <>
             {" "}
             <span class="countdown" role="timer">
@@ -32,11 +38,31 @@ export function Disconnect({
           </>
         )}
       </h2>
-      <p>Their connection dropped.</p>
+      {forReady ? (
+        <p>Waiting for {waitingFor} to be ready.</p>
+      ) : gone ? (
+        <p>{waitingFor} left.</p>
+      ) : (
+        <p>Their connection dropped.</p>
+      )}
       {choosing &&
         (host ? (
           <div class="overlay-actions">
-            <button type="button" class="btn primary" onClick={() => onChoice("bot")}>
+            {sitting.map((p) => (
+              <button
+                key={p.index}
+                type="button"
+                class="btn primary"
+                onClick={() => onChoice("pull", p.index)}
+              >
+                Pull in {p.nickname}
+              </button>
+            ))}
+            <button
+              type="button"
+              class={sitting.length === 0 ? "btn primary" : "btn"}
+              onClick={() => onChoice("bot")}
+            >
               Let a bot take over
             </button>
             <button type="button" class="btn" onClick={() => onChoice("lobby")}>
