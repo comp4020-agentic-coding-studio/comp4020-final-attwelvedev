@@ -296,6 +296,14 @@ hash (fixes the cross-lobby seat key). Watchers default to the whole room:
 
 ### Task 6: Each room seats a fair crew; the reveal says who sits out; host swaps
 
+- [x] **Done** (2026-10-19). Judgement calls: `pickCrew(people, roomIndex)` has no previous-crew
+  argument, so ties break by cyclic distance from `3·roomIndex mod n` (the plan's "after the previous
+  crew"); `rolesFor` moved into `src/game/crew.ts`, so `game.ts` no longer exports it; with three people
+  or fewer and nobody sitting out the seats keep their people (a seat a bot took over stays a bot's),
+  and only otherwise does `pickCrew` run; `advanceRoom` takes the lobby; a person leaving mid-game
+  shifts later people up one place, so `forgetPerson` fixes the crew's indexes; a swap is accepted
+  only before the room's first tick (`Game.counted`), not after a cleared room.
+
 - **Description:** `pickCrew`, `swapCrew`, `crew.swap`, the widened reveal
   payload (without `real`, which Task 7 adds), `played` history, `rooms` count
   replacing `LAST_ROOM`, heist record names = everyone who played.

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { rolesFor } from "../game/crew.ts";
 import { loadRooms } from "../game/rooms/load.ts";
 import type { Seat } from "../game/types.ts";
 import {
@@ -7,13 +8,14 @@ import {
   chooserFor,
   crewOf,
   giveSeatBack,
+  markPlayed,
   PAUSE_MS,
   pauseFor,
   relay,
   restartGame,
   resumeIfBack,
-  rolesFor,
   startGame,
+  swapPeople,
   takeOverWithBot,
   tickGame,
 } from "./game.ts";
@@ -43,7 +45,9 @@ const lobby = (...who: (string | null)[]): LobbyState => ({
   phase: "open",
   private: false,
   people: who.flatMap((w) => (w === null ? [] : [newPerson(w, w.toUpperCase())])),
-  seats: [seat(who[0] ?? null, 0), seat(who[1] ?? null, 1), seat(who[2] ?? null, 2)],
+  seats: [seat(who[0] ?? null, 0), seat(who[1] ?? null, 1), seat(who[2] ?? null, 2)].map((s, i) =>
+    s.who === null ? { ...s, person: null } : { ...s, person: i },
+  ) as LobbyState["seats"],
   sittingOut: [],
   spectators: [],
   createdAt: 0,
@@ -54,15 +58,6 @@ const withBots = (human: string, ...bots: number[]): LobbyState => {
   for (const i of bots) l.seats[i] = bot(["circle", "square", "triangle"][i] as string);
   return l;
 };
-
-describe("rolesFor", () => {
-  it("gives seat i ROLES[(i + roomIndex) % 3], rotating each room", () => {
-    expect(rolesFor(0)).toEqual(["blind", "deaf", "mute"]);
-    expect(rolesFor(1)).toEqual(["deaf", "mute", "blind"]);
-    expect(rolesFor(2)).toEqual(["mute", "blind", "deaf"]);
-    expect(rolesFor(3)).toEqual(["blind", "deaf", "mute"]);
-  });
-});
 
 describe("startGame", () => {
   it("no longer needs three people: empty seats are bots", () => {
@@ -171,7 +166,11 @@ describe("restartGame", () => {
 });
 
 describe("advanceRoom", () => {
-  const started = () => startGame(lobby("a", "b", "c"), rooms);
+  let l: LobbyState;
+  const started = () => {
+    l = lobby("a", "b", "c");
+    return startGame(l, rooms);
+  };
 
   it("has three rooms to play", () => {
     expect(rooms.map((r) => r.id)).toEqual(["01-loading-dock", "02-cameras-lasers", "03-vault"]);
@@ -184,7 +183,7 @@ describe("advanceRoom", () => {
     applyInput(game, 1, { seq: 2, move: { x: 1, y: 0 }, act: false });
     game.cooldowns.until.sound = 123;
     game.world.status = "cleared";
-    expect(advanceRoom(game, rooms)).toBe("next");
+    expect(advanceRoom(game, l, rooms)).toBe("next");
     expect(game.roomIndex).toBe(1);
     expect(game.world.room.id).toBe("02-cameras-lasers");
     expect(game.world.status).toBe("playing");
@@ -204,19 +203,23 @@ describe("advanceRoom", () => {
       });
     };
     record();
-    expect(advanceRoom(game, rooms)).toBe("next");
+    expect(advanceRoom(game, l, rooms)).toBe("next");
     record();
-    expect(advanceRoom(game, rooms)).toBe("next");
+    expect(advanceRoom(game, l, rooms)).toBe("next");
     record();
     for (const roles of played) expect(new Set(roles).size).toBe(3);
     expect(game.world.room.id).toBe("03-vault");
-    expect(advanceRoom(game, rooms)).toBe("done");
+    expect(advanceRoom(game, l, rooms)).toBe("done");
     expect(game.roomIndex).toBe(2);
   });
 });
 
 describe("bots in a game", () => {
-  const botGame = () => startGame(withBots("a", 1, 2), rooms);
+  let bl: LobbyState;
+  const botGame = () => {
+    bl = withBots("a", 1, 2);
+    return startGame(bl, rooms);
+  };
   const tick = (game: ReturnType<typeof botGame>, n: number) => {
     const said: ReturnType<typeof tickGame>["sent"] = [];
     for (let i = 0; i < n; i++) said.push(...tickGame(game, new Set(), i * 50).sent);
@@ -254,7 +257,7 @@ describe("bots in a game", () => {
     const game = botGame();
     const first = game.bots[1]?.memory;
     game.world.status = "cleared";
-    expect(advanceRoom(game, rooms)).toBe("next");
+    expect(advanceRoom(game, bl, rooms)).toBe("next");
     expect(game.bots[1]?.memory).not.toBe(first);
     expect(game.bots[1]?.memory.roles).toEqual(rolesFor(1));
     expect([...game.ready].sort()).toEqual([1, 2]);
@@ -376,7 +379,7 @@ describe("a person's messages reach the bots they are sent to", () => {
     const l = withBots("a", 1, 2);
     const game = startGame(l, rooms);
     game.world.status = "cleared";
-    advanceRoom(game, rooms); // room 2: seat 0 is Can't hear, seat 2 is Can't see
+    advanceRoom(game, l, rooms); // room 2: seat 0 is Can't hear, seat 2 is Can't see
     expect(game.roles).toEqual(["deaf", "mute", "blind"]);
     const before = { ...game.world.players[2].pos };
     const sent = relay(game, l, 0, { method: "callout", callout: "right" }, 1_000);
@@ -464,3 +467,85 @@ describe("coming back to a seat a bot took", () => {
     expect(game.bots[1]?.memory.humans.has(2)).toBe(true);
   });
 });
+
+// With more than three people each room seats a fair crew of three and the rest sit out (ADR 0013).
+describe("a lobby of five", () => {
+  const five = () => {
+    const l = lobby("a", "b", "c", "d", "e");
+    l.seats = [seat("a", 0), seat("b", 1), seat("c", 2)];
+    l.sittingOut = ["d", "e"];
+    return l;
+  };
+
+  it("starts with the first three seated and records them as having played once the room ticks", () => {
+    const l = five();
+    const game = startGame(l, rooms);
+    expect(game.crew).toEqual({ people: [0, 1, 2], roles: ["blind", "deaf", "mute"] });
+    expect(l.people.map((p) => p.played)).toEqual([[], [], [], [], []]);
+    expect(markPlayed(game, l)).toBe(true);
+    expect(l.people.map((p) => p.played)).toEqual([["blind"], ["deaf"], ["mute"], [], []]);
+    expect(markPlayed(game, l)).toBe(false); // a restart of the same room is not a second play
+    expect(l.people[0]?.played).toEqual(["blind"]);
+  });
+
+  it("seats the others next, and moves the first three to sit out", () => {
+    const l = five();
+    const game = startGame(l, rooms);
+    markPlayed(game, l);
+    game.world.status = "cleared";
+    expect(advanceRoom(game, l, rooms)).toBe("next");
+    expect(game.crew.people.slice().sort()).toEqual([0, 3, 4].sort());
+    expect(l.seats.map((s) => s.who).sort()).toEqual(["a", "d", "e"]);
+    expect(l.sittingOut.sort()).toEqual(["b", "c"]);
+    expect(game.roles).toEqual(game.crew.roles);
+    expect(
+      crewOf(l, game)
+        .map((c) => c.nickname)
+        .sort(),
+    ).toEqual(["A", "D", "E"]);
+  });
+
+  it("a host swap changes roles or seats, clears ready, and the new crew is what is recorded", () => {
+    const l = five();
+    const game = startGame(l, rooms);
+    game.ready.add(0);
+    game.ready.add(1);
+    swapPeople(game, l, 0, 2);
+    expect(game.roles).toEqual(["mute", "deaf", "blind"]);
+    expect(game.ready.size).toBe(0);
+    swapPeople(game, l, 1, 4);
+    expect(l.seats.map((s) => s.who)).toEqual(["a", "e", "c"]);
+    expect(l.sittingOut.sort()).toEqual(["b", "d"]);
+    markPlayed(game, l);
+    expect(l.people.map((p) => p.played)).toEqual([["mute"], [], ["blind"], [], ["deaf"]]);
+  });
+
+  it("the heist record names everyone who played any room, bots too, once each", () => {
+    const l = five();
+    const game = startGame(l, rooms);
+    markPlayed(game, l);
+    game.world.status = "cleared";
+    advanceRoom(game, l, rooms);
+    markPlayed(game, l);
+    expect([...game.heistPeople.values()].map((p) => p.nickname).sort()).toEqual([
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+    ]);
+  });
+
+  it("with three people or fewer nobody sits out and the seats keep their people", () => {
+    const l = lobby("a", "b");
+    const game = startGame(withSeatsOf(l), rooms);
+    markPlayed(game, l);
+    expect(l.sittingOut).toEqual([]);
+    expect(game.crew.people).toEqual([0, 1, null]);
+  });
+});
+
+function withSeatsOf(l: LobbyState): LobbyState {
+  l.seats = [seat(l.people[0]?.who ?? null, 0), seat(l.people[1]?.who ?? null, 1), bot("triangle")];
+  return l;
+}

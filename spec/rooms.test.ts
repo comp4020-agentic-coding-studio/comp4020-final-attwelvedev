@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { solveRoom } from "../src/game/bots/solve.ts";
+import { rolesFor } from "../src/game/crew.ts";
 import { loadRooms } from "../src/game/rooms/load.ts";
-import { rolesFor } from "../src/net/game.ts";
 
 // FR27: the bots are the room solver. Three bots, each seeing only what its role
 // sees and talking only through its role's channels (the router is in the loop),

@@ -71,6 +71,9 @@ export function Lobby({ code }: { code: string }) {
           index: m.index,
           role: m.role,
           crew: m.crew,
+          rooms: m.rooms,
+          sittingOut: m.sittingOut,
+          played: m.played,
           // a reveal for the room you are already in (a reconnect) has nothing to morph from
           ...(old && old.index !== m.index ? { from: old.role } : {}),
         })),

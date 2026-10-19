@@ -111,3 +111,36 @@ export async function clearRoomOne(players: Player[], timeoutMs = 90_000): Promi
     `room 01 was not cleared in time: phase ${phase}; ${at}; crate ${crate ? `(${crate.x.toFixed(1)},${crate.y.toFixed(1)})` : "?"}`,
   );
 }
+
+// Plays spec/fixtures/rooms/01-tiny the way three people would: each seat stands on the plate in its
+// own row until the door opens, then all three go to the one exit tile.
+export async function clearTinyRoom(players: Player[], timeoutMs = 20_000): Promise<ClearedMsg> {
+  const eyes = byRole(players, "deaf");
+  const sent: string[] = ["", "", ""];
+  let seq = 0;
+  let view: RoleView | null = null;
+  let doorOpen = false;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    view = (await newestView(eyes)) ?? view;
+    try {
+      return await (players[0] as Player).socket.next<ClearedMsg>("cleared", 1);
+    } catch {
+      // not yet
+    }
+    if (view) {
+      doorOpen ||= view.entities.some((e) => e.kind === "door" && e.state === "open");
+      for (const p of players) {
+        const pos = view.entities.find((e) => e.id === `P${p.seat}`)?.pos;
+        if (!pos) continue;
+        const move = toward(pos, doorOpen ? at(17.5, 1.5) : at(9.5, p.seat + 1.5));
+        const key = `${move.x.toFixed(2)},${move.y.toFixed(2)}`;
+        if (key === sent[p.seat]) continue;
+        sent[p.seat] = key;
+        p.socket.send({ t: "input", seq: ++seq, move: { x: move.x, y: move.y }, act: false });
+      }
+    }
+    await sleep(50);
+  }
+  throw new Error("the tiny room was not cleared in time");
+}

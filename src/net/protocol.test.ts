@@ -207,3 +207,19 @@ describe("parseClientMsg: lobby.nickname, lobby.private and lobby.order", () => 
     expect(parseClientMsg(raw)).toBeNull();
   });
 });
+
+describe("parseClientMsg: crew.swap", () => {
+  it("accepts two person indexes", () => {
+    expect(parseClientMsg('{"t":"crew.swap","a":0,"b":4}')).toEqual({ t: "crew.swap", a: 0, b: 4 });
+  });
+
+  it.each([
+    '{"t":"crew.swap"}',
+    '{"t":"crew.swap","a":0}',
+    '{"t":"crew.swap","a":"0","b":1}',
+    '{"t":"crew.swap","a":0.5,"b":1}',
+    '{"t":"crew.swap","a":-1,"b":1}',
+  ])("drops %s", (raw) => {
+    expect(parseClientMsg(raw)).toBeNull();
+  });
+});

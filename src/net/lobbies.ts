@@ -1,3 +1,4 @@
+import { type CrewPick, pickCrew } from "../game/crew.ts";
 import type { Role } from "../game/types.ts";
 import { isAllowedName } from "../lib/names.ts";
 import { newLobbyCode } from "./codes.ts";
@@ -313,23 +314,31 @@ export function setSettings(reg: Registry, who: string, settings: LobbySettings)
 // Seat shapes name the seat, not the role (roles rotate between rooms).
 export const SEAT_SHAPE = ["circle", "square", "triangle"] as const;
 
-// Host-only. Marks the lobby as playing so it leaves the open list. The first three people
-// take the seats and bots fill any left over (FR4); the caller builds the game.
-export function startLobby(reg: Registry, who: string): LobbyState {
-  const lobby = lobbyOfHost(reg, who);
-  lobby.seats.forEach((_seat, i) => {
-    const person = lobby.people[i];
-    lobby.seats[i] = person
+// Writes a room's crew into the seats: the people it names sit, a bot fills any seat it leaves
+// to nobody, and everyone else sits out and watches.
+export function seatCrew(lobby: LobbyState, pick: CrewPick): void {
+  lobby.seats = [0, 1, 2].map((i) => {
+    const at = pick.people[i];
+    const person = at === null || at === undefined ? undefined : lobby.people[at];
+    return person
       ? {
           who: person.who,
           nickname: person.nickname,
           connected: person.connected,
           bot: false,
-          person: i,
+          person: at ?? null,
         }
       : { who: null, nickname: `Bot ${SEAT_SHAPE[i]}`, connected: true, bot: true, person: null };
-  });
-  lobby.sittingOut = lobby.people.slice(3).map((p) => p.who);
+  }) as LobbyState["seats"];
+  const seated = new Set(lobby.seats.map((s) => s.who));
+  lobby.sittingOut = lobby.people.filter((p) => !seated.has(p.who)).map((p) => p.who);
+}
+
+// Host-only. Marks the lobby as playing so it leaves the open list and seats the first room's
+// crew, bots filling what is left (FR4); the caller builds the game.
+export function startLobby(reg: Registry, who: string): LobbyState {
+  const lobby = lobbyOfHost(reg, who);
+  seatCrew(lobby, pickCrew(lobby.people, 0));
   lobby.phase = "playing";
   return lobby;
 }

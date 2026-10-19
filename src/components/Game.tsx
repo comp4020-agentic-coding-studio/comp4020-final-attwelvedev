@@ -48,10 +48,11 @@ export interface Reveal {
   index: number;
   role: Role;
   crew: CrewMember[];
+  rooms: number; // how many rooms the heist has
+  sittingOut: string[]; // nicknames of the people not playing this room
+  played: Record<string, Role[]>; // by nickname: roles played so far
   from?: Role; // your role in the room before, so the shape can morph into the new one
 }
-
-const LAST_ROOM = 2; // the heist is three rooms: index 0, 1, 2
 
 // What the frame loop and the input loop share. Plain mutable state in a ref:
 // it changes 20 times a second and must not re-render the page each time.
@@ -675,7 +676,7 @@ function Hud({
               ms={summary?.ms ?? rt.view?.elapsedMs ?? 0}
               loot={summary?.loot ?? 0}
               lootTotal={summary?.lootTotal ?? 0}
-              last={reveal.index >= LAST_ROOM}
+              last={reveal.index >= reveal.rooms - 1}
               host={host}
               onNext={() => socket.send({ t: "next" })}
               onRestart={restart}

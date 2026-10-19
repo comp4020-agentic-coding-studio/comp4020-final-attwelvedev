@@ -7,6 +7,7 @@ import {
   type Outgoing,
   route,
 } from "../game/channels.ts";
+import { type CrewPick, pickCrew, rolesFor, swapCrew } from "../game/crew.ts";
 import { type RoleView, viewFor } from "../game/perception.ts";
 import type { Room } from "../game/rooms/format.ts";
 import { lineOfSight } from "../game/sim/sight.ts";
@@ -16,12 +17,11 @@ import {
   canSend,
   type Method,
   type PlayerInput,
-  ROLES,
   type Role,
   type Seat,
   type Vec,
 } from "../game/types.ts";
-import { type LobbyState, MAX_PEOPLE, newPerson, SEAT_SHAPE } from "./lobbies.ts";
+import { type LobbyState, MAX_PEOPLE, newPerson, SEAT_SHAPE, seatCrew } from "./lobbies.ts";
 
 export interface CrewMember {
   seat: Seat;
@@ -52,7 +52,8 @@ export interface Caught {
 export interface Game {
   lobby: string; // code
   roomIndex: number;
-  roles: [Role, Role, Role];
+  crew: CrewPick; // who plays this room, by person index (null: a bot), and as what
+  roles: [Role, Role, Role]; // crew.roles, kept beside it because everything reads it
   world: World;
   ready: Set<Seat>;
   inputs: Partial<Record<Seat, PlayerInput>>;
@@ -61,12 +62,8 @@ export interface Game {
   bots: Partial<Record<Seat, BotSeat>>; // a memory and an inbox for each seat a bot plays
   paused: Paused | null;
   vacated: Partial<Record<Seat, string>>; // the device that left a seat a bot now plays, who may take it back
-}
-
-// Seat i gets ROLES[(i + roomIndex) % 3], so everyone plays every role across three rooms.
-export function rolesFor(roomIndex: number): [Role, Role, Role] {
-  const role = (seat: number): Role => ROLES[(seat + roomIndex) % 3] as Role;
-  return [role(0), role(1), role(2)];
+  heistPeople: Map<string, { nickname: string; bot: boolean }>; // everyone who played any room, for the heist record
+  counted: number; // the last room whose crew was written to people's `played` (a restart is not a second play)
 }
 
 // Bots start afresh with each room: their memory is of that room and these roles.
@@ -80,6 +77,8 @@ function seatBots(game: Game, botSeats: readonly Seat[]): void {
   }
 }
 const botSeatsOf = (game: Game): Seat[] => ([0, 1, 2] as const).filter((s) => game.bots[s]);
+const botSeatsIn = (lobby: LobbyState): Seat[] =>
+  ([0, 1, 2] as const).filter((s) => lobby.seats[s]?.bot);
 
 // The caller has already checked that the starter is the host, and startLobby has
 // filled the empty seats with bots.
@@ -89,7 +88,8 @@ export function startGame(lobby: LobbyState, rooms: Room[]): Game {
   const game: Game = {
     lobby: lobby.code,
     roomIndex: 0,
-    roles: rolesFor(0),
+    crew: crewFor(lobby, 0),
+    roles: crewFor(lobby, 0).roles,
     world: createWorld(room),
     ready: new Set(),
     inputs: {},
@@ -98,6 +98,8 @@ export function startGame(lobby: LobbyState, rooms: Room[]): Game {
     bots: {},
     paused: null,
     vacated: {},
+    heistPeople: new Map(),
+    counted: -1,
   };
   seatBots(
     game,
@@ -115,22 +117,72 @@ export function applyInput(game: Game, seat: Seat, input: PlayerInput): boolean 
   return true;
 }
 
-// After a cleared room: the next room, with roles rotated so each seat plays
-// each role once over three rooms, a fresh world, and everyone to re-ready.
-// "done" once the last room is cleared (the heist is over).
-export function advanceRoom(game: Game, rooms: Room[]): "next" | "done" {
+// Who plays room `roomIndex`. With nobody sitting out, everyone stays where they are (a seat a
+// bot took over, or a person coming back to it, keeps its place) and the roles rotate by seat as
+// they always have. Otherwise the fair rotation picks (ADR 0013).
+function crewFor(lobby: LobbyState, roomIndex: number): CrewPick {
+  if (lobby.people.length <= 3 && lobby.sittingOut.length === 0) {
+    return { people: lobby.seats.map((s) => s.person), roles: rolesFor(roomIndex) };
+  }
+  return pickCrew(lobby.people, roomIndex);
+}
+
+function setCrew(game: Game, lobby: LobbyState, pick: CrewPick): void {
+  game.crew = pick;
+  game.roles = pick.roles;
+  seatCrew(lobby, pick);
+}
+
+// After a cleared room: the next room, with its crew picked and roles rotated, a fresh world,
+// and everyone to re-ready. "done" once the last room is cleared (the heist is over).
+export function advanceRoom(game: Game, lobby: LobbyState, rooms: Room[]): "next" | "done" {
   const room = rooms[game.roomIndex + 1];
   if (!room) return "done";
-  const botSeats = botSeatsOf(game);
   game.roomIndex++;
-  game.roles = rolesFor(game.roomIndex);
+  setCrew(game, lobby, crewFor(lobby, game.roomIndex));
   game.world = createWorld(room);
   game.ready.clear();
   game.inputs = {};
   game.cooldowns = { until: {} };
   game.startedAt = Date.now();
-  seatBots(game, botSeats);
+  seatBots(game, botSeatsIn(lobby));
   return "next";
+}
+
+// A person left the lobby, so everyone after them in `people` moves up one place: the crew's
+// indexes must follow, and their own seat (a bot has it by now) is nobody's.
+export function forgetPerson(game: Game, at: number): void {
+  game.crew = {
+    ...game.crew,
+    people: game.crew.people.map((p) => (p === null || p === at ? null : p > at ? p - 1 : p)),
+  };
+}
+
+// The host swapped two people at a reveal (by person index): the roles or the seats change, so
+// nobody is ready any more and the bots start afresh with who they now play beside.
+export function swapPeople(game: Game, lobby: LobbyState, a: number, b: number): void {
+  setCrew(game, lobby, swapCrew(game.crew, a, b));
+  game.ready.clear();
+  seatBots(game, botSeatsIn(lobby));
+}
+
+// The room is about to tick for the first time: its crew has played it. Each person's `played`
+// grows by their role, and the heist record learns their names. A restart doesn't count again.
+export function markPlayed(game: Game, lobby: LobbyState): boolean {
+  if (game.counted === game.roomIndex) return false;
+  game.counted = game.roomIndex;
+  for (const [seat, at] of game.crew.people.entries()) {
+    const person = at === null ? undefined : lobby.people[at];
+    const role = game.roles[seat] as Role;
+    if (person) {
+      person.played.push(role);
+      game.heistPeople.set(person.who, { nickname: person.nickname, bot: false });
+    } else {
+      const nickname = `Bot ${SEAT_SHAPE[seat]}`;
+      game.heistPeople.set(`bot:${seat}`, { nickname, bot: true });
+    }
+  }
+  return true;
 }
 
 // A fresh world for the same room: everyone back at spawn, crates and doors
@@ -190,6 +242,7 @@ export function takeOverWithBot(
   former: string | null = null,
 ): void {
   if (former) game.vacated[seat] = former;
+  game.heistPeople.set(`bot:${seat}`, { nickname: `Bot ${SEAT_SHAPE[seat]}`, bot: true });
   lobby.seats[seat] = {
     who: null,
     nickname: `Bot ${SEAT_SHAPE[seat]}`,
@@ -222,6 +275,7 @@ export function giveSeatBack(
     at = lobby.people.push(newPerson(who, nickname)) - 1;
   }
   lobby.seats[seat] = { who, nickname, connected: true, bot: false, person: at };
+  game.crew.people[seat] = at;
   delete game.vacated[seat];
   delete game.inputs[seat];
   seatBots(

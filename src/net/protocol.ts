@@ -44,6 +44,7 @@ export type ClientMsg =
   | { t: "lobby.nickname"; nickname: string } // your own name, in the lobby
   | { t: "lobby.private"; on: boolean } // host
   | { t: "lobby.order"; order: number[] } // host: a permutation of the person indexes
+  | { t: "crew.swap"; a: number; b: number } // host, during a reveal: person indexes
   | { t: "lobby.settings"; settings: LobbySettings } // host
   | { t: "lobby.start" } // host
   | { t: "ready" }
@@ -66,7 +67,17 @@ export type ServerMsg =
     }
   | { t: "left" } // answers lobby.leave, so the page can navigate once the server has acted
   | { t: "error"; code: ErrorCode; message: string }
-  | { t: "reveal"; room: string; name: string; index: number; role: Role; crew: CrewMember[] }
+  | {
+      t: "reveal";
+      room: string;
+      name: string;
+      index: number;
+      role: Role;
+      crew: CrewMember[];
+      rooms: number; // how many rooms the heist has
+      sittingOut: string[]; // nicknames of the people not in this room's crew
+      played: Record<string, Role[]>; // by nickname: the roles each person has played so far
+    }
   | { t: "view"; view: RoleView }
   | { t: "cleared"; room: string; ms: number; loot: number; lootTotal: number }
   | ({ t: "msg" } & ChannelMessage) // only ever sent to a seat whose role receives the method
@@ -130,6 +141,13 @@ export function parseClientMsg(raw: string): ClientMsg | null {
     case "lobby.order":
       return Array.isArray(m.order) && m.order.length <= 6 && m.order.every(Number.isInteger)
         ? { t: "lobby.order", order: m.order as number[] }
+        : null;
+    case "crew.swap":
+      return Number.isInteger(m.a) &&
+        Number.isInteger(m.b) &&
+        (m.a as number) >= 0 &&
+        (m.b as number) >= 0
+        ? { t: "crew.swap", a: m.a as number, b: m.b as number }
         : null;
     case "lobby.settings": {
       const s = m.settings;
