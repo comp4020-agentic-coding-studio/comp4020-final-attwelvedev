@@ -26,6 +26,11 @@ spectators swap in at checkpoints mid-room (chaotic and hard to build).
 - Each person answers their own setup (headphones, in the room or remote,
   captions, gear). Effective settings are recomputed each room from the roles
   and those answers.
+- A person's setup is saved in their browser with their nickname and in-game
+  settings, sent when they join a lobby, and editable on a /preferences page
+  outside any lobby. The server keeps it only for the lobby's lifetime, so
+  ADRs 0008 and 0009 stand: no accounts, and nothing but heist records persists
+  on the server.
 - Restarting the room or the heist needs every active human to accept within
   15 s; bots accept automatically. Back to lobby stays with the host.
 - A deliberate leave skips the 45 s disconnect wait; the host picks a bot, a
@@ -37,3 +42,6 @@ spectators swap in at checkpoints mid-room (chaotic and hard to build).
 - Records name everyone for the full heist and the three per room (ADR 0014).
 - Rotation with five players can't be perfectly even; the lobby shows
   "plays N" so it's visible.
+- Preferences don't follow a person to another device or browser, and clearing
+  site data forgets them; "in the room or remote" can be stale, so the lobby
+  shows it first.

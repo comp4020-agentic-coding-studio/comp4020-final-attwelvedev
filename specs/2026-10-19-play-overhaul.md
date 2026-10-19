@@ -133,6 +133,16 @@ design.
     room / remote; always show captions; gear (earplugs or earmuffs; sleep mask
     or blindfold). Rows show a short summary and "Set up" once answered. This
     does not gate Start. The team-wide real-life wizard is removed.
+20a. **Preferences persist in this browser** (amended 2026-10-19), like the
+    nickname already does: setup, nickname and the in-game settings (captions,
+    sound and volume, voice mode, high contrast, labels) are saved on the device
+    and never on the server (ADRs 0008, 0009). Joining a lobby sends the saved
+    setup at once, so a returning person shows "Set up" with no clicks; changes
+    in the lobby are saved back. "In the room / Remote" is shown first in the
+    lobby panel, since it is the answer most likely to be stale.
+20b. A **/preferences** page, linked from the home page header and the lobby's
+    setup panel, edits the same saved preferences without being in a lobby. It
+    works without a socket, by keyboard, at both viewports.
 21. Effective settings (masking noise, sound vs captions, in-app voice between
     in-room players) are recomputed every room from who holds which role and
     their own setup (backlog item 2026-10-09).
@@ -612,6 +622,7 @@ logic stays, per person).
 | 28 | gap | Every new mechanic needs bot support | Bots rewritten for LOS and made tolerant (backlog); "disable a role's sending fails its lead beat" spec |
 | 29 | gap | Pulled-in sitting-out player mid-room | Takes the leaver's role; rotation continues next room |
 | 30 | assumption | Can't see's movement figure leaks nothing | Driven only by its own moving/blocked state, already received for step/bump sounds |
+| 31 | gap | Setup is re-asked in every lobby, though it describes the person (raised after approval, 2026-10-19) | Saved in the browser with the nickname and settings; sent on join; a /preferences page edits it outside a lobby (FR20a–b). Server persistence rejected: ADRs 0008/0009 keep people anonymous and only heist records on the server |
 
 Ambitious alternatives raised and decided: isometric and isometric-with-heights
 (rejected: directions, cost), remembered fog (rejected), swap-in mid-room

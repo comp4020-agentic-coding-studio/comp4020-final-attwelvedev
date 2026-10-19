@@ -72,6 +72,9 @@ planning (2026-10-19), which win over the spec where they differ:
   `CLAUDE.md` gains a rule: a visual change reads `DESIGN.md` first and updates
   it in the same commit. Written in Task 17; every later visual task keeps it
   current.
+- **A6 (spec FR20a–b, agreed 2026-10-19):** preferences (nickname, setup,
+  in-game settings) persist in the browser and are sent on joining a lobby;
+  a /preferences page edits them outside a lobby. No server persistence.
 
 ### 2.2 Non-functional requirements
 
@@ -249,7 +252,7 @@ like `--glass` stay CSS-only and the canvas uses `globalAlpha`).
 | --- | --- | --- | --- | --- | --- |
 | 01 | `…-01-comms.md` | 1–4 | — | method routing, the wheel, Enter/V, arrow captions on today's rooms; **human review** of the wheel; **playtest 3** can run | [ ] |
 | 02 | `…-02-lobby-server.md` | 5–9 | 01 | lobbies of 6 people with setup and rotation, swaps, votes, leave flows, spectator chat/voice over the socket (temporary UI) | [ ] |
-| 03 | `…-03-lobby-screens.md` | 10–12 | 02 | new lobby, reveal and HUD screens; **human review** of each | [ ] |
+| 03 | `…-03-lobby-screens.md` | 10–12 | 02 | new lobby, reveal and HUD screens, a /preferences page; **human review** of each | [ ] |
 | 04 | `…-04-line-of-sight.md` | 13–16 | 01 | glass/vents, line-of-sight views, sound occlusion, held sequences, clue sounds, new linter rules, bots under LOS, the lead-role harness | [ ] |
 | 05 | `…-05-world-renderer.md` | 17–21 | 04 | `DESIGN.md` and its rule; the tilted 3/4 world, moving figures, mist, edge pills, the world rising; **human review** | [ ] |
 | 06 | `…-06-rooms-results.md` | 22–25 | 03, 04, 05 | four new rooms with lead beats, room-1 labels, comms map, versioned leaderboard; **human review** of each room; **playtest 4** | [ ] |
@@ -317,6 +320,7 @@ Phase 04 needs only 01, so it may run before 02–03 if that suits the user.
 | A3 | Task 16 |
 | A4 | Tasks 1 (backlog, CLAUDE.md shape), 14 (CLAUDE.md parity), 27 |
 | A5 | Task 17 (kept current by Tasks 18–22, 24, 26, 27) |
+| A6 / FR20a–b | Tasks 7 (saved setup sent on join), 10 (`/preferences` page, prefilled lobby panel) |
 
 ## 8. Risks / open questions
 

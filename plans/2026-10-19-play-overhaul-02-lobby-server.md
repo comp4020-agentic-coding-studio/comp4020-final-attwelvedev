@@ -22,7 +22,8 @@ adjusted only enough to keep the game playable; the new screens are phase 03.
 
 ### 2.1 Functional
 
-FR16, FR17, FR18, FR19, FR20 (server: setup stored; wizard removed), FR21,
+FR16, FR17, FR18, FR19, FR20 (server: setup stored; wizard removed), FR20a
+(saved setup sent on join), FR21,
 FR23 (server payload), FR24 (server), FR32 (server), A1, FR34 (server), FR36
 (names part: everyone who played any room), FR10 (spectators default to the
 whole room).
@@ -325,7 +326,10 @@ hash (fixes the cross-lobby seat key). Watchers default to the whole room:
   `src/components/Game.tsx`, `src/components/RoleReveal.tsx` (show
   `real.lines` instead of `honourLines`), `src/components/Lobby.tsx` (a
   plain temporary "Your setup" form: two radio pairs and three checkboxes,
-  replaced by the designed one in Task 10); delete
+  replaced by the designed one in Task 10), new `src/client/preferences.ts`
+  (+ test: `loadSetup(): Setup` and `saveSetup(setup: Setup): void` under
+  `heist.setup`, guarded like `src/client/nickname.ts`; missing or corrupt
+  data gives `DEFAULT_SETUP`); delete
   `src/client/realLifePreset.ts` (+ test), `src/client/honourLines.ts`
   (+ test), `src/components/RealLifeWizard.tsx`, `spec/layout/wizard.test.ts`
   (its high-contrast HUD case moves to `spec/layout/game.test.ts`),
@@ -338,7 +342,12 @@ hash (fixes the cross-lobby seat key). Watchers default to the whole room:
   settings for that person's role this room, recomputed when roles rotate";
   "voice between two people who are both in the room is not relayed when the
   whole crew is in the room".
-- **Implementation (green):** §4 "Real life per person".
+- **Implementation (green):** §4 "Real life per person". `Lobby.tsx` sends
+  `lobby.setup` with `loadSetup()` (with `done: true` if anything was saved)
+  as soon as its first `lobby` message confirms the join, and saves every
+  setup change it sends. `spec/setup.test.ts` adds (browser): "a person whose
+  setup was saved in an earlier lobby shows Set up in a new lobby with no
+  clicks, with the same answers".
 - **Acceptance criteria:** tests green; `rg -n "LobbySettings|presetFor|honourLines|RealLifeWizard" src spec` empty.
 - **Depends on:** Task 6.
 
@@ -419,6 +428,7 @@ hash (fixes the cross-lobby seat key). Watchers default to the whole room:
 | FR18 | Task 5 |
 | FR19 | Task 5 |
 | FR20 (server) | Task 7 |
+| FR20a (saved setup sent on join) | Task 7 |
 | FR21 | Task 7 |
 | FR23 (payload) | Tasks 6, 7 |
 | FR24 (server) | Task 6 |

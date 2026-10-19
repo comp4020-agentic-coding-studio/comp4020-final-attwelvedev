@@ -22,7 +22,7 @@ the spectator panel. The world is still the flat renderer (phase 05 tilts it).
 ### 2.1 Functional
 
 FR2 (reveal wording), FR16 (lobby list, rotation table, plays N), FR17–FR20
-(UI), FR22, FR23, FR24 (UI), FR29, FR32 (UI), FR33/A1 (UI), FR34 (UI), FR10
+(UI), FR20a (prefilled panel), FR20b (the /preferences page), FR22, FR23, FR24 (UI), FR29, FR32 (UI), FR33/A1 (UI), FR34 (UI), FR10
 (follow toggle UI).
 
 ### 2.2 Non-functional
@@ -98,6 +98,9 @@ person?: number }`, `spec.say { text }`, `spectate { seat: Seat | null }`
 sittingOut; played; real: RealLife }` (Tasks 6–7), `vote`, `vote.end`
 (Task 8), `spec.msg` (Task 9).
 
+From Task 7 (`src/client/preferences.ts`): `loadSetup(): Setup`,
+`saveSetup(setup: Setup): void` (key `heist.setup`).
+
 From Task 7 (`src/net/realLife.ts`): `interface RealLife { maskNoise; soundOff;
 captions; voice; lines: string[] }`.
 
@@ -127,10 +130,20 @@ Build to the spec §4.1 wireframes. Specifics the wireframes leave open:
   room · mask"), "plays N" when people > 3, and "Set up" / "Setting up". The
   rotation table rows come from `pickCrew` over the room count with each
   person's `played` empty (a forecast; the reveal is the truth).
-- **Your setup (`YourSetup`)**: two segmented choices (Headphones Yes/No;
-  Where In the room/Remote) and three checkboxes (Always show captions;
-  Earplugs or earmuffs; Sleep mask or blindfold), sending `lobby.setup` on each
-  change.
+- **Your setup (`YourSetup`)**: two segmented choices (Where: In the
+  room/Remote first, since it is the answer most likely to be stale; then
+  Headphones Yes/No) and three checkboxes (Always show captions; Earplugs or
+  earmuffs; Sleep mask or blindfold), prefilled from `loadSetup()`. Each change
+  sends `lobby.setup` and calls `saveSetup`. A "More preferences" link goes to
+  /preferences.
+- **/preferences (`src/pages/preferences.astro` + a `Preferences.tsx`
+  island)**: one page, no socket, editing the browser's saved preferences in
+  three groups: You (nickname, via `src/client/nickname.ts`), Real life
+  (`YourSetup` in a no-lobby mode that only saves), and Playing (captions,
+  sound and volume, voice hold/toggle, high contrast, labels, via
+  `src/client/settings.ts`). Saves on change with a quiet "Saved" status line.
+  Linked from the home page header and the lobby panel. The in-game Settings
+  menu keeps editing the Playing group.
 - **Leave guard (`LeaveGuard`)**: intercepts in-app link clicks and the Leave
   buttons while in a lobby or game with a glass modal (`ConfirmButton`-style
   Stay / Leave); adds a `beforeunload` handler (browser prompt) while in a
@@ -164,7 +177,11 @@ Build to the spec §4.1 wireframes. Specifics the wireframes leave open:
   lobby wireframe; replaces the temporary forms from Tasks 5 and 7.
 - **Files touched:** `src/components/Lobby.tsx`, new
   `src/components/PlayerRow.tsx`, `src/components/YourSetup.tsx`,
-  `src/components/LeaveGuard.tsx`, `src/styles/pages.css`,
+  `src/components/LeaveGuard.tsx`, new `src/pages/preferences.astro`, new
+  `src/components/Preferences.tsx`, `src/components/Home.tsx` (header link),
+  `src/lib/requestLog.ts` (`"GET /preferences": "view.preferences"` in
+  `ACTIONS`, like the other pages),
+  `src/styles/pages.css`,
   `src/styles/tokens.css` (+ `--glass`, `--scrim`, `--hatch`), `CLAUDE.md`
   (layering: the client may import `src/game/crew.ts`),
   `spec/layout/lobby.test.ts` (extend; new file
@@ -177,12 +194,17 @@ Build to the spec §4.1 wireframes. Specifics the wireframes leave open:
   table shows who sits out each room and plays N"; "clicking Home in a lobby
   asks before leaving; Stay keeps you in, Leave takes you home and out of the
   lobby"; overflow + axe at both viewports with six people, long nicknames and
-  the setup form; every control ≥ 48 px on phone.
+  the setup form; every control ≥ 48 px on phone; "answers saved on
+  /preferences prefill Your setup in the next lobby, and a change in the lobby
+  shows on /preferences"; "/preferences has no overflow or axe violations at
+  both viewports and works by keyboard alone"; "the home page links to
+  /preferences".
 - **Implementation (green):** §4.
 - **Acceptance criteria:** tests green.
 - **Human review:** on a local build at 375 px and 1280 px with five browser
   windows, the user judges the lobby against the spec wireframe: clear who is
-  set up, who plays which room, and what "private" means. Pass = user says so.
+  set up, who plays which room, and what "private" means; and that
+  /preferences reads as the one place to set yourself up. Pass = user says so.
 - **Depends on:** Tasks 5–7.
 
 ### Task 11: The role reveal
@@ -265,6 +287,7 @@ Build to the spec §4.1 wireframes. Specifics the wireframes leave open:
 | FR10 (UI) | Task 12 |
 | FR16 (UI) | Task 10 |
 | FR17–FR20 (UI) | Task 10 |
+| FR20a (prefill), FR20b | Task 10 |
 | FR22 | Task 10 |
 | FR23 | Task 11 |
 | FR24 (UI) | Task 11 |
