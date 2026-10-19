@@ -144,7 +144,11 @@ describe("the home page's join panel", () => {
     const total = Number((await more.textContent())?.match(/\d+/)?.[0]);
     expect(total).toBeGreaterThanOrEqual(5);
     await more.click();
-    expect(await rows.count()).toBe(total);
+    // Other spec files make and drop lobbies on this same server while this one runs, so the
+    // list can change between reading the total and counting the rows: a count read earlier
+    // is not a promise the page makes. What it does promise is that expanding shows more than
+    // the four it started with: this test made five lobbies, so there are at least five.
+    await expect.poll(() => rows.count(), { timeout: 3000 }).toBeGreaterThanOrEqual(5);
     expect(
       await page.getByRole("button", { name: "Show fewer" }).getAttribute("aria-expanded"),
     ).toBe("true");

@@ -47,3 +47,19 @@ export async function playRoom(browser: Browser, baseUrl: string): Promise<Table
 
 export const canvasHash = (page: Page) =>
   page.locator(".frame canvas").evaluate((c) => (c as HTMLCanvasElement).toDataURL());
+
+// The canvas once it has stopped changing: two frames in a row that are identical. A single
+// frame is a moving picture (the camera eases, effects play out), so comparing a later
+// frame to one taken a fixed time after something happened is a race. Gives up after
+// `timeoutMs` and returns the last frame.
+export async function settledHash(page: Page, timeoutMs = 3000): Promise<string> {
+  const deadline = Date.now() + timeoutMs;
+  let last = await canvasHash(page);
+  while (Date.now() < deadline) {
+    await page.waitForTimeout(120);
+    const next = await canvasHash(page);
+    if (next === last) return next;
+    last = next;
+  }
+  return last;
+}

@@ -3,6 +3,8 @@
     "allow": [
       "Bash(pnpm check *)",
       "Bash(pnpm check)",
+      "Bash(pnpm check:flaky *)",
+      "Bash(pnpm check:flaky)",
       "Bash(pnpm typecheck)",
       "Bash(pnpm lint)",
       "Bash(pnpm format)",

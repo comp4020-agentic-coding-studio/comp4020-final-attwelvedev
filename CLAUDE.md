@@ -88,6 +88,53 @@ file per area rather than one growing file. If the check gets noticeably
 slower, measure per file (`vitest run --reporter=json`) before guessing at a
 fix.
 
+## Flaky tests
+
+A red run that goes green on a retry is a flaky test, and a retry hides it:
+it costs minutes and tokens every time it happens. Never retry to get green.
+Run `pnpm check:flaky` (4 fresh-server runs, half with the CPU kept busy; give
+it a number for more): a test that fails in **every** run is a bug, one that
+fails in **some** is flaky, and it names which. Then fix the cause:
+
+- A picture of the canvas is a moving image: compare `settledHash(page)`
+  (`spec/playUi.ts`), never one `canvasHash` frame, and never one taken right
+  after a game starts (the first frame is not the scene).
+- Wait for the thing, not a time: `expect.poll` or `waitFor`, not
+  `waitForTimeout` followed by an assertion. A count read earlier is stale
+  while other spec files add and drop lobbies on the same server.
+- A gesture whose speed matters (a flick under 200 ms) is dispatched inside the
+  page in one task: each step from the test runner is a round trip that can
+  outlast it on a busy machine.
+- A rate is events over the time they took, not events in a window whose edge
+  the runner decides.
+- Do not raise a timeout to make a failure go away. Raise it when the work is
+  genuinely slower under load, and say why beside the number (see
+  `vitest.config.ts`).
+
+`spec/flaky-patterns.test.ts` fails on the two shapes that are precise enough to
+grep for. Add a rule there when a new flaky shape turns up and can be matched
+without false alarms; otherwise the rule belongs in this list.
+
+Reusing one server across many runs fills its 40-lobby cap with leftovers and
+times out unrelated specs. Restart it between runs. CI starts fresh.
+
+## Verifying a visual change
+
+The spec for a layout promise measures the promise, not a stand-in for it:
+slot boxes that never touch (not "centres are far apart"), a target at least
+48 px (not "the scale is 1"), text that is not clipped (`scrollHeight`), a
+control inside its frame, for every role and viewport. A spec written to what
+was expected to go wrong passed all through the comms wheel's first review,
+which found eight problems in a minute of use. Take a screenshot at both
+widths and look at it before saying a visual change is done.
+
+## Editing files
+
+Replace a named block, not "from here to the end of the file": slicing to the
+end silently drops whatever follows, and it happened three times in one
+session. Formatters rewrite files under you, so match on a short unique
+string, and re-read before a large edit.
+
 ## Generated files
 
 Never hand-edit build output or generated files; fix the source and rebuild.

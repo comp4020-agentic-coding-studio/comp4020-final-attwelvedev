@@ -5,7 +5,18 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     projects: [
-      { extends: true, test: { name: "unit", include: ["src/**/*.test.ts"] } },
+      {
+        extends: true,
+        test: {
+          name: "unit",
+          include: ["src/**/*.test.ts"],
+          // The slowest unit test (a loop of bot simulations) takes under a second on a quiet
+          // machine, but `pnpm check` runs these alongside a dozen browsers, which starves
+          // them: the default 5 s was missed by a test that normally takes 0.4 s. Roomy
+          // enough for that, and a test that really hangs still fails in 20 s, not never.
+          testTimeout: 20_000,
+        },
+      },
       {
         extends: true,
         test: {

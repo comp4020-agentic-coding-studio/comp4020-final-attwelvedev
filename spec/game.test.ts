@@ -41,16 +41,22 @@ describe("starting and playing a game", () => {
     const { players } = await startedGame(baseUrl);
     ready(players);
     const deaf = byRole(players, "deaf");
-    await nextView(deaf); // the first view marks the start
-    const until = Date.now() + 1000;
-    let views = 0;
-    while (Date.now() < until) {
-      await nextView(deaf, Math.max(1, until - Date.now())).then(
-        () => views++,
-        () => undefined,
-      );
+    // A rate is views over the time they took, not views that happened to land in a window:
+    // the test runner's own latency decides where a window's edge falls, and one view lost off
+    // the end of a 1 s window is 5% of the count. So time 30 views from the first to the last.
+    const arrivals: number[] = [];
+    const first = await nextView(deaf); // the first view marks the start
+    void first;
+    arrivals.push(performance.now());
+    while (arrivals.length < 30) {
+      await nextView(deaf, 2000);
+      arrivals.push(performance.now());
     }
-    expect(views).toBeGreaterThanOrEqual(15);
+    const seconds = ((arrivals.at(-1) ?? 0) - (arrivals[0] ?? 0)) / 1000;
+    const rate = (arrivals.length - 1) / seconds;
+    expect(rate, `${arrivals.length - 1} views in ${seconds.toFixed(2)} s`).toBeGreaterThanOrEqual(
+      15,
+    );
     await closeAll(players);
   });
 
