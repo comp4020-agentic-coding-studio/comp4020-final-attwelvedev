@@ -14,7 +14,7 @@ import type { EntityView, RoleView, SoundCue } from "../game/perception.ts";
 import { parseSetup, type Setup } from "../game/setup.ts";
 import type { Method, PlayerInput, Role, Seat, Vec } from "../game/types.ts";
 import type { CrewMember, SendRequest, VoteKind } from "./game.ts";
-import type { ErrorCode, LobbyState, LobbySummary } from "./lobbies.ts";
+import type { ErrorCode, LobbyState, LobbySummary, Person } from "./lobbies.ts";
 import type { RealLife } from "./realLife.ts";
 
 // Clients import their types from here only (they never reach into lobbies.ts
@@ -28,6 +28,7 @@ export type {
   ErrorCode,
   LobbyState,
   LobbySummary,
+  Person,
   RealLife,
   RoleView,
   SendRequest,
@@ -69,6 +70,7 @@ export type ServerMsg =
   | {
       t: "lobby";
       lobby: LobbyState;
+      rooms: string[]; // the heist's room names in order, for the lobby's rotation table
       you: { seat: Seat | null; host: boolean; person: number | null }; // person: your index in lobby.people
     }
   | { t: "left" } // answers lobby.leave, so the page can navigate once the server has acted

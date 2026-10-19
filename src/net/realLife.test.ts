@@ -77,9 +77,15 @@ describe("realLifeFor: lines", () => {
     }
   });
 
+  it("has none for someone who says they are in the room when no one else in the crew is", () => {
+    for (const role of ["blind", "deaf", "mute"] as Role[]) {
+      expect(realLifeFor(role, together, crewOf(together, remote, remote)).lines).toEqual([]);
+    }
+  });
+
   it("tells Can't hear to put earplugs in, or else to wear headphones, or else to ask for quiet", () => {
     const lines = (over: Partial<Setup>) =>
-      realLifeFor("deaf", setup({ inRoom: true, ...over }), crewOf(together)).lines;
+      realLifeFor("deaf", setup({ inRoom: true, ...over }), crewOf(together, together)).lines;
     expect(lines({ earplugs: true, headphones: true })).toEqual([
       "Earplugs in now.",
       "Sit where you can't see the others' faces.",
@@ -96,13 +102,13 @@ describe("realLifeFor: lines", () => {
 
   it("tells Can't see to put the mask on and find the keys, or else to keep their eyes on their own screen", () => {
     const lines = (mask: boolean) =>
-      realLifeFor("blind", setup({ inRoom: true, mask }), crewOf(together)).lines;
+      realLifeFor("blind", setup({ inRoom: true, mask }), crewOf(together, together)).lines;
     expect(lines(true)).toEqual(["Mask on. Find WASD and Space first."]);
     expect(lines(false)).toEqual(["Keep your eyes on your own screen."]);
   });
 
   it("tells Can't speak not to mouth words or point at screens", () => {
-    expect(realLifeFor("mute", together, crewOf(together)).lines).toEqual([
+    expect(realLifeFor("mute", together, crewOf(together, together)).lines).toEqual([
       "Don't mouth words or point at screens. Waving and miming are fine.",
     ]);
   });

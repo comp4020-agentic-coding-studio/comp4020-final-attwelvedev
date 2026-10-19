@@ -134,8 +134,11 @@ Build to the spec §4.1 wireframes. Specifics the wireframes leave open:
   room/Remote first, since it is the answer most likely to be stale; then
   Headphones Yes/No) and three checkboxes (Always show captions; Earplugs or
   earmuffs; Sleep mask or blindfold), prefilled from `loadSetup()`. Each change
-  sends `lobby.setup` and calls `saveSetup`. A "More preferences" link goes to
-  /preferences.
+  sends `lobby.setup` and calls `saveSetup`. A "Preferences" button opens
+  `PreferencesSheet` (a modal over the lobby with the same form as /preferences:
+  real life and Playing, no nickname). Every change saves and sends at once, so
+  a host starting while it is open loses nothing. /preferences stays for outside a
+  lobby, linked from the home page only (user decision 2026-10-19, amends FR20b).
 - **/preferences (`src/pages/preferences.astro` + a `Preferences.tsx`
   island)**: one page, no socket, editing the browser's saved preferences in
   three groups: You (nickname, via `src/client/nickname.ts`), Real life
@@ -170,7 +173,7 @@ Build to the spec §4.1 wireframes. Specifics the wireframes leave open:
 
 ## 5. Task breakdown
 
-### Task 10: The lobby screen
+### Task 10: The lobby screen [x]
 
 - **Description:** `PlayerRow`, `YourSetup`, private toggle, ordering,
   rotation table, nickname edit, `LeaveGuard` for the lobby, per the spec's
@@ -299,3 +302,22 @@ Build to the spec §4.1 wireframes. Specifics the wireframes leave open:
 ## 8. Risks / open questions
 
 None.
+
+## 9. Corrections log
+
+- 2026-10-19, Task 10: expected "In the room" to mean something only with company.
+  A lone "in room" chip and the reveal's real-life lines made no sense with
+  everyone else remote. Fix: `sharesRoom` (two or more in the room) gates both
+  (`src/game/setup.ts`, `realLifeFor`, `chipsOf`). First pass treated one
+  person's answer as enough.
+- 2026-10-19, Task 10: wanted preferences editable inside the lobby, not on a
+  separate page. Fix: `PreferencesSheet` modal; the page stays for the home
+  screen. First pass followed FR20b literally (link to a page).
+- 2026-10-19, Task 10: rotation table shows no roles. Considered a forecast, user
+  preferred a line: "Your roles are revealed before each room."
+
+- 2026-10-19, Task 10: expected breathing room between neighbours in the lobby
+  (Copy/QR row vs Team name; Private switch vs the ordering hint). First pass
+  gave each child its own margin and missed pairs. Fix: the column container
+  owns the gap (`.lobby-code`/`.lobby-side` grid + gap), so a new child can't
+  touch its neighbour.

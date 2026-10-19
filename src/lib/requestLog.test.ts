@@ -97,6 +97,7 @@ describe("ACTIONS", () => {
       "GET /": "view.home",
       "GET /readme": "view.readme",
       "GET /lobby/[code]": "view.lobby",
+      "GET /preferences": "view.preferences",
       "GET /leaderboard": "view.leaderboard",
     });
   });

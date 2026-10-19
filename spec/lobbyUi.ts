@@ -38,9 +38,13 @@ export async function joinWithCode(
 // come back), so specs press Leave first or abandoned lobbies fill the server.
 export async function leaveAndClose(page: Page): Promise<void> {
   if (page.url().includes("/lobby/")) {
-    const leave = page.getByRole("button", { name: "Leave" });
+    const leave = page.getByRole("button", { name: "Leave lobby", exact: true });
     if (await leave.isVisible()) {
       await leave.click();
+      await page
+        .getByRole("dialog")
+        .getByRole("button", { name: "Leave lobby", exact: true })
+        .click();
       await page.waitForURL((url) => url.pathname === "/", { timeout: 5000 }).catch(() => {});
     }
   }

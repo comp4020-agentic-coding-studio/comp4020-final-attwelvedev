@@ -1,5 +1,7 @@
 import { ROLES, type Role } from "./types.ts";
 
+export const MAX_PEOPLE = 6; // people in a lobby; a room seats three of them
+
 // Who plays a room, and as what. Pure, and importing only types.ts, so the lobby screen can show
 // "plays N" from the same rule the server uses (ADR 0013).
 export interface CrewPick {

@@ -34,7 +34,7 @@ describe("leaving a game by going to another page, with the back/forward cache o
       // that stalls cannot leave a lobby and two browsers behind for the next to run beside.
       try {
         guest = await joinWithCode(browser, baseUrl, code, "Bo", DESKTOP);
-        await host.getByRole("heading", { name: "People" }).waitFor();
+        await host.getByRole("heading", { name: /^Players \d of 6/ }).waitFor();
         await host.getByRole("button", { name: /^Start/ }).click();
         for (const page of [host, guest]) {
           await page.getByRole("button", { name: "Ready" }).click();

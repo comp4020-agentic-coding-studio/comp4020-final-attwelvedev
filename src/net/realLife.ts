@@ -1,4 +1,4 @@
-import type { Setup } from "../game/setup.ts";
+import { type Setup, sharesRoom } from "../game/setup.ts";
 import type { Role } from "../game/types.ts";
 
 // What a person's own answers and this room's role mean for how they play and what the reveal
@@ -19,7 +19,7 @@ export function realLifeFor(role: Role, me: Setup, crew: readonly Setup[]): Real
     captions: role !== "deaf" && (me.captions || soundOff),
     // in-app voice goes off only when the whole crew is in one room
     voice: !(me.inRoom && crew.every((s) => s.inRoom)),
-    lines: me.inRoom ? linesFor(role, me) : [],
+    lines: me.inRoom && sharesRoom(crew) ? linesFor(role, me) : [],
   };
 }
 

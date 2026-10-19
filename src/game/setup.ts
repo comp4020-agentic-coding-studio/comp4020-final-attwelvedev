@@ -27,3 +27,8 @@ export function parseSetup(raw: unknown): Setup | null {
   if (!SETUP_KEYS.every((k) => typeof m[k] === "boolean")) return null;
   return Object.fromEntries(SETUP_KEYS.map((k) => [k, m[k]])) as unknown as Setup;
 }
+
+// "In the room" only means something with company: one person saying so, with everyone else
+// remote, is playing alone. The reveal's real-life lines and the lobby's chips both ask this.
+export const sharesRoom = (setups: readonly Setup[]): boolean =>
+  setups.filter((s) => s.inRoom).length >= 2;

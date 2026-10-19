@@ -13,6 +13,7 @@ interface LobbyMsg {
     people: { who: string; nickname: string }[];
     spectators: { nickname: string }[];
   };
+  rooms: string[];
   you: { seat: number | null; host: boolean; person: number | null };
 }
 interface ListMsg {
@@ -193,6 +194,17 @@ describe("lobbies over the socket", () => {
     expect(Date.now() - started).toBeLessThanOrEqual(1000);
     expect(seen.lobby.people.map((p) => p.nickname)).toEqual(["Ana", "Robin"]);
     await Promise.all([a.close(), b.close()]);
+  });
+
+  it("tells every member the names of the rooms, for the rotation table", async () => {
+    const [a] = await open("a");
+    a.send({ t: "lobby.create", nickname: "Ana" });
+    const { rooms } = await a.next<LobbyMsg>("lobby");
+    // the room set changes between phases, so check the shape and the first room, not the list
+    expect(rooms.length).toBeGreaterThanOrEqual(3);
+    expect(rooms[0]).toBe("Loading Dock");
+    expect(rooms.every((name) => name.length > 0)).toBe(true);
+    await a.close();
   });
 
   it("lets the host rename the team and refuses anyone else", async () => {

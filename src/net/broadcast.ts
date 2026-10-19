@@ -5,7 +5,7 @@ import type { ServerMsg } from "./protocol.ts";
 
 // Who is connected and who needs telling. The registry decides what changed;
 // this decides who hears about it.
-export function createHub(registry: Registry) {
+export function createHub(registry: Registry, roomNames: () => string[]) {
   const socketsOf = new Map<string, Set<WebSocket>>(); // device hash → its open sockets
   const watchers = new Set<WebSocket>(); // sockets showing the open-lobby list
   const lastMembers = new Map<string, string[]>(); // lobby code → devices told about it last
@@ -40,6 +40,7 @@ export function createHub(registry: Registry) {
         sendTo(who, {
           t: "lobby",
           lobby,
+          rooms: roomNames(),
           you: {
             seat: seat >= 0 ? (seat as Seat) : null,
             host: lobby.host === who,

@@ -633,3 +633,28 @@ a sixth, a cache spec that stalled once in about forty runs and left its lobby a
 browsers behind. I could not reproduce it, so I fixed what I could see (cleanup in a
 `finally`) and logged that it was not proven gone, instead of calling it fixed.
 
+
+## 2026-10-19 — Reviewing the lobby on a real render turned up four things the specs could not
+
+Task 10 commit (see git log, "Build the lobby screen")
+
+Task 10's tests were green before I looked at it, and then the review found four
+things no spec had asked about: neighbouring elements touching (Copy/QR against
+Team name, the Private switch against its hint), "In the room" meaning nothing
+when only one person says it, a separate /preferences page that took people out
+of the lobby, and a roles forecast that read as a promise.
+
+The obvious fix for the spacing was to add a margin to each pair. I made the
+column own the gap instead, so the next child can't touch its neighbour. For
+"In the room" I made one rule (`sharesRoom`: two or more people) and used it for
+both the lobby chips and the reveal's real-life lines, so the two can't disagree.
+The preferences became a sheet in the lobby, saved and sent on every change, so a
+host starting while it is open loses nothing; a spec starts the game with the
+sheet open and checks the answer survived. For the roles I took a line ("Your
+roles are revealed before each room") over a forecast that the reveal could
+contradict.
+
+Checked by rendering the lobby at 375 and 1280 px, the full suite (98 files,
+1094 passing), and unit tests for the rule. The same screenshot caught the sheet
+using the translucent `--glass`, which let lobby text show through; it now uses
+`--panel`.

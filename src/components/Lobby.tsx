@@ -2,104 +2,20 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { readNickname, saveNickname } from "../client/nickname.ts";
 import { loadSetup, saveSetup } from "../client/preferences.ts";
 import { qrSvg } from "../client/qr.ts";
+import { forecast } from "../client/rotation.ts";
+import { MAX_PEOPLE } from "../game/crew.ts";
+import { sharesRoom } from "../game/setup.ts";
 import type { LobbyState, Setup } from "../net/protocol.ts";
 import { Connection } from "./Connection.tsx";
 import { Game, type Reveal } from "./Game.tsx";
+import { LeaveGuard } from "./LeaveGuard.tsx";
+import { PlayerRow } from "./PlayerRow.tsx";
+import { PreferencesSheet } from "./PreferencesSheet.tsx";
 import { Spectator } from "./Spectator.tsx";
 import { useSocket } from "./useSocket.ts";
+import { YourSetup } from "./YourSetup.tsx";
 
 type Status = "joining" | "in" | "full" | "missing" | "failed";
-
-// Seat shapes name the seat, not the role: roles rotate between rooms. Drawn
-// rather than typed so all three are the same visual size in any font.
-const SEAT_SHAPE = ["circle", "square", "triangle"] as const;
-
-function SeatShape({ shape }: { shape: (typeof SEAT_SHAPE)[number] }) {
-  return (
-    <svg class="shape" viewBox="0 0 28 28" aria-hidden="true" focusable="false">
-      {shape === "circle" && <circle cx="14" cy="14" r="11" />}
-      {shape === "square" && <rect x="3" y="3" width="22" height="22" />}
-      {shape === "triangle" && <polygon points="14,2 26,25 2,25" />}
-    </svg>
-  );
-}
-
-// Temporary until Task 10 replaces it with the designed panel: two radio pairs and three
-// checkboxes, each answer sent as it is made.
-function SetupForm({ setup, onChange }: { setup: Setup; onChange: (next: Setup) => void }) {
-  const set = (patch: Partial<Setup>) => onChange({ ...setup, ...patch });
-  return (
-    <form class="setup stack" aria-labelledby="setup-title" onSubmit={(e) => e.preventDefault()}>
-      <h2 id="setup-title">Your setup</h2>
-      <fieldset>
-        <legend>Where are you?</legend>
-        <label>
-          <input
-            type="radio"
-            name="where"
-            checked={!setup.inRoom}
-            onChange={() => set({ inRoom: false })}
-          />
-          Remote
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="where"
-            checked={setup.inRoom}
-            onChange={() => set({ inRoom: true })}
-          />
-          In the same room as the others
-        </label>
-      </fieldset>
-      <fieldset>
-        <legend>Headphones?</legend>
-        <label>
-          <input
-            type="radio"
-            name="phones"
-            checked={setup.headphones}
-            onChange={() => set({ headphones: true })}
-          />
-          I have headphones
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="phones"
-            checked={!setup.headphones}
-            onChange={() => set({ headphones: false })}
-          />
-          No headphones
-        </label>
-      </fieldset>
-      <label>
-        <input
-          type="checkbox"
-          checked={setup.captions}
-          onChange={(e) => set({ captions: e.currentTarget.checked })}
-        />
-        Always show captions
-      </label>
-      <label>
-        <input
-          type="checkbox"
-          checked={setup.earplugs}
-          onChange={(e) => set({ earplugs: e.currentTarget.checked })}
-        />
-        I have earplugs
-      </label>
-      <label>
-        <input
-          type="checkbox"
-          checked={setup.mask}
-          onChange={(e) => set({ mask: e.currentTarget.checked })}
-        />
-        I have a sleep mask or blindfold
-      </label>
-    </form>
-  );
-}
 
 export function Lobby({ code }: { code: string }) {
   const { socket, state, rttMs, online } = useSocket();
@@ -116,6 +32,12 @@ export function Lobby({ code }: { code: string }) {
   const [qr, setQr] = useState<string | null>(null);
   const [reveal, setReveal] = useState<Reveal | null>(null);
   const [setup, setSetup] = useState<Setup | null>(null); // your own answers, from this browser
+  const [rooms, setRooms] = useState<string[]>([]); // room names, for the rotation table
+  const [asking, setAsking] = useState<string | null>(null); // where a clicked link was going, while the leave modal is open
+  const [moved, setMoved] = useState<{ person: string; dir: -1 | 1 } | null>(null); // the Move button to keep focus on
+  const [prefsOpen, setPrefsOpen] = useState(false);
+  const dragging = useRef<number | null>(null);
+  const leaveTo = useRef("/"); // where a confirmed leave goes: home, or the link that was clicked
   const sentSetup = useRef(false); // the saved setup goes to the server once per page, when the join is confirmed
   const as = useRef<"player" | "spectator">("player");
   const following = useRef(false); // this page asked to start a new team
@@ -137,6 +59,7 @@ export function Lobby({ code }: { code: string }) {
           return;
         }
         setLobby(m.lobby);
+        setRooms(m.rooms);
         // the host gave the game up (or nobody was left): back to the lobby screen
         if (m.lobby.phase === "open") setReveal(null);
         setHost(m.you.host);
@@ -168,7 +91,7 @@ export function Lobby({ code }: { code: string }) {
         else if (m.code === "lobby-full") setStatus("full");
         else if (m.code !== "not-host") setStatus("failed");
       }),
-      socket.on("left", () => location.assign("/")),
+      socket.on("left", () => location.assign(leaveTo.current)),
     ];
     return () => {
       for (const off of offs) off();
@@ -210,10 +133,31 @@ export function Lobby({ code }: { code: string }) {
     if (socket && nickname) socket.send({ t: "lobby.create", nickname });
   }
 
+  // Leaving always asks first (FR22): the Leave button and any link of the page open the modal.
+  // Confirming tells the server, which answers "left"; a link then goes where it was headed.
   function leave() {
     socket?.send({ t: "lobby.leave" });
-    // the server answers "left"; if it can't, don't strand the person here
-    setTimeout(() => location.assign("/"), 1500);
+    // if the server can't answer, don't strand the person here
+    setTimeout(() => location.assign(leaveTo.current), 1500);
+  }
+
+  function move(person: number, dir: -1 | 1) {
+    if (!lobby) return;
+    const to = person + dir;
+    if (to < 0 || to >= lobby.people.length) return;
+    const order = lobby.people.map((_, i) => i);
+    [order[person], order[to]] = [order[to] as number, order[person] as number];
+    setMoved({ person: lobby.people[person]?.who ?? "", dir });
+    socket?.send({ t: "lobby.order", order });
+  }
+
+  function dropOn(place: number) {
+    const from = dragging.current;
+    dragging.current = null;
+    if (from === null || from === place || !lobby) return;
+    const order = lobby.people.map((_, i) => i);
+    order.splice(place, 0, order.splice(from, 1)[0] as number);
+    socket?.send({ t: "lobby.order", order });
   }
 
   function commitTeam() {
@@ -388,6 +332,10 @@ export function Lobby({ code }: { code: string }) {
   const watching = myPerson === null;
   const here = lobby.people.length;
   const bots = Math.max(0, 3 - here); // Start fills every empty seat with a bot
+  const plan = forecast(here, rooms.length);
+  const together = sharesRoom(lobby.people.map((x) => x.setup));
+  const crowded = here > 3; // "plays N" only means something when people sit out
+  const name = (i: number) => lobby.people[i]?.nickname ?? "";
   return (
     <div class="lobby">
       <div class="lobby-code">
@@ -411,13 +359,12 @@ export function Lobby({ code }: { code: string }) {
             dangerouslySetInnerHTML={{ __html: qr }}
           />
         )}
-      </div>
+        {lobby.private && (
+          <p class="muted private-note">
+            Hidden from open lobbies. Only people with the code can join.
+          </p>
+        )}
 
-      <div class="lobby-side">
-        <div class="section-head">
-          <h2 id="team-title">{watching ? "You are watching" : "Your team"}</h2>
-          <Connection state={state} rttMs={rttMs} />
-        </div>
         {host ? (
           <div class="field">
             <label for="team">Team name</label>
@@ -445,25 +392,97 @@ export function Lobby({ code }: { code: string }) {
           </p>
         )}
 
-        <h2 id="seats-title">People</h2>
-        <ul class="seats" aria-labelledby="seats-title">
+        {rooms.length > 0 && !watching && (
+          <section aria-labelledby="rotation-title">
+            <h2 id="rotation-title" class="rotation-title">
+              Rooms and who plays
+            </h2>
+            <ol class="rotation">
+              {plan.rooms.map((room, i) => (
+                <li key={rooms[i]}>
+                  <span class="room-name">
+                    {i + 1} {rooms[i]}
+                  </span>
+                  <span class="crew">
+                    {room.playing.map((p) => (p === null ? "bot" : name(p))).join(" · ")}
+                    {room.out.length > 0 && (
+                      <span class="out">
+                        {" "}
+                        · {room.out.map(name).join(", ")} {room.out.length === 1 ? "sits" : "sit"}{" "}
+                        out
+                      </span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ol>
+            <p class="muted">
+              Your roles are revealed before each room.
+              {crowded ? " The host can change who plays then." : ""}
+            </p>
+          </section>
+        )}
+      </div>
+
+      <div class="lobby-side">
+        <div class="section-head">
+          <h2 id="players-title">
+            {watching ? "You are watching" : `Players ${here} of ${MAX_PEOPLE}`}
+          </h2>
+          <Connection state={state} rttMs={rttMs} />
+        </div>
+        {host && (
+          <button
+            type="button"
+            class={lobby.private ? "toggle on" : "toggle"}
+            role="switch"
+            aria-checked={lobby.private}
+            onClick={() => socket?.send({ t: "lobby.private", on: !lobby.private })}
+          >
+            <span>Private</span>
+            <span class="state">{lobby.private ? "on" : "off"}</span>
+          </button>
+        )}
+        {host && here > 1 && (
+          <p class="muted">Drag, or use the arrows, to set the starting order.</p>
+        )}
+        {here === 1 && !watching && (
+          <p class="muted">Share the code to fill seats; bots fill the rest.</p>
+        )}
+        <ol class="players" aria-labelledby="players-title">
           {lobby.people.map((person, i) => (
-            <li key={person.who} class="seat">
-              <SeatShape shape={SEAT_SHAPE[i % 3] ?? "circle"} />
-              <span class="sr-only">Person {i + 1}: </span>
-              <span class="nick">{person.nickname}</span>
-              {lobby.host === person.who && <span class="tag">host</span>}
-              {myPerson === i && <span class="tag">you</span>}
-              {person.setup.done && <span class="tag">set up</span>}
-              {!person.connected && <span class="tag">away</span>}
-            </li>
+            <PlayerRow
+              key={person.who}
+              person={person}
+              place={i}
+              isHost={lobby.host === person.who}
+              isYou={myPerson === i}
+              canOrder={host && here > 1}
+              last={i === here - 1}
+              together={together}
+              plays={crowded ? (plan.plays[i] ?? 0) : null}
+              focusMove={moved?.person === person.who ? moved.dir : null}
+              onMove={(dir) => move(i, dir)}
+              onRename={(nick) => socket?.send({ t: "lobby.nickname", nickname: nick })}
+              onDragStart={() => {
+                dragging.current = i;
+              }}
+              onDrop={() => dropOn(i)}
+            />
           ))}
-        </ul>
+        </ol>
         {lobby.spectators.length > 0 && (
           <p class="spectators">Spectators: {lobby.spectators.map((s) => s.nickname).join(", ")}</p>
         )}
 
-        {!watching && setup && <SetupForm setup={setup} onChange={answer} />}
+        {!watching && setup && (
+          <>
+            <YourSetup setup={setup} onChange={answer} />
+            <button type="button" class="btn" onClick={() => setPrefsOpen(true)}>
+              Preferences
+            </button>
+          </>
+        )}
 
         {!watching && (
           <div class="start">
@@ -494,11 +513,32 @@ export function Lobby({ code }: { code: string }) {
         )}
 
         <div class="actions">
-          <button type="button" class="btn" onClick={leave}>
-            Leave
+          <button
+            type="button"
+            class="btn"
+            onClick={() => {
+              leaveTo.current = "/";
+              setAsking("/");
+            }}
+          >
+            Leave lobby
           </button>
         </div>
       </div>
+      <PreferencesSheet open={prefsOpen} onClose={() => setPrefsOpen(false)} onSetup={answer} />
+      <LeaveGuard
+        active={status === "in"}
+        open={asking !== null}
+        onAsk={(href) => {
+          leaveTo.current = href;
+          setAsking(href);
+        }}
+        onStay={() => setAsking(null)}
+        onLeave={leave}
+        title="Leave the lobby?"
+        body="You'll lose your spot."
+        leaveLabel="Leave lobby"
+      />
     </div>
   );
 }

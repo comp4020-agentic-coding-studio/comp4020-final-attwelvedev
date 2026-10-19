@@ -25,6 +25,7 @@ export const ACTIONS: Record<string, string> = {
   "GET /readme": "view.readme",
   "GET /credits": "view.credits",
   "GET /lobby/[code]": "view.lobby",
+  "GET /preferences": "view.preferences",
   "GET /leaderboard": "view.leaderboard",
 };
 

@@ -80,7 +80,7 @@ describe("the lobby over the socket", () => {
     const second = await joinWithCode(browser, baseUrl, code, "Bo", PHONE);
     await second.getByText("Bo").first().waitFor(); // the server has accepted the join
     const started = Date.now();
-    await first.getByRole("listitem").filter({ hasText: "Bo" }).waitFor({ timeout: 1000 });
+    await first.locator(".player-row").filter({ hasText: "Bo" }).waitFor({ timeout: 1000 });
     expect(Date.now() - started).toBeLessThanOrEqual(1000);
     await leaveAndClose(first);
     await leaveAndClose(second);
@@ -103,9 +103,12 @@ describe("the lobby over the socket", () => {
       crew.push(await joinWithCode(browser, baseUrl, code, name, PHONE));
     }
     for (const name of ["Bo", "Cy", "Di", "Ed", "Flo"]) {
-      await host.getByRole("listitem").filter({ hasText: name }).waitFor({ timeout: 1500 });
+      await host
+        .locator(".player-row")
+        .filter({ has: host.getByText(name, { exact: true }) })
+        .waitFor({ timeout: 1500 });
     }
-    expect(await host.locator(".seats li").count()).toBe(6);
+    expect(await host.locator(".player-row").count()).toBe(6);
     const seventh = await joinWithCode(browser, baseUrl, code, "Gus", PHONE);
     await seventh.getByRole("button", { name: "Watch" }).click();
     await host.getByText("Spectators: Gus").waitFor({ timeout: 1500 });
@@ -115,7 +118,8 @@ describe("the lobby over the socket", () => {
   it("takes someone back home when they leave", async () => {
     const { page, code } = await createLobbyAs(browser, baseUrl, "Ana", PHONE);
     expect(code).toMatch(/^[A-Z]{4}$/);
-    await page.getByRole("button", { name: "Leave" }).click();
+    await page.getByRole("button", { name: "Leave lobby" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Leave lobby" }).click();
     await page.waitForURL(`${baseUrl}/`);
     await leaveAndClose(page);
   });

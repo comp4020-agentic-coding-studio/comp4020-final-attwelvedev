@@ -86,7 +86,7 @@ const missed = new WeakMap<WebSocket, number>();
 const byes = new WeakMap<WebSocket, () => void>(); // a socket's "this page has gone", run on its bye or its close
 
 const registry = createRegistry();
-const hub = createHub(registry);
+const hub = createHub(registry, () => roomList().map((r) => r.name));
 const idleSince = new Map<string, number>(); // lobby code → first seen with no connected human
 
 // One running game per playing lobby. It ticks once all three seats are ready.

@@ -1,4 +1,4 @@
-import { type CrewPick, pickCrew } from "../game/crew.ts";
+import { type CrewPick, MAX_PEOPLE, pickCrew } from "../game/crew.ts";
 import { DEFAULT_SETUP, type Setup } from "../game/setup.ts";
 import type { Role } from "../game/types.ts";
 import { isAllowedName } from "../lib/names.ts";
@@ -20,7 +20,7 @@ export interface Person {
   setup: Setup;
   played: Role[]; // roles played this heist, in order
 }
-export const MAX_PEOPLE = 6;
+export { MAX_PEOPLE };
 export interface LobbyState {
   code: string;
   teamName: string;

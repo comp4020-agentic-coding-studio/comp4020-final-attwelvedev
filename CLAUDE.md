@@ -21,7 +21,9 @@
 - **Layering:** `src/game/` (pure, headless) <- `src/net/` (socket server) and
   `src/client/` (browser); client reaches net only via `net/protocol.ts`; pages
   never import `src/net/` (separate module instance), so state both sides share
-  lives on `globalThis` behind one accessor (`sharedStats()`).
+  lives on `globalThis` behind one accessor (`sharedStats()`). The client may
+  also import the pure `src/game/crew.ts` (the lobby's rotation table calls
+  `pickCrew`).
   `src/layering.test.ts` enforces the import rules.
 - **Perception:** the server sends each client only what its role perceives
   (ADR 0007). Never add a field to a view or message without checking it

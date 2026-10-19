@@ -229,6 +229,10 @@ export function Home() {
           )}
         </form>
 
+        <a class="more-link" href="/preferences">
+          Preferences
+        </a>
+
         {/* nothing to say while connected; worth saying when Join would fail */}
         {state !== "live" && <Connection state={state} rttMs={rttMs} />}
       </section>
