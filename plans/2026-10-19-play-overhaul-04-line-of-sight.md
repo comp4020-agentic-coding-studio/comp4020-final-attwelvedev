@@ -301,8 +301,7 @@ latches once open.
   second describe: "each lead role is needed": for every beat with `lead`, run
   `solveRoom(room, roles, budgetS, new Set(), { mute: lead })` in one rotation
   and expect it not cleared or the beat's door never opened; skipped with a
-  clear message while no room declares leads), `specs/backlog.md` (tolerant
-  bots → Decided).
+  clear message while no room declares leads).
 - **Tests first (red):** brain: a sighted bot that has never seen a guard
   walks into its lane (and a bot that saw it 1 s ago waits); the deaf guide
   moves toward the blind seat's last estimate when it loses sight; the guide

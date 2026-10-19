@@ -60,9 +60,11 @@ planning (2026-10-19), which win over the spec where they differ:
   within hearing), never from the room file's timings of a hazard they haven't
   perceived. Otherwise "every role is needed" would pass falsely.
 - **A4 (housekeeping, from the brainstorm hand-off):** `CLAUDE.md` is updated
-  where its invariants change (shape of the app, sensory parity); the backlog
-  items folded in are moved to Decided; ADRs 0011–0016 are accepted by the user
-  before Task 1.
+  where its invariants change (shape of the app, sensory parity); ADRs
+  0011–0016 are accepted by the user before Task 1 (done 2026-10-19, `b0faa2c`).
+  The backlog was sorted at planning time (2026-10-19): nine items are in
+  Decided with where they went, and three stay Parked; later tasks add nothing
+  to it unless something new comes up.
 - **A5 (agreed 2026-10-19, after the plan was first written):** a living
   `DESIGN.md` at the repo root is the current design reference: the idea and
   principles, the 3/4 recipe, figure and hat rules, a component inventory,
@@ -318,7 +320,7 @@ Phase 04 needs only 01, so it may run before 02–03 if that suits the user.
 | A1 | Task 9 |
 | A2 | Tasks 14, 15 |
 | A3 | Task 16 |
-| A4 | Tasks 1 (backlog, CLAUDE.md shape), 14 (CLAUDE.md parity), 27 |
+| A4 | Tasks 1 (CLAUDE.md shape), 14 (CLAUDE.md parity), 27 (final check; backlog already sorted) |
 | A5 | Task 17 (kept current by Tasks 18–22, 24, 26, 27) |
 | A6 / FR20a–b | Tasks 7 (saved setup sent on join), 10 (`/preferences` page, prefilled lobby panel) |
 

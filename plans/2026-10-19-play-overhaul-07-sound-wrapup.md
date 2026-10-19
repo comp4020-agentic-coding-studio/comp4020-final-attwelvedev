@@ -97,8 +97,9 @@ under the alarm (it silences the rest, FR9). Settings gains `ambience: boolean`
 
 - **Description:** README describes the overhaul (roles and the new table,
   lobby of six, line of sight, the four rooms, what was chosen not to build
-  from spec §2.3); backlog items folded in are in Decided with where they went
-  (pivoting camera and masking-noise options stay parked); `CLAUDE.md` checked
+  from spec §2.3); `specs/backlog.md` re-read against what was built (it was
+  sorted at planning time: pivoting camera, masking-noise options and menu
+  sounds stay parked; correct any Decided line whose landing changed); `CLAUDE.md` checked
   against the code (shape of the app names methods and line of sight; rooms
   legend mentions `=`, `%`, `c`; sensory parity as amended); a
   `PROCESS_LOG.md` entry for the overhaul's key calls (line of sight as the

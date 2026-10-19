@@ -23,8 +23,7 @@ so playtest 3 can follow straight after.
 
 FR1, FR2 (in-game wording), FR3 (server-side check; until Task 14 "in sight"
 is the existing `lineOfSight`), FR4, FR26, FR27, FR28, FR30; FR8's server half
-(`from.pos` on faces); A4's `CLAUDE.md` "Shape of the app" line and backlog
-moves.
+(`from.pos` on faces); A4's `CLAUDE.md` "Shape of the app" line.
 
 ### 2.2 Non-functional
 
@@ -188,10 +187,7 @@ sound captions at all (FR4): `Game.tsx` doesn't render `cues` for deaf.
   `src/game/bots/brain.ts` (+ test), `src/lib/log.ts` (allowlist adds
   `method`; keeps `family` only if still used — it isn't), `spec/channels.test.ts`,
   `src/client/socket.ts` types only, `CLAUDE.md` ("Shape of the app": methods
-  table instead of Say/Sound/Show), `specs/backlog.md` (move the 2×4-grid,
-  restart-heist, per-seat headphones, tap-to-toggle voice, tolerant bots,
-  Can't speak contribution, ambience items to Decided with "→ specs/2026-10-19-play-overhaul.md";
-  the two pantry items "dropped (pantry archived)").
+  table instead of Say/Sound/Show).
 - **Tests first (red):**
   - `channels.test.ts`: `route` — Can't see sends callout, text, face; refused
     clip and mark (`cant-send`); Can't hear's face reaches Can't speak only
@@ -377,7 +373,7 @@ sound captions at all (FR4): `Game.tsx` doesn't render `cues` for deaf.
 | FR27 | Task 3 |
 | FR28 | Task 2 |
 | FR30 | Task 4 |
-| A4 (CLAUDE.md shape, backlog) | Task 1 |
+| A4 (CLAUDE.md shape) | Task 1 |
 
 ## 8. Risks / open questions
 
