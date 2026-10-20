@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { TILT, toScreen } from "./render/project.ts";
+import { decodeSeen } from "./render/sight.ts";
 import { camera, draw, type Scene } from "./render.ts";
-import { MAP, ROLE_COLOR, WORLD } from "./tokens.ts";
+import { COLOR, MAP, MIST, ROLE_COLOR, WORLD } from "./tokens.ts";
 
 const ROOM = [
   "#".repeat(48),
@@ -130,6 +131,7 @@ function recorder() {
     {},
     {
       get: (_t, name) => {
+        if (String(name) in state) return state[String(name)]; // a property reads back what was set
         if (name === "save") return () => saved.push({ ...state });
         if (name === "restore") return () => Object.assign(state, saved.pop());
         if (name === "createLinearGradient") return () => ({ addColorStop() {} });
@@ -380,6 +382,151 @@ describe("figures that move (FR31)", () => {
       y(blind({ moving: false, blocked: false })),
     );
     expect(blind({ moving: true, blocked: true }).some((o) => o.name === "scale")).toBe(true);
+  });
+});
+
+describe("decodeSeen", () => {
+  it('reads "y:x0-x1,x2-x3" rows as inclusive runs of tiles', () => {
+    const seen = decodeSeen(["2:3-5", "4:0-1,7-7"]);
+    for (const [x, y] of [
+      [3, 2],
+      [4, 2],
+      [5, 2],
+      [0, 4],
+      [1, 4],
+      [7, 4],
+    ] as const)
+      expect(seen.has(x, y), `${x},${y}`).toBe(true);
+    for (const [x, y] of [
+      [2, 2],
+      [6, 2],
+      [3, 1],
+      [2, 4],
+      [8, 4],
+    ] as const)
+      expect(seen.has(x, y), `${x},${y}`).toBe(false);
+  });
+});
+
+describe("mist, night and marks out of sight (FR5, FR7, FR8)", () => {
+  const whole = (over: Partial<Scene>) =>
+    scene({ layout: "fit", w: 500, h: 300, entities: [], tiles: grid(5, 10), ...over });
+  const wash = (s: Scene) => {
+    const { ctx, ops } = recorder();
+    draw(ctx, s);
+    return ops.filter((o) => o.name === "fillRect" && o.fillStyle === WORLD.mist);
+  };
+
+  it("draws an unseen tile under the mist colour, and a seen one not", () => {
+    const rows = (n: number) => Array.from({ length: n }, (_, y) => `${y}:0-9`);
+    const veiled = wash(whole({ seen: ["0:0-9", "1:0-9"] }));
+    expect(veiled.length).toBeGreaterThan(0);
+    expect(veiled.every((o) => Math.abs(o.globalAlpha - MIST.alpha) < 1e-9)).toBe(true);
+    expect(wash(whole({ seen: rows(5) }))).toEqual([]); // all in sight: no mist at all
+    expect(wash(whole({}))).toEqual([]); // a watcher is sent no `seen`: no mist
+  });
+
+  it("veils walls out of sight too, up to their tops", () => {
+    const s = whole({ tiles: grid(5, 10, [[4, 4]]), seen: ["0:0-9", "1:0-9", "2:0-9", "3:0-9"] });
+    const cam = camera(s);
+    const top = toScreen(cam, 4, 4, TILT.wall).y;
+    expect(wash(s).some((o) => Math.abs((o.args[1] as number) - top) < 1e-6)).toBe(true);
+  });
+
+  it("draws a dark zone as night with a rim, and nothing of the room's layout in it", () => {
+    const tiles = grid(5, 10, [[4, 2]], " ");
+    const { ctx, ops } = recorder();
+    draw(ctx, whole({ tiles }));
+    const night = ops.filter((o) => o.name === "fillRect" && o.fillStyle === WORLD.night);
+    expect(night.length).toBeGreaterThan(0);
+    expect(ops.some((o) => o.name === "fillRect" && o.fillStyle === WORLD.nightRim)).toBe(true);
+  });
+
+  it("draws a mark in an unseen tile at 35%, and one in sight at full strength", () => {
+    const mark = {
+      id: "S1",
+      kind: "stamp" as const,
+      pos: { x: 8.5, y: 3.5 },
+      state: "door" as const,
+      age: 0,
+    };
+    const plate = (s: Scene) => {
+      const { ctx, ops } = recorder();
+      draw(ctx, s);
+      // the mark's own plate: a rounded rect on COLOR.ui
+      return ops.filter((o) => o.name === "roundRect" && o.fillStyle === COLOR.ui);
+    };
+    const faint = plate(whole({ entities: [mark], seen: ["0:0-9"] }));
+    expect(faint.length).toBeGreaterThan(0);
+    expect(faint.every((o) => Math.abs(o.globalAlpha - 0.35) < 1e-9)).toBe(true);
+    const clear = plate(whole({ entities: [mark], seen: ["3:0-9"] }));
+    expect(clear.every((o) => o.globalAlpha === 1)).toBe(true);
+  });
+
+  describe("edge pills", () => {
+    const img = {} as CanvasImageSource;
+    const named = (s: Scene) => {
+      const { ctx, ops } = recorder();
+      draw(ctx, s);
+      return ops.filter((o) => o.name === "fillText" && o.args[0] === "Cy");
+    };
+    const base = (over: Partial<Scene>) =>
+      scene({
+        layout: "fit",
+        w: 400,
+        h: 300,
+        tiles: grid(6, 40),
+        entities: [player(0, 20.5, 3.5), player(1, 20.5, 2.5)], // seat 2, Cy, is not in sight
+        self: { x: 20.5, y: 2.5 },
+        ...over,
+      });
+
+    it("puts a face from a sender out of sight at the edge of the screen on their side", () => {
+      const right = named(
+        base({ pops: [{ seat: 2, img, fade: 1, from: { x: 39.5, y: 3.5 }, name: "Cy" }] }),
+      );
+      expect(right.length).toBe(1);
+      expect(right[0]?.args[1] as number).toBeGreaterThan(200); // the right half
+      const left = named(
+        base({ pops: [{ seat: 2, img, fade: 1, from: { x: 0.5, y: 3.5 }, name: "Cy" }] }),
+      );
+      expect(left[0]?.args[1] as number).toBeLessThan(200);
+    });
+
+    it("shows the sender's role shape on it, and a face only while the face lasts", () => {
+      const withFace = (alone: boolean) => {
+        const { ctx, ops } = recorder();
+        draw(
+          ctx,
+          base({ pops: [{ seat: 2, img, fade: 1, from: { x: 39.5, y: 3.5 }, name: "Cy", alone }] }),
+        );
+        return ops;
+      };
+      expect(withFace(false).some((o) => o.name === "drawImage")).toBe(true);
+      expect(withFace(true).some((o) => o.name === "drawImage")).toBe(false);
+      expect(withFace(true).some((o) => o.fillStyle === ROLE_COLOR.mute)).toBe(true); // Cy's triangle
+    });
+
+    it("draws no pill for a sender who is in sight: their face pops over their head instead", () => {
+      const inSight = base({
+        entities: [player(0, 20.5, 3.5), player(1, 20.5, 2.5), player(2, 22.5, 2.5)],
+        pops: [{ seat: 2, img, fade: 1, from: { x: 22.5, y: 2.5 }, name: "Cy" }],
+      });
+      expect(named(inSight)).toEqual([]);
+    });
+
+    it("pills a mark placed outside the screen, and not one on it", () => {
+      const mark = (x: number) => ({
+        pops: [
+          { seat: 2 as const, fade: 1, from: { x, y: 3.5 }, name: "Cy", mark: "door" as const },
+        ],
+        layout: "follow" as const,
+        w: 343,
+        h: 300,
+      });
+      expect(named(base(mark(38.5))).length).toBe(1);
+      expect(named(base(mark(20.5)))).toEqual([]);
+    });
   });
 });
 

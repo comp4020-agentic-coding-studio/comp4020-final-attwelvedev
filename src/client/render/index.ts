@@ -1,3 +1,4 @@
+import type { Stamp } from "../../game/channels.ts";
 import type { Role, Seat, Vec } from "../../game/types.ts";
 import type { EntityView } from "../../net/protocol.ts";
 import type { Fx } from "../fx.ts";
@@ -7,8 +8,9 @@ import { drawBackdrop } from "./backdrop.ts";
 import { block, drawFlat, drawStanding, floorTop, glass, vent, wall } from "./blocks.ts";
 import { drawOwnBlind, drawPlayer } from "./figures.ts";
 import { drawHazard, drawSight } from "./hazards.ts";
-import { drawPops } from "./pops.ts";
+import { drawEdgePills, drawPops } from "./pops.ts";
 import { type Camera, camera, TILT, tileWindow, toScreen } from "./project.ts";
+import { inSight, nightTile, seenOf, veilTile } from "./sight.ts";
 
 export { type Camera, camera, fromScreen, TILT, toScreen } from "./project.ts";
 
@@ -38,6 +40,9 @@ export interface Scene {
   // and whether you are walking or pushing at something. Overrides what the view says about you;
   // for Can't see it is all there is to draw.
   own?: Motion;
+  // The view's `seen`: the tiles in your line of sight. Present for the sighted, who draw everything
+  // else under mist; absent for watchers, who see the whole room.
+  seen?: string[];
   bots?: [boolean, boolean, boolean]; // by seat: a bot's figure has an antenna
 }
 
@@ -49,11 +54,18 @@ export interface Motion {
 
 export interface FacePop {
   seat: Seat;
-  img: CanvasImageSource;
+  img?: CanvasImageSource; // a face; absent for a mark
   fade: number; // 1 while fully shown, down to 0 as it goes
+  // Where the sender stood (a face) or the mark was placed, and the sender's name: what an edge
+  // pill needs when they are out of sight and so not among the entities.
+  from?: Vec;
+  name?: string;
+  mark?: Stamp; // a mark's glyph, for its pill
+  alone?: boolean; // past the face's 1.5 s: the pill stays on its own for a few seconds
 }
 
 const FADED_WALL = 0.35; // a wall in front of a figure
+const FAINT_MARK = 0.35; // a mark in a tile you cannot see
 const isBlock = (ch: string | undefined) => ch === "#" || ch === "%" || ch === "=";
 
 // Entities drawn flat on the floor, under everything standing up in their row.
@@ -115,7 +127,7 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
     const row = tiles[y] ?? "";
     for (let x = win.x0; x <= win.x1; x++) {
       const ch = row[x];
-      if (ch === " ") floorTop(ctx, cam, x, y, WORLD.night);
+      if (ch === " ") nightTile(ctx, cam, tiles, x, y);
       else if (!isBlock(ch)) floorTop(ctx, cam, x, y, WORLD.floor);
       else if (ch === "=") floorTop(ctx, cam, x, y, WORLD.floor); // glass stands on the floor
     }
@@ -125,6 +137,7 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
       drawFlat(ctx, e, cam, scene);
   for (const e of scene.entities) if (e.kind === "sight") drawSight(ctx, e, cam);
 
+  const seenNow = scene.seen ? seenOf(scene.seen) : null;
   // north to south: blocks of the row, then what stands in it
   for (let y = win.y0; y <= win.y1; y++) {
     const row = tiles[y] ?? "";
@@ -147,12 +160,33 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
       for (const e of byRow.get(y) ?? []) {
         if (e.kind !== kind) continue;
         if (kind === "door" && e.state === "open") continue;
+        if (kind === "stamp" && !inSight(seenNow, e.pos)) continue; // drawn through the mist, below
         if (kind === "camera" || kind === "laser" || kind === "guard")
           drawHazard(ctx, e, cam, scene);
         else if (kind === "player") drawPlayer(ctx, e, cam, scene);
         else drawStanding(ctx, e, cam, scene);
       }
     }
+  }
+  // the mist: every tile outside your line of sight, over its floor, its block and what stands on it
+  const seen = scene.seen ? seenOf(scene.seen) : null;
+  if (seen) {
+    for (let y = win.y0; y <= win.y1; y++) {
+      const row = tiles[y] ?? "";
+      for (let x = win.x0; x <= win.x1; x++) {
+        if (seen.has(x, y) || row[x] === " ") continue;
+        veilTile(ctx, cam, x, y, isBlock(row[x]) ? TILT.wall : 0);
+      }
+    }
+  }
+  // a mark in a place you can't see shows faintly through the haze: only a teammate's message,
+  // never room state
+  for (const e of scene.entities) {
+    if (e.kind !== "stamp" || inSight(seen, e.pos)) continue;
+    ctx.save();
+    ctx.globalAlpha = FAINT_MARK;
+    drawStanding(ctx, e, cam, scene);
+    ctx.restore();
   }
   // the dashed silhouette of a figure behind a faded wall
   for (const f of figures) {
@@ -181,6 +215,7 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
   void block;
   drawFx(ctx, scene, cam);
   drawPops(ctx, scene, cam);
+  drawEdgePills(ctx, scene, cam);
   if (scene.alarm) drawAlarm(ctx, scene);
 }
 

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
-import { COLOR, DUSK, ROLE_COLOR, setContrast, setDusk, WORLD } from "./tokens.ts";
+import { COLOR, DUSK, MIST, ROLE_COLOR, setContrast, setDusk, WORLD } from "./tokens.ts";
 
 // Canvas code can't read CSS variables cheaply every frame, so tokens.ts
 // mirrors the ones it draws with. This keeps the two from drifting apart.
@@ -68,6 +68,14 @@ describe("setContrast(true)", () => {
     for (const [key, value] of Object.entries(WORLD)) {
       expect(cssTokens(`w-${kebab(key)}`)[1], key).toBe(value.toLowerCase());
     }
+  });
+
+  it("veils with half black instead of 60% mist", () => {
+    expect(MIST.alpha).toBe(0.6);
+    setContrast(true);
+    expect(MIST.alpha).toBe(0.5);
+    setContrast(false);
+    expect(MIST.alpha).toBe(0.6);
   });
 
   it("swaps back on setContrast(false)", () => {

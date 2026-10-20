@@ -262,6 +262,17 @@ describe("the fixture rooms", () => {
   });
 });
 
+describe("the sight fixture room", () => {
+  // spec/layout/sight.test.ts: a wall between Can't hear's and Can't speak's spawns, so each is out
+  // of the other's sight until the open ground east of it
+  it("loads and passes the linter, with a wall between the deaf and mute spawns", () => {
+    const rooms = loadRooms("./spec/fixtures/rooms-sight");
+    expect(rooms.map((r) => r.id)).toEqual(["01-wall"]);
+    for (const r of rooms) expect(lintRoom(r)).toEqual([]);
+    expect(rooms[0]?.grid[3]?.slice(0, 10)).toBe("#".repeat(10));
+  });
+});
+
 describe("lintRoom: line-of-sight rules", () => {
   const intent = `"intent":{"blind":"b","deaf":"d","mute":"m"}`;
   const beat = (x: string, extra = "") => `{"name":"Beat","x":${x}${extra},${intent}}`;

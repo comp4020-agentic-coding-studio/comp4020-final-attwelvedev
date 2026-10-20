@@ -300,7 +300,7 @@ function drawStamp(
   void scene;
   const word = id === "door" || id === "key";
   ctx.save();
-  ctx.globalAlpha = Math.max(0.25, 1 - ageMs / STAMP_LIFE_MS);
+  ctx.globalAlpha *= Math.max(0.25, 1 - ageMs / STAMP_LIFE_MS); // on top of any fade the caller set
   const w = s * (word ? 1.3 : 0.8);
   const h = s * 0.7;
   const top = foot.y - s * 0.55 - h;

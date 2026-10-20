@@ -31,7 +31,7 @@ import type { ConnectionState, GameSocket } from "../client/socket.ts";
 import { browserSpeech } from "../client/speech.ts";
 import { NET, setContrast } from "../client/tokens.ts";
 import { quickSlot } from "../client/wheel.ts";
-import { FACE_POP_MS } from "../game/channels.ts";
+import { FACE_POP_MS, type Stamp } from "../game/channels.ts";
 import { botRef } from "../game/crew.ts";
 import type { BriefingCue } from "../game/cues.ts";
 import { ROLE_LABEL, type Role, type Seat, type Vec } from "../game/types.ts";
@@ -80,7 +80,9 @@ interface Runtime {
   shown: Vec | null; // where we draw ourselves (self, eased)
   facing: Vec; // the way we last pushed: our own figure turns the moment the key goes down
   walking: { moving: boolean; blocked: boolean }; // what the last input did to the predicted position
-  pops: { seat: number; id: string; at: number }[]; // faces on show, by when they landed
+  // faces and marks on show, by when they landed; `from` and `name` are what an edge pill needs
+  // when the sender is out of sight and so not among the entities
+  pops: { seat: number; id: string; at: number; from?: Vec; name?: string; mark?: Stamp }[];
   cueHold: HeldCues; // cue captions and when to let each go
   fx: { fx: Fx; at: number }[]; // small effects for what just changed, by when they started
   soundOn: boolean;
@@ -88,6 +90,8 @@ interface Runtime {
 }
 
 const CAPTION_MS = 5000;
+const PILL_MS = 4000; // an edge pill outlasts the face on it (FACE_POP_MS) by a few seconds
+const fadeOut = (leftMs: number) => Math.min(1, leftMs / 300);
 const SPAWN_FACING: Vec = { x: 1, y: 0 }; // everyone starts a room facing east (src/game/sim/world.ts)
 const EASE = 0.5; // share of the gap to the predicted position closed each frame
 const SNAP_TILES = 1.5;
@@ -136,10 +140,21 @@ function useDraw(
       const now = performance.now();
       const pops: FacePop[] = [];
       for (const p of rt.pops) {
+        const seat = p.seat as 0 | 1 | 2;
+        const age = now - p.at;
+        const pill = { from: p.from, name: p.name };
+        if (p.mark) {
+          // a mark has no face: its pill (if the mark is off screen) lasts the pill's time
+          if (age < PILL_MS)
+            pops.push({ seat, ...pill, mark: p.mark, fade: fadeOut(PILL_MS - age) });
+          continue;
+        }
         const img = faceImage(p.id);
-        const left = FACE_POP_MS - (now - p.at);
-        if (img && left > 0)
-          pops.push({ seat: p.seat as 0 | 1 | 2, img, fade: Math.min(1, left / 300) });
+        if (img && age < FACE_POP_MS) {
+          pops.push({ seat, img, ...pill, fade: fadeOut(FACE_POP_MS - age) });
+        } else if (p.from && age < PILL_MS) {
+          pops.push({ seat, ...pill, alone: true, fade: fadeOut(PILL_MS - age) }); // the pill outlasts the face
+        }
       }
       const scene: Scene = {
         ...size,
@@ -147,6 +162,7 @@ function useDraw(
         seat: view.you.seat,
         roles: crew.map((c) => c.role) as Scene["roles"],
         tiles: role === "blind" ? null : rt.tiles,
+        seen: role === "blind" ? undefined : view.seen, // the tiles in line of sight: the rest is mist
         entities: lerpEntities(rt.prevEntities, view.entities, t),
         self: rt.shown,
         // Can't see is told whether they are walking or pushing (they hear it already); a sighted
@@ -517,7 +533,22 @@ function Hud({
       } else if (m.method === "clip" && s.sound && !forceCaptions) {
         audio.current?.playClip(m.clip);
       } else if (m.method === "face") {
-        rt.pops.push({ seat: m.from.seat, id: m.id, at: now });
+        rt.pops.push({
+          seat: m.from.seat,
+          id: m.id,
+          at: now,
+          from: m.from.pos,
+          name: m.from.nickname,
+        });
+      } else if (m.method === "mark") {
+        rt.pops.push({
+          seat: m.from.seat,
+          id: m.id,
+          at: now,
+          from: m.at,
+          name: m.from.nickname,
+          mark: m.id,
+        });
       }
       // text to Can't speak is always shown, since reading it is their only way
       const caption = captionFor(m);
@@ -648,7 +679,7 @@ function Hud({
       setLoot(view.loot);
       setCleared(view.status === "cleared");
       const now = performance.now();
-      rt.pops = rt.pops.filter((p) => now - p.at < FACE_POP_MS);
+      rt.pops = rt.pops.filter((p) => now - p.at < PILL_MS);
       setLines((old) => (old.some((l) => l.until <= now) ? old.filter((l) => l.until > now) : old));
       // Can't hear is never given a sound caption: nothing is played to them to caption
       const heard =

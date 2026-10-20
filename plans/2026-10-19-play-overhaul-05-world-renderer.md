@@ -272,7 +272,7 @@ without `nowMs`).
   green (feeds' Can't see stays < 5 % non-black).
 - **Depends on:** Task 18.
 
-### Task 20: Mist, night, faint marks and edge pills
+### Task 20: Mist, night, faint marks and edge pills [x]
 
 - **Description:** `seen` decoding and mist, night in dark zones, Show items
   drawn over night, faint marks in unseen tiles, edge pills for unseen face

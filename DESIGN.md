@@ -92,7 +92,7 @@ by room (never lilac); the room's `hue` meta picks it, defaulting to rose.
 | `--w-watch` | A camera or guard watching: the hatch | built |
 | `--w-exit`, `--w-exit-flag` | The exit's arch and flag | built |
 
-**The alarm's dusk set** (built, Task 18): `--dusk-sky-hi`, `--dusk-sky-lo`, `--dusk-water`, `--dusk-water-deep`, `--dusk-wall-top`, `--dusk-wall-front`, `--dusk-wall-shade`, `--dusk-floor`, `--dusk-floor-front` and `--dusk-seam` replace the day colours over about 600 ms while the alarm is on (instant under reduced motion or with no clock). Lasers, role colours and Show items do not change. **High contrast** (built): black sky and water, near-black floor, white walls, and the shell's own set; `setContrast` in `src/client/tokens.ts` swaps the canvas's copy, and dusk steps aside while it is on. A 3 px outline and the mist-as-half-black are planned (Task 20).
+**The alarm's dusk set** (built, Task 18): `--dusk-sky-hi`, `--dusk-sky-lo`, `--dusk-water`, `--dusk-water-deep`, `--dusk-wall-top`, `--dusk-wall-front`, `--dusk-wall-shade`, `--dusk-floor`, `--dusk-floor-front` and `--dusk-seam` replace the day colours over about 600 ms while the alarm is on (instant under reduced motion or with no clock). Lasers, role colours and Show items do not change. **High contrast** (built): black sky and water, near-black floor, white walls, and the shell's own set; `setContrast` in `src/client/tokens.ts` swaps the canvas's copy, and dusk steps aside while it is on. The mist is half black. A 3 px outline on interactables is still to draw.
 
 ## 3. Type
 
@@ -137,12 +137,13 @@ a symbol into copy; it would fall back to another font and look wrong.
 - **Camera:** a dashed cone when idle, a hatched cone when watching, its body on a bracket. **Guard:** a larger slate figure with a torch cone. **Laser:** see 4.1.
 - **Plates** carry their number; sequence plates show it on the sign. **Exit:** a pale arch tile with its flag hatching. **Checkpoint:** an upright flag with three pips.
 
-### 4.4 Glass, vents, mist, night (glass and vents built, Task 18; mist and night planned, Task 20)
+### 4.4 Glass, vents, mist, night (built, Tasks 18 and 20)
 
-- **Glass** is translucent with glints and a "no sound" mark: you see through it, sound doesn't pass. **Vents** are slatted with a "sound passes" mark: sound passes, sight doesn't. Neither lets a body through. built
-- **Mist** veils tiles outside your line of sight (desaturated, a static stipple, a half-tile feathered edge). You still know the layout. planned (Task 20)
-- **Night** is a dark zone: only Show items and marks light it. planned (Task 20)
-- Marks in unseen tiles are drawn faint. A face or mark from someone you can't see appears as an **edge pill** where their direction leaves the screen: shape, name, and the face for 1.5 s, then the pill alone for 4 s. planned (Task 20)
+- **Glass** is translucent with glints: you see through it, sound doesn't pass. **Vents** are slatted: sound passes, sight doesn't. Neither lets a body through. (The "no sound" and "sound passes" marks on them are still to draw.)
+- **Mist** veils every tile outside your line of sight (`seen` in the view): its floor, and a wall up to its top, under `--w-mist` at 60 % with a static stipple (half black under high contrast). You still know the layout; the server never sends what is in it. Watchers are sent no `seen`, so they see the whole room clear.
+- **Night** is a dark zone: `--w-night` with a rim along its edge. Only Show items, marks and your own ring are in it.
+- **Marks** in a tile you can't see are drawn at 35 % through the mist: only a teammate's message, never room state.
+- **Edge pills.** A face or mark from someone you can't see (or a mark placed off screen) is a glass pill at the screen edge, where the ray from the middle of the screen to them leaves it: their role shape, their name in the HUD's font, and the face (a 1.5 s plate) or the mark's glyph. The face goes after 1.5 s; the pill stays alone for 4 s, then fades. A sender in sight shows over their head instead.
 
 ### 4.5 The world rises (planned, Task 21)
 

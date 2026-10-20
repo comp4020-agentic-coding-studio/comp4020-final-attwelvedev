@@ -163,6 +163,9 @@ export const DUSK: Partial<WorldTokens> = {
 
 export const WORLD: WorldTokens = { ...WORLD_NORMAL };
 
+// How much of the veil shows over tiles out of sight: 60 % mist, or half black under high contrast.
+export const MIST = { alpha: 0.6 };
+
 const DUSK_MS = 600;
 let high = false;
 let dusk = { p: 0, target: 0, at: 0 }; // p: how far toward dusk, 0 to 1
@@ -219,6 +222,7 @@ export function setContrast(on: boolean): void {
   Object.assign(COLOR, on ? HIGH_CONTRAST : NORMAL);
   Object.assign(ROLE_COLOR, on ? ROLE_HIGH_CONTRAST : ROLE_NORMAL);
   high = on;
+  MIST.alpha = on ? 0.5 : 0.6;
   shown = -1;
   paintWorld();
 }
