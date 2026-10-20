@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type CrewPick, pickCrew, rolesFor, swapCrew } from "./crew.ts";
+import { botRef, type CrewPick, pickCrew, rolesFor, swapCrew } from "./crew.ts";
 import { ROLES, type Role } from "./types.ts";
 
 const people = (n: number): { played: Role[] }[] =>
@@ -112,6 +112,32 @@ describe("swapCrew", () => {
   it("changes nothing for two people sitting out, or the same person twice", () => {
     expect(swapCrew(pick, 3, 4)).toEqual(pick);
     expect(swapCrew(pick, 1, 1)).toEqual(pick);
+  });
+
+  it("swaps a player's role with a bot's, each keeping their seat", () => {
+    const withBot: CrewPick = { people: [0, 1, null], roles: ["blind", "deaf", "mute"] };
+    expect(swapCrew(withBot, 0, botRef(2))).toEqual({
+      people: [0, 1, null],
+      roles: ["mute", "deaf", "blind"],
+    });
+    expect(swapCrew(withBot, botRef(2), 1)).toEqual({
+      people: [0, 1, null],
+      roles: ["blind", "mute", "deaf"],
+    });
+  });
+
+  it("puts a sitting-out person in a bot's seat, and the bot is gone", () => {
+    const withBot: CrewPick = { people: [0, 1, null], roles: ["blind", "deaf", "mute"] };
+    expect(swapCrew(withBot, 4, botRef(2))).toEqual({
+      people: [0, 1, 4],
+      roles: ["blind", "deaf", "mute"],
+    });
+  });
+
+  it("swaps two bots' roles, and ignores a bot ref that is not a bot", () => {
+    const two: CrewPick = { people: [0, null, null], roles: ["blind", "deaf", "mute"] };
+    expect(swapCrew(two, botRef(1), botRef(2)).roles).toEqual(["blind", "mute", "deaf"]);
+    expect(swapCrew(two, botRef(0), 1)).toEqual(two);
   });
 
   it("does not change the pick it was given", () => {

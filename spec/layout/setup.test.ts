@@ -36,7 +36,6 @@ describe.each([
       .waitFor({ timeout: 1500 });
 
     // the same browser, a new lobby: nothing is clicked
-    const context = first.page.context();
     await first.page.getByRole("button", { name: "Leave lobby", exact: true }).click();
     await first.page
       .getByRole("dialog")
@@ -58,7 +57,7 @@ describe.each([
     ).toBe(true);
     expect(await first.page.getByLabel("Sleep mask or blindfold").isChecked()).toBe(true);
     expect(await first.page.getByLabel("Earplugs or earmuffs").isChecked()).toBe(false);
-    await context.close();
+    await leaveAndClose(first.page); // the second lobby: closing the tab would only hold its seat
   });
 
   it("shows a person who never answered as not set up, and others see the answer when it is made", async () => {

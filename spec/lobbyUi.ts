@@ -40,11 +40,15 @@ export async function leaveAndClose(page: Page): Promise<void> {
   if (page.url().includes("/lobby/")) {
     const leave = page.getByRole("button", { name: "Leave lobby", exact: true });
     if (await leave.isVisible()) {
-      await leave.click();
+      // Leaving asks first. A cleanup must never be what hangs a spec, so each step is bounded:
+      // if the page is somewhere without the modal (a sheet open, or already in a reveal), the
+      // seat is released by closing the context, as it was before leaving asked.
+      await leave.click({ timeout: 3000 }).catch(() => {});
       await page
         .getByRole("dialog")
         .getByRole("button", { name: "Leave lobby", exact: true })
-        .click();
+        .click({ timeout: 3000 })
+        .catch(() => {});
       await page.waitForURL((url) => url.pathname === "/", { timeout: 5000 }).catch(() => {});
     }
   }

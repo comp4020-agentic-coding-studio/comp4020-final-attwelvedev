@@ -125,7 +125,7 @@ describe("a person's real-life setup", () => {
     expect(reveals[1]?.real).toMatchObject({ maskNoise: true, soundOff: false, captions: false });
     expect(reveals[1]?.real.lines).toEqual([
       "Earplugs in now.",
-      "Sit where you can't see the others' faces.",
+      "Sit where you can't see the others' mouths, so you can't lip-read.",
     ]);
     expect(reveals[2]?.real).toMatchObject({ soundOff: false, voice: true, lines: [] });
 
@@ -138,7 +138,7 @@ describe("a person's real-life setup", () => {
     expect(next[0]?.real).toMatchObject({ maskNoise: false, soundOff: false, captions: false });
     expect(next[0]?.real.lines).toEqual([
       "No earplugs or headphones: ask the others to keep the table quiet near you.",
-      "Sit where you can't see the others' faces.",
+      "Sit where you can't see the others' mouths, so you can't lip-read.",
     ]);
     expect(next[1]?.real.lines).toEqual([
       "Don't mouth words or point at screens. Waving and miming are fine.",

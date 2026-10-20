@@ -65,14 +65,27 @@ export function pickCrew(
   return { people: chosen, roles: best };
 }
 
-// The host's swap at a reveal, by person index. Two players trade roles and keep their seats;
-// someone sitting out takes the player's seat and role; two who are both out change nothing.
+// A bot in the swap, named by its seat: a person is their index in the lobby (0 or more), a bot is
+// -1 - seat, so the two can't be mixed up and the host may swap a bot like anyone else.
+export const botRef = (seat: number): number => -1 - seat;
+
+// The host's swap at a reveal. Two seated players or bots trade roles and keep their seats;
+// someone sitting out takes a player's or a bot's seat and role (the displaced player sits out,
+// a displaced bot is gone); two who are both out, or a bot ref that is not a bot, change nothing.
 export function swapCrew(pick: CrewPick, a: number, b: number): CrewPick {
-  const seatA = pick.people.indexOf(a);
-  const seatB = pick.people.indexOf(b);
+  const seatOf = (ref: number): number => {
+    if (ref >= 0) return pick.people.indexOf(ref);
+    const seat = -1 - ref;
+    return pick.people[seat] === null ? seat : -1;
+  };
+  const seatA = seatOf(a);
+  const seatB = seatOf(b);
   const people = [...pick.people];
   const roles = [...pick.roles] as [Role, Role, Role];
-  if (a === b || (seatA < 0 && seatB < 0)) return { people, roles };
+  const unseatedBot = (ref: number, seat: number) => ref < 0 && seat < 0;
+  if (a === b || (seatA < 0 && seatB < 0) || unseatedBot(a, seatA) || unseatedBot(b, seatB)) {
+    return { people, roles };
+  }
   if (seatA >= 0 && seatB >= 0) {
     [roles[seatA], roles[seatB]] = [roles[seatB] as Role, roles[seatA] as Role];
   } else if (seatA >= 0) people[seatA] = b;

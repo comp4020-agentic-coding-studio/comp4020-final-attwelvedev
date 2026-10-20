@@ -122,3 +122,36 @@ describe("a hazard's sight reaching out of the dark", () => {
     // no body of a guard is drawn for it (a diamond is a path closed with four lineTo calls)
   });
 });
+
+// Which avatars are outlined as "you": the bright outline (COLOR.ui) is set before a stroke.
+describe("the outline that marks you", () => {
+  function outlines(over: Partial<Scene>): string[] {
+    const set: string[] = [];
+    let current = "";
+    const ctx = new Proxy(
+      {},
+      {
+        get:
+          (_t, name) =>
+          (..._args: unknown[]) => {
+            if (name === "stroke") set.push(current);
+          },
+        set: (_t, name, value) => {
+          if (name === "strokeStyle") current = String(value);
+          return true;
+        },
+      },
+    ) as unknown as CanvasRenderingContext2D;
+    draw(ctx, scene({ layout: "fit", w: 1180, h: 500, ...over }));
+    return set;
+  }
+  const bright = (list: string[]) => list.filter((c) => c === "#e8eef9" || c === "#ffffff").length;
+
+  it("outlines the one seat a watcher follows", () => {
+    expect(bright(outlines({ spectator: true, seat: 1 }))).toBe(1);
+  });
+
+  it("outlines nobody when a watcher takes in the whole room", () => {
+    expect(bright(outlines({ spectator: true, seat: 0, noSelf: true }))).toBe(0);
+  });
+});

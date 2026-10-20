@@ -5,7 +5,8 @@ import { qrSvg } from "../client/qr.ts";
 import { forecast } from "../client/rotation.ts";
 import { MAX_PEOPLE } from "../game/crew.ts";
 import { sharesRoom } from "../game/setup.ts";
-import type { LobbyState, Setup } from "../net/protocol.ts";
+import type { Seat } from "../game/types.ts";
+import type { LobbyState, RoleView, Setup } from "../net/protocol.ts";
 import { Connection } from "./Connection.tsx";
 import { Game, type Reveal } from "./Game.tsx";
 import { LeaveGuard } from "./LeaveGuard.tsx";
@@ -14,6 +15,18 @@ import { PreferencesSheet } from "./PreferencesSheet.tsx";
 import { Spectator } from "./Spectator.tsx";
 import { useSocket } from "./useSocket.ts";
 import { YourSetup } from "./YourSetup.tsx";
+
+// Spectators as the server names them when the host pulls one in: -4 - n for the nth.
+const watchersOf = (lobby: LobbyState) =>
+  lobby.spectators.map((s, n) => ({ ref: -4 - n, nickname: s.nickname }));
+
+// The people sitting this room out, whom the host may pull into an empty seat.
+const sittingOutOf = (lobby: LobbyState) =>
+  lobby.sittingOut.flatMap((who) => {
+    const index = lobby.people.findIndex((p) => p.who === who);
+    const person = lobby.people[index];
+    return person ? [{ index, nickname: person.nickname }] : [];
+  });
 
 type Status = "joining" | "in" | "full" | "missing" | "failed";
 
@@ -31,6 +44,9 @@ export function Lobby({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
   const [reveal, setReveal] = useState<Reveal | null>(null);
+  // The server sends the reveal's first view and the ready list straight after the reveal, before the
+  // page has drawn the game. They are kept here so the game, once mounted, starts from them.
+  const early = useRef<{ view: RoleView | null; ready: Seat[] }>({ view: null, ready: [] });
   const [setup, setSetup] = useState<Setup | null>(null); // your own answers, from this browser
   const [rooms, setRooms] = useState<string[]>([]); // room names, for the rotation table
   const [asking, setAsking] = useState<string | null>(null); // where a clicked link was going, while the leave modal is open
@@ -68,6 +84,12 @@ export function Lobby({ code }: { code: string }) {
         if (!editingTeam.current) setTeam(m.lobby.teamName);
         setStatus("in");
       }),
+      socket.on("view", (m) => {
+        early.current.view = m.view;
+      }),
+      socket.on("ready", (m) => {
+        early.current.ready = m.seats;
+      }),
       socket.on("reveal", (m) =>
         setReveal((old) => ({
           room: m.room,
@@ -76,6 +98,7 @@ export function Lobby({ code }: { code: string }) {
           role: m.role,
           crew: m.crew,
           real: m.real,
+          cues: m.cues,
           rooms: m.rooms,
           sittingOut: m.sittingOut,
           played: m.played,
@@ -219,6 +242,12 @@ export function Lobby({ code }: { code: string }) {
         state={state}
         rttMs={rttMs}
         seats={lobby.seats}
+        early={early.current}
+        crew={reveal.crew}
+        host={host}
+        hostName={lobby.people.find((p) => p.who === lobby.host)?.nickname ?? null}
+        sitting={sittingOutOf(lobby)}
+        watchers={watchersOf(lobby)}
         onStartNewTeam={startNewTeam}
       />
     );
@@ -227,6 +256,7 @@ export function Lobby({ code }: { code: string }) {
   if (reveal && socket && lobby && status === "in") {
     return (
       <Game
+        early={early.current}
         key={reveal.index}
         socket={socket}
         state={state}
@@ -236,11 +266,9 @@ export function Lobby({ code }: { code: string }) {
         host={host}
         hostName={lobby?.people.find((p) => p.who === lobby.host)?.nickname ?? null}
         seats={lobby?.seats ?? null}
-        sitting={lobby.sittingOut.flatMap((who) => {
-          const index = lobby.people.findIndex((p) => p.who === who);
-          const person = lobby.people[index];
-          return person ? [{ index, nickname: person.nickname }] : [];
-        })}
+        people={lobby.people.map((p) => p.nickname)}
+        watching={lobby.spectators.map((s) => s.nickname)}
+        sitting={sittingOutOf(lobby)}
       />
     );
   }

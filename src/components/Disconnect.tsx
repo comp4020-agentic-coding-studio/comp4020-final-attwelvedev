@@ -12,8 +12,10 @@ export function Disconnect({
   choosing,
   host,
   sitting,
+  watching = [],
   gone = false,
   forReady = false,
+  hostName = null,
   onChoice,
 }: {
   waitingFor: string;
@@ -21,10 +23,14 @@ export function Disconnect({
   choosing: boolean;
   host: boolean;
   sitting: { index: number; nickname: string }[]; // people sitting out, who the host may pull in
+  watching?: { ref: number; nickname: string }[]; // spectators, named as the server names them (-4 - n)
   gone?: boolean; // they pressed Leave, so there is no connection to wait for
   forReady?: boolean; // someone was pulled in and the game waits for their Ready
+  hostName?: string | null; // who is asked to choose, so the others know whom they wait for
   onChoice: (choice: "bot" | "lobby" | "pull", person?: number) => void;
 }) {
+  // everyone who is not playing this room and could take the seat: people sitting out, then spectators
+  const free = [...sitting.map((p) => ({ ref: p.index, nickname: p.nickname })), ...watching];
   return (
     <div class="overlay" role="alertdialog" aria-labelledby="pause-title">
       <h2 id="pause-title">
@@ -48,19 +54,20 @@ export function Disconnect({
       {choosing &&
         (host ? (
           <div class="overlay-actions">
-            {sitting.map((p) => (
+            {free.length > 0 && <h3 class="pull-title">Who takes the seat?</h3>}
+            {free.map((p) => (
               <button
-                key={p.index}
+                key={p.ref}
                 type="button"
                 class="btn primary"
-                onClick={() => onChoice("pull", p.index)}
+                onClick={() => onChoice("pull", p.ref)}
               >
                 Pull in {p.nickname}
               </button>
             ))}
             <button
               type="button"
-              class={sitting.length === 0 ? "btn primary" : "btn"}
+              class={free.length === 0 ? "btn primary" : "btn"}
               onClick={() => onChoice("bot")}
             >
               Let a bot take over
@@ -70,7 +77,11 @@ export function Disconnect({
             </button>
           </div>
         ) : (
-          <p class="muted">Waiting for the host to choose</p>
+          <p class="muted">
+            {hostName
+              ? `Waiting for ${hostName} (the host) to choose`
+              : "Waiting for the host to choose"}
+          </p>
         ))}
     </div>
   );

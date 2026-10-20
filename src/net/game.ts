@@ -28,6 +28,7 @@ export interface CrewMember {
   nickname: string;
   role: Role;
   bot: boolean;
+  left?: true; // the person pressed Leave and nobody has taken the seat yet: the host is choosing
 }
 
 // A dropped seat holds the game for this long before the host chooses what to do.
@@ -299,6 +300,7 @@ export function crewOf(lobby: LobbyState, game: Game): CrewMember[] {
     nickname: s.nickname ?? "Bot",
     role: game.roles[i] as Role,
     bot: s.bot,
+    ...(s.who === null && !s.bot ? { left: true as const } : {}),
   }));
 }
 
@@ -357,7 +359,9 @@ export function takeOverWithPerson(
   delete game.vacated[seat];
   delete game.inputs[seat];
   game.ready.delete(seat);
-  lobby.people[person]?.played.push(role);
+  // Mid-room the room was counted when it started, so they are counted now; at a reveal the room
+  // counts its crew itself when it starts, and counting them here too would show the role twice.
+  if (game.counted >= game.roomIndex) lobby.people[person]?.played.push(role);
   game.heistPeople.set(who, { nickname: lobby.people[person]?.nickname ?? "", bot: false });
   seatBots(game, botSeatsIn(lobby)); // who is a person has changed
   game.paused = { seat, deadline: Date.now(), choosing: false, forReady: true };
@@ -370,6 +374,15 @@ export function readyAgain(game: Game, seat: Seat): boolean {
   if (!game.paused?.forReady || game.paused.seat !== seat) return false;
   game.paused = null;
   game.ready.add(seat);
+  return true;
+}
+
+// A person takes "I'm ready" back, while the reveal is still up. Once the room has started (its
+// crew has been counted as having played it) it is too late, and a bot is always ready. True when
+// the seat was ready and now is not.
+export function unready(game: Game, seat: Seat): boolean {
+  if (game.counted >= game.roomIndex || game.bots[seat] || !game.ready.has(seat)) return false;
+  game.ready.delete(seat);
   return true;
 }
 
@@ -391,6 +404,7 @@ export function takeOverWithBot(
     person: null,
   };
   delete game.inputs[seat]; // the person's held key does not walk on
+  game.crew.people[seat] = null; // the crew names a bot there now, not the person who had it
   seatBots(
     game,
     ([0, 1, 2] as const).filter((s) => lobby.seats[s]?.bot),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseClientMsg } from "./protocol.ts";
+import { parseClientMsg, type ServerMsg } from "./protocol.ts";
 
 describe("parseClientMsg", () => {
   it("returns the message for a ping", () => {
@@ -75,6 +75,9 @@ describe("parseClientMsg game messages", () => {
   it("accepts start, ready and a well-typed input", () => {
     expect(parseClientMsg('{"t":"lobby.start"}')).toEqual({ t: "lobby.start" });
     expect(parseClientMsg('{"t":"ready"}')).toEqual({ t: "ready" });
+    expect(parseClientMsg('{"t":"ready","on":false}')).toEqual({ t: "ready", on: false });
+    expect(parseClientMsg('{"t":"ready","on":true}')).toEqual({ t: "ready", on: true });
+    expect(parseClientMsg('{"t":"ready","on":"no"}')).toBeNull();
     expect(parseClientMsg('{"t":"next"}')).toEqual({ t: "next" });
     expect(parseClientMsg('{"t":"input","seq":3,"move":{"x":1,"y":-0.5},"act":true}')).toEqual({
       t: "input",
@@ -168,6 +171,13 @@ describe("parseClientMsg: host.choice", () => {
   });
 
   it("drops anything else", () => {
+    expect(parseClientMsg('{"t":"host.choice","choice":"pull","person":-4}')).toEqual({
+      t: "host.choice",
+      choice: "pull",
+      person: -4, // a watcher: -4 - n for the nth
+    });
+    expect(parseClientMsg('{"t":"host.choice","choice":"pull","person":-65}')).toBeNull();
+    expect(parseClientMsg('{"t":"host.choice","choice":"pull","person":-2}')).toBeNull(); // a bot
     expect(parseClientMsg('{"t":"host.choice","choice":"wait"}')).toBeNull();
     expect(parseClientMsg('{"t":"host.choice"}')).toBeNull();
     expect(parseClientMsg('{"t":"host.choice","choice":"pull"}')).toBeNull(); // pull whom?
@@ -233,6 +243,14 @@ describe("parseClientMsg: lobby.nickname, lobby.private and lobby.order", () => 
 });
 
 describe("parseClientMsg: crew.swap", () => {
+  it("accepts a bot as -1 - seat", () => {
+    expect(parseClientMsg('{"t":"crew.swap","a":-3,"b":1}')).toEqual({
+      t: "crew.swap",
+      a: -3,
+      b: 1,
+    });
+  });
+
   it("accepts two person indexes", () => {
     expect(parseClientMsg('{"t":"crew.swap","a":0,"b":4}')).toEqual({ t: "crew.swap", a: 0, b: 4 });
   });
@@ -242,7 +260,7 @@ describe("parseClientMsg: crew.swap", () => {
     '{"t":"crew.swap","a":0}',
     '{"t":"crew.swap","a":"0","b":1}',
     '{"t":"crew.swap","a":0.5,"b":1}',
-    '{"t":"crew.swap","a":-1,"b":1}',
+    '{"t":"crew.swap","a":-65,"b":1}',
   ])("drops %s", (raw) => {
     expect(parseClientMsg(raw)).toBeNull();
   });
@@ -289,4 +307,16 @@ describe("parseClientMsg: spec.say", () => {
       expect(parseClientMsg(raw)).toBeNull();
     },
   );
+});
+
+describe("the reveal's server messages", () => {
+  it("ready names the seats that pressed I'm ready, and survives the wire", () => {
+    const m: ServerMsg = { t: "ready", seats: [0, 2] };
+    expect(JSON.parse(JSON.stringify(m))).toEqual({ t: "ready", seats: [0, 2] });
+  });
+
+  it("reveal carries the sounds to learn, so Can't see's briefing needs no room data on the client", () => {
+    const m: Extract<ServerMsg, { t: "reveal" }>["cues"] = ["hum", "door"];
+    expect(m).toEqual(["hum", "door"]);
+  });
 });

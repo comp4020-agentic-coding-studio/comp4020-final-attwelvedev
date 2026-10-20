@@ -1,7 +1,7 @@
 import type { SoundCue } from "../net/protocol.ts";
 
 export interface GameAudio {
-  resume(): void; // call from a tap or key press: browsers keep audio off until then
+  resume(): Promise<void>; // call from a tap or key press: browsers keep audio off until then
   play(sounds: SoundCue[]): void; // the sound cues of one view
   playClip(id: string): void; // a soundboard clip, from public/sounds/
   // Masking noise for an in-person Can't-hear seat, so their own headphones
@@ -182,8 +182,8 @@ export function createAudio(): GameAudio {
   };
 
   return {
-    resume() {
-      void ensure()?.resume();
+    async resume() {
+      await ensure()?.resume();
     },
     playClip(id) {
       // a plain element: the clips are short, and a blocked autoplay just stays silent
@@ -211,6 +211,8 @@ export function createAudio(): GameAudio {
     play(sounds) {
       const c = ctx;
       if (c?.state !== "running") return;
+      // a spec sets `window.__cuesPlayed = []` to see which cues really started a node
+      (window as { __cuesPlayed?: string[] }).__cuesPlayed?.push(...sounds.map((s) => s.kind));
       const now = performance.now();
       for (const s of sounds) {
         if (s.kind === "plate") tone(c, s, "square", 700, 520, 0.05, 0.22);

@@ -1,4 +1,6 @@
 // Shared setup for the game specs: three sockets in a started game.
+
+import { expect } from "vitest";
 import type { RoleView } from "../src/game/perception.ts";
 import type { Role, Seat } from "../src/game/types.ts";
 import { connect, type Socket } from "./ws.ts";
@@ -66,6 +68,23 @@ export const byRole = (players: Player[], role: Role): Player => {
 
 export const nextView = async (p: Player, timeoutMs = 2000): Promise<RoleView> =>
   (await p.socket.next<{ t: "view"; view: RoleView }>("view", timeoutMs)).view;
+
+// A reveal is sent a view of the room at tick 0, to draw behind its card. "The game is running" is a
+// view from a later tick, so specs that mean that ask for it by name.
+export async function nextTick(socket: Socket, timeoutMs = 2000): Promise<RoleView> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const { view } = await socket.next<{ t: "view"; view: RoleView }>(
+      "view",
+      Math.max(1, deadline - Date.now()),
+    );
+    if (view.tick > 0) return view;
+  }
+}
+
+// Nothing has ticked: the room is still held at its reveal.
+export const noTick = (socket: Socket, ms = 700) =>
+  expect(nextTick(socket, ms)).rejects.toThrow(/no "view"/);
 
 export const closeAll = (players: Player[]) => Promise.all(players.map((p) => p.socket.close()));
 

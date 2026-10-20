@@ -39,7 +39,7 @@ export async function playRoom(browser: Browser, baseUrl: string): Promise<Table
   const start = host.getByRole("button", { name: "Start", exact: true });
   await start.click({ timeout: 5000 });
   const pages = [host, phone, third];
-  for (const page of pages) await page.getByRole("button", { name: "Ready" }).click();
+  for (const page of pages) await page.getByRole("button", { name: "I'm ready" }).click();
   for (const page of pages) await page.locator(".frame canvas").waitFor();
   // seats rotate by room: room 1 is seat 0 blind, seat 1 deaf, seat 2 mute
   return { pages, phone, byRole: { blind: host, deaf: phone, mute: third } };

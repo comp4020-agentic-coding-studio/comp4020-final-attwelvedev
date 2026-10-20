@@ -13,15 +13,69 @@ body.playing main {
 }
 
 /* role reveal */
-.reveal {
+/* the reveal: the room, flat and blurred, behind a scrim, with the card and the crew over it */
+.reveal-frame {
+  position: relative;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: var(--ink);
+}
+.reveal-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  filter: blur(6px); /* blur is not motion, so it stays under reduced motion */
+}
+.reveal-canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.reveal-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
+}
+.reveal-stage {
+  position: relative;
+  display: grid;
+  gap: var(--s-5);
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: var(--s-5) var(--s-4);
+}
+@media (min-width: 880px) {
+  .reveal-stage {
+    grid-template-columns: minmax(0, 1fr) 22rem;
+    align-items: start;
+  }
+}
+.reveal,
+.reveal-crew-panel {
   display: grid;
   gap: var(--s-4);
-  max-width: 34rem;
-  margin: 0 auto;
   justify-items: start;
+  padding: var(--s-5);
+  background: var(
+    --glass
+  ); /* text over the canvas sits on --glass, and the room shows through it */
+  border-radius: var(--r);
+}
+.reveal-crew-panel {
+  justify-items: stretch;
+  align-content: start;
+}
+.reveal-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
 }
 .reveal-title {
-  font-size: var(--t-48);
+  margin: 0;
+  font-size: var(--t-28);
+  font-stretch: 125%;
+  font-weight: 900;
 }
 .reveal-shape {
   animation: pop 400ms ease-out both;
@@ -113,8 +167,101 @@ body.playing main {
 }
 .reveal-crew li {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  background: var(--bg);
+  border-radius: var(--r);
+}
+.reveal-crew .crew-who {
+  flex: 1 1 6rem;
+  min-width: 0;
+  display: grid;
+}
+.reveal-crew .crew-name {
+  font-weight: 700;
+}
+.reveal-crew .crew-role {
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+}
+.reveal-crew .crew-state {
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+  font-weight: 700;
+}
+.reveal-crew .pips {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  color: var(--ui-muted);
+}
+.reveal-crew .no-shape {
+  width: 20px;
+  height: 20px;
+  border: 2px dashed var(--ui-muted);
+  border-radius: 50%;
+}
+/* someone who left: hatched, with the words, so it is not colour alone */
+.reveal-crew li.left {
+  background: var(--hatch), var(--bg);
+}
+.reveal-crew .btn.selected {
+  background: var(--ui);
+  color: var(--bg);
+  border-color: var(--ui);
+}
+.reveal-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s-2);
+}
+.reveal-lines li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+}
+.reveal-lines .page {
+  min-width: 4.5rem;
+  color: var(--ui-muted);
+  font-weight: 700;
+}
+.reveal-dark {
+  margin: 0;
+  font-weight: 700;
+}
+.briefing {
+  display: grid;
+  gap: var(--s-3);
+  justify-items: start;
+}
+.briefing h2 {
+  margin: 0;
+}
+.briefing ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.reveal-go {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--s-3);
+}
+.swap {
+  display: grid;
+  gap: var(--s-3);
+}
+.swap p {
+  margin: 0;
 }
 .reveal-honour {
   list-style: none;
@@ -129,10 +276,27 @@ body.playing main {
 .reveal .btn {
   min-width: 12rem;
 }
-.reveal .btn:disabled {
-  opacity: 1;
+/* the line under the button: the count, and once you are ready, that you are waiting. It is text,
+   not a control, so it has no border or fill that could be mistaken for a button. Waiting is alive:
+   a slow, gentle breath (1.6 s a cycle, well under the flashing limit), still under reduced motion,
+   where the words alone say it */
+.reveal .ready-status {
   color: var(--ui-muted);
-  cursor: default;
+}
+.reveal .ready-status.waiting {
+  color: var(--ui); /* readable at the dimmest point of the breath */
+  font-weight: 700;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.6;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal .ready-status.waiting {
+    animation: none;
+  }
 }
 
 /* the game */
@@ -271,7 +435,7 @@ body.playing main {
   color: var(--bg);
 }
 .spectator > .btn.primary {
-  margin: 0 var(--s-3) var(--s-3);
+  margin: var(--s-3) var(--s-3) var(--s-3);
   align-self: flex-start;
 }
 
@@ -314,6 +478,10 @@ body.playing main {
 }
 .overlay p {
   margin: 0;
+}
+.pull-title {
+  margin: 0;
+  font-size: var(--t-18);
 }
 .countdown {
   font-variant-numeric: tabular-nums;

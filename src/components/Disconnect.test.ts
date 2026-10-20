@@ -88,6 +88,43 @@ describe("Disconnect: someone is sitting out", () => {
     expect(onChoice).toHaveBeenCalledWith("pull", 4);
   });
 
+  it("asks who takes the seat when people are free, with the bot last and quieter than they are", () => {
+    mount({ host: true, choosing: true, secondsLeft: 0, sitting });
+    expect(document.querySelector("h3, .pull-title")?.textContent).toMatch(/who takes/i);
+    const bot = [...document.querySelectorAll("button")].find((b) =>
+      /bot/i.test(b.textContent ?? ""),
+    );
+    expect(bot?.classList.contains("primary")).toBe(false);
+    for (const b of [...document.querySelectorAll("button")].filter((b) =>
+      /Pull in/.test(b.textContent ?? ""),
+    ))
+      expect(b.classList.contains("primary")).toBe(true);
+    expect(names().indexOf("Let a bot take over")).toBeGreaterThan(names().indexOf("Pull in Ed"));
+  });
+
+  it("offers a watcher the same way, by their own reference", () => {
+    const onChoice = vi.fn();
+    mount({
+      host: true,
+      choosing: true,
+      secondsLeft: 0,
+      sitting: [],
+      watching: [{ ref: -4, nickname: "Wes" }],
+      onChoice,
+    });
+    expect(names()).toEqual(["Pull in Wes", "Let a bot take over", "Back to lobby"]);
+    (document.querySelectorAll("button")[0] as HTMLButtonElement).click();
+    expect(onChoice).toHaveBeenCalledWith("pull", -4);
+  });
+
+  it("keeps the bot as the main choice when nobody is free", () => {
+    mount({ host: true, choosing: true, secondsLeft: 0, sitting: [], watching: [] });
+    const bot = [...document.querySelectorAll("button")].find((b) =>
+      /bot/i.test(b.textContent ?? ""),
+    );
+    expect(bot?.classList.contains("primary")).toBe(true);
+  });
+
   it("offers no Pull in when nobody is sitting out, and never to a guest", () => {
     mount({ host: true, choosing: true, secondsLeft: 0, sitting: [] });
     expect(names()).toEqual(["Let a bot take over", "Back to lobby"]);

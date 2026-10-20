@@ -1,6 +1,6 @@
 import { describe, expect, inject, it } from "vitest";
 import type { RoleView } from "../src/game/perception.ts";
-import { byRole, closeAll, nextView, type Player, ready, startedGame } from "./play.ts";
+import { byRole, closeAll, nextView, noTick, type Player, ready, startedGame } from "./play.ts";
 import { connect } from "./ws.ts";
 
 const baseUrl = inject("baseUrl");
@@ -160,7 +160,7 @@ describe("restart votes", () => {
     expect(reveals.map((r) => r.index)).toEqual([0, 0, 0]);
     expect(reveals.map((r) => r.role)).toEqual(["blind", "deaf", "mute"]);
     // the room waits for Ready again: nobody is told a view until they press it
-    await expect(host.socket.next("view", 800)).rejects.toThrow(/no "view"/);
+    await noTick(host.socket, 800);
     await closeAll(players);
   });
 

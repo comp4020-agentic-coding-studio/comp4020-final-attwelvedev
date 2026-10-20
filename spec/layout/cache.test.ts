@@ -37,7 +37,7 @@ describe("leaving a game by going to another page, with the back/forward cache o
         await host.getByRole("heading", { name: /^Players \d of 6/ }).waitFor();
         await host.getByRole("button", { name: /^Start/ }).click();
         for (const page of [host, guest]) {
-          await page.getByRole("button", { name: "Ready" }).click();
+          await page.getByRole("button", { name: "I'm ready" }).click();
         }
         await host.locator(".frame canvas").waitFor();
 

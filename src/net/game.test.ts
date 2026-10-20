@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rolesFor } from "../game/crew.ts";
+import { botRef, rolesFor } from "../game/crew.ts";
 import { loadRooms } from "../game/rooms/load.ts";
 import type { Seat } from "../game/types.ts";
 import {
@@ -24,6 +24,7 @@ import {
   takeOverWithBot,
   takeOverWithPerson,
   tickGame,
+  unready,
   VOTE_MS,
   voters,
 } from "./game.ts";
@@ -353,6 +354,19 @@ describe("pausing for a dropped seat", () => {
     expect(game.bots[1]).toBeDefined();
   });
 
+  it("a bot taking a seat means the crew no longer names the person who had it", () => {
+    const l = lobby("a", "b", "c", "d", "e");
+    l.seats = [seat("a", 0), seat("b", 1), seat("c", 2)];
+    l.sittingOut = ["d", "e"];
+    const game = startGame(l, rooms);
+    takeOverWithBot(game, l, 1, "b");
+    expect(game.crew.people).toEqual([0, null, 2]); // not [0, 1, 2]: that is the person who has gone
+    // so the bot can be swapped like any other, and nobody comes back into its seat by it
+    swapPeople(game, l, 3, botRef(1));
+    expect(l.seats.map((s) => s.who)).toEqual(["a", "d", "c"]);
+    expect(l.seats[1]?.bot).toBe(false);
+  });
+
   it("lets a bot take the seat over: the world and everyone's place in it are kept", () => {
     const l = lobby("a", "b", "c");
     const game = startGame(l, rooms);
@@ -525,6 +539,23 @@ describe("a lobby of five", () => {
     expect(l.sittingOut.sort()).toEqual(["b", "d"]);
     markPlayed(game, l);
     expect(l.people.map((p) => p.played)).toEqual([["mute"], [], ["blind"], [], ["deaf"]]);
+  });
+
+  it("a host swap with a bot trades roles, or seats a sitting-out person in the bot's place", () => {
+    const l = lobby("a", "b", "c", "d", "e");
+    l.seats = [seat("a", 0), seat("b", 1), bot("▲") as LobbyState["seats"][number]];
+    l.sittingOut = ["c", "d", "e"];
+    const game = startGame(l, rooms);
+    game.crew = { people: [0, 1, null], roles: ["blind", "deaf", "mute"] }; // a bot where a person left
+    swapPeople(game, l, 0, botRef(2));
+    expect(game.roles).toEqual(["mute", "deaf", "blind"]);
+    expect(l.seats[2]?.bot).toBe(true);
+    expect(game.bots[2]).toBeDefined();
+    swapPeople(game, l, 3, botRef(2));
+    expect(l.seats.map((s) => s.who)).toEqual(["a", "b", "d"]);
+    expect(l.seats[2]?.bot).toBe(false);
+    expect(game.bots[2]).toBeUndefined();
+    expect(l.sittingOut.sort()).toEqual(["c", "e"]);
   });
 
   it("the heist record names everyone who played any room, bots too, once each", () => {
@@ -712,6 +743,17 @@ describe("takeOverWithPerson", () => {
     expect(l.sittingOut).toEqual(["e"]);
   });
 
+  it("at a reveal, does not count the role as played yet: the room counts it once when it starts", () => {
+    const l = lobby("a", "b", "c", "d", "e");
+    l.seats = [seat("a", 0), seat("b", 1), seat("c", 2)];
+    l.sittingOut = ["d", "e"];
+    const game = startGame(l, rooms); // nothing has ticked: the reveal is up
+    takeOverWithPerson(game, l, 1, 3);
+    expect(l.people[3]?.played).toEqual([]);
+    markPlayed(game, l);
+    expect(l.people[3]?.played).toEqual([game.roles[1]]); // once, not twice
+  });
+
   it("records that they played the role, so the rotation counts it", () => {
     const { l, game } = afterLeave();
     takeOverWithPerson(game, l, 1, 3);
@@ -770,5 +812,36 @@ describe("takeOverWithPerson", () => {
     takeOverWithPerson(game, l, 1, 3);
     expect(game.bots[1]).toBeUndefined();
     expect(before).toBeDefined();
+  });
+});
+
+describe("unready", () => {
+  it("takes a person's seat out of the ready set while the reveal is up", () => {
+    const l = lobby("a", "b", "c");
+    const game = startGame(l, rooms);
+    game.ready.add(0);
+    game.ready.add(1);
+    expect(unready(game, 0)).toBe(true);
+    expect([...game.ready]).toEqual([1]);
+  });
+
+  it("does nothing for a bot, who is always ready", () => {
+    const game = startGame(withBots("a", 1, 2), rooms);
+    expect(unready(game, 1)).toBe(false);
+    expect(game.ready.has(1)).toBe(true);
+  });
+
+  it("does nothing once the room has started (its crew has played it)", () => {
+    const l = lobby("a", "b", "c");
+    const game = startGame(l, rooms);
+    for (const s of [0, 1, 2] as const) game.ready.add(s);
+    markPlayed(game, l);
+    expect(unready(game, 0)).toBe(false);
+    expect(game.ready.has(0)).toBe(true);
+  });
+
+  it("does nothing for a seat that was not ready", () => {
+    const game = startGame(lobby("a", "b", "c"), rooms);
+    expect(unready(game, 2)).toBe(false);
   });
 });

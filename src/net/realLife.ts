@@ -31,7 +31,7 @@ function linesFor(role: Role, me: Setup): string[] {
         : me.headphones
           ? "No earplugs? Headphones on with the noise playing."
           : "No earplugs or headphones: ask the others to keep the table quiet near you.",
-      "Sit where you can't see the others' faces.",
+      "Sit where you can't see the others' mouths, so you can't lip-read.",
     ];
   }
   if (role === "blind") {

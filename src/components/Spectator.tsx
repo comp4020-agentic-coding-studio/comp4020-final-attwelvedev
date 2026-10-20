@@ -6,6 +6,10 @@ import { ROLE_LABEL, type Role, type Seat } from "../game/types.ts";
 import type { LobbyState, RoleView } from "../net/protocol.ts";
 import { type CaptionLine, Captions } from "./Captions.tsx";
 import { Connection } from "./Connection.tsx";
+import { Disconnect } from "./Disconnect.tsx";
+import { useGone } from "./useGone.ts";
+import { useHostNote } from "./useHostNote.ts";
+import { usePause } from "./usePause.ts";
 import { WatchChat, type WatchLine } from "./WatchChat.tsx";
 
 const SEATS = [0, 1, 2] as const;
@@ -20,18 +24,42 @@ export function Spectator({
   state,
   rttMs,
   seats,
+  early,
+  crew,
+  host,
+  hostName,
+  sitting,
+  watchers,
   onStartNewTeam,
 }: {
   socket: GameSocket;
   state: ConnectionState;
   rttMs: number | null;
   seats: LobbyState["seats"];
+  early: { view: RoleView | null }; // the room as it was when the reveal was sent: it arrives before this page does
+  crew: { seat: Seat; role: Role }[]; // this room's roles, from the reveal that came before this page drew
+  hostName: string | null;
+  host: boolean; // the host may only be watching: the empty seats are still theirs to fill
+  sitting: { index: number; nickname: string }[];
+  watchers: { ref: number; nickname: string }[];
   onStartNewTeam: () => void;
 }) {
+  const goneNote = useGone(socket);
+  const hostNote = useHostNote(hostName, host);
+  const gone = [goneNote, hostNote].filter(Boolean).join(" ") || null;
+  const { pause, secondsLeft } = usePause(socket);
   const frame = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const view = useRef<RoleView | null>(null);
-  const roles = useRef<[Role, Role, Role]>(["blind", "deaf", "mute"]);
+  const view = useRef<RoleView | null>(early.view);
+  const roles = useRef<[Role, Role, Role]>(
+    crew.reduce(
+      (acc, c) => {
+        acc[c.seat] = c.role;
+        return acc;
+      },
+      ["blind", "deaf", "mute"] as [Role, Role, Role],
+    ),
+  );
   const [follow, setFollow] = useState<Seat | null>(null); // null: the whole room, no sound
   const [chat, setChat] = useState<WatchLine[]>([]);
   const chatId = useRef(0);
@@ -52,13 +80,15 @@ export function Spectator({
     [socket],
   );
 
-  useEffect(
-    () =>
-      socket.on("view", (m) => {
-        view.current = m.view;
-      }),
-    [socket],
-  );
+  // `early` is the lobby's record of what arrived before this page drew: the view that came with the
+  // reveal may land after this page rendered but before this effect ran, so it is read here, once
+  // the listener is in place, not only when the page was first rendered.
+  useEffect(() => {
+    if (early.view && view.current === null) view.current = early.view;
+    return socket.on("view", (m) => {
+      view.current = m.view;
+    });
+  }, [socket, early]);
 
   useEffect(
     () =>
@@ -127,6 +157,7 @@ export function Spectator({
         nowMs: performance.now(),
         reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
         spectator: true,
+        noSelf: v.you.pos === undefined, // the whole room: nobody is followed
       };
       draw(ctx, scene);
     };
@@ -182,6 +213,27 @@ export function Spectator({
       <button type="button" class="btn primary" onClick={onStartNewTeam}>
         Start a new team
       </button>
+      {gone && (
+        <p class="hud-alert spectator-gone" role="status">
+          {gone}
+        </p>
+      )}
+      {pause && (
+        <Disconnect
+          waitingFor={pause.waitingFor}
+          secondsLeft={secondsLeft}
+          choosing={pause.choosing}
+          host={host}
+          sitting={sitting}
+          watching={watchers}
+          gone={pause.gone}
+          forReady={pause.forReady}
+          hostName={hostName}
+          onChoice={(choice, person) =>
+            socket.send({ t: "host.choice", choice, ...(person === undefined ? {} : { person }) })
+          }
+        />
+      )}
     </div>
   );
 }

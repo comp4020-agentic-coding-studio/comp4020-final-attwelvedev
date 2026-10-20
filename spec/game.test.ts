@@ -1,5 +1,14 @@
 import { describe, expect, inject, it } from "vitest";
-import { byRole, closeAll, nextView, type Player, ready, startedGame } from "./play.ts";
+import {
+  byRole,
+  closeAll,
+  nextTick,
+  nextView,
+  noTick,
+  type Player,
+  ready,
+  startedGame,
+} from "./play.ts";
 import { connect } from "./ws.ts";
 
 const baseUrl = inject("baseUrl");
@@ -45,11 +54,10 @@ describe("starting and playing a game", () => {
     // the test runner's own latency decides where a window's edge falls, and one view lost off
     // the end of a 1 s window is 5% of the count. So time 30 views from the first to the last.
     const arrivals: number[] = [];
-    const first = await nextView(deaf); // the first view marks the start
-    void first;
+    await nextTick(deaf.socket, 3000); // the first tick marks the start
     arrivals.push(performance.now());
     while (arrivals.length < 30) {
-      await nextView(deaf, 2000);
+      await nextTick(deaf.socket, 2000);
       arrivals.push(performance.now());
     }
     const seconds = ((arrivals.at(-1) ?? 0) - (arrivals[0] ?? 0)) / 1000;
@@ -64,7 +72,7 @@ describe("starting and playing a game", () => {
     const { players } = await startedGame(baseUrl);
     players[0]?.socket.send({ t: "ready" });
     players[1]?.socket.send({ t: "ready" });
-    await expect(nextView(players[1] as (typeof players)[number], 400)).rejects.toThrow();
+    await noTick((players[1] as (typeof players)[number]).socket, 400);
     await closeAll(players);
   });
 

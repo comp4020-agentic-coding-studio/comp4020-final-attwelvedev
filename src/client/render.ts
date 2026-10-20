@@ -25,6 +25,8 @@ export interface Scene {
   // tiles and entities, no dark masking) — the one place `role === "blind"`
   // would otherwise black the screen out.
   spectator?: boolean;
+  // A watcher of the whole room follows nobody, so no avatar is "you" and none is outlined as such.
+  noSelf?: boolean;
 }
 
 export interface FacePop {
@@ -550,7 +552,7 @@ function drawEntity(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera, s
     drawStamp(ctx, e.state as Stamp, px, py, s, e.age ?? 0);
   } else if (e.kind === "player" && e.seat !== undefined) {
     const role = scene.roles[e.seat] ?? "blind";
-    const isSelf = e.seat === scene.seat;
+    const isSelf = !scene.noSelf && e.seat === scene.seat;
     shapePath(ctx, ROLE_SHAPE[role], px, py, s * MAP.avatarRadius * 1.1);
     if (e.state === "hidden") {
       // on a hide spot: faint, with a dashed outline, so you can see you are hidden

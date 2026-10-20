@@ -2,6 +2,7 @@ import { describe, expect, inject, it } from "vitest";
 import {
   byRole,
   closeAll,
+  nextTick,
   nextView,
   type Player,
   type RevealMsg,
@@ -105,7 +106,7 @@ describe("a dropped connection pauses the game", () => {
     while (!lobby.lobby.seats.some((s) => s.bot)) lobby = await host.socket.next<LobbyMsg>("lobby");
     expect(lobby.lobby.seats.filter((s) => s.bot)).toHaveLength(1);
     expect(lobby.lobby.phase).toBe("playing");
-    expect((await nextView(guest, 2000)).tick).toBeGreaterThan(0);
+    expect((await nextTick(guest.socket, 2000)).tick).toBeGreaterThan(0); // the game is running, not the reveal's tick 0
     // the crew is sent again, with the bot where the person was
     let reveal = await host.socket.next<{ crew: { bot: boolean }[] }>("reveal");
     while (!reveal.crew.some((c) => c.bot)) {

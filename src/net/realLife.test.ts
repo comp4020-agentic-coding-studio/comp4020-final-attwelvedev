@@ -88,15 +88,15 @@ describe("realLifeFor: lines", () => {
       realLifeFor("deaf", setup({ inRoom: true, ...over }), crewOf(together, together)).lines;
     expect(lines({ earplugs: true, headphones: true })).toEqual([
       "Earplugs in now.",
-      "Sit where you can't see the others' faces.",
+      "Sit where you can't see the others' mouths, so you can't lip-read.",
     ]);
     expect(lines({ earplugs: false, headphones: true })).toEqual([
       "No earplugs? Headphones on with the noise playing.",
-      "Sit where you can't see the others' faces.",
+      "Sit where you can't see the others' mouths, so you can't lip-read.",
     ]);
     expect(lines({ earplugs: false, headphones: false })).toEqual([
       "No earplugs or headphones: ask the others to keep the table quiet near you.",
-      "Sit where you can't see the others' faces.",
+      "Sit where you can't see the others' mouths, so you can't lip-read.",
     ]);
   });
 

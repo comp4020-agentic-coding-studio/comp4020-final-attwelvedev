@@ -15,6 +15,7 @@ export function Settings({
   onLeave,
   maskNoiseAvailable,
   othersSoundOff,
+  voiceOn,
 }: {
   role: Role;
   settings: SettingsState;
@@ -26,6 +27,9 @@ export function Settings({
   // This person's setup says they have no headphones (Can't see, Can't speak): captions carry
   // the game's sound instead, so the checkboxes say so rather than show a choice that isn't one.
   othersSoundOff: boolean;
+  // In-app voice is on for this room. It is off when the whole crew sits in one room and can just
+  // talk, so there is no mic to turn on, and the switch says so rather than doing nothing.
+  voiceOn: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const deaf = role === "deaf";
@@ -95,6 +99,8 @@ export function Settings({
             <label>
               <input
                 type="checkbox"
+                disabled={!voiceOn}
+                aria-describedby={voiceOn ? undefined : "voice-off-note"}
                 checked={settings.voiceMode === "toggle"}
                 onChange={(e) =>
                   onChange({
@@ -105,6 +111,12 @@ export function Settings({
               />
               Press V to turn the mic on and off
             </label>
+          )}
+          {role !== "mute" && !voiceOn && (
+            <p class="settings-note" id="voice-off-note">
+              Voice is off in this room: everyone said they are sitting together, so you can talk
+              out loud. There is no mic to turn on.
+            </p>
           )}
           <label>
             <input

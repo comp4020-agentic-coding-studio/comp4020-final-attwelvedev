@@ -210,7 +210,7 @@ Build to the spec §4.1 wireframes. Specifics the wireframes leave open:
   /preferences reads as the one place to set yourself up. Pass = user says so.
 - **Depends on:** Tasks 5–7.
 
-### Task 11: The role reveal
+### Task 11: The role reveal [x]
 
 - **Description:** The reveal card and crew column per the spec wireframe,
   with send/get lines by name, real-life lines, Can't see's briefing, ready
@@ -321,3 +321,112 @@ None.
   gave each child its own margin and missed pairs. Fix: the column container
   owns the gap (`.lobby-code`/`.lobby-side` grid + gap), so a new child can't
   touch its neighbour.
+
+- 2026-10-19, Task 11: expected each crew row to name its role in words and to show
+  readiness in words, and the waiting text to be alive. First pass drew only the
+  role's shape, put "…" for not-ready and a "—" placeholder for "no roles played yet"
+  (which read as a stray mark), and held the waiting button still. Fix: a role
+  subtitle under each name, "Not ready", pips drawn only when there is something to
+  show, and a 1.6 s breath on the waiting button (still under reduced motion).
+  Two bugs of my own on the way, both caught by the spec: the pointer still over the
+  button after the click turned it light grey through `.btn.primary:hover`, and my
+  `:hover` fix raised the specificity above the reduced-motion rule, so the pulse
+  ignored reduced motion while hovered.
+
+- 2026-10-19, Task 11: asked whether people should be able to unready; agreed yes, since
+  the reveal asks for real-life steps (mask, earplugs) that someone may realise they
+  skipped after pressing I'm ready. Built into Task 11 rather than the backlog, as the
+  other reveal corrections were. `ready` takes an optional `on` (absent = ready, so every
+  existing sender is unchanged); `unready()` in `game.ts` only works while the reveal is
+  up, never for a bot, and never once the room has started. A "Not ready yet" button sits
+  beside the pulsing wait text.
+
+- 2026-10-19, Task 11: expected the "Waiting for the others…" state not to be a button
+  (a disabled button invites a click) and to be part of the "N of 3 ready" line. First
+  pass kept the big button, disabled, with the count beside it. Fix: after I'm ready the
+  big button goes, one status line reads "You're ready. Waiting for the others · 1 of 3"
+  (pulsing, still under reduced motion), and "Not ready yet" is the only button. The
+  button disappearing is itself the confirmation. `readyStatus()` in `client/reveal.ts`.
+
+- 2026-10-20, Task 11: expected the host to swap with a bot like anyone else. First pass
+  offered Select only on people (`!r.bot`), following the spec's "swap any two people". Fix: a bot
+  is named by its seat in `crew.swap` (`botRef(seat) = -1 - seat`, `swapCrew` in `src/game/crew.ts`),
+  trades roles with a player, or is replaced by someone sitting out.
+
+- 2026-10-20, Task 11: a watcher saw a black map at the reveal while the person they swapped with
+  did not. The view sent with the reveal reached `Lobby` before `Spectator` mounted and was dropped;
+  only `Game` read `early`. First fix (reading it in `useRef`'s initial value) was not enough, because
+  a view can land between render and the effect; the effect reads it too. The spec fails 4 of 4
+  without the fix and passes 6 of 6 with it.
+
+- 2026-10-20, Task 11: when every player left during the reveal, the watcher was stuck. The
+  pause and its "who takes the seat" choice were only handled by the in-game HUD, so the reveal and
+  the watchers' screen never showed it, and a host who only watches was not sent it. Fix: `usePause`
+  shared by the reveal, the HUD and `Spectator`; `announcePause` also goes to the host; a `gone`
+  message tells everyone who left and what became of their seat; each empty seat is asked about in turn.
+
+- 2026-10-20, Task 11: Can't hear's line "Sit where you can't see the others' faces." was wrong
+  for them: they see faces and marks, so hiding the others' faces takes away their only channel.
+  The line is about lip-reading: "Sit where you can't see the others' mouths, so you can't lip-read."
+  (the spec's seating hint said "shouldn't see the speakers' faces", which I took literally in plan 02).
+
+- 2026-10-20, Task 11: "Press V to turn the mic on and off" stayed live when voice was off for the
+  room. Fix: `Settings` takes `voiceOn` (`real.voice`), disables the switch and says why.
+
+- 2026-10-20, Task 11: the "Waiting for X" popup covered the button of the very person being
+  waited for, and interrupted everyone else for one person's Ready. First pass showed the shared
+  pause dialog on the reveal. Fix: at a reveal a pulled-in person gets a one-line note and others
+  carry on (the server accepts their Ready/unready meanwhile); the dialog is only for the host's choice.
+
+- 2026-10-20, Task 11: watchers were missing from the crew list, could not be selected to swap in,
+  saw a black map on joining, and their outlines did not follow what they clicked. Fix: watchers
+  listed ("Watching", the same label as sitting out, since both mean not in this room), swappable
+  (`-4 - n`), sent a view on join/reload/spectate at tick 0, `noSelf` so "Whole room" outlines nobody.
+
+- 2026-10-20, Task 11: a bot that replaced a dropped player could not be swapped, and swapping a real
+  player into its seat brought the old player back, because `takeOverWithBot` left their index in
+  `crew.people`. Fix: it clears it. A person who then chooses to watch gives up any claim on the seat.
+
+- 2026-10-20, Task 11: the host choosing a bot is rarely what a team of more than three wants.
+  The choice now asks "Who takes the seat?" with sitting-out people and watchers first and the bot
+  last and quieter; a watcher can be pulled in (`host.choice` pull with `-4 - n`).
+
+- 2026-10-20, Task 11: process: my own rebuilds of `dist/` under the user's running server gave a
+  private window no CSS or JS (the old hashed files were gone), and `check:flaky`'s busy loops, left
+  running, made a later full run time out. Check for stray loops before a full run; do not rebuild
+  under a server the user is running without saying so.
+
+## 10. Task 11 execution notes (deviations from the plan as written)
+
+- The reveal message also carries `cues: BriefingCue[]` (Can't see only), from the
+  new pure `src/game/cues.ts` (`cuesIn(room)`), so the client needs no room data.
+- `CrewMember` gained `left?: true` (a seat whose person pressed Leave and the host
+  has not filled yet), which the crew column shows as "Left the game".
+- Views at reveal time are tick 0 and arrive straight after `reveal`, before `Game` has
+  mounted. `Lobby` buffers the latest `view` and `ready` and hands them to `Game`; the
+  game starts on the first view with `tick > 0`, not on the first view.
+- `spec/play.ts` gained `nextTick`/`noTick` ("the game is running"): five older specs
+  asserted "no view until ready", which the tick-0 view changes; they now say
+  "no tick" (`crew`, `game`, `leave`, `vote`), keeping what they protect.
+- `GameAudio.resume()` now returns a promise, and `play()` records kinds into
+  `window.__cuesPlayed` when a spec sets it (the plan's test hook).
+- The reveal is full-bleed (`body.playing`), panels on `--glass`; the canvas draw loop is
+  now a shared `useDraw` hook used by the reveal and the HUD.
+- Measured: the server holds 19.7 ticks/s under CPU load; `game.test.ts` "15 per second"
+  failed once in four `check:flaky` runs (13/s) because the spec's own receiver is
+  starved, not the server. Pre-existing shape; left alone, noted.
+- Flake hunt after the status-line change (`check:flaky`, then repeated full runs on fresh servers):
+  - Fixed, mine: the private-toggle spec waited for "some Join button" then asserted a count
+    read earlier (the open list also cuts off at four teams); it now waits for its own
+    lobby's row, expanding the list. `leaveAndClose` could hang 30 s on a modal that never
+    opened; each click is now bounded.
+  - Fixed, leaks: `setup.test.ts` and one `lobby-people` test ended with `context.close()`,
+    which only holds a seat, so they left lobbies on the server (about 13 per full run, 38 of
+    40 after three runs back to back, which looked like failures in unrelated files). They end
+    with `leaveAndClose` now: about 10 to 11 left per full run, from specs I did not touch.
+  - Not reproduced: four `wheel.test.ts` specs failed together in 2 of 7 early full runs (one
+    axe violation with the wheel open, three waiting for wheel elements). They pass alone
+    (6 of 6) and in 10 later full runs on fresh servers. Cause unknown; the spec is unchanged.
+  - A control run on the committed tree was invalid (my `git stash` left the untracked Task 11
+    specs behind, so 23 tests failed every run). `git stash -u` or a worktree is needed.
+

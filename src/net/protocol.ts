@@ -10,6 +10,7 @@ import {
   STAMPS,
   type Stamp,
 } from "../game/channels.ts";
+import type { BriefingCue } from "../game/cues.ts";
 import type { EntityView, RoleView, SoundCue } from "../game/perception.ts";
 import { parseSetup, type Setup } from "../game/setup.ts";
 import type { Method, PlayerInput, Role, Seat, Vec } from "../game/types.ts";
@@ -49,14 +50,14 @@ export type ClientMsg =
   | { t: "lobby.nickname"; nickname: string } // your own name, in the lobby
   | { t: "lobby.private"; on: boolean } // host
   | { t: "lobby.order"; order: number[] } // host: a permutation of the person indexes
-  | { t: "crew.swap"; a: number; b: number } // host, during a reveal: person indexes
+  | { t: "crew.swap"; a: number; b: number } // host, during a reveal: person indexes, -1 - seat for a bot, or -4 - n for the nth spectator
   | { t: "lobby.setup"; setup: Setup } // your own real-life setup
   | { t: "lobby.start" } // host
-  | { t: "ready" }
+  | { t: "ready"; on?: boolean } // I'm ready; `on: false` takes it back while the reveal is up
   | { t: "vote.propose"; kind: VoteKind } // a player: restart the room, or the heist
   | { t: "vote.cast"; yes: boolean } // a player: answer the open vote
   | { t: "next" } // host, once a room is cleared: on to the next room
-  | { t: "host.choice"; choice: "bot" | "lobby" | "pull"; person?: number } // host, once a seat is empty: pull = pull in the sitting-out person at this index of `people`
+  | { t: "host.choice"; choice: "bot" | "lobby" | "pull"; person?: number } // host, once a seat is empty: pull = pull in the sitting-out person at this index of `people`, or the nth watcher as -4 - n
   | ({ t: "input" } & PlayerInput)
   | { t: "send"; msg: SendRequest }
   | { t: "spectate"; seat: Seat | null } // a watcher: follow this seat, or null for the whole room with no sound
@@ -73,6 +74,7 @@ export type ServerMsg =
       rooms: string[]; // the heist's room names in order, for the lobby's rotation table
       you: { seat: Seat | null; host: boolean; person: number | null }; // person: your index in lobby.people
     }
+  | { t: "gone"; nickname: string; how: "bot" | "seat" | "out" } // someone left a running game: a bot took their seat, the seat is empty, or they were sitting out
   | { t: "left" } // answers lobby.leave, so the page can navigate once the server has acted
   | { t: "error"; code: ErrorCode; message: string }
   | {
@@ -86,7 +88,9 @@ export type ServerMsg =
       sittingOut: string[]; // nicknames of the people not in this room's crew
       played: Record<string, Role[]>; // by nickname: the roles each person has played so far
       real: RealLife; // what this person's setup means for them in this room
+      cues: BriefingCue[]; // Can't see only: the sounds of this room to learn; empty for the others
     }
+  | { t: "ready"; seats: Seat[] } // the seats that pressed I'm ready (bots count): sent on every change, to players and watchers
   | { t: "view"; view: RoleView }
   | { t: "cleared"; room: string; ms: number; loot: number; lootTotal: number }
   | ({ t: "msg" } & ChannelMessage) // only ever sent to a seat whose role receives the method
@@ -173,8 +177,8 @@ export function parseClientMsg(raw: string): ClientMsg | null {
     case "crew.swap":
       return Number.isInteger(m.a) &&
         Number.isInteger(m.b) &&
-        (m.a as number) >= 0 &&
-        (m.b as number) >= 0
+        (m.a as number) >= -64 &&
+        (m.b as number) >= -64
         ? { t: "crew.swap", a: m.a as number, b: m.b as number }
         : null;
     case "lobby.setup": {
@@ -184,7 +188,8 @@ export function parseClientMsg(raw: string): ClientMsg | null {
     case "lobby.start":
       return { t: "lobby.start" };
     case "ready":
-      return { t: "ready" };
+      if (m.on === undefined) return { t: "ready" };
+      return typeof m.on === "boolean" ? { t: "ready", on: m.on } : null;
     case "vote.propose":
       return m.kind === "room" || m.kind === "heist" ? { t: "vote.propose", kind: m.kind } : null;
     case "vote.cast":
@@ -194,7 +199,9 @@ export function parseClientMsg(raw: string): ClientMsg | null {
     case "host.choice":
       if (m.choice === "bot" || m.choice === "lobby") return { t: "host.choice", choice: m.choice };
       if (m.choice === "pull") {
-        return Number.isInteger(m.person) && (m.person as number) >= 0
+        // a person (0 or more) or a watcher (-4 - n); -1 to -3 would be bots, who are never pulled in
+        return Number.isInteger(m.person) &&
+          ((m.person as number) >= 0 || ((m.person as number) <= -4 && (m.person as number) >= -64))
           ? { t: "host.choice", choice: "pull", person: m.person as number }
           : null;
       }

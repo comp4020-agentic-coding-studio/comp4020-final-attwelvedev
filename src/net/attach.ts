@@ -2,7 +2,8 @@ import type { IncomingMessage, Server } from "node:http";
 import type { Duplex } from "node:stream";
 import { type RawData, type WebSocket, WebSocketServer } from "ws";
 import { cleanText } from "../game/channels.ts";
-import { spectatorView } from "../game/perception.ts";
+import { cuesIn } from "../game/cues.ts";
+import { spectatorView, viewFor } from "../game/perception.ts";
 import type { Room } from "../game/rooms/format.ts";
 import { loadRooms } from "../game/rooms/load.ts";
 import { DEFAULT_SETUP } from "../game/setup.ts";
@@ -41,6 +42,7 @@ import {
   takeOverWithBot,
   takeOverWithPerson,
   tickGame,
+  unready,
   VOTE_MS,
   voters,
 } from "./game.ts";
@@ -53,6 +55,8 @@ import {
   LobbyError,
   type LobbyState,
   leaveLobby,
+  MAX_PEOPLE,
+  newPerson,
   openLobbies,
   reopenLobby,
   setConnected,
@@ -62,6 +66,7 @@ import {
   setSetup,
   setTeamName,
   startLobby,
+  uniqueNickname,
 } from "./lobbies.ts";
 import { type ClientMsg, parseClientMsg, type ServerMsg } from "./protocol.ts";
 import { type RealLife, realLifeFor } from "./realLife.ts";
@@ -178,6 +183,7 @@ function revealFor(lobby: LobbyState, running: Running, role: Role, who: string)
     ),
     played: Object.fromEntries(lobby.people.map((p) => [p.nickname, p.played])),
     real: realFor(lobby, running, who, role),
+    cues: role === "blind" ? cuesIn(game.world.room) : [],
   };
 }
 
@@ -201,6 +207,25 @@ function sendSpectatorReveal(code: string, who: string): void {
   hub.sendTo(who, revealFor(lobby, running, role, who));
 }
 
+// A person who left a seat a bot took, and has since chosen to watch, no longer has it to come back to.
+function dropClaim(game: Game, who: string): void {
+  for (const seat of [0, 1, 2] as const) if (game.vacated[seat] === who) delete game.vacated[seat];
+}
+
+// One view of the room for a single watcher, when the room is still held at its reveal (tick 0):
+// the next tick is only sent once everyone is ready, and until then their screen would be black.
+function sendWatcherView(code: string, who: string): void {
+  const running = games.get(code);
+  if (running?.game.world.tick !== 0) return;
+  const view = spectatorView(
+    running.game.world,
+    spectating.get(who) ?? null,
+    running.game.roles,
+    true,
+  );
+  hub.sendTo(who, { t: "view", view });
+}
+
 // The lobby first, so a page knows whether it has a seat before the reveal says which room.
 function announceRoom(code: string): void {
   const lobby = registry.lobbies.get(code);
@@ -208,6 +233,41 @@ function announceRoom(code: string): void {
   hub.broadcast(lobby);
   for (const seat of [0, 1, 2] as const) sendReveal(code, seat);
   for (const who of watchersOf(lobby)) sendSpectatorReveal(code, who);
+  sendReady(code);
+  sendRevealViews(code);
+}
+
+// Who is ready, to everyone in the reveal: players and the people watching it.
+function sendReady(code: string): void {
+  const lobby = registry.lobbies.get(code);
+  const running = games.get(code);
+  if (!lobby || !running) return;
+  const msg: ServerMsg = { t: "ready", seats: [...running.game.ready].sort() };
+  for (const who of [...humansOf(lobby), ...watchersOf(lobby)]) hub.sendTo(who, msg);
+}
+
+// One view of the room, as each seat would see it at tick 0, so the reveal can draw the room behind
+// the card (the first tick is only sent once everyone is ready). Never mid-game: a pulled-in person's
+// reveal comes with the room already running, and a view from tick 0 would look like a restart. The
+// map is in this view, so the first tick need not carry it again.
+function sendRevealViews(code: string): void {
+  const lobby = registry.lobbies.get(code);
+  const running = games.get(code);
+  if (!lobby || !running || running.game.world.tick !== 0) return;
+  const { game } = running;
+  for (const seat of [0, 1, 2] as const) {
+    const who = lobby.seats[seat]?.who;
+    if (who)
+      hub.sendTo(who, {
+        t: "view",
+        view: viewFor(game.world, seat, game.roles[seat] as Role, true),
+      });
+    running.full.delete(seat);
+  }
+  for (const watcher of watchersOf(lobby)) {
+    const view = spectatorView(game.world, spectating.get(watcher) ?? null, game.roles, true);
+    hub.sendTo(watcher, { t: "view", view });
+  }
 }
 
 // Ticks once all three are ready, and again after a restart of a cleared room.
@@ -353,7 +413,27 @@ function announcePause(code: string): void {
   const lobby = registry.lobbies.get(code);
   const msg = running && lobby ? pauseMsg(running.game, lobby) : null;
   if (!msg || !lobby) return;
-  for (const who of humansOf(lobby)) hub.sendTo(who, msg);
+  // the host chooses what takes an empty seat even when they are sitting out, so they are asked too
+  for (const who of new Set([...humansOf(lobby), lobby.host])) hub.sendTo(who, msg);
+}
+
+// Everyone still in the lobby is told when someone leaves a running game, and what became of their
+// seat, so a reveal or a watcher's screen never changes without saying why.
+function announceGone(lobby: LobbyState, nickname: string, how: "bot" | "seat" | "out"): void {
+  const msg: ServerMsg = { t: "gone", nickname, how };
+  for (const who of [...lobby.people.map((p) => p.who), ...lobby.spectators.map((s) => s.who)]) {
+    hub.sendTo(who, msg);
+  }
+}
+
+// A seat is empty and nobody has been asked about it: the host is asked. Used when the choice for
+// one empty seat is made and another is still waiting.
+function askNextEmpty(code: string): void {
+  const lobby = registry.lobbies.get(code);
+  const running = games.get(code);
+  if (!lobby || !running || running.game.paused) return;
+  const empty = lobby.seats.findIndex((s) => s.who === null && !s.bot);
+  if (empty >= 0) askHost(code, empty as Seat);
 }
 
 // --- a restart vote ---------------------------------------------------------
@@ -487,6 +567,7 @@ function botTakesSeat(code: string, seat: Seat, by: string | null, former: strin
   hub.broadcast(lobby);
   recheckVote(code); // the person who left may have been the one a vote was waiting for
   pauseIfAnyAbsent(code); // someone else may be away too
+  askNextEmpty(code); // and another seat may be empty with nobody asked yet
 }
 
 // A person's page is back in the game: if it was paused for them, it goes on; if it is paused
@@ -560,11 +641,20 @@ function departs(who: string): void {
   const seat = was ? seatOfDevice(was.code, who) : null;
   const at = was?.people.findIndex((p) => p.who === who) ?? -1;
   const name = was?.people.find((p) => p.who === who)?.nickname ?? null;
+  const hostBefore = was?.host;
   hub.change(who, () => leaveLobby(registry, who));
   spectating.delete(who);
   if (was) record("lobby.leave", who, was);
   const running = was ? games.get(was.code) : undefined;
   if (running && at >= 0) forgetPerson(running.game, at); // later people moved up a place
+  if (running && was && name && registry.lobbies.has(was.code)) {
+    announceGone(was, name, seat === null ? "out" : was.sittingOut.length === 0 ? "bot" : "seat");
+    if (seat === null) {
+      // who sits out is part of every reveal: tell them all again, so the leaver goes from the list
+      for (const s of [0, 1, 2] as const) sendReveal(was.code, s);
+      for (const watcher of watchersOf(was)) sendSpectatorReveal(was.code, watcher);
+    }
+  }
   if (running && was && seat !== null && registry.lobbies.has(was.code)) {
     if (was.sittingOut.length === 0) botTakesSeat(was.code, seat, null, who);
     else {
@@ -576,6 +666,17 @@ function departs(who: string): void {
       askHost(was.code, seat);
       for (const s of [0, 1, 2] as const) sendReveal(was.code, s);
     }
+  }
+  // The host may have just changed (they were the one who left): whoever is host now is asked the
+  // question that is waiting, even if they only watch.
+  if (
+    running &&
+    was &&
+    registry.lobbies.has(was.code) &&
+    was.host !== hostBefore &&
+    running.game.paused?.choosing
+  ) {
+    announcePause(was.code);
   }
 }
 
@@ -669,6 +770,8 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
             return;
           }
         } else {
+          // choosing to watch gives up the seat a bot took from this person: it is the bot's now
+          if (msg.as === "spectator" && running) dropClaim(running.game, who);
           change(who, () => joinLobby(registry, code, who, msg.nickname, msg.as));
         }
         record("lobby.join", who, lobbyOf(who), { kind: msg.as });
@@ -677,6 +780,7 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         // the next tick regardless, since tick() reads lobby.spectators fresh
         if (games.has(code) && (msg.as === "spectator" || lobbyOf(who)?.sittingOut.includes(who))) {
           sendSpectatorReveal(code, who);
+          sendWatcherView(code, who); // at a reveal nothing ticks, so the room is sent now, not drawn black
         }
         return;
       }
@@ -727,17 +831,31 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         const running = code ? games.get(code) : undefined;
         const seat = code ? seatOfDevice(code, who) : null;
         if (!code || !running || seat === null) return;
-        if (running.game.paused) {
+        // At a reveal, a person pulled in is waited for quietly: the others may still get ready (or take
+        // it back) meanwhile, since nothing is running that a Ready could disturb.
+        const quiet =
+          running.game.paused?.forReady === true &&
+          running.game.paused.seat !== seat &&
+          running.game.counted < running.game.roomIndex;
+        if (running.game.paused && !quiet) {
           // the one pulled in pressing Ready is what the game was held for; anyone else's is not asked for
           const lobby = registry.lobbies.get(code);
           if (lobby && readyAgain(running.game, seat)) {
             for (const person of humansOf(lobby)) {
               hub.sendTo(person, { t: "resume", back: lobby.seats[seat]?.nickname ?? "A player" });
             }
+            sendReady(code);
+            runIfReady(code, running); // at a reveal, theirs may have been the last Ready
+            askNextEmpty(code); // another seat may still be empty
           }
           return;
         }
+        if (msg.on === false) {
+          if (unready(running.game, seat)) sendReady(code);
+          return;
+        }
         running.game.ready.add(seat);
+        sendReady(code);
         runIfReady(code, running);
         return;
       }
@@ -794,10 +912,34 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         if (lobby.host !== who) throw new LobbyError("not-host", "Only the host can do that.");
         // only while a reveal is up: the room has not started ticking, and is not a cleared one
         const { game } = running;
-        const known = (i: number) => i < lobby.people.length;
         if (game.counted >= game.roomIndex || game.world.status !== "playing") return;
-        if (!known(msg.a) || !known(msg.b)) return;
-        swapPeople(game, lobby, msg.a, msg.b);
+        // -1 - seat is a bot; -4 - n is the nth spectator, who becomes a person of the lobby when swapped in
+        const valid = (ref: number) =>
+          ref >= 0
+            ? ref < lobby.people.length
+            : ref >= -3 || lobby.spectators[-4 - ref] !== undefined;
+        if (!valid(msg.a) || !valid(msg.b)) return;
+        // a swap needs a seat to hand over: a player or a bot in it. Two people who are both not playing
+        // (a watcher and someone sitting out, or two watchers) have none, and nobody is moved.
+        const seated = (ref: number) =>
+          ref >= 0
+            ? game.crew.people.includes(ref)
+            : ref >= -3 && game.crew.people[-1 - ref] === null;
+        if (!seated(msg.a) && !seated(msg.b)) return;
+        if ((msg.a < -3 || msg.b < -3) && lobby.people.length >= MAX_PEOPLE) return;
+        const person = (ref: number): number => {
+          if (ref >= -3) return ref;
+          const watcher = lobby.spectators[-4 - ref] as { who: string; nickname: string };
+          lobby.spectators = lobby.spectators.filter((s) => s.who !== watcher.who);
+          dropClaim(game, watcher.who);
+          const nickname = uniqueNickname(lobby.people, watcher.nickname);
+          lobby.people.push(newPerson(watcher.who, nickname));
+          return lobby.people.length - 1;
+        };
+        const first = person(msg.a);
+        const second = person(msg.b);
+        swapPeople(game, lobby, first, second);
+        hub.broadcast(lobby);
         running.full = new Set([0, 1, 2]);
         announceRoom(code);
         record("crew.swap", who, lobby);
@@ -815,8 +957,20 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
           return;
         }
         if (msg.choice === "pull") {
-          const person = msg.person ?? -1;
-          if (!takeOverWithPerson(running.game, lobby, paused.seat, person)) return; // not someone sitting out
+          let person = msg.person ?? -1;
+          const watcher = person <= -4 ? lobby.spectators[-4 - person] : undefined;
+          if (person <= -4) {
+            // a watcher: they join the lobby's people, then take the seat like someone sitting out
+            if (!watcher || lobby.people.length >= MAX_PEOPLE) return;
+            lobby.spectators = lobby.spectators.filter((s) => s.who !== watcher.who);
+            dropClaim(running.game, watcher.who);
+            lobby.people.push(
+              newPerson(watcher.who, uniqueNickname(lobby.people, watcher.nickname)),
+            );
+            person = lobby.people.length - 1;
+            lobby.sittingOut.push(watcher.who);
+          }
+          if (!takeOverWithPerson(running.game, lobby, paused.seat, person)) return; // not someone free
           if (running.pauseTimer) clearTimeout(running.pauseTimer);
           running.pauseTimer = null;
           record("host.pull", who, lobby);
@@ -835,6 +989,12 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         if (!code || !lobby || !watchersOf(lobby).includes(who)) return;
         spectating.set(who, msg.seat); // null: the whole room, with no sound
         sendSpectatorReveal(code, who); // the newly followed seat's role
+        // at a reveal nothing ticks, so the choice would show nothing until the room started
+        const held = games.get(code);
+        if (held && held.game.world.tick === 0) {
+          const view = spectatorView(held.game.world, msg.seat, held.game.roles, true);
+          hub.sendTo(who, { t: "view", view });
+        }
         return;
       }
       case "spec.say": {
@@ -1000,6 +1160,7 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
   const resumed = code ? games.get(code) : undefined;
   if (code && seat === null && resumed && registry.lobbies.get(code)?.sittingOut.includes(who)) {
     sendSpectatorReveal(code, who); // a page reloaded while sitting this room out
+    sendWatcherView(code, who);
   }
   if (code && seat !== null && resumed) {
     // The new page counts its inputs from 1, so the old input (and its seq) must

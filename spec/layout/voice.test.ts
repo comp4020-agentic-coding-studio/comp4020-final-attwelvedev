@@ -218,3 +218,23 @@ describe("voice: toggle mode", () => {
     await deaf.getByText("Mic live").waitFor({ state: "detached", timeout: 1000 });
   });
 });
+
+describe("voice: the mic switch when the whole crew sits together", () => {
+  let browser: Browser;
+  let table: Table;
+  beforeAll(async () => {
+    browser = await launch(FAKE_MIC);
+    table = await playRoom(browser, baseUrl); // each person is remote, so voice is on
+  }, HOOK_MS);
+  afterAll(async () => {
+    for (const page of table?.pages ?? []) await leaveGameAndClose(page, baseUrl);
+    await browser?.close();
+  }, HOOK_MS);
+
+  it("is enabled in a room that has voice", async () => {
+    const { deaf } = table.byRole;
+    await deaf.getByRole("button", { name: "Settings" }).click();
+    expect(await deaf.getByLabel("Press V to turn the mic on and off").isDisabled()).toBe(false);
+    expect(await deaf.getByText(/Voice is off in this room/).count()).toBe(0);
+  });
+});

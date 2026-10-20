@@ -7,7 +7,15 @@ import type { RoleView } from "../src/game/perception.ts";
 import type { Seat } from "../src/game/types.ts";
 import { clearTinyRoom } from "./heistPlay.ts";
 import { text } from "./http.ts";
-import { FIVE, type Five, type Player, type RevealMsg, startedFive } from "./play.ts";
+import {
+  FIVE,
+  type Five,
+  nextTick,
+  noTick,
+  type Player,
+  type RevealMsg,
+  startedFive,
+} from "./play.ts";
 import type { Socket } from "./ws.ts";
 
 const baseUrl = inject("baseUrl");
@@ -58,19 +66,19 @@ describe("a lobby of five", () => {
 
     // the third pressing Ready would have started the room if the other two still counted
     sendReady(table, [2]);
-    await noMessage(table.sockets[2] as Socket, "view");
+    await noTick(table.sockets[2] as Socket);
     sendReady(table, [0, 1, 2]);
-    await (table.sockets[2] as Socket).next("view", 3000);
+    await nextTick(table.sockets[2] as Socket, 3000);
     await closeTable(table);
   });
 
   it("a swap after Ready has started the room is refused", async () => {
     const { table } = await startedFiveHere(baseUrl);
     sendReady(table, [0, 1, 2]);
-    await (table.sockets[0] as Socket).next("view", 3000);
+    await nextTick(table.sockets[0] as Socket, 3000);
     table.sockets[0]?.send({ t: "crew.swap", a: 0, b: 2 });
     await noMessage(table.sockets[0] as Socket, "reveal");
-    await (table.sockets[0] as Socket).next("view", 3000); // and the room is still running
+    await nextTick(table.sockets[0] as Socket, 3000); // and the room is still running
     await closeTable(table);
   });
 

@@ -44,18 +44,25 @@ describe("the lobby's people", () => {
   it("the host's private toggle hides the lobby from a watcher's open list", async () => {
     const { host, guests, code } = await lobbyOf(["Ana"]);
     const watcher = await openPage(browser, baseUrl, DESKTOP);
-    const open = watcher.locator("#open-list");
-    await open.getByRole("button", { name: /Join/ }).first().waitFor({ timeout: 3000 });
-    const team = host.getByLabel("Team name");
-    const name = await team.inputValue();
-    expect(await open.getByText(name).count()).toBe(1);
+    const name = await host.getByLabel("Team name").inputValue();
+    // Other spec files add and drop lobbies on this server, and the list shows four teams until
+    // "Show all": so wait for this lobby's own row, opening the list when it is cut off, and never
+    // for "some Join button" or a count read earlier.
+    const listed = () =>
+      watcher.evaluate(async (team) => {
+        const more = [
+          ...document.querySelectorAll<HTMLButtonElement>("#open-list ~ .list-more"),
+        ].find((b) => /^Show all/.test(b.textContent ?? ""));
+        more?.click();
+        await new Promise((r) => setTimeout(r, 50));
+        return [...document.querySelectorAll("#open-list .team")].some(
+          (el) => el.textContent === team,
+        );
+      }, name);
+    await expect.poll(listed, { timeout: 5000 }).toBe(true);
     await host.getByRole("switch", { name: "Private" }).click();
     await host.getByText("Hidden from open lobbies. Only people with the code can join.").waitFor();
-    await watcher.waitForFunction(
-      (n) => !document.querySelector("#open-list")?.textContent?.includes(n),
-      name,
-      { timeout: 3000 },
-    );
+    await expect.poll(listed, { timeout: 5000 }).toBe(false);
     // its code still joins
     const guest = await joinWithCode(browser, baseUrl, code, "Bo", DESKTOP);
     await row(host, "Bo").waitFor({ timeout: 3000 });
@@ -206,7 +213,7 @@ describe("preferences", () => {
     expect(await page.getByLabel("Earplugs or earmuffs").isChecked()).toBe(true);
 
     await page.getByLabel("Always show captions").check();
-    await page.context().close();
+    await leaveAndClose(page); // this one made a lobby: closing the tab would only hold its seat
   });
 
   it("the Preferences sheet edits setup inside the lobby, and the others see it", async () => {

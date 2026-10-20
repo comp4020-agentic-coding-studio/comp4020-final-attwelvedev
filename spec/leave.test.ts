@@ -3,14 +3,16 @@ import type { RoleView } from "../src/game/perception.ts";
 import {
   byRole,
   closeAll,
+  nextTick,
   nextView,
+  noTick,
   type Player,
   type RevealMsg,
   ready,
   startedFive,
   startedGame,
 } from "./play.ts";
-import { connect } from "./ws.ts";
+import { connect, type Socket } from "./ws.ts";
 
 const baseUrl = inject("baseUrl");
 
@@ -402,7 +404,7 @@ describe("a person leaves while others sit out", () => {
       (typeof five.sockets)[number],
     ];
     for (const s of [host, bo, cy]) s.send({ t: "ready" });
-    await host.next("view", 3000);
+    await nextTick(host, 3000);
     const boRole = five.reveals[1]?.role;
     bo.send({ t: "lobby.leave" });
     await host.next<PauseMsg>("pause", 3000);
@@ -416,12 +418,12 @@ describe("a person leaves while others sit out", () => {
     // the others are told to wait for them: the game is held until Di is ready
     const hold = await host.next<PauseMsg>("pause", 3000);
     expect(hold).toMatchObject({ waitingFor: "Di", choosing: false, forReady: true });
-    await expect(host.next("view", 700)).rejects.toThrow(/no "view"/);
+    await noTick(host, 700);
 
     di.send({ t: "ready" });
     expect((await host.next<{ t: "resume" }>("resume", 3000)).t).toBe("resume");
-    await host.next("view", 3000); // and it ticks again
-    await ed.next("view", 3000); // the one still sitting out is still watching
+    await nextTick(host, 3000); // and it ticks again
+    await nextTick(ed, 3000); // the one still sitting out is still watching
     await closeAll(five.sockets.map((socket) => ({ socket }) as Player));
     void cy;
   });
@@ -445,6 +447,216 @@ describe("a person leaves while others sit out", () => {
     host.send({ t: "host.choice", choice: "bot" }); // a bot is still a choice
     let lobby = await host.next<LobbyMsg>("lobby", 3000);
     while (!lobby.lobby.seats.some((x) => x.bot)) lobby = await host.next<LobbyMsg>("lobby", 3000);
+    await closeAll(five.sockets.map((socket) => ({ socket }) as Player));
+  });
+});
+
+// During the reveal, everyone is told who leaves, and when every player has gone the person who is
+// host by then (someone sitting out, watching) is asked what takes the empty seats.
+describe("players leave during the reveal", () => {
+  interface PauseMsg {
+    t: "pause";
+    waitingFor: string;
+    choosing: boolean;
+  }
+  interface GoneMsg {
+    t: "gone";
+    nickname: string;
+    how: "bot" | "seat" | "out";
+  }
+  interface HostLobby {
+    lobby: { phase: string; host: string };
+    you: { host: boolean };
+  }
+
+  it("tells everyone who left and what happened to their seat", async () => {
+    const five = await startedFive(baseUrl);
+    const [, bo, , di] = five.sockets as [Socket, Socket, Socket, Socket, Socket];
+    bo.send({ t: "lobby.leave" });
+    expect(await di.next<GoneMsg>("gone", 3000)).toEqual({
+      t: "gone",
+      nickname: "Bo",
+      how: "seat", // two are sitting out, so the host chooses
+    });
+    await closeAll(five.sockets.map((socket) => ({ socket }) as Player));
+  });
+
+  it("a bot taking the seat is said too, with nobody sitting out", async () => {
+    const { players } = await startedGame(baseUrl);
+    const [host, , third] = players as [Player, Player, Player];
+    third.socket.send({ t: "lobby.leave" });
+    expect(await host.socket.next<GoneMsg>("gone", 3000)).toMatchObject({
+      nickname: "Cy",
+      how: "bot",
+    });
+    await closeAll([host]);
+  });
+
+  it("when every player leaves, the next host (sitting out) is asked what takes the seats, and can go back to the lobby", async () => {
+    const five = await startedFive(baseUrl);
+    const [ana, bo, cy, di, ed] = five.sockets as [Socket, Socket, Socket, Socket, Socket];
+    for (const leaver of [ana, bo, cy]) leaver.send({ t: "lobby.leave" });
+    // Di is host now: the choice is theirs, though they only watch
+    const ask = await di.next<PauseMsg>("pause", 3000);
+    expect(ask.choosing).toBe(true);
+    let latest = await di.next<HostLobby>("lobby", 3000);
+    while (!latest.you.host) latest = await di.next<HostLobby>("lobby", 3000);
+    expect(latest.you.host).toBe(true);
+    // someone watching who is not the host is told who left, and has no choice to make
+    expect((await ed.next<GoneMsg>("gone", 3000)).how).toBe("seat");
+
+    di.send({ t: "host.choice", choice: "lobby" });
+    let after = await ed.next<HostLobby>("lobby", 3000);
+    while (after.lobby.phase !== "open") after = await ed.next<HostLobby>("lobby", 3000);
+    expect(after.lobby.phase).toBe("open");
+    await closeAll(five.sockets.map((socket) => ({ socket }) as Player));
+  });
+
+  it("each empty seat is asked about in turn, so the game is never left waiting for a seat nobody can fill", async () => {
+    const five = await startedFive(baseUrl);
+    const [ana, bo, cy] = five.sockets as [Socket, Socket, Socket, Socket, Socket];
+    ana.send({ t: "lobby.leave" });
+    bo.send({ t: "lobby.leave" });
+    // Cy still plays, and is host once Ana and Bo have gone
+    await cy.next<PauseMsg>("pause", 3000);
+    let latest = await cy.next<HostLobby>("lobby", 3000);
+    while (!latest.you.host) latest = await cy.next<HostLobby>("lobby", 3000);
+    cy.send({ t: "host.choice", choice: "bot" });
+    // the second empty seat is asked about straight after
+    const second = await cy.next<PauseMsg>("pause", 3000);
+    expect(second.choosing).toBe(true);
+    await closeAll(five.sockets.map((socket) => ({ socket }) as Player));
+  });
+});
+
+describe("someone who left does not come back to a seat a bot took", () => {
+  it("a page of the same device that joins again as a player is not given the bot's seat once it watches", async () => {
+    const five = await startedFive(baseUrl);
+    const [ana, bo] = five.sockets as [Socket, Socket, Socket, Socket, Socket];
+    bo.send({ t: "lobby.leave" });
+    await ana.next("pause", 3000);
+    const win = await connect(baseUrl, five.cookies[1] as string);
+    win.send({ t: "lobby.join", code: five.code, nickname: "Bo", as: "spectator" });
+    await win.next("lobby");
+    ana.send({ t: "host.choice", choice: "bot" });
+    type L = { lobby: { seats: { bot: boolean }[] } };
+    let lobby = await ana.next<L>("lobby", 3000);
+    while (!lobby.lobby.seats[1]?.bot) lobby = await ana.next<L>("lobby", 3000);
+    // the same page asking to join again as a player (what a reload does) must not take the seat back
+    win.send({ t: "lobby.join", code: five.code, nickname: "Bo", as: "player" });
+    await new Promise((r) => setTimeout(r, 800));
+    let latest = lobby;
+    for (;;) {
+      try {
+        latest = await ana.next<L>("lobby", 500);
+      } catch {
+        break;
+      }
+    }
+    expect(latest.lobby.seats[1]?.bot).toBe(true);
+    await closeAll(five.sockets.map((socket) => ({ socket }) as Player));
+    await win.close();
+  });
+
+  it("a person swapped in from watching no longer has a seat waiting for them to come back", async () => {
+    const five = await startedFive(baseUrl);
+    const [ana, bo] = five.sockets as [Socket, Socket, Socket, Socket, Socket];
+    bo.send({ t: "lobby.leave" });
+    await ana.next("pause", 3000);
+    ana.send({ t: "host.choice", choice: "bot" });
+    const win = await connect(baseUrl, five.cookies[1] as string);
+    win.send({ t: "lobby.join", code: five.code, nickname: "Bo", as: "spectator" });
+    await win.next("lobby");
+    ana.send({ t: "crew.swap", a: -4, b: -2 }); // Bo, swapped into the bot's seat (seat 1)
+    type L = { lobby: { seats: { bot: boolean; nickname: string | null }[] } };
+    let lobby = await ana.next<L>("lobby", 3000);
+    while (lobby.lobby.seats[1]?.nickname !== "Bo") lobby = await ana.next<L>("lobby", 3000);
+    expect(lobby.lobby.seats[1]?.nickname).toBe("Bo");
+    await closeAll(five.sockets.map((socket) => ({ socket }) as Player));
+    await win.close();
+  });
+});
+
+describe("a seat a bot took from someone whose connection dropped", () => {
+  type L = { lobby: { seats: { bot: boolean; nickname: string | null }[]; spectators: unknown[] } };
+  const lobbyWhere = async (s: Socket, ok: (l: L) => boolean) => {
+    let l = await s.next<L>("lobby", 3000);
+    while (!ok(l)) l = await s.next<L>("lobby", 3000);
+    return l;
+  };
+
+  it("can be swapped with a watcher or a sitting-out person like any bot, and the person who dropped does not return to it", async () => {
+    const five = await startedFive(baseUrl);
+    const [ana, bo, , di] = five.sockets as [Socket, Socket, Socket, Socket, Socket];
+    await bo.drop();
+    type P = { choosing: boolean };
+    let ask = await ana.next<P>("pause", 8000);
+    while (!ask.choosing) ask = await ana.next<P>("pause", 8000);
+    ana.send({ t: "host.choice", choice: "bot" });
+    await lobbyWhere(ana, (l) => l.lobby.seats[1]?.bot === true);
+
+    const res = await fetch(new URL("/", baseUrl));
+    const wes = await connect(baseUrl, res.headers.getSetCookie()[0]?.split(";")[0] ?? "");
+    wes.send({ t: "lobby.join", code: five.code, nickname: "Wes", as: "spectator" });
+    await wes.next("lobby");
+    await lobbyWhere(ana, (l) => l.lobby.spectators.length === 1); // the host sees Wes watching
+    ana.send({ t: "crew.swap", a: -4, b: -2 }); // the watcher, and the bot in seat 1
+    const swapped = await lobbyWhere(ana, (l) => l.lobby.seats[1]?.nickname === "Wes");
+    expect(swapped.lobby.seats[1]?.bot).toBe(false);
+    expect(swapped.lobby.spectators).toHaveLength(0);
+
+    ana.send({ t: "crew.swap", a: 3, b: 5 }); // Di (sitting out) and Wes, who is person 5 now
+    await lobbyWhere(ana, (l) => l.lobby.seats[1]?.nickname === "Di");
+    await closeAll(five.sockets.map((socket) => ({ socket }) as Player));
+    await wes.close();
+    void di;
+  });
+});
+
+describe("the host fills an empty seat from the watchers", () => {
+  it("pulls a watcher in, who becomes a player with the leaver's role and must press Ready", async () => {
+    const five = await startedFive(baseUrl);
+    const [ana, bo, cy] = five.sockets as [Socket, Socket, Socket, Socket, Socket];
+    for (const s of [ana, bo, cy]) s.send({ t: "ready" });
+    await nextTick(ana, 3000);
+    const res = await fetch(new URL("/", baseUrl));
+    const wes = await connect(baseUrl, res.headers.getSetCookie()[0]?.split(";")[0] ?? "");
+    wes.send({ t: "lobby.join", code: five.code, nickname: "Wes", as: "spectator" });
+    await wes.next("lobby");
+    const boRole = five.reveals[1]?.role;
+    bo.send({ t: "lobby.leave" });
+    await ana.next("pause", 3000);
+    ana.send({ t: "host.choice", choice: "pull", person: -4 }); // the first watcher
+    type R = { role: string; crew: { nickname: string }[] };
+    let reveal = await wes.next<R>("reveal", 3000);
+    while (!reveal.crew.some((c) => c.nickname === "Wes"))
+      reveal = await wes.next<R>("reveal", 3000);
+    expect(reveal.role).toBe(boRole);
+    expect(reveal.crew.map((c) => c.nickname)).toEqual(["Ana", "Wes", "Cy"]);
+    wes.send({ t: "ready" });
+    expect((await ana.next<{ t: string }>("resume", 3000)).t).toBe("resume");
+    await nextTick(ana, 3000);
+    await closeAll(five.sockets.map((socket) => ({ socket }) as Player));
+    await wes.close();
+  });
+
+  it("is refused for a watcher who is not there, or when the lobby is full", async () => {
+    const five = await startedFive(baseUrl);
+    const [ana, bo, cy] = five.sockets as [Socket, Socket, Socket, Socket, Socket];
+    for (const s of [ana, bo, cy]) s.send({ t: "ready" });
+    await nextTick(ana, 3000);
+    bo.send({ t: "lobby.leave" });
+    await ana.next("pause", 3000);
+    // drain what Bo leaving sent (the crew, again, with a gap in it), so only a reaction is read below
+    for (;;) {
+      try {
+        await ana.next("reveal", 400);
+      } catch {
+        break;
+      }
+    }
+    ana.send({ t: "host.choice", choice: "pull", person: -4 }); // nobody is watching
+    await expect(ana.next("reveal", 700)).rejects.toThrow(/no "reveal"/);
     await closeAll(five.sockets.map((socket) => ({ socket }) as Player));
   });
 });
