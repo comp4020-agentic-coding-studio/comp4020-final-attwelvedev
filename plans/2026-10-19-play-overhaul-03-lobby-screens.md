@@ -472,11 +472,13 @@ Built and verified on a local build; human review accepted by the user 2026-10-2
 
 ### Found, out of scope, not fixed
 
-- **`spec/layout/reveal.test.ts` "the person the host pulls in can still press I'm ready" is
-  flaky, and not because of Task 12.** It failed 3 of 3 alone on clean builds of `3c6e8aa` and
-  `635fd25` (no Task 12 code), yet passed in one later full run and failed in another, so it
-  depends on timing (line 459 expects no `alertdialog` for Ana right after she pulls Di in).
-  Needs a wait-for-the-thing fix in its own change.
+- **`spec/layout/reveal.test.ts` "the person the host pulls in can still press I'm ready" failed
+  3 of 3 alone on clean builds of `3c6e8aa` and `635fd25` (no Task 12 code) on 2026-10-20 around
+  17:00, then passed 4 of 4 on the final tree, 5 of 5 more, 6 of 6 under four CPU hogs, 2 of 2 as
+  a whole file, and 3 of 3 on a rebuilt `635fd25`, the commit that had failed. Cause not found, so
+  nothing was changed. Unproven suspicion: the spec asserts "no alertdialog on Ana" at the instant
+  Di's `.reveal` appears, before Ana has necessarily received the message clearing the pause;
+  if it flakes again, capture the dialog text (`allInnerTexts()`) at that line before editing.
 - Full `pnpm check` runs on this machine fail 2 to 7 timing-sensitive specs that differ each run
   (`lobby-people`, `home`, `lobby`, `wheel`, `voice` hooks, `attract`) and pass alone 3 of 3; the
   server also reached its 40-lobby cap (21 `lobby-full`). The last run: 1269 of 1274 passed.
