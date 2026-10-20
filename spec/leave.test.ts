@@ -586,7 +586,7 @@ describe("a seat a bot took from someone whose connection dropped", () => {
   };
 
   // SKIPPED 2026-10-21: failed in CI attempts 1 and 3 on PR #1 ("no pause message within 8000 ms"); cause not found. See PROCESS_LOG.md.
-  it.skip(can be swapped with a watcher or a sitting-out person like any bot, and the person who dropped does not return to it", async () => {
+  it.skip("can be swapped with a watcher or a sitting-out person like any bot, and the person who dropped does not return to it", async () => {
     const five = await startedFive(baseUrl);
     const [ana, bo, , di] = five.sockets as [Socket, Socket, Socket, Socket, Socket];
     await bo.drop();
