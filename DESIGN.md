@@ -123,13 +123,14 @@ a symbol into copy; it would fall back to another font and look wrong.
 - Glass is translucent and a vent is opaque and slatted; both are solid to bodies. Doors slide into the floor (an open one is a dashed slot). Plates sink 3 px when pressed. Loot is a gem that bobs. Marks are upright signposts.
 - Lasers run at 0.6 of a tile with a floor shadow (off is dotted); a camera or guard's sight is a hatched cone on the floor when watching.
 
-### 4.2 Figures (static look built in Task 18; motion planned, Task 19)
+### 4.2 Figures (built, Tasks 18 and 19)
 
-- A pill body in the role colour, a 2 px outline, a face disc, a floor shadow. built. The eyes leaning toward the facing: planned (Task 19)
-- **The hat is the role's shape**: dome (circle), box (square), cone (triangle). The shape is therefore on the figure, not only in the colour. planned (Task 19)
-- Your own avatar has a floor ring and a "You" chevron. built. A bot's antenna: planned (Task 19)
-- Moving: a small hop and dust every quarter second. Blocked: a squash toward the facing. Pushing a crate: a lean. Reduced motion keeps facing only. planned (Task 19)
-- Can't see's own screen is black with their dimmed figure centred, facing and hopping as they move. planned (Task 19)
+- A pill body in the role colour, a 2 px outline, a face disc whose eyes lean toward the facing, a floor shadow.
+- **The hat is the role's shape**: dome (circle), box (square), cone (triangle), sitting on the crown. The shape is therefore on the figure, not only in the colour.
+- Your own avatar has a floor ring and a "You" chevron; a bot has an antenna.
+- **Moving:** a hop of about 2 px at 2.5 Hz and a puff of dust every quarter second. **Blocked** against a wall: a 10 % squash toward the facing. **Pushing a crate** (blocked with a crate in line ahead): an 8° lean. **Reduced motion keeps facing only**: no hop, squash, lean or dust, and a frame with no clock is byte-stable.
+- Your own figure turns the moment a key goes down and reads moving and blocked off the predicted position, so it is never a round trip behind. Other players' poses come from the view (`moving`, `blocked`, `facing`).
+- **Can't see's own screen** is black with their dimmed (40 %) figure centred, facing the way they push, hopping while they walk and squashing when blocked. The server sends that seat only `you.motion`, which is no more than the footsteps and bump it already hears.
 
 ### 4.3 Hazards and objects (built, Task 18)
 
@@ -158,7 +159,7 @@ planned (Task 22)
 
 The viewport has a 4 px border in the role's colour and the role's shape notched
 into its top-left corner, readable from a distance. The Can't-see viewport is
-`--ink` with a dim ring at the centre until the new figure (Task 19) replaces it.
+`--ink` with their own figure at the centre (see 4.2); the dim ring is only for a feed that has no figure to show.
 
 ## Components
 

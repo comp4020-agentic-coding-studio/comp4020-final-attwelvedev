@@ -71,6 +71,8 @@ export interface EntityView {
   seat?: Seat;
   role?: Role;
   facing?: Vec;
+  moving?: boolean; // a player: walked this tick
+  blocked?: boolean; // a player: holding a direction against a wall, door or crate
 }
 
 export interface SoundCue {
@@ -112,7 +114,9 @@ export interface RoleView {
   room: string;
   role: Role;
   full: boolean; // true when tiles are included
-  you: { seat: Seat; pos?: Vec };
+  // motion: this seat's own walking and pushing, sent to every role (Can't see hears both already, so
+  // it learns nothing it can't perceive). It reads only this seat's state, never another player's.
+  you: { seat: Seat; pos?: Vec; motion?: { moving: boolean; blocked: boolean } };
   tiles?: string[];
   // The tiles in your line of sight, one string per row ("y:x0-x1,x2-x3"), for the sighted
   // only: the client draws mist outside them. Absent for Can't see.
@@ -149,13 +153,22 @@ const round = (n: number): number => Math.round(n * 1000) / 1000;
 const rounded = (v: Vec): Vec => ({ x: round(v.x), y: round(v.y) });
 const centre = (t: Vec): Vec => ({ x: t.x + 0.5, y: t.y + 0.5 });
 
+// A seat's own movement, from its own state only.
+function motionOf(world: World, seat: Seat): { moving: boolean; blocked: boolean } {
+  const p = world.players[seat];
+  return { moving: p.moving, blocked: p.blocked };
+}
+
 // What a seeing role is shown: the three players, then every object whose
 // `visibleTo` lists the role. Doors and exits are one entity per tile.
 function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
   const out: EntityView[] = world.players.map((p) => {
     const e: EntityView = { id: `P${p.seat}`, kind: "player", pos: rounded(p.pos), seat: p.seat };
     if (p.seat === seat) e.role = role;
-    if (p.moving) e.facing = { x: round(p.facing.x), y: round(p.facing.y) };
+    // facing is sent while still too: a figure keeps the way it last turned
+    e.facing = { x: round(p.facing.x), y: round(p.facing.y) };
+    e.moving = p.moving;
+    e.blocked = p.blocked;
     if (p.hidden) e.state = "hidden";
     return e;
   });
@@ -493,7 +506,7 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
     room: world.room.id,
     role,
     full,
-    you: { seat },
+    you: { seat, motion: motionOf(world, seat) },
     entities: [],
     sounds: [],
     status: world.status,

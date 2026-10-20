@@ -184,6 +184,60 @@ describe("viewFor: what each role is told", () => {
   });
 });
 
+describe("viewFor: movement cues (FR31)", () => {
+  it("tells every role, blind included, whether its own seat is moving or blocked", () => {
+    for (const role of ["blind", "deaf", "mute"] as const) {
+      const w = world();
+      expect(viewFor(w, 0, role, false).you.motion).toEqual({ moving: false, blocked: false });
+      w.players[0].moving = true;
+      expect(viewFor(w, 0, role, false).you.motion).toEqual({ moving: true, blocked: false });
+      w.players[0].blocked = true;
+      expect(viewFor(w, 0, role, false).you.motion).toEqual({ moving: true, blocked: true });
+    }
+  });
+
+  it("gives the blind seat nothing else new: still no tiles, entities or position", () => {
+    const w = world();
+    w.players[0].moving = true;
+    const view = viewFor(w, 0, "blind", true);
+    expect(view.tiles).toBeUndefined();
+    expect(view.entities).toEqual([]);
+    expect(view.you).toEqual({ seat: 0, motion: { moving: true, blocked: false } });
+  });
+
+  it("reads only this seat's own state: another player's walking is not in your motion", () => {
+    const w = world();
+    w.players[1].moving = true;
+    w.players[1].blocked = true;
+    expect(viewFor(w, 0, "blind", false).you.motion).toEqual({ moving: false, blocked: false });
+  });
+
+  it("puts moving, blocked and facing on every player in a sighted view, still or not", () => {
+    const w = world();
+    gather(w, { x: 5, y: 2 });
+    w.players[1].facing = { x: 0, y: -1 };
+    w.players[2].moving = true;
+    w.players[2].blocked = true;
+    w.players[2].facing = { x: -1, y: 0 };
+    for (const role of ["deaf", "mute"] as const) {
+      const players = viewFor(w, 0, role, false).entities.filter((e) => e.kind === "player");
+      const by = (seat: number) => players.find((e) => e.seat === seat);
+      expect(by(1)).toMatchObject({ moving: false, blocked: false, facing: { x: 0, y: -1 } });
+      expect(by(2)).toMatchObject({ moving: true, blocked: true, facing: { x: -1, y: 0 } });
+    }
+  });
+
+  it("sends the same to a watcher", () => {
+    const w = world();
+    gather(w, { x: 5, y: 2 });
+    w.players[1].moving = true;
+    const me = spectatorView(w, 0, ["blind", "deaf", "mute"], false).entities.find(
+      (e) => e.kind === "player" && e.seat === 1,
+    );
+    expect(me).toMatchObject({ moving: true, blocked: false });
+  });
+});
+
 describe("viewFor: hazards", () => {
   const GRID = [
     "########################",

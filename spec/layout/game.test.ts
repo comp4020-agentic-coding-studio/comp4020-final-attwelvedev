@@ -55,6 +55,40 @@ describe("the game screen", () => {
     for (const page of table.pages) await leaveGameAndClose(page, baseUrl);
   });
 
+  it("draws Can't see's own figure, black around it, and it moves when they walk", async () => {
+    const table = await playRoom(browser, baseUrl);
+    const blind = table.byRole.blind;
+    const canvas = blind.locator(".frame canvas");
+    // the picture, apart from the black: how many pixels are not
+    const lit = () =>
+      canvas.evaluate((el) => {
+        const c = el as HTMLCanvasElement;
+        const d = c.getContext("2d")?.getImageData(0, 0, c.width, c.height).data;
+        let n = 0;
+        for (let i = 0; d && i < d.length; i += 4)
+          if ((d[i] ?? 0) + (d[i + 1] ?? 0) + (d[i + 2] ?? 0) > 30) n++;
+        return n;
+      });
+    const walls = await blind.evaluate(() => 0);
+    expect(walls).toBe(0);
+    await expect.poll(lit, { timeout: 3000 }).toBeGreaterThan(200); // a figure, not a bare ring
+    const total = await canvas.evaluate(
+      (el) => (el as HTMLCanvasElement).width * (el as HTMLCanvasElement).height,
+    );
+    expect(await lit()).toBeLessThan(total * 0.1); // and black everywhere else
+    // walking changes the picture: it hops
+    await blind.emulateMedia({ reducedMotion: "no-preference" });
+    await blind.keyboard.down("d");
+    const seen = new Set<string>();
+    for (let i = 0; i < 12; i++) {
+      seen.add(await canvas.evaluate((el) => (el as HTMLCanvasElement).toDataURL()));
+      await blind.waitForTimeout(40);
+    }
+    await blind.keyboard.up("d");
+    expect(seen.size, "a hopping figure is not one still frame").toBeGreaterThan(1);
+    for (const page of table.pages) await leaveGameAndClose(page, baseUrl);
+  });
+
   it("has no overflow and no axe violations on the HUD at phone and desktop widths", async () => {
     const table = await playRoom(browser, baseUrl);
     for (const page of table.pages) {

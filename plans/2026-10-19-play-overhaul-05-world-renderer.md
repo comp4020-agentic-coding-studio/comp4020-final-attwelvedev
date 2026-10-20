@@ -248,7 +248,7 @@ without `nowMs`).
   render without errors at both viewports.
 - **Depends on:** Task 13 (glass/vent tiles), Task 17.
 
-### Task 19: Figures that move; Can't see's own figure
+### Task 19: Figures that move; Can't see's own figure [x]
 
 - **Description:** Role-hatted figures with facing, hop, squash, lean, dust;
   the server sends motion state; Can't see's screen shows their own dimmed

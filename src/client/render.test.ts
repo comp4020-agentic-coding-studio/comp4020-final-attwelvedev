@@ -264,6 +264,125 @@ describe("a hazard's sight reaching out of the dark", () => {
   });
 });
 
+describe("figures that move (FR31)", () => {
+  const still = (over: Partial<Scene> = {}) =>
+    scene({ layout: "fit", w: 400, h: 300, nowMs: 100, ...over });
+  const walker = (over: Record<string, unknown>) => ({
+    ...player(0, 2.5, 3.5),
+    facing: { x: 1, y: 0 },
+    ...over,
+  });
+  // where the deaf figure's pill is drawn: its first rounded rect in the role colour
+  const pillOps = (s: Scene) => {
+    const { ctx, ops } = recorder();
+    draw(ctx, s);
+    return ops.filter((o) => o.name === "roundRect" && o.fillStyle === ROLE_COLOR.deaf);
+  };
+  const me = (over: Record<string, unknown>) => [walker({ seat: 1, id: "P1", ...over })];
+
+  it("hops while moving, by about 2 px, and stays put when still", () => {
+    const rest = pillOps(still({ entities: me({ moving: false }), self: { x: 2.5, y: 3.5 } }));
+    const hop = pillOps(still({ entities: me({ moving: true }), self: { x: 2.5, y: 3.5 } }));
+    expect(rest.length).toBeGreaterThan(0);
+    const dy = Math.abs((hop[0]?.args[1] as number) - (rest[0]?.args[1] as number));
+    expect(dy).toBeGreaterThan(0.5);
+    expect(dy).toBeLessThanOrEqual(2.001);
+  });
+
+  it("under reduced motion draws a moving figure at the same y as a still one", () => {
+    const rest = pillOps(
+      still({ reducedMotion: true, entities: me({ moving: false }), self: { x: 2.5, y: 3.5 } }),
+    );
+    const hop = pillOps(
+      still({ reducedMotion: true, entities: me({ moving: true }), self: { x: 2.5, y: 3.5 } }),
+    );
+    expect(hop[0]?.args).toEqual(rest[0]?.args);
+  });
+
+  it("squashes toward the facing when blocked, and not under reduced motion", () => {
+    const scales = (s: Scene) => {
+      const { ctx, ops } = recorder();
+      draw(ctx, s);
+      return ops.filter((o) => o.name === "scale").map((o) => o.args);
+    };
+    const blocked = me({ moving: true, blocked: true });
+    const squash = scales(still({ entities: blocked, self: { x: 2.5, y: 3.5 } }));
+    expect(squash.some(([sx, sy]) => (sx as number) < 1 && (sy as number) === 1)).toBe(true);
+    const calm = scales(
+      still({ reducedMotion: true, entities: blocked, self: { x: 2.5, y: 3.5 } }),
+    );
+    expect(calm.length).toBe(0);
+  });
+
+  it("leans against a crate it is pushing", () => {
+    const rotations = (entities: Scene["entities"]) => {
+      const { ctx, ops } = recorder();
+      draw(ctx, still({ entities, self: { x: 2.5, y: 3.5 } }));
+      return ops.filter((o) => o.name === "rotate").map((o) => o.args[0] as number);
+    };
+    const crate = { id: "C1", kind: "crate" as const, pos: { x: 3.5, y: 3.5 } };
+    const pushing = rotations([...me({ moving: true, blocked: true }), crate]);
+    expect(pushing.some((a) => Math.abs(a - (8 * Math.PI) / 180) < 1e-6)).toBe(true);
+    expect(rotations(me({ moving: true, blocked: true })).length).toBe(0); // a wall is a squash, not a lean
+  });
+
+  it("puffs dust while moving, and not when still", () => {
+    const dust = (moving: boolean) => {
+      const { ctx, ops } = recorder();
+      draw(ctx, still({ entities: me({ moving }), self: { x: 2.5, y: 3.5 }, nowMs: 130 }));
+      return ops.filter((o) => o.name === "arc" && o.fillStyle === WORLD.floorFront).length;
+    };
+    expect(dust(true)).toBeGreaterThan(0);
+    expect(dust(false)).toBe(0);
+  });
+
+  it("looks toward the facing: the eyes move with it, even under reduced motion", () => {
+    const eyes = (facing: { x: number; y: number }) => {
+      const { ctx, ops } = recorder();
+      draw(ctx, still({ reducedMotion: true, entities: me({ facing }), self: { x: 2.5, y: 3.5 } }));
+      return ops
+        .filter((o) => o.name === "arc" && o.fillStyle === WORLD.line)
+        .map((o) => o.args[0] as number);
+    };
+    const east = eyes({ x: 1, y: 0 });
+    const west = eyes({ x: -1, y: 0 });
+    expect(east[0]).toBeGreaterThan(west[0] as number);
+  });
+
+  it("draws Can't see's own screen as black plus a dimmed figure, with no tiles", () => {
+    const { ctx, ops } = recorder();
+    draw(ctx, {
+      ...scene({ role: "blind", seat: 0, tiles: null, entities: [], self: null }),
+      own: { facing: { x: 0, y: 1 }, moving: false, blocked: false },
+    });
+    expect(ops.filter((o) => o.name === "fillRect" && o.fillStyle !== "#000000")).toEqual([]);
+    const body = ops.filter((o) => o.name === "roundRect" && o.fillStyle === ROLE_COLOR.blind);
+    expect(body.length).toBeGreaterThan(0);
+    expect(body.every((o) => Math.abs(o.globalAlpha - 0.4) < 1e-9)).toBe(true);
+    // centred in the canvas
+    const args = body[0]?.args as number[];
+    expect((args[0] as number) + (args[2] as number) / 2).toBeCloseTo(343 / 2, 0);
+  });
+
+  it("hops Can't see's figure while they move, and squashes it when blocked", () => {
+    const blind = (own: { moving: boolean; blocked: boolean }) => {
+      const { ctx, ops } = recorder();
+      draw(ctx, {
+        ...scene({ role: "blind", seat: 0, tiles: null, entities: [], self: null, nowMs: 100 }),
+        own: { facing: { x: 1, y: 0 }, ...own },
+      });
+      return ops;
+    };
+    const y = (ops: Op[]) =>
+      ops.find((o) => o.name === "roundRect" && o.fillStyle === ROLE_COLOR.blind)
+        ?.args[1] as number;
+    expect(y(blind({ moving: true, blocked: false }))).not.toBe(
+      y(blind({ moving: false, blocked: false })),
+    );
+    expect(blind({ moving: true, blocked: true }).some((o) => o.name === "scale")).toBe(true);
+  });
+});
+
 // Which avatars are marked "you": a floor ring, the one 4 px stroke in the scene.
 describe("the ring that marks you", () => {
   function rings(over: Partial<Scene>): number {

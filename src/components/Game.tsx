@@ -18,7 +18,14 @@ import {
 } from "../client/hud.ts";
 import { createInput } from "../client/input.ts";
 import { createPredictor, type Predictor } from "../client/predict.ts";
-import { camera, draw, type FacePop, fromScreen, type Scene } from "../client/render.ts";
+import {
+  camera,
+  draw,
+  type FacePop,
+  fromScreen,
+  type Motion,
+  type Scene,
+} from "../client/render.ts";
 import { loadSettings, type Settings as SettingsState, saveSettings } from "../client/settings.ts";
 import type { ConnectionState, GameSocket } from "../client/socket.ts";
 import { browserSpeech } from "../client/speech.ts";
@@ -71,6 +78,8 @@ interface Runtime {
   predictor: Predictor | null;
   self: Vec | null; // where we think we are
   shown: Vec | null; // where we draw ourselves (self, eased)
+  facing: Vec; // the way we last pushed: our own figure turns the moment the key goes down
+  walking: { moving: boolean; blocked: boolean }; // what the last input did to the predicted position
   pops: { seat: number; id: string; at: number }[]; // faces on show, by when they landed
   cueHold: HeldCues; // cue captions and when to let each go
   fx: { fx: Fx; at: number }[]; // small effects for what just changed, by when they started
@@ -79,6 +88,7 @@ interface Runtime {
 }
 
 const CAPTION_MS = 5000;
+const SPAWN_FACING: Vec = { x: 1, y: 0 }; // everyone starts a room facing east (src/game/sim/world.ts)
 const EASE = 0.5; // share of the gap to the predicted position closed each frame
 const SNAP_TILES = 1.5;
 
@@ -139,6 +149,10 @@ function useDraw(
         tiles: role === "blind" ? null : rt.tiles,
         entities: lerpEntities(rt.prevEntities, view.entities, t),
         self: rt.shown,
+        // Can't see is told whether they are walking or pushing (they hear it already); a sighted
+        // role reads it off its own predicted position, which is ahead of the server
+        own: ownMotion(rt, role),
+        bots: crew.map((c) => !!c.bot) as Scene["bots"],
         layout: size.w >= 720 ? "fit" : "follow",
         pops,
         fx: rt.fx
@@ -159,12 +173,24 @@ function useDraw(
   }, [rt, role, crew, canvas, frame]);
 }
 
+// How hard a held direction has to push to count as moving: under this share of the step, it is
+// blocked (the server's rule is the same shape: "almost nowhere").
+const BLOCKED_SHARE = 0.2;
+const STEP_TILES = 4 / NET.inputHz; // SPEED_TPS in predict.ts, per input
+
+function ownMotion(rt: Runtime, role: Role): Motion {
+  const motion = role === "blind" ? rt.view?.you.motion : rt.walking;
+  return { facing: rt.facing, moving: motion?.moving ?? false, blocked: motion?.blocked ?? false };
+}
+
 function onView(rt: Runtime, view: RoleView, audio: GameAudio): void {
   // the tick going backwards means the room was restarted: forget what we predicted
   if (rt.view && view.tick < rt.view.tick) {
     rt.predictor = null;
     rt.self = null;
     rt.shown = null;
+    rt.facing = SPAWN_FACING;
+    rt.walking = { moving: false, blocked: false };
   }
   rt.prevEntities = rt.view?.entities ?? [];
   rt.view = view;
@@ -223,6 +249,8 @@ export function Game({
     predictor: null,
     self: null,
     shown: null,
+    facing: SPAWN_FACING,
+    walking: { moving: false, blocked: false },
     pops: [],
     fx: [],
     cueHold: new Map(),
@@ -647,11 +675,18 @@ function Hud({
       if (!online || rt.view?.status === "cleared") return;
       const input = source.read();
       const moving = input.move.x !== 0 || input.move.y !== 0;
+      if (moving) rt.facing = input.move;
+      else rt.walking = { moving: false, blocked: false };
       const sig = `${input.move.x},${input.move.y},${input.act}`;
       if (!moving && sig === lastSent.current) return;
       lastSent.current = sig;
       socket.send({ t: "input", ...input });
-      if (moving && rt.predictor) rt.self = rt.predictor.apply(input, 1000 / NET.inputHz);
+      if (moving && rt.predictor) {
+        const from = rt.self;
+        rt.self = rt.predictor.apply(input, 1000 / NET.inputHz);
+        const moved = from ? Math.hypot(rt.self.x - from.x, rt.self.y - from.y) : STEP_TILES;
+        rt.walking = { moving: true, blocked: moved < STEP_TILES * BLOCKED_SHARE };
+      } else if (moving) rt.walking = { moving: true, blocked: false };
     }, 1000 / NET.inputHz);
     return () => {
       clearInterval(timer);

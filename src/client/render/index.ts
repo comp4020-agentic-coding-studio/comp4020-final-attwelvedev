@@ -5,7 +5,7 @@ import { COLOR, MAP, ROLE_COLOR, setDusk, WORLD } from "../tokens.ts";
 import { drawAlarm } from "./alarm.ts";
 import { drawBackdrop } from "./backdrop.ts";
 import { block, drawFlat, drawStanding, floorTop, glass, vent, wall } from "./blocks.ts";
-import { drawPlayer } from "./figures.ts";
+import { drawOwnBlind, drawPlayer } from "./figures.ts";
 import { drawHazard, drawSight } from "./hazards.ts";
 import { drawPops } from "./pops.ts";
 import { type Camera, camera, TILT, tileWindow, toScreen } from "./project.ts";
@@ -34,6 +34,17 @@ export interface Scene {
   spectator?: boolean;
   // A watcher of the whole room follows nobody, so no avatar is "you" and none is outlined as such.
   noSelf?: boolean;
+  // Your own figure as the client knows it, which is ahead of the server: the way you last pushed,
+  // and whether you are walking or pushing at something. Overrides what the view says about you;
+  // for Can't see it is all there is to draw.
+  own?: Motion;
+  bots?: [boolean, boolean, boolean]; // by seat: a bot's figure has an antenna
+}
+
+export interface Motion {
+  facing: Vec;
+  moving: boolean;
+  blocked: boolean;
 }
 
 export interface FacePop {
@@ -67,6 +78,11 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
   if ((scene.role === "blind" && !scene.spectator) || !scene.tiles) {
     ctx.fillStyle = COLOR.ink;
     ctx.fillRect(0, 0, scene.w, scene.h);
+    if (scene.own) {
+      drawOwnBlind(ctx, scene, scene.own);
+      return;
+    }
+    // no figure to show (a home feed): the dim ring
     ctx.save();
     ctx.globalAlpha = MAP.blindRingAlpha;
     ctx.lineWidth = MAP.ringWidthPx;
