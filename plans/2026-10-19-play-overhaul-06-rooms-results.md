@@ -6,7 +6,10 @@
 - **Part of:** `plans/2026-10-19-play-overhaul-00-overview.md`. Read it first,
   especially §2.1 A2–A3 and §3's room rules. The balance model is
   `specs/2026-10-19-play-overhaul.md` §4 ("Balance model") and FR12–FR15.
-- **Depends on phases:** 03, 04, 05.
+- **Depends on phases:** 03, 04, 05. Task order in this file: 22, 28, 23, 24, 25
+  (Task numbers are global; 28 was added after the set was planned, so it sits
+  between 22 and 23 here and the numbering of 23–27 is unchanged). Tasks 28 and 23
+  are executed as one unit (see Task 28), so run them in one session.
 
 ## 1. Summary
 
@@ -17,11 +20,16 @@ Bots clear every room in every rotation and fail each lead beat without its
 lead's sends. Room end shows a comms map. The leaderboard gets a new edition,
 with the old board kept.
 
+This phase also finishes the bot work phase 04 left open (amendment A3 and the
+tolerant guide, Task 28): the bots must plan only around hazards their role has
+perceived, or "every role is needed" would pass falsely. It is built against the
+new rooms, which are designed for it, not the old ones, which Task 23 deletes.
+
 ## 2. Requirements (this phase)
 
 ### 2.1 Functional
 
-FR12, FR13 (rooms satisfy it), FR14, FR15, FR35, FR36 (versioning).
+FR12, FR13 (rooms satisfy it), FR14, FR15, FR35, FR36 (versioning), A3 (Task 28).
 
 ### 2.2 Non-functional
 
@@ -84,10 +92,22 @@ stay on the edition-1 board.
 - Task 15: `Beat.lead?: Role`, `Beat.cue?: "twin" | "split"`; meta `leads:
   true` requires all three roles to lead a beat; held sequences (plates ≥ 3
   tiles apart); lint rule "no beat both fully dark and alarmed".
-- Task 16: `solveRoom(room, roles, budgetS = 600, humans = new Set(), opts?:
-  { mute?: Role }): SolveResult`; the `spec/rooms.test.ts` "each lead role is
-  needed" describe (skips while no room declares leads); job target
-  `"clue:<id>"`.
+- Task 16 (what phase 04 shipped, verified against the code): `solveRoom(room,
+  roles, budgetS = 600, humans = new Set(), opts?: { mute?: Role }):
+  SolveResult` (with `sentBy: [number, number, number]`); `botsAct(…, full,
+  muted?: Seat)`; the `spec/rooms.test.ts` "each lead role is needed" describe
+  (skips while no room declares leads); job target `"clue:<id>"`;
+  `forecastFor(room: Room, alarms: readonly AlarmWindow[] = [], only?:
+  ReadonlySet<string>): Forecast` (hazard ids to plan around; left out, all);
+  `Known` (in `src/game/bots/jobs.ts`) has `seenHazards: Record<string, {
+  lastTick: number }>`, filled from sight (a guard, camera or laser entity in the
+  view) and from hearing (a `guard`, `camera` or `laser` cue names the nearest
+  hazard of its kind within 25° of the cue's `dir`), and `clues: Record<string,
+  number>` (a heard `clue` cue's `n`, by the nearest clue along its bearing);
+  `BotMemory.blindAt`; the deaf guide walks back to its last estimate when it
+  loses sight of Can't see. **Not built:** the planner (`decide` in
+  `src/game/bots/brain.ts`) still calls `forecastFor(room, m.alarms)` with no
+  hazard set, so it plans from the room file; Task 28 changes that.
 - Task 18: meta `hue?: "rose" | "apricot" | "butter" | "mint"` (renderer
   reads it; default rose).
 - Task 1: `ROOMS_DIR` env override for `roomList()`. Task 6: `reveal.rooms`
@@ -127,6 +147,17 @@ through the bots, then reviewed by the user on a local build):
 
 Each beat's jobs carry `prefer` so the solver gives the lead role the lead
 job. `budgetS` set from the bots' times plus 50 %.
+
+**Designed for perception-only bots (A3, Task 28).** A lead beat is built so each
+role can get what it needs through its own channel, because the bots will use
+nothing else: the hazard a sighted role can't see must be one the lead role
+perceives *and has a method to tell the others about* (Can't see sends callout,
+text, voice, face; Can't hear receives only face and mark; Can't speak receives
+callout, text, voice, clip, face, mark). Concretely, room 2's dark corridor must
+not put its only hazard where just Can't see can perceive it and only a face can
+warn Can't hear: give Can't hear a way in (a glass pane onto the lane, or a
+checkpoint where the team waits and listens before crossing), as phase 04's
+diagnosis of the old room 03 showed this is what makes the beat solvable.
 
 **Labels (FR15).** `src/client/labels.ts` (pure): `labelsFor(entities,
 tiles, shown: Set<string>): Label[]` returns at most two new labels per frame
@@ -185,18 +216,116 @@ small map of the old ids: Loading Dock, Don't Blink, Lights Out, Sound Off).
   alone. Pass = user says so.
 - **Depends on:** Tasks 18–21, 16.
 
+### Task 28: Bots plan only around what their role has perceived (A3), and a tolerant guide
+
+- **Description:** Make `decide` plan from `Known.seenHazards` (hazards seen or
+  heard within the last 2 s) instead of the room file, so the room spec cannot
+  pass by bots knowing what their role can't; then make the guide tolerant of a
+  person who hesitates. Built **before** Task 23, on a draft of the dark-corridor
+  beat that has a hazard a sighted role can't see, so the design is proved on a
+  room made for it. The draft lives in `spec/fixtures/rooms/` (the directory the
+  linter test already loads), **not** in `rooms/`, so players and
+  `spec/heist.test.ts` still see only the shipped rooms until it clears; Task 23's
+  `02-blackout` is that draft finished. Task 28 adds a spec that runs the same two `rooms.test.ts`
+  describes over `loadRooms("./spec/fixtures/rooms")`.
+- **What phase 04 found (constraints, not a design):** (a) on the old room 03 the
+  first beat is a dark corridor in which only Can't see perceives the guard (by
+  hearing) and a Can't-see bot tells nobody, so planning only from perception
+  left the sighted bots walking into it: 7 catches, room 03 uncleared in every
+  rotation. (b) The one method that reaches Can't hear from Can't see is a
+  `face` (`RECEIVES.deaf` is `face`, `mark`), so a warning from a Can't-see bot is
+  a face or a text/callout to Can't speak only. (c) A "Hold up" face (`f04`) sent
+  on every hazard cue froze the team (70–75 faces a run, each resetting a 5 s
+  hold, nobody left the spawns); sent only when the cue is loud (gain ≥ 0.5) it
+  came too late (35 catches). Do not retry either setting. (d) A bot reads only
+  its `RoleView` and the messages its role receives (ADR 0007, ADR 0011); no
+  shared bot memory, no sends outside `route`.
+- **Files touched:** `src/game/bots/brain.ts` (+ test: `decide` passes the
+  perceived set, `planKey` includes it; the hazard cue handling), `src/game/bots/
+  forecast.ts` (+ test, only if the set needs more), `src/game/bots/attract.ts`
+  (`HUMAN.blind.pauseChance` back to 0.01), `src/game/bots/attract.test.ts`,
+  `spec/fixtures/rooms/02-blackout-draft.room` (new; Task 23 turns it into
+  `rooms/02-blackout.room` and deletes the fixture), `spec/rooms.test.ts` (a third
+  describe that runs the clear-every-rotation and lead-needed checks over
+  `loadRooms("./spec/fixtures/rooms")`; `01-tiny` is already there and stays
+  green), `src/game/rooms/lint.test.ts` (its "fixture rooms" test lists the
+  fixture ids: add the draft's), `PROCESS_LOG.md`.
+- **Tests first (red):** brain: a sighted bot that has never seen or heard a
+  guard heads down the lane the guard covers, and a bot that saw it 1 s ago does
+  not (the fixture from phase 04's `brain.test.ts`, "records the hazards it has
+  perceived", with its L-shaped corridor, extended to assert the move); the guide
+  recovers when the blind seat pauses 1 s mid-tile (no endless "go"), and decides
+  at a position that is not a tile centre; with `HUMAN.blind.pauseChance` at 0.01
+  `attract.test.ts` still clears room 1 in under 30 s for every seed.
+- **Implementation (green):** the planner change as above; the tolerant guide as
+  phase 04 §4 described it ("decides at any position, resends stop/go if the
+  blind seat's motion doesn't match within 800 ms"). How a Can't-see bot makes
+  the team safe in a dark beat is **the room's design**, not a bot trick: the
+  draft room gives its lead beat something each role perceives (see §4, rooms 2
+  and 3), and the bots use only that.
+- **Decided by the user (2026-10-20): Tasks 28 and 23 are built together, as one
+  working unit on one branch.** The old rooms cannot pass this task, and must not
+  be kept alive by a flag: one planner serves every room, and phase 04 showed the
+  old rooms 02 (`02-cameras-lasers`) and 03 (`03-vault`) cannot be cleared by
+  perception-only bots (room 03: 7 catches, uncleared in every rotation; room 02
+  failed once a warning was added). So the old rooms are deleted, together with
+  everything that names them, **only once the first new room (`02-blackout`)
+  clears under the new planner**, and in the same commit that switches the
+  planner. The heist is therefore never short a room on the branch. Task numbers
+  and acceptance criteria stay separate (Task 28 is the planner, guide and
+  draft-room proof; Task 23 is the three rooms); they are executed in one session
+  with one stop condition, in this order: Task 22, the draft room and planner
+  (Task 28), `02-blackout` finished and the old rooms deleted, then `03-alarm` and
+  `04-chimes` (Task 23). The deletion list (`rooms/02-cameras-
+  lasers.room`, `rooms/03-vault.room`, `src/game/rooms/solvePlans.ts`,
+  `solveBuilder.ts`, `solutions/`, `scripts/solve-rooms.ts`, the `solve:rooms`
+  script, `spec/heist.test.ts`'s room ids, `spec/caught.test.ts`, `README.md`'s
+  room list), moved here, **plus** the places that use the old rooms as fixtures,
+  found by `rg -n "02-cameras-lasers|03-vault" src spec scripts`: `src/net/
+  game.test.ts` (3 references), `src/game/bots/brain.test.ts` (9),
+  `src/game/bots/forecast.test.ts` (5), `src/game/perception.test.ts` (1),
+  `scripts/bench-tick.ts` (2, from phase 04: re-point it at a new room). The
+  `brain.test.ts` and `forecast.test.ts` references are the real cost: they test
+  the held sequence, the dark corridor and the camera and laser timing on those
+  rooms, so each such test needs an equivalent on a small fixture room, not just a
+  new id. Because the old rooms go only when `02-blackout` clears, `spec/heist.test.ts`
+  keeps a second room to hand off to throughout, and its room-order assertion
+  changes in that same commit to `01-first-job` → `02-blackout`.
+- **Acceptance criteria:** the fixture-room describe in `spec/rooms.test.ts` is
+  green on the draft room and on `01-tiny` in every rotation, with no catches,
+  and "each lead role is needed" passes for the draft's lead beat; the shipped
+  rooms (`01-first-job` and, once it replaces the old room 02, `02-blackout`) are
+  green in every rotation under the new
+  planner; `src/game/bots/attract.test.ts` green with blind pauses on;
+  `grep -n "forecastFor(room, m.alarms)" src/game/bots/brain.ts` finds nothing
+  (the planner no longer reads the room file's hazards unless told of them);
+  `rooms/02-cameras-lasers.room` and `rooms/03-vault.room` are gone and nothing
+  in `src/` or `spec/` names them (`rg -n "02-cameras-lasers|03-vault" src spec
+  scripts` is empty).
+- **Stop condition:** if the draft room cannot be cleared uncaught by bots in
+  every rotation using only perception, **stop and ask the user**; do not fall
+  back to planning from the room file, mark a rotation `it.fails`, loosen "never
+  caught", or tune a threshold until the spec passes. The options then are to
+  redesign the beat, or to change A3, and the second is the user's decision.
+- **Depends on:** Task 16 (the record, the harness), Task 22 (the first new room
+  and its fixtures), Tasks 18–20 (the 3/4 view the draft room is drawn in).
+
 ### Task 23: Rooms 2–4, each led by one role
 
 - **Description:** `02-blackout`, `03-alarm`, `04-chimes` per §4, with
-  `leads: true`, lead beats, split and twin cues, budgets; remove the old
-  rooms and the unused solver scripts.
+  `leads: true`, lead beats, split and twin cues, budgets. (Tasks 28 and 23 are
+  one unit of work, decided 2026-10-20: the old rooms and the unused solver
+  scripts are deleted when `02-blackout` clears, in the commit that switches the
+  planner; the deletion list is in Task 28.) `02-blackout` is built from Task 28's
+  `spec/fixtures/rooms/02-blackout-draft.room` (move it to `rooms/`, finish it,
+  delete the fixture and its entry in `lint.test.ts`); all three rooms are cleared
+  by the Task 28 planner, which plans only around what each role has perceived.
+  If a room can't be cleared that way, that is Task 28's stop condition: stop and
+  ask, never fall back to the room file.
 - **Files touched:** `rooms/02-blackout.room`, `rooms/03-alarm.room`,
-  `rooms/04-chimes.room` (new); delete `rooms/02-cameras-lasers.room`,
-  `rooms/03-vault.room`, `src/game/rooms/solvePlans.ts`,
-  `src/game/rooms/solveBuilder.ts` (+ tests if any),
-  `src/game/rooms/solutions/`, `scripts/solve-rooms.ts` and the `solve:rooms`
-  script in `package.json`; `spec/heist.test.ts` (room ids),
-  `spec/caught.test.ts` if it relied on room 02; `README.md` room list.
+  `rooms/04-chimes.room` (new); `spec/heist.test.ts` (room ids: the full-heist
+  order becomes `01-first-job` → `02-blackout` → `03-alarm` → `04-chimes`);
+  `README.md` room list. The old-room deletions listed in Task 28 are done there.
 - **Tests first (red):** the existing `spec/rooms.test.ts` (both describes)
   run against each new room as it is added: clear in all three rotations, and
   fail each lead beat with that role muted. Write each room's lead check before
@@ -209,7 +338,7 @@ small map of the old ids: Loading Dock, Don't Blink, Lights Out, Sound Off).
 - **Human review:** per room, the user plays it on a local build (three tabs)
   and judges: the lead role clearly leads that beat; nobody is idle for long;
   the split cue forces a hand-off. Pass = user says so for each room.
-- **Depends on:** Task 22.
+- **Depends on:** Task 22, Task 28.
 
 ### Task 24: The comms map at room end
 
@@ -254,6 +383,8 @@ small map of the old ids: Loading Dock, Don't Blink, Lights Out, Sound Off).
 - [ ] Every task in §5 is complete and its tests pass
 - [ ] `pnpm test:unit` passes
 - [ ] `pnpm build && pnpm start` then `pnpm check` passes
+- [ ] Task 28 done: bots plan only around hazards their role has perceived, and
+      no room is cleared by planning from the room file
 - [ ] Tasks 22 and 23 human reviews accepted
 - [ ] Playtest 4 offered to the user (the whole heist), written up in
       `playtests/` with the comms maps as balance evidence, and logged in
@@ -266,11 +397,16 @@ small map of the old ids: Loading Dock, Don't Blink, Lights Out, Sound Off).
 | --- | --- |
 | FR12 | Tasks 22, 23 |
 | FR13 (rooms satisfy) | Tasks 22, 23 |
-| FR14 | Task 23 |
+| FR14 | Tasks 23, 28 |
 | FR15 | Task 22 |
+| A3 | Task 28 |
 | FR35 | Task 24 |
 | FR36 (versioning) | Task 25 |
 
 ## 8. Risks / open questions
 
-None.
+No open questions. One accepted risk: Task 28 may find that a lead beat cannot be
+cleared by perception-only bots. Phase 04 tried two ways of getting there on the
+old room 03 and each failed (Task 28 lists them), so the plan does not promise it.
+The task's stop condition says what happens then: stop and ask the user. It never
+falls back to the room file.

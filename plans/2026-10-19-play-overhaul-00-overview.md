@@ -16,7 +16,8 @@ Files in the set:
 - `plans/2026-10-19-play-overhaul-03-lobby-screens.md` (Tasks 10–12)
 - `plans/2026-10-19-play-overhaul-04-line-of-sight.md` (Tasks 13–16)
 - `plans/2026-10-19-play-overhaul-05-world-renderer.md` (Tasks 17–21)
-- `plans/2026-10-19-play-overhaul-06-rooms-results.md` (Tasks 22–25)
+- `plans/2026-10-19-play-overhaul-06-rooms-results.md` (Tasks 22–25 and 28; Task
+  28 was added after planning and runs between 22 and 23)
 - `plans/2026-10-19-play-overhaul-07-sound-wrapup.md` (Tasks 26–27)
 
 A session reads this overview plus exactly one phase file
@@ -59,6 +60,12 @@ planning (2026-10-19), which win over the spec where they differ:
   perceives (seen by sighted bots in their line of sight, heard by Can't see
   within hearing), never from the room file's timings of a hazard they haven't
   perceived. Otherwise "every role is needed" would pass falsely.
+  *(Re-scoped 2026-10-20 after phase 04: phase 04 built the record of what a bot
+  has seen or heard (`Known.seenHazards`), but wiring the planner to it broke
+  rooms 02 and 03, whose dark opening only Can't see perceives. The planner
+  change and the tolerant guide are now Task 28 in phase 06, built on a draft of
+  the new dark-corridor room. If it can't hold there, phase 06 stops and asks the
+  user; the room file is never the fallback.)*
 - **A4 (housekeeping, from the brainstorm hand-off):** `CLAUDE.md` is updated
   where its invariants change (shape of the app, sensory parity); ADRs
   0011–0016 are accepted by the user before Task 1 (done 2026-10-19, `b0faa2c`).
@@ -255,9 +262,9 @@ like `--glass` stay CSS-only and the canvas uses `globalAlpha`).
 | 01 | `…-01-comms.md` | 1–4 | — | method routing, the wheel, Enter/V, arrow captions on today's rooms; **human review** of the wheel; **playtest 3** can run | [x] |
 | 02 | `…-02-lobby-server.md` | 5–9 | 01 | lobbies of 6 people with setup and rotation, swaps, votes, leave flows, spectator chat/voice over the socket (temporary UI) | [x] |
 | 03 | `…-03-lobby-screens.md` | 10–12 | 02 | new lobby, reveal and HUD screens, a /preferences page; **human review** of each | [ ] |
-| 04 | `…-04-line-of-sight.md` | 13–16 | 01 | glass/vents, line-of-sight views, sound occlusion, held sequences, clue sounds, new linter rules, bots under LOS, the lead-role harness | [ ] |
+| 04 | `…-04-line-of-sight.md` | 13–16 | 01 | glass/vents, line-of-sight views, sound occlusion, held sequences, clue sounds, new linter rules, bots that regain sight of Can't see, the lead-role harness, clue jobs (A3 and the tolerant guide moved to Task 28, phase 06) | [ ] |
 | 05 | `…-05-world-renderer.md` | 17–21 | 04 | `DESIGN.md` and its rule; the tilted 3/4 world, moving figures, mist, edge pills, the world rising; **human review** | [ ] |
-| 06 | `…-06-rooms-results.md` | 22–25 | 03, 04, 05 | four new rooms with lead beats, room-1 labels, comms map, versioned leaderboard; **human review** of each room; **playtest 4** | [ ] |
+| 06 | `…-06-rooms-results.md` | 22–25, 28 | 03, 04, 05 | four new rooms with lead beats, room-1 labels, bots that plan only around what their role perceived (A3, Task 28), comms map, versioned leaderboard; **human review** of each room; **playtest 4** | [ ] |
 | 07 | `…-07-sound-wrapup.md` | 26–27 | 06 | ambience and music (cuttable), README/backlog/CLAUDE.md/process wrap-up | [ ] |
 
 Phase 04 needs only 01, so it may run before 02–03 if that suits the user.
@@ -293,7 +300,7 @@ Phase 04 needs only 01, so it may run before 02–03 if that suits the user.
 | FR11 held sequence + linter | Task 15 |
 | FR12 four rooms, lead beats, split cues, hues | Tasks 22, 23 |
 | FR13 linter: no-input flips, solo sequences, declared leads | Task 15 (rooms satisfy it: 22, 23) |
-| FR14 every role needed spec | Tasks 16, 23 |
+| FR14 every role needed spec | Tasks 16 (harness), 23, 28 (perception-only bots) |
 | FR15 room-1 labels | Task 22 |
 | FR16 up to 6 people, sit-out rotation, plays N | Tasks 5, 6, 10 |
 | FR17 private lobbies | Tasks 5, 10 |
@@ -319,7 +326,7 @@ Phase 04 needs only 01, so it may run before 02–03 if that suits the user.
 | FR37 ambience and music | Task 26 |
 | A1 | Task 9 |
 | A2 | Tasks 14, 15 |
-| A3 | Task 16 |
+| A3 | Task 16 (the record of what a bot perceived), **Task 28** (the planner uses it; the tolerant guide) |
 | A4 | Tasks 1 (CLAUDE.md shape), 14 (CLAUDE.md parity), 27 (final check; backlog already sorted) |
 | A5 | Task 17 (kept current by Tasks 18–22, 24, 26, 27) |
 | A6 / FR20a–b | Tasks 7 (saved setup sent on join), 10 (`/preferences` page, prefilled lobby panel) |

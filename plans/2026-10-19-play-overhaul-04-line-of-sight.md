@@ -14,16 +14,20 @@ Sighted roles see only what is in their line of sight; glass passes sight but
 not sound, vents pass sound but not sight; sounds stop at walls and glass;
 faces and marks show in the dark; sequence doors need every plate held; one
 new `clue` sound with no visual half; the room format declares lead beats and
-cue beats, and the linter checks the new rules; bots perceive under the same
-limits, and a spec harness can switch off one role's sending to prove that
-role is needed. The three existing rooms keep working (no glass or vents yet).
+cue beats, and the linter checks the new rules; bots keep a record of the hazards
+they have seen or heard, and a spec harness can switch off one role's sending to
+prove that role is needed. The three existing rooms keep working (no glass or
+vents yet). *(Re-scoped 2026-10-20: making the bots' planner use that record
+(A3), and the tolerant guide, did not hold on the existing rooms and moved to
+Task 28 in phase 06, where it is built on a room designed for it.)*
 
 ## 2. Requirements (this phase)
 
 ### 2.1 Functional
 
 FR5, FR6, FR7, FR9, FR11, FR13, FR14 (harness; the rooms that satisfy it are
-phase 06), A2, A3, A4 (`CLAUDE.md` sensory parity line).
+phase 06), A2, A3 (the record only; the planner and the tolerant guide are Task
+28, phase 06), A4 (`CLAUDE.md` sensory parity line).
 
 ### 2.2 Non-functional
 
@@ -180,7 +184,10 @@ presses: if any plate in `order[0..next-1]` is no longer `world.pressed`,
 reset `next = 0` and say `"wrong"`. The 5 s gap rule stays. The door still
 latches once open.
 
-**Bots (A3).**
+**Bots (A3).** *Built in this phase: the `seenHazards` and `clues` records, the
+guide's regain-sight, clue jobs, the muted-role harness. Not built, moved to
+Task 28 (phase 06): the planner using `seenHazards`, and the tolerant guide with
+blind pauses back on. Those two bullets below are kept as the original design.*
 - `observe` already keeps `Known` from visible entities; add `seenHazards:
   Record<string, { lastTick: number }>` and plan danger only for hazards seen
   in the last 2 s (sighted) or heard (`guard`/`camera`/`laser` cues, blind);
@@ -308,9 +315,17 @@ latches once open.
   sequence).
 - **Depends on:** Task 14.
 
-### Task 16: Bots perceive like their role; the lead-role harness (partly done)
+### Task 16: The lead-role harness, clue jobs, and a record of what a bot perceives [x]
 
-> Execution note (2026-10-20), with the user's rulings:
+> **Scope after re-planning (2026-10-20, with the user's ruling "option 3"):** this
+> task delivers what is under "Done" below. The two items under "Not done" were
+> moved to **Task 28 in phase 06** (`plans/2026-10-19-play-overhaul-06-rooms-results.md`),
+> which owns A3's planner change and the tolerant guide, with a stop condition.
+> The Description, Files and Tests lists that follow are the original wording; read
+> them with that split. Phase 04 is **not** ticked in the overview until the user
+> decides whether to merge it with A3 open.
+>
+> Execution note (2026-10-20):
 >
 > **Done:** the lead-role harness (`solveRoom(…, { mute })`, `botsAct`'s `muted`,
 > `SolveResult.sentBy`, and the skipped-until-leads describe in
@@ -319,17 +334,17 @@ latches once open.
 > bearing); `clue:` targets in `parseJob`; `Known.clues` filled from heard chimes;
 > the guide's regain-sight and `muteClip`'s last-seen position (landed in Task 14).
 >
-> **Not done, so A3 is NOT met:** the planner (`decide`) still plans from the
-> room file, not from `seenHazards`. Wiring it in broke rooms 02 and 03 in every
-> rotation. Hearing alone left room 03's opening unsolvable: the first beat is a
-> dark corridor in which only Can't see perceives the guard. A Can't-see bot
-> warning the team with the Hold up face either froze the team (a face every
+> **Not done here, now Task 28 (phase 06): A3.** The planner (`decide`) still plans
+> from the room file, not from `seenHazards`. Wiring it in broke rooms 02 and 03
+> in every rotation. Hearing alone left room 03's opening unsolvable: the first
+> beat is a dark corridor in which only Can't see perceives the guard. A Can't-see
+> bot warning the team with the Hold up face either froze the team (a face every
 > 1.6 s kept resetting the hold) or came too late (warning only when loud: 35
 > catches). Two attempts at the same mechanism each broke the opposite thing, so
-> it was stopped, not tuned. A3 needs its own design for room 03's lead beat, to
-> be done with the phase 06 rooms.
+> it was stopped, not tuned. Task 28's description and stop condition carry these
+> findings.
 >
-> **Also not done:** the tolerant guide (decide off tile centres, resend
+> **Also moved to Task 28:** the tolerant guide (decide off tile centres, resend
 > stop/go after 800 ms) and blind pauses back on in `attract.ts`. Turning the
 > pause on (`pauseChance` 0.01) made `attract.test.ts` run past its budget, which
 > is the strand its own comment warns about, so it was reverted.
@@ -347,24 +362,37 @@ latches once open.
   and expect it not cleared or the beat's door never opened; skipped with a
   clear message while no room declares leads).
 - **Tests first (red):** brain: a sighted bot that has never seen a guard
-  walks into its lane (and a bot that saw it 1 s ago waits); the deaf guide
-  moves toward the blind seat's last estimate when it loses sight; the guide
-  recovers when the blind seat pauses for 1 s mid-tile (no endless "go");
-  `solveRoom` with `mute: "deaf"` records zero sends from the deaf seat.
-- **Implementation (green):** as described.
+  walks into its lane (and a bot that saw it 1 s ago waits) *[Task 28]*; the deaf
+  guide moves toward the blind seat's last estimate when it loses sight; the guide
+  recovers when the blind seat pauses for 1 s mid-tile (no endless "go") *[Task
+  28]*; `solveRoom` with `mute: "deaf"` records zero sends from the deaf seat.
+- **Implementation (green):** as described, minus the items marked Task 28.
 - **Acceptance criteria:** `spec/rooms.test.ts` green for rooms 01–03 in every
   rotation (budget may rise; record new budgets in each room's `budgetS`);
   `spec/bots.test.ts` green; the home page feeds still clear room 01
-  (`spec/layout/home.test.ts`).
+  (`spec/layout/home.test.ts`). *(The room and bots specs pass in every rotation
+  at `d00bc84`. `home.test.ts` is in the 99-of-99 files that passed in the full
+  check after Task 15; the check after Task 16 failed only in `wheel.test.ts`.)*
 - **Depends on:** Task 15.
 
 ## 6. Phase Definition of Done
 
-- [ ] Every task in §5 is complete and its tests pass
-- [ ] `pnpm test:unit` passes
-- [ ] `pnpm build && pnpm start` then `pnpm check` passes
-- [ ] Bench result recorded in `PROCESS_LOG.md`
-- [ ] Tick this phase in overview §5 and commit
+Re-checked 2026-10-20 after the re-scope (A3 and the tolerant guide moved to Task
+28). Boxes are ticked only where I verified them; the rest are open on purpose.
+
+- [x] Every task in §5 is complete and its tests pass, as re-scoped: Tasks 13–15
+      and Task 16 (harness, record, clue jobs). A3's planner and the tolerant guide
+      are not in this phase any more (Task 28, phase 06).
+- [x] `pnpm test:unit` passes (882 tests at `d00bc84`)
+- [ ] `pnpm build && pnpm start` then `pnpm check` passes: green after Task 15
+      (99 files, 1132 tests); the run after Task 16 had four
+      `spec/layout/wheel.test.ts` cases time out under load (pass 25/25 alone),
+      and no clean full run has been taken since. Take one before ticking.
+- [x] Bench result recorded in `PROCESS_LOG.md` (3.1–3.4 ms per tick, 10 lobbies)
+- [ ] Browser check of glass, vent and a sighted view (Tasks 13, 14): not done, the
+      Chrome connection was down. Do it on a local build before merging.
+- [ ] Tick this phase in overview §5 and commit: **not yet**; waiting on the two
+      open boxes above and on the user's decision to merge with A3 open
 
 ## 7. Requirements coverage (this phase)
 
@@ -378,7 +406,7 @@ latches once open.
 | FR13 | Task 15 |
 | FR14 (harness) | Task 16 |
 | A2 | Tasks 14, 15 |
-| A3 | Task 16 (**not met**: recording only; the planner is not wired, see Task 16's note) |
+| A3 | Task 16 (the record of what a bot perceived); the planner using it and the tolerant guide are **Task 28, phase 06** (see Task 16's note) |
 | A4 (CLAUDE.md parity) | Task 14 |
 
 ## 8. Risks / open questions
