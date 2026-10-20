@@ -202,6 +202,14 @@ function useDraw(
         // say where a tile is, and the camera is eased, so it is not worked out from the room.
         const at = `${cam.scale.toFixed(3)},${cam.ox.toFixed(3)},${cam.oy.toFixed(3)}`;
         if (el.dataset.camera !== at) el.dataset.camera = at;
+        // and whether the alarm is on: it is only ever drawn, so the picture cannot be asked
+        const alarm = view.alarm ? "on" : "off";
+        if (el.dataset.alarm !== alarm) el.dataset.alarm = alarm;
+        // and where you are drawn, which is the point the light is cast from
+        if (scene.self) {
+          const me = `${scene.self.x.toFixed(3)},${scene.self.y.toFixed(3)}`;
+          if (el.dataset.self !== me) el.dataset.self = me;
+        }
       }
       draw(ctx, scene);
     };

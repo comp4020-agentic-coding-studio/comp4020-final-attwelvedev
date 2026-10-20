@@ -204,29 +204,6 @@ export function lightPolygon(
   return rays.map((r) => ({ x: r.x, y: r.y }));
 }
 
-// How a tile stands to the light: wholly in it, wholly out of it, or crossed by its edge.
-// Sampled on a small grid inside the tile, which is as fine as the picture can show.
-const SAMPLES = 4;
-type Lit = "lit" | "dark" | "edge";
-
-function inPolygon(poly: readonly Vec[], x: number, y: number): boolean {
-  let inside = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const a = poly[i] as Vec;
-    const b = poly[j] as Vec;
-    if (a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
-  }
-  return inside;
-}
-
-function litState(poly: readonly Vec[], tx: number, ty: number): Lit {
-  let lit = 0;
-  for (let j = 0; j < SAMPLES; j++)
-    for (let i = 0; i < SAMPLES; i++)
-      if (inPolygon(poly, tx + (i + 0.5) / SAMPLES, ty + (j + 0.5) / SAMPLES)) lit++;
-  return lit === 0 ? "dark" : lit === SAMPLES * SAMPLES ? "lit" : "edge";
-}
-
 // The wall tiles the light touches. A wall is seen where a ray ends on its face, so it is lit when
 // the polygon has a vertex on its boundary: area would say a wall is dark, since the light stops at
 // its face and never fills it. A vertex on a corner touches up to four tiles.
@@ -241,57 +218,91 @@ function touchedTiles(light: readonly Vec[]): Set<number> {
   return out;
 }
 
-// The mist, cut exactly to your line of sight. Tiles the server did not send are under mist as a
-// whole, whatever the ray says: the picture never shows more than it was sent. Tiles it did send
-// are clear where the light reaches and veiled where it does not, and the tiles the edge of the
-// light crosses are veiled with the lit part of them punched out (an even-odd clip), so the edge
-// runs through the tile along the ray and not along its sides.
+// The mist, cut exactly to your line of sight, drawn as ONE region filled ONCE. Per-tile rectangles
+// stepped along the edge of the light and doubled the veil's alpha where two overlapped by the half
+// pixel kept to hide seams, which at night showed as a pale outline round a tile.
+//
+// The light is the ray, cast from where you stand over the room's layout. The layout is sent whole to
+// every sighted client, so drawing floor and walls from the ray reveals nothing: it is not the server's
+// `seen` set, which is symmetric shadowcasting and leaves out whole tiles the exact ray lights (it is
+// what decides which ENTITIES you are told of, and the server filters those before they are sent). With
+// no position to cast from, nothing is veiled (a watcher sees the whole room clear).
+//
+// Two passes, each one path filled once, so no point is painted twice:
+//   1. the open floor, with the light punched out of it: the floor tiles are the clip, and the veil is
+//      drawn over everything in it except the light polygon (even-odd). Cutting the light out by
+//      clipping means it cannot veil a point no floor tile covers.
+//   2. the walls the light never reaches, each a box, whole. A wall is seen where a ray lands on its
+//      face, so a wall is lit when the polygon has a vertex on its edge (area would call it dark).
+// A dark zone is night and is left alone. Paths are traced on the context itself (no Path2D): the
+// unit tests record calls on a plain-Node context that has none.
+type Box = { x: number; y: number; w: number; h: number };
+
 export function drawMist(
   ctx: CanvasRenderingContext2D,
   cam: Camera,
   tiles: readonly string[],
-  seen: Seen,
   light: readonly Vec[] | null,
   win: { x0: number; x1: number; y0: number; y1: number },
 ) {
-  const touched = light ? touchedTiles(light) : null;
+  if (!light) return;
+  const touched = touchedTiles(light);
+  const s = cam.scale;
+  const depth = s * LIVE.depth;
+  const open: Box[] = []; // floor: the light is cut out of it
+  const walls: Box[] = []; // walls the light never reaches: veiled whole
   for (let y = win.y0; y <= win.y1; y++) {
     const row = tiles[y] ?? "";
     for (let x = win.x0; x <= win.x1; x++) {
       if (row[x] === " ") continue; // a dark zone is night, not mist
-      const height = row[x] === "#" || row[x] === "%" || row[x] === "=" ? LIVE.wall : 0;
-      if (!seen.has(x, y)) {
-        veilTile(ctx, cam, x, y, height);
-        continue;
-      }
-      if (!light) continue;
-      if (height > 0) {
-        // a wall, a vent or glass: seen where the light meets its face, and veiled whole otherwise
-        if (!touched?.has(y * 4096 + x)) veilTile(ctx, cam, x, y, height);
-        continue;
-      }
-      const state = litState(light, x, y);
-      if (state === "lit") continue;
-      if (state === "dark") {
-        veilTile(ctx, cam, x, y, height);
-        continue;
-      }
-      ctx.save();
-      const top = toScreen(cam, x, y, height);
-      const w = cam.scale + 0.5;
-      const h = cam.scale * LIVE.depth + height * cam.scale + 0.5;
-      // the tile's rectangle, then the lit polygon, filled even-odd: what is left is the veil
-      ctx.beginPath();
-      ctx.rect(top.x, top.y, w, h);
-      for (const [i, p] of light.entries()) {
-        const at = toScreen(cam, p.x, p.y);
-        if (i === 0) ctx.moveTo(at.x, at.y);
-        else ctx.lineTo(at.x, at.y);
-      }
-      ctx.closePath();
-      ctx.clip("evenodd");
-      veilTile(ctx, cam, x, y, height);
-      ctx.restore();
+      const block = row[x] === "#" || row[x] === "%" || row[x] === "=";
+      const lift = block ? LIVE.wall : 0;
+      const top = toScreen(cam, x, y, lift);
+      const box = { x: top.x, y: top.y, w: s, h: depth + lift * s };
+      if (!block) open.push(box);
+      else if (!touched.has(y * 4096 + x)) walls.push(box);
     }
   }
+  ctx.save();
+  if (open.length > 0) {
+    ctx.save();
+    ctx.beginPath();
+    for (const b of open) ctx.rect(b.x, b.y, b.w, b.h);
+    ctx.clip();
+    // everything in the clip, except the light (even-odd): one region, one fill
+    ctx.beginPath();
+    ctx.rect(0, 0, ctx.canvas?.width ?? 8192, ctx.canvas?.height ?? 8192);
+    for (const [i, p] of light.entries()) {
+      const at = toScreen(cam, p.x, p.y);
+      if (i === 0) ctx.moveTo(at.x, at.y);
+      else ctx.lineTo(at.x, at.y);
+    }
+    ctx.closePath();
+    paintVeil(ctx, "evenodd");
+    ctx.restore();
+  }
+  if (walls.length > 0) {
+    ctx.beginPath();
+    for (const b of walls) ctx.rect(b.x, b.y, b.w, b.h);
+    paintVeil(ctx, "nonzero");
+  }
+  ctx.restore();
+}
+
+// Fills the current path once, then a static stipple through the same region, so the haze is
+// texture and not only a tint. Called once per region, so no point is painted twice.
+function paintVeil(ctx: CanvasRenderingContext2D, rule: CanvasFillRule) {
+  ctx.save();
+  ctx.globalAlpha = MIST.alpha;
+  ctx.fillStyle = WORLD.mist;
+  ctx.fill(rule);
+  ctx.clip(rule);
+  ctx.globalAlpha = 0.3;
+  ctx.fillStyle = "#ffffff";
+  const step = STIPPLE_PX * 2;
+  const w = ctx.canvas?.width ?? 0;
+  const h = ctx.canvas?.height ?? 0;
+  for (let y = 0; y < h; y += step)
+    for (let x = ((y / step) % 2) * STIPPLE_PX; x < w; x += step) ctx.fillRect(x, y, 1.5, 1.5);
+  ctx.restore();
 }

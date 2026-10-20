@@ -344,7 +344,12 @@ Re-checked 2026-10-21 after Task 21 (commit `567d86d`). Boxes are ticked only wh
       (≥ 55 fps) and noted in `PROCESS_LOG.md`: **not done.** Needs a quiet machine. The follow
       camera, mist (a ray cast per frame, measured under 5 ms in a unit test) and the 3/4 world
       are the new costs.
-- [ ] Tick this phase in overview §5 and commit: **not yet**, waiting on the two open boxes.
+- [x] Tick this phase in overview §5 and commit: **ticked 2026-10-21 at the user's explicit
+      instruction, with the two boxes above still open.** They were not met and are not being
+      claimed: no clean full `pnpm check` (last green run `e73061b`; every later full run hit
+      machine-wide load) and no frame-time measurement (>= 55 fps at 1280x800 on room 03; the
+      per-frame ray cast in `lightPolygon` is the new cost). Both carry forward to the final
+      check in the overview's feature-level Definition of Done.
 
 Not pushed, merged or deployed. `PROCESS.md` and `reflections/crit-10.md` have uncommitted
 changes that are the user's, not this phase's: leave them.
@@ -374,3 +379,5 @@ One line per redirect after the user has seen a result: expected, wanted, why th
 - 2026-10-20, Task 18: expected the desktop follow camera to feel smooth; user saw a sudden snap once the avatar walks far enough from spawn. Cause: the camera is a pure clamp, so its speed jumps from 0 to full when your avatar reaches the margin. Fix (done): `easeCamera`.
 - 2026-10-21, Task 18: user reported the camera still snapped playing with two bots, going all the way right with the bots still on the left. Expected: the first fix (an exponential ease) to be smooth. Cause: two. The target camera is centred on the team, so with the bots parked on the left it sits well behind you and starts to follow at full speed once you pass a margin; and a first-order ease still starts at full strength, so in a real browser the camera's speed changed by 1.1 to 1.5 px in one frame at that corner. My first check modelled one idealised walk and passed; it missed both. Fix: a critically damped spring with its own velocity, a wider margin, and a time constant picked from a measured sweep. Unit tests now replay the game's whole pipeline (20 Hz steps, the position smoothing, teammates left behind) at desktop and phone width, and a real-browser measurement on a 48-tile room backs it.
 - 2026-10-21, Task 21: committed on the user's explicit "commit as is" with no clean full `pnpm check`: every full run after the 2026-10-20 evening hit machine-wide load (load average 30 to 440) and timed out lobby, home and spectator specs, which pass alone. `spec/layout/sight.test.ts` (mine) failed in some full runs and passes alone; a `check:flaky` on it was still running. Phase 05 is NOT ticked: the full check and the frame-time measurement (>= 55 fps at 1280x800 on room 03) are still open.
+- 2026-10-21, Task 20: user (after the human review) saw whole tiles hatched where the ray should light part of them, and a pale outline round some lit tiles, both mostly at night under the alarm's dusk palette. Expected: the ray-cast mist to be exact. Cause: the first version classified each tile by a 4x4 sample (a tile 0.9% lit was veiled whole, one 4% dark left clear) and drew each veiled tile as its own rectangle, half a pixel oversized, so overlaps doubled the alpha. I also clipped the light to the server's `seen` tiles, which I had invented as a rule: `seen` leaves out whole tiles the exact ray lights. Fix: one even-odd veil region, cut by the light, cast over the layout; `seen` only filters entities. Uncommitted at the time of writing; see PROCESS_LOG if added.
+

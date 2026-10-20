@@ -175,18 +175,16 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
       }
     }
   }
-  // the mist: everything outside your line of sight. The server decides which tiles you are told of
-  // (`seen`); the edge of the light inside them is the true ray, cast from where you stand.
+  // the mist: everything outside your line of sight, the edge of it the true ray from where you stand.
+  // Only the sighted have one: Can't see has no map, and a watcher (no `seen`) sees the whole room.
   const seen = scene.seen ? seenOf(scene.seen) : null;
-  if (seen) {
+  if (seen && scene.self) {
     const closed = new Set<string>();
     for (const e of scene.entities)
       if (e.kind === "door" && e.state === "closed")
         closed.add(`${Math.floor(e.pos.x)},${Math.floor(e.pos.y)}`);
-    const light = scene.self
-      ? lightPolygon(scene.self, tiles, (tx, ty) => closed.has(`${tx},${ty}`))
-      : null;
-    drawMist(ctx, cam, tiles, seen, light, win);
+    const light = lightPolygon(scene.self, tiles, (tx, ty) => closed.has(`${tx},${ty}`));
+    drawMist(ctx, cam, tiles, light, win);
   }
   // a mark in a place you can't see shows faintly through the haze: only a teammate's message,
   // never room state

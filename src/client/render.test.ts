@@ -615,176 +615,182 @@ describe("mist, night and marks out of sight (FR5, FR7, FR8)", () => {
     return ops.filter((o) => o.name === "fillRect" && o.fillStyle === WORLD.mist);
   };
 
-  it("draws an unseen tile under the mist colour, and a seen one not", () => {
-    const rows = (n: number) => Array.from({ length: n }, (_, y) => `${y}:0-9`);
-    const veiled = wash(whole({ seen: ["0:0-9", "1:0-9"] }));
-    expect(veiled.length).toBeGreaterThan(0);
-    expect(veiled.every((o) => Math.abs(o.globalAlpha - MIST.alpha) < 1e-9)).toBe(true);
-    expect(wash(whole({ seen: rows(5) }))).toEqual([]); // all in sight: no mist at all
-    expect(wash(whole({}))).toEqual([]); // a watcher is sent no `seen`: no mist
+  const veilOf = (s: Scene) => {
+    const { ctx, ops } = recorder();
+    draw(ctx, s);
+    return ops.filter((o) => o.name === "fill" && o.fillStyle === WORLD.mist);
+  };
+  const ALLROWS = (rows: number, cols: number) =>
+    Array.from({ length: rows }, (_, y) => `${y}:0-${cols - 1}`);
+
+  it("veils at the mist alpha, as one region, where a block casts a shadow", () => {
+    const veils = veilOf(whole({ tiles: grid(5, 10, [[5, 2]]), seen: ALLROWS(5, 10) }));
+    expect(veils.length, "one fill for the floor, cut by the light").toBeGreaterThanOrEqual(1);
+    expect(veils.every((o) => Math.abs(o.globalAlpha - MIST.alpha) < 1e-9)).toBe(true);
   });
 
-  it("veils walls out of sight too, up to their tops", () => {
-    const s = whole({ tiles: grid(5, 10, [[4, 4]]), seen: ["0:0-9", "1:0-9", "2:0-9", "3:0-9"] });
-    const cam = camera(s);
-    const top = toScreen(cam, 4, 4, TILT.wall).y;
-    expect(wash(s).some((o) => Math.abs((o.args[1] as number) - top) < 1e-6)).toBe(true);
+  it("draws no mist for a watcher, who is sent no `seen` and sees the whole room clear", () => {
+    expect(veilOf(whole({ tiles: grid(5, 10, [[5, 2]]) }))).toEqual([]);
   });
 
   describe("the edge of the light is the ray, not the tile", () => {
-    const ALL = (rows: number, cols: number) =>
-      Array.from({ length: rows }, (_, y) => `${y}:0-${cols - 1}`);
     // an open room with one block; the server sends every tile as seen
-    const blockRoom = (over: Partial<Scene> = {}) => {
-      const tiles = grid(8, 12, [[6, 4]]);
-      return whole({
-        tiles,
-        seen: ALL(8, 12),
+    const blockRoom = (over: Partial<Scene> = {}) =>
+      whole({
+        tiles: grid(8, 12, [[6, 4]]),
+        seen: ALLROWS(8, 12),
         self: { x: 2.3, y: 4.5 },
         w: 600,
         h: 360,
         ...over,
       });
-    };
     const trace = (s: Scene) => {
       const { ctx, ops } = recorder();
       draw(ctx, s);
       return ops;
     };
+    const near = (a: number, b: number) => Math.abs(a - b) < 1e-6;
 
     it("cuts the veil along the polygon through the block's corners", () => {
       const s = blockRoom();
-      const cam = camera(s);
-      const ops = trace(s);
-      const corner = toScreen(cam, 6, 4); // the block's north-west corner
-      const hit = (name: string, p: { x: number; y: number }) =>
-        ops.some(
-          (o) =>
-            o.name === name &&
-            Math.abs((o.args[0] as number) - p.x) < 1e-6 &&
-            Math.abs((o.args[1] as number) - p.y) < 1e-6,
-        );
-      expect(hit("lineTo", corner) || hit("moveTo", corner), "a vertex on the corner").toBe(true);
-      // clipped to the tiles the server sent, so it can never show more than it did
-      expect(ops.some((o) => o.name === "clip")).toBe(true);
-      expect(
-        ops.some((o) => o.name === "clip" && o.args[0] === "evenodd"),
-        "the lit part is punched out of the veil",
-      ).toBe(true);
+      const corner = toScreen(camera(s), 6, 4); // the block's north-west corner
+      const onPath = trace(s).some(
+        (o) =>
+          (o.name === "lineTo" || o.name === "moveTo") &&
+          near(o.args[0] as number, corner.x) &&
+          near(o.args[1] as number, corner.y),
+      );
+      expect(onPath, "a vertex of the veil's path is the corner").toBe(true);
     });
 
-    it("veils only the tiles the light does not wholly fill, and draws none of the lit ones", () => {
+    it("veils the floor as one region cut by the light, not tile by tile, so the edge has no steps", () => {
+      // a wedge of shadow behind the block crosses many tiles; each used to be its own rectangle, and
+      // where one switched from "crossed by the edge" to "wholly dark" the edge stepped
       const s = blockRoom();
-      const cam = camera(s);
       const ops = trace(s);
-      // the clip path is a rect per partly-lit tile; none is drawn for a tile in plain light
-      const rects = ops
-        .filter((o) => o.name === "rect")
-        .map((o) => [o.args[0] as number, o.args[1] as number]);
-      const has = (tx: number, ty: number) => {
-        const p = toScreen(cam, tx, ty);
-        return rects.some(
-          ([x, y]) => Math.abs((x as number) - p.x) < 1e-6 && Math.abs((y as number) - p.y) < 1e-6,
-        );
-      };
-      // the shadow behind the block widens: row 3 and row 5 beyond it are crossed by its edge,
-      // row 4 beyond it is wholly dark, and the rest of the room is wholly lit
-      expect(has(9, 3), "a tile the edge of the shadow crosses").toBe(true);
-      expect(has(9, 5), "and the other side of it").toBe(true);
-      expect(has(9, 4), "a tile wholly in shadow is veiled whole, not clipped").toBe(false);
-      expect(has(1, 1), "a tile in plain light").toBe(false);
-    });
-
-    it("still veils a tile the server did not send, even where the ray says it is lit", () => {
-      const s = blockRoom({ seen: ALL(8, 12).map((r) => (r.startsWith("1:") ? "1:0-5" : r)) });
-      const cam = camera(s);
-      const gone = toScreen(cam, 9, 1);
-      const veil = trace(s).filter(
+      const veils = ops.filter((o) => o.name === "fill" && o.fillStyle === WORLD.mist);
+      expect(veils.length, "one fill of the floor").toBe(1);
+      expect(veils[0]?.args[0], "even-odd: the lit part is punched out").toBe("evenodd");
+      const tileRects = ops.filter(
         (o) =>
           o.name === "fillRect" &&
           o.fillStyle === WORLD.mist &&
-          Math.abs((o.args[0] as number) - gone.x) < 1e-6,
+          near(o.args[2] as number, camera(s).scale + 0.5),
       );
-      expect(veil.length).toBeGreaterThan(0);
+      expect(tileRects, "no tile-sized rectangle of mist on top of it").toEqual([]);
+      expect(ops.filter((o) => o.name === "clip").length, "the floor is the one clip").toBe(2);
     });
 
-    it("does not veil a wall you are looking straight at: the light stops at its face, the wall is lit", () => {
-      // a room ringed by wall, all of it seen: the walls round you are in plain sight
+    it("never veils a pixel twice: no seam where two veiled tiles meet", () => {
+      // the floor veil is one path and the walls' another, each filled once; overlapping per-tile
+      // rectangles doubled the alpha where they met, which at night was a pale outline round a tile
+      const fills = trace(blockRoom()).filter(
+        (o) => (o.name === "fill" || o.name === "fillRect") && o.fillStyle === WORLD.mist,
+      );
+      expect(fills.length).toBeLessThanOrEqual(2);
+    });
+
+    it("lights a floor tile the ray reaches even if the server's own tile set left it out", () => {
+      // The server's `seen` is symmetric shadowcasting and leaves out whole tiles the exact ray lights
+      // (the sight room: row 1, x = 15 to 18). The layout is sent whole to every sighted client, so the
+      // floor and walls are drawn from the ray; only what STANDS on a tile is filtered by `seen`, and the
+      // server does that before it is sent. So an unsent tile the ray reaches is clear, not veiled.
+      const s = blockRoom({ seen: ALLROWS(8, 12).map((r) => (r.startsWith("1:") ? "1:0-5" : r)) });
+      const reached = toScreen(camera(s), 9, 1); // open ground in plain light; "not sent" from x = 6
+      const wholeTile = trace(s).filter(
+        (o) =>
+          o.name === "fillRect" &&
+          o.fillStyle === WORLD.mist &&
+          near(o.args[0] as number, reached.x),
+      );
+      expect(wholeTile, "no whole-tile veil on a tile the ray lights").toEqual([]);
+      expect(trace(s).filter((o) => o.name === "fill" && o.fillStyle === WORLD.mist).length).toBe(
+        1,
+      );
+    });
+
+    it("veils a wall the light never reaches, whole, up to its top", () => {
+      // a wall behind the block, in its shadow
+      const s = blockRoom({
+        tiles: grid(8, 12, [
+          [6, 4],
+          [9, 4],
+        ]),
+      });
+      const cam = camera(s);
+      const top = toScreen(cam, 9, 4, TILT.wall);
+      const boxed = trace(s).some(
+        (o) =>
+          o.name === "rect" &&
+          near(o.args[0] as number, top.x) &&
+          near(o.args[1] as number, top.y) &&
+          near(o.args[3] as number, cam.scale * TILT.depth + TILT.wall * cam.scale),
+      );
+      expect(boxed, "the wall's whole height is veiled").toBe(true);
+    });
+
+    it("does not veil a wall you are looking straight at: a ray lands on its face, so it is lit", () => {
+      // a wall column beside you, in plain sight
       const s = whole({
-        tiles: grid(
-          5,
-          10,
-          [
-            [0, 0],
-            [1, 0],
-            [2, 0],
-            [3, 0],
-            [4, 0],
-          ],
-          "#",
-        ),
-        seen: ALL(5, 10),
+        tiles: grid(5, 10, [
+          [0, 0],
+          [1, 0],
+          [2, 0],
+          [3, 0],
+          [4, 0],
+        ]),
+        seen: ALLROWS(5, 10),
         self: { x: 3.5, y: 2.5 },
       });
       const cam = camera(s);
-      const top = toScreen(cam, 2, 0, TILT.wall); // the north wall's top edge, beside the viewer
-      const veils = trace(s).filter(
+      const top = toScreen(cam, 2, 0, TILT.wall);
+      const boxed = trace(s).some(
         (o) =>
-          o.name === "fillRect" &&
-          o.fillStyle === WORLD.mist &&
-          Math.abs((o.args[0] as number) - top.x) < 1e-6 &&
-          Math.abs((o.args[1] as number) - top.y) < 1e-6,
+          o.name === "rect" && near(o.args[0] as number, top.x) && near(o.args[1] as number, top.y),
       );
-      expect(veils, "the west wall column, in sight, is not under mist").toEqual([]);
+      expect(boxed, "the wall in sight is not boxed into the veil").toBe(false);
     });
 
-    it("does veil a wall the light never reaches: the far side of a block, out of sight", () => {
-      const tiles = grid(8, 12, [
-        [6, 4],
-        [7, 4],
-        [8, 4],
-      ]);
-      const s = whole({ tiles, seen: ALL(8, 12), self: { x: 2.3, y: 4.5 }, w: 600, h: 360 });
-      const cam = camera(s);
-      const east = toScreen(cam, 8, 4, TILT.wall);
-      const veils = trace(s).filter(
-        (o) =>
-          o.name === "fillRect" &&
-          o.fillStyle === WORLD.mist &&
-          Math.abs((o.args[0] as number) - east.x) < 1e-6,
-      );
-      expect(veils.length, "the block's far end is in its own shadow").toBeGreaterThan(0);
-    });
-
-    it("uses the same blockers the server does: glass passes sight, a vent stops it", () => {
-      // a tall wall of one kind across the room, with the viewer on one side; what is on the other side
-      // is veiled whole when the kind stops sight, and lit when it passes it
+    it("uses the same blockers the server does: glass passes sight, a vent and a wall stop it", () => {
+      // a wall of one kind across the room, with the viewer on one side. What is behind it is veiled
+      // when that kind stops sight, so there is a veil fill; behind glass the whole room is lit.
       const across = (ch: string) => {
         const tiles = Array.from({ length: 5 }, () => `...${ch}....`);
-        const s = whole({ tiles, seen: ALL(5, 8), self: { x: 1.5, y: 2.5 }, w: 480, h: 300 });
+        const s = whole({ tiles, seen: ALLROWS(5, 8), self: { x: 1.5, y: 2.5 }, w: 480, h: 300 });
         const cam = camera(s);
         const behind = toScreen(cam, 5, 2);
-        const veil = trace(s).filter(
-          (o) =>
-            o.name === "fillRect" &&
-            o.fillStyle === WORLD.mist &&
-            Math.abs((o.args[0] as number) - behind.x) < 1e-6,
-        );
-        return veil.length > 0;
+        // the veil's clip is the floor; the light polygon is what is cut out. Is the point behind the
+        // wall inside the polygon? The polygon's vertices are in the recorded lineTo calls.
+        const verts = trace(s)
+          .filter((o) => o.name === "moveTo" || o.name === "lineTo")
+          .map((o) => ({ x: o.args[0] as number, y: o.args[1] as number }));
+        let inside = false;
+        for (let i = 0, j = verts.length - 1; i < verts.length; j = i++) {
+          const a = verts[i] as { x: number; y: number };
+          const b = verts[j] as { x: number; y: number };
+          if (
+            a.y > behind.y + 4 !== b.y > behind.y + 4 &&
+            behind.x < ((b.x - a.x) * (behind.y + 4 - a.y)) / (b.y - a.y) + a.x
+          )
+            inside = !inside;
+        }
+        return inside;
       };
-      expect(across("="), "behind glass is seen").toBe(false);
-      expect(across("%"), "behind a vent is not").toBe(true);
-      expect(across("#"), "behind a wall is not").toBe(true);
+      expect(across("="), "behind glass is in the light").toBe(true);
+      expect(across("%"), "behind a vent is not").toBe(false);
+      expect(across("#"), "behind a wall is not").toBe(false);
     });
 
-    it("draws no ray-cast veil for a watcher, or when you have no position to cast it from", () => {
+    it("draws no mist for a watcher, or when you have no position to cast the light from", () => {
       expect(
         trace(whole({ seen: undefined, tiles: grid(8, 12, [[6, 4]]) })).some(
           (o) => o.name === "clip",
         ),
       ).toBe(false);
       expect(
-        trace(blockRoom({ self: null })).some((o) => o.name === "clip" && o.args[0] === "evenodd"),
+        trace(blockRoom({ self: null })).some(
+          (o) => o.name === "fill" && o.fillStyle === WORLD.mist,
+        ),
       ).toBe(false);
     });
   });
