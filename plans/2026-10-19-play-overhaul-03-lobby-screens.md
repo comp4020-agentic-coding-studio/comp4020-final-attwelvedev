@@ -414,6 +414,17 @@ None.
   vote copy, but `RoomCleared` has its own vote-asking buttons. Asked; the user kept them
   until Task 24 and the criterion was amended to say so.
 
+- 2026-10-20, Task 12: expected the vote card's countdown on one line; with a long title
+  ("aaron wants to restart the heist from room 1.") it broke at the colon ("0:0" / "2"). First
+  pass left the timer as a shrinkable flex child and only tested short names. Fix: `flex: none;
+  white-space: nowrap` on it, and a spec that measures its height on the long heist title.
+- 2026-10-20, Task 12: expected the spectator's Hold to talk to look like the players' buttons
+  (V set apart, muted); it showed "VHold to talk". First pass reused `.talk-mic` but the `kbd`
+  styling was scoped to `.talk-bar`, which the spectator panel is not in. Fix: the rule covers
+  `.watch-chat` too, and the spectator spec checks the hint is shown and muted. Same miss twice
+  (a style scoped to one parent, a component reused elsewhere): next time a component is reused
+  outside its parent, look at the screenshot at that place before reporting done.
+
 ## 10. Task 11 execution notes (deviations from the plan as written)
 
 - The reveal message also carries `cues: BriefingCue[]` (Can't see only), from the
