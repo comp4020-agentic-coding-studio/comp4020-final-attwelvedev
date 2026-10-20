@@ -21,8 +21,12 @@ describe("the game screen", () => {
     const table = await playRoom(browser, baseUrl);
     for (const role of ["blind", "deaf", "mute"] as const) {
       const page = table.byRole[role];
-      await expect(page.locator(".hud-role").innerText()).resolves.toContain(ROLE_LABEL[role]);
-      expect(await page.locator(".hud-role svg").count()).toBe(1);
+      // this page's own chip in the top bar: their shape, and their role in words for a screen reader
+      await expect(page.locator(".hud-crew li.you").innerText()).resolves.toMatch(/\byou\b/);
+      expect(await page.locator(".hud-crew li.you svg").count()).toBe(1);
+      await expect(page.locator(".hud-crew li.you .sr-only").innerText()).resolves.toContain(
+        ROLE_LABEL[role],
+      );
       expect(await page.locator(".frame .notch svg").count()).toBe(1);
       const frameColour = await page
         .locator(".frame")
@@ -120,20 +124,25 @@ describe("the game screen", () => {
 
   // Anyone may ask for a restart; it happens only when the other two accept.
   const askToRestart = async (asker: Page, others: Page[]) => {
+    await asker.getByRole("button", { name: "Menu" }).click();
     await asker.getByRole("button", { name: "Restart room", exact: true }).click();
     await asker.getByRole("button", { name: "Sure? Ask to restart room", exact: true }).click();
     for (const page of others) {
       const prompt = page.getByRole("alertdialog");
       await prompt.getByText(/wants to restart the room/).waitFor({ timeout: 2000 });
-      await prompt.getByRole("button", { name: "Yes" }).click();
+      await prompt.getByRole("button", { name: "Restart room" }).click();
     }
   };
 
-  it("gives every player a Restart that asks twice, and puts everyone back at spawn once the others accept", async () => {
+  it("gives every player a Restart in the menu that asks twice, and puts everyone back at spawn once the others accept", async () => {
     const table = await playRoom(browser, baseUrl);
     const { blind: host, deaf, mute } = table.byRole;
     for (const page of [host, deaf, mute]) {
+      // the old bar button is gone: the proposals live in the menu
+      expect(await page.getByRole("button", { name: "Restart room", exact: true }).count()).toBe(0);
+      await page.getByRole("button", { name: "Menu" }).click();
       expect(await page.getByRole("button", { name: "Restart room", exact: true }).count()).toBe(1);
+      await page.getByRole("button", { name: "Menu" }).click();
     }
     const move = async () => {
       await deaf.keyboard.down("d");
@@ -169,10 +178,11 @@ describe("the game screen", () => {
     await deaf.keyboard.up("d");
     expect(await settledHash(deaf)).not.toBe(spawn); // they have moved away
 
+    await host.getByRole("button", { name: "Menu" }).click();
     await host.getByRole("button", { name: "Restart room", exact: true }).click();
     await host.getByRole("button", { name: "Sure? Ask to restart room", exact: true }).click();
-    await deaf.getByRole("alertdialog").getByRole("button", { name: "No" }).click();
-    await mute.getByText(/Bo said no/).waitFor({ timeout: 2000 });
+    await deaf.getByRole("alertdialog").getByRole("button", { name: "Keep playing" }).click();
+    await mute.getByText(/Not restarted: Bo kept playing/).waitFor({ timeout: 2000 });
     // the others hear it end at slightly different moments: wait for the bar to go, don't read it once
     await expect.poll(() => deaf.getByRole("alertdialog").count(), { timeout: 3000 }).toBe(0);
     // the room was not restarted: the player is still away from the spawn, and stays there
@@ -268,9 +278,10 @@ describe("high contrast", () => {
   it("passes axe contrast checks in the HUD chrome, at both viewports", async () => {
     const table = await playRoom(browser, baseUrl);
     for (const page of [table.byRole.blind, table.byRole.deaf, table.byRole.mute]) {
+      await page.getByRole("button", { name: "Menu" }).click();
       await page.getByRole("button", { name: "Settings" }).click();
       await page.getByLabel("High contrast").check();
-      await page.getByRole("button", { name: "Settings" }).click(); // close the panel
+      await page.getByRole("button", { name: "Menu" }).click(); // close the menu
     }
     await canvasHash(table.byRole.blind); // let one frame draw with the new palette
     for (const page of [table.byRole.blind, table.byRole.deaf, table.byRole.mute]) {

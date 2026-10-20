@@ -5,7 +5,30 @@ const BUFFER_S = 0.06; // the jitter buffer: playback starts this far ahead of t
 const MAX_LATENCY_MS = 300; // a frame this late on arrival is stale: dropped, not played
 export const LAG_P95_MS = 400; // above this the HUD says "Voice lagging"
 const STATS_EVERY_MS = 5000;
-const HEADER = 14; // [0x01][u8 seat][u32 seq][f64 captureServerMs]
+const HEADER = 14; // [0x01 | 0x02][u8 seat or watcher index][u32 seq][f64 captureServerMs]
+// A watcher's frame (0x02) goes into a lane of its own, past the three seats, so a spectator
+// talking never shares a decoder with a player.
+export const WATCHER_LANE = 10;
+
+export interface Frame {
+  lane: number;
+  seq: number;
+  captureServerMs: number;
+  opus: Uint8Array;
+}
+
+// A relayed voice frame, or null for anything that isn't one: no audio after the header, or a first
+// byte that is neither a player's (0x01) nor a watcher's (0x02).
+export function parseFrame(buf: Uint8Array): Frame | null {
+  if (buf.length <= HEADER || (buf[0] !== 1 && buf[0] !== 2)) return null;
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  return {
+    lane: (buf[0] === 2 ? WATCHER_LANE : 0) + (buf[1] as number),
+    seq: view.getUint32(2),
+    captureServerMs: view.getFloat64(6),
+    opus: buf.subarray(HEADER),
+  };
+}
 
 export interface JitterDecision {
   play: boolean;
@@ -46,7 +69,7 @@ export interface VoicePlayer {
 export function startPlayer(
   socket: GameSocket,
   hooks: {
-    onFrame: (seat: number) => void; // a frame from this seat arrived (played or not)
+    onFrame: (lane: number) => void; // a frame from this seat (or WATCHER_LANE + n) arrived, played or not
     onLag: (lagging: boolean) => void;
   },
 ): VoicePlayer {
@@ -88,15 +111,12 @@ export function startPlayer(
   }
 
   const offBinary = socket.onBinary((buf) => {
-    if (buf.length <= HEADER || buf[0] !== 1) return;
-    const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
-    const seat = buf[1] as number;
-    const seq = view.getUint32(2);
-    const captureServerMs = view.getFloat64(6);
-    hooks.onFrame(seat);
-    const latency = Date.now() + (socket.clockOffset() ?? 0) - captureServerMs;
+    const frame = parseFrame(buf);
+    if (!frame) return;
+    hooks.onFrame(frame.lane);
+    const latency = Date.now() + (socket.clockOffset() ?? 0) - frame.captureServerMs;
     latencies.push(Math.max(0, latency));
-    const mine = lane(seat);
+    const mine = lane(frame.lane);
     const decision = schedule(latency, ctx.currentTime, mine.lastEnd);
     if (!decision.play) {
       dropped++;
@@ -108,8 +128,8 @@ export function startPlayer(
     mine.decoder.decode(
       new EncodedAudioChunk({
         type: "key",
-        timestamp: seq * FRAME_MS * 1000,
-        data: buf.subarray(HEADER),
+        timestamp: frame.seq * FRAME_MS * 1000,
+        data: frame.opus,
       }),
     );
   });

@@ -30,11 +30,13 @@ export interface Voice {
 const SPEAKING_MS = 400;
 
 // Push-to-talk voice for one page: the microphone for the roles that may Say (Can't see, Can't hear),
-// and playback for the roles that hear Say (Can't see, Can't speak). `frames` is the page's count of
-// voice frames received, written to a data attribute so a spec can see audio arriving.
+// and playback for the roles that hear Say (Can't see, Can't speak). A watcher (a spectator, or
+// someone sitting the room out) does both: it talks to the other watchers, and hears them and the
+// seat it follows (ADR 0015). `frames` is the page's count of voice frames received, written to a
+// data attribute so a spec can see audio arriving.
 export function useVoice(
   socket: GameSocket,
-  role: Role,
+  role: Role | "watcher",
   voiceOn: boolean,
   frames: RefObject<HTMLElement>,
   mode: Settings["voiceMode"] = "hold",

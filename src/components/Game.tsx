@@ -31,10 +31,10 @@ import { ROLE_LABEL, type Role, type Seat, type Vec } from "../game/types.ts";
 import type { CrewMember, LobbyState, RealLife, RoleView } from "../net/protocol.ts";
 import { type CaptionLine, Captions } from "./Captions.tsx";
 import { type CommsApi, CommsWheel } from "./CommsWheel.tsx";
-import { ConfirmButton } from "./ConfirmButton.tsx";
 import { Connection } from "./Connection.tsx";
 import { Disconnect } from "./Disconnect.tsx";
 import { HeistComplete } from "./HeistComplete.tsx";
+import { HudMenu } from "./HudMenu.tsx";
 import { RoleReveal } from "./RoleReveal.tsx";
 import { RoleShape } from "./RoleShape.tsx";
 import { RoomCleared } from "./RoomCleared.tsx";
@@ -199,6 +199,7 @@ export function Game({
   people,
   watching,
   early,
+  onLeave,
 }: {
   socket: GameSocket;
   state: ConnectionState;
@@ -212,6 +213,7 @@ export function Game({
   sitting: { index: number; nickname: string }[]; // people sitting out, whom the host may pull in
   people: string[]; // nicknames by person index, so a swap named in the reveal is sent by index
   watching: string[]; // spectators' nicknames, listed in the crew column
+  onLeave: () => void; // the menu's Leave: the lobby asks first, then leaves
 }) {
   const rt = useRef<Runtime>({
     view: null,
@@ -362,6 +364,7 @@ export function Game({
       sitting={sitting}
       watchers={watchers}
       audio={audio}
+      onLeave={onLeave}
     />
   );
 }
@@ -379,6 +382,7 @@ function Hud({
   sitting,
   watchers,
   audio,
+  onLeave,
 }: {
   rt: Runtime;
   socket: GameSocket;
@@ -392,12 +396,15 @@ function Hud({
   sitting: { index: number; nickname: string }[];
   watchers: { ref: number; nickname: string }[]; // spectators the host may pull into an empty seat
   audio: { current: GameAudio | null };
+  onLeave: () => void;
 }) {
   const { role, real } = reveal;
   const frame = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const root = useRef<HTMLDivElement>(null);
   const [clock, setClock] = useState("0:00");
+  const [loot, setLoot] = useState(0);
+  const [watchOpen, setWatchOpen] = useState(false);
   const [cleared, setCleared] = useState(false);
   const [summary, setSummary] = useState<{ ms: number; loot: number; lootTotal: number } | null>(
     null,
@@ -513,21 +520,23 @@ function Hud({
     let timer: ReturnType<typeof setTimeout> | undefined;
     const offs = [
       socket.on("vote", (m) =>
-        setVote({
+        setVote((old) => ({
           kind: m.kind,
           by: m.by,
           until: performance.now() + m.left,
+          // the first message of a vote carries all its time: later ones only what is left
+          total: old && old.kind === m.kind && old.by === m.by ? old.total : m.left,
           yes: m.yes,
           no: m.no,
           voters: m.voters,
-        }),
+        })),
       ),
       socket.on("vote.end", (m) => {
         setVote(null);
         if (m.result === "passed") restarted();
         setVoteNote(outcomeText(m.kind, m.result, m.by));
         clearTimeout(timer);
-        timer = setTimeout(() => setVoteNote(null), 5000);
+        timer = setTimeout(() => setVoteNote(null), 3000);
       }),
     ];
     return () => {
@@ -545,6 +554,14 @@ function Hud({
   }, [vote]);
 
   const hostNote = useHostNote(hostName, host);
+  const watching = [...sitting.map((p) => p.nickname), ...watchers.map((w) => w.nickname)];
+
+  useEffect(() => {
+    if (!watchOpen) return;
+    const close = (e: KeyboardEvent) => e.key === "Escape" && setWatchOpen(false);
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, [watchOpen]);
 
   // A seat changed hands: a person left and a bot took it, or they came back. The crew changes
   // under us, so say so.
@@ -599,6 +616,7 @@ function Hud({
       const view = rt.view;
       if (!view) return;
       setClock(formatTime(view.elapsedMs));
+      setLoot(view.loot);
       setCleared(view.status === "cleared");
       const now = performance.now();
       rt.pops = rt.pops.filter((p) => now - p.at < FACE_POP_MS);
@@ -659,46 +677,65 @@ function Hud({
         {reveal.name}: {label}
       </h1>
       <header class="hud-top">
-        <span class="hud-role">
-          <RoleShape role={role} size={20} />
-          {label}
-        </span>
-        <span class="hud-room">{reveal.name}</span>
+        <ul class="hud-crew" aria-label="Your team">
+          {reveal.crew.map((c) => (
+            <li key={c.seat} class={c.seat === rt.view?.you.seat ? "you" : undefined}>
+              <RoleShape role={c.role} size={16} />
+              <span class="hud-who">
+                {c.nickname}
+                {presence[c.seat] ? ` (${presence[c.seat]})` : ""}
+              </span>
+              {c.seat === rt.view?.you.seat && <span class="hud-tag">you</span>}
+              {c.bot && <span class="hud-tag">bot</span>}
+              {voice.speaking.has(c.seat) && <span class="talking hud-tag">talking</span>}
+              <span class="sr-only">, {ROLE_LABEL[c.role]}</span>
+            </li>
+          ))}
+        </ul>
         <span class="hud-clock" role="timer" aria-label="Time">
           {clock}
         </span>
+        <span class="hud-loot" role="img" aria-label={`Loot ${loot}`}>
+          <span aria-hidden="true">◆ {loot}</span>
+        </span>
         <Connection state={state} rttMs={rttMs} />
-        <Settings
-          role={role}
-          settings={settings}
-          onChange={change}
-          onLeave={() => socket.send({ t: "lobby.leave" })}
-          maskNoiseAvailable={real.maskNoise}
-          othersSoundOff={real.soundOff}
-          voiceOn={real.voice}
-        />
-        <ConfirmButton
-          class="hud-btn"
-          label="Restart room"
-          confirmLabel="Sure? Ask to restart room"
-          onConfirm={() => ask("room")}
+        <span class="hud-watching">
+          <button
+            type="button"
+            class="hud-btn"
+            aria-expanded={watchOpen}
+            aria-controls="hud-watching"
+            disabled={watching.length === 0}
+            hidden={watching.length === 0}
+            onClick={() => setWatchOpen(!watchOpen)}
+          >
+            {watching.length} watching
+          </button>
+          {watchOpen && watching.length > 0 && (
+            <ul class="hud-watching-list" id="hud-watching" aria-label="Watching">
+              {watching.map((name, n) => (
+                <li key={`${n}:${name}`}>{name}</li>
+              ))}
+            </ul>
+          )}
+        </span>
+        <HudMenu
+          onAsk={ask}
+          onLeave={onLeave}
+          settings={
+            <Settings
+              role={role}
+              settings={settings}
+              onChange={change}
+              maskNoiseAvailable={real.maskNoise}
+              othersSoundOff={real.soundOff}
+              voiceOn={real.voice}
+            />
+          }
         />
       </header>
 
-      <ul class="hud-crew" aria-label="Your team">
-        {reveal.crew.map((c) => (
-          <li key={c.seat}>
-            <RoleShape role={c.role} size={16} />
-            <span>
-              {c.nickname}
-              {c.seat === rt.view?.you.seat ? " (you)" : ""}
-              {presence[c.seat] ? ` (${presence[c.seat]})` : ""}
-            </span>
-            {voice.speaking.has(c.seat) && <span class="talking">talking</span>}
-          </li>
-        ))}
-        {role === "blind" && <li class="hud-hint">No map. Listen.</li>}
-      </ul>
+      {role === "blind" && <p class="hud-hint">No map. Listen.</p>}
 
       {voice.lagging && (
         <p class="hud-alert" role="status">
@@ -813,6 +850,7 @@ function Hud({
           <VotePrompt
             vote={vote}
             seat={me as Seat}
+            crew={reveal.crew}
             secondsLeft={voteLeft}
             onCast={(yes) => socket.send({ t: "vote.cast", yes })}
           />

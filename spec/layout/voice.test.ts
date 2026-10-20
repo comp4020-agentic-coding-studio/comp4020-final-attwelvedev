@@ -233,6 +233,7 @@ describe("voice: the mic switch when the whole crew sits together", () => {
 
   it("is enabled in a room that has voice", async () => {
     const { deaf } = table.byRole;
+    await deaf.getByRole("button", { name: "Menu" }).click();
     await deaf.getByRole("button", { name: "Settings" }).click();
     expect(await deaf.getByLabel("Press V to turn the mic on and off").isDisabled()).toBe(false);
     expect(await deaf.getByText(/Voice is off in this room/).count()).toBe(0);

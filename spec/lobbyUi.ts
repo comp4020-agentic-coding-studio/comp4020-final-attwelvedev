@@ -65,3 +65,31 @@ export async function leaveGameAndClose(page: Page, baseUrl: string): Promise<vo
   if (cookie) await (await connect(baseUrl, cookie)).close();
   await page.context().close();
 }
+
+// Someone who joins a lobby that has started: it is full, so the join page offers to watch.
+// Resolves once their spectator screen has drawn.
+export async function joinAsWatcher(
+  browser: Browser,
+  baseUrl: string,
+  code: string,
+  nickname: string,
+  viewport: Viewport,
+  options: { hasTouch?: boolean } = {},
+): Promise<Page> {
+  const context = await browser.newContext({
+    viewport,
+    ...(options.hasTouch ? { hasTouch: true, isMobile: true } : {}),
+  });
+  const page = await context.newPage();
+  await page.goto(baseUrl, { waitUntil: "networkidle" });
+  await page.getByLabel("Nickname").fill(nickname);
+  await page.getByLabel("Lobby code").fill(code);
+  await page.getByRole("button", { name: "Join", exact: true }).click();
+  await page.getByRole("button", { name: "Watch" }).click();
+  await page.locator(".spectator-frame canvas").waitFor();
+  return page;
+}
+
+// The code of the lobby a page is in.
+export const lobbyCodeOf = (page: Page): string =>
+  new URL(page.url()).pathname.split("/").pop() ?? "";

@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import { captionFor } from "../client/hud.ts";
+import { createAudio, type GameAudio } from "../client/audio.ts";
+import {
+  type CueCaption,
+  captionFor,
+  cueCaptions,
+  cueKey,
+  type HeldCues,
+  hearCues,
+  heardCues,
+} from "../client/hud.ts";
 import { draw, type Scene } from "../client/render.ts";
 import type { ConnectionState, GameSocket } from "../client/socket.ts";
 import { ROLE_LABEL, type Role, type Seat } from "../game/types.ts";
@@ -7,10 +16,13 @@ import type { LobbyState, RoleView } from "../net/protocol.ts";
 import { type CaptionLine, Captions } from "./Captions.tsx";
 import { Connection } from "./Connection.tsx";
 import { Disconnect } from "./Disconnect.tsx";
+import { HudMenu } from "./HudMenu.tsx";
+import { RoleShape } from "./RoleShape.tsx";
+import { SpectatorChat, type WatchLine } from "./SpectatorChat.tsx";
 import { useGone } from "./useGone.ts";
 import { useHostNote } from "./useHostNote.ts";
 import { usePause } from "./usePause.ts";
-import { WatchChat, type WatchLine } from "./WatchChat.tsx";
+import { useVoice } from "./useVoice.ts";
 
 const SEATS = [0, 1, 2] as const;
 const CAPTION_MS = 4000;
@@ -31,6 +43,10 @@ export function Spectator({
   sitting,
   watchers,
   onStartNewTeam,
+  me,
+  onLeave,
+  roomName,
+  next,
 }: {
   socket: GameSocket;
   state: ConnectionState;
@@ -43,6 +59,10 @@ export function Spectator({
   sitting: { index: number; nickname: string }[];
   watchers: { ref: number; nickname: string }[];
   onStartNewTeam: () => void;
+  me: number | null; // this person's index in the lobby, to say which room they play next
+  onLeave: () => void; // the menu's Leave: the lobby asks first
+  roomName: string;
+  next: number | null; // the next room this person plays (from 1), when someone sitting out
 }) {
   const goneNote = useGone(socket);
   const hostNote = useHostNote(hostName, host);
@@ -61,10 +81,18 @@ export function Spectator({
     ),
   );
   const [follow, setFollow] = useState<Seat | null>(null); // null: the whole room, no sound
-  const [chat, setChat] = useState<WatchLine[]>([]);
+  const [chat_, setChat] = useState<WatchLine[]>([]);
   const chatId = useRef(0);
   const [lines, setLines] = useState<CaptionLine[]>([]);
   const lineId = useRef(0);
+  // What the followed seat hears: played, and captioned with arrows, as that seat's own page would
+  const audio = useRef<GameAudio | null>(null);
+  const cueHold = useRef<HeldCues>(new Map());
+  const [cues, setCues] = useState<CueCaption[]>([]);
+  const root = useRef<HTMLDivElement>(null);
+  const [tab, setTab] = useState<"chat" | "players">("chat");
+  // A watcher talks to the other watchers and hears them and the seat it follows (ADR 0015)
+  const voice = useVoice(socket, "watcher", true, root, "hold");
 
   useEffect(
     () =>
@@ -85,9 +113,28 @@ export function Spectator({
   // the listener is in place, not only when the page was first rendered.
   useEffect(() => {
     if (early.view && view.current === null) view.current = early.view;
-    return socket.on("view", (m) => {
+    audio.current = createAudio();
+    // browsers keep sound off until the page has been touched: any press or key is that touch
+    const wake = () => void audio.current?.resume();
+    document.addEventListener("pointerdown", wake);
+    document.addEventListener("keydown", wake);
+    const off = socket.on("view", (m) => {
       view.current = m.view;
+      hearCues(cueHold.current, cueCaptions(m.view.sounds), performance.now());
+      audio.current?.play(m.view.sounds);
     });
+    const timer = setInterval(() => {
+      const heard = heardCues(cueHold.current, performance.now());
+      setCues((old) => (cueKey(old) === cueKey(heard) ? old : heard));
+    }, 100);
+    return () => {
+      off();
+      clearInterval(timer);
+      document.removeEventListener("pointerdown", wake);
+      document.removeEventListener("keydown", wake);
+      audio.current?.dispose();
+      audio.current = null;
+    };
   }, [socket, early]);
 
   useEffect(
@@ -113,9 +160,34 @@ export function Spectator({
   );
 
   function followSeat(seat: Seat | null) {
+    cueHold.current.clear();
+    setCues([]);
     setFollow(seat);
     socket.send({ t: "spectate", seat });
   }
+
+  // V talks, as in a game, unless a text field has the keys
+  useEffect(() => {
+    const isField = (t: EventTarget | null) =>
+      t instanceof HTMLElement && (t.tagName === "INPUT" || t.tagName === "TEXTAREA");
+    const down = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== "v" || e.repeat || isField(e.target)) return;
+      if (voice.status === "ready") {
+        e.preventDefault();
+        voice.mic("down");
+      }
+    };
+    const up = (e: KeyboardEvent) => e.key.toLowerCase() === "v" && voice.mic("up");
+    const blur = () => voice.mic("off");
+    document.addEventListener("keydown", down);
+    document.addEventListener("keyup", up);
+    window.addEventListener("blur", blur);
+    return () => {
+      document.removeEventListener("keydown", down);
+      document.removeEventListener("keyup", up);
+      window.removeEventListener("blur", blur);
+    };
+  }, [voice]);
 
   // Same full-bleed layout as a game: the site header and footer step aside.
   useEffect(() => {
@@ -168,34 +240,16 @@ export function Spectator({
     };
   }, []);
 
-  return (
-    <div class="spectator">
-      <header class="hud-bar">
-        <span class="hud-room">Spectating</span>
-        <Connection state={state} rttMs={rttMs} />
-      </header>
-      <div class="frame spectator-frame" ref={frame}>
-        <canvas
-          ref={canvas}
-          role="img"
-          aria-label={
-            follow === null
-              ? "Spectator view of the whole room"
-              : `Spectator view, following ${ROLE_LABEL[roles.current[follow]]}`
-          }
-        />
-        <Captions lines={lines} cues={[]} />
-      </div>
+  const micNote =
+    voice.status === "ready" || voice.status === "starting"
+      ? null
+      : voice.status === "blocked"
+        ? "Microphone blocked: voice is off. Chat still works."
+        : "This browser can't do voice: voice is off. Chat still works.";
+  const players = (
+    <div class="spectator-players">
       <fieldset class="spectator-follow">
         <legend>Follow</legend>
-        <button
-          type="button"
-          class="btn"
-          aria-pressed={follow === null}
-          onClick={() => followSeat(null)}
-        >
-          Whole room
-        </button>
         {SEATS.map((seat) => (
           <button
             key={seat}
@@ -205,14 +259,101 @@ export function Spectator({
             disabled={!seats[seat]?.who && !seats[seat]?.bot}
             onClick={() => followSeat(seat)}
           >
+            <RoleShape role={roles.current[seat]} size={16} />{" "}
             {seats[seat]?.nickname ?? `Seat ${seat + 1}`}
           </button>
         ))}
+        <button
+          type="button"
+          class="btn"
+          aria-pressed={follow === null}
+          onClick={() => followSeat(null)}
+        >
+          Whole room
+        </button>
       </fieldset>
-      <WatchChat lines={chat} onSay={(text) => socket.send({ t: "spec.say", text })} />
-      <button type="button" class="btn primary" onClick={onStartNewTeam}>
-        Start a new team
-      </button>
+      {sitting.length > 0 && (
+        <p class="muted">
+          Sitting out this room: {sitting.map((p) => p.nickname).join(", ")}
+          {next !== null && sitting.some((p) => p.index === me) ? ` (you play room ${next})` : ""}
+        </p>
+      )}
+    </div>
+  );
+  const chat = (
+    <SpectatorChat
+      lines={chat_}
+      onSay={(text) => socket.send({ t: "spec.say", text })}
+      onTalk={voice.talk}
+      talking={voice.talking}
+      micNote={micNote}
+    />
+  );
+  return (
+    <div class="spectator" ref={root}>
+      <h1 class="sr-only">Watching {roomName}</h1>
+      <header class="hud-top">
+        <span class="hud-room">Watching {roomName}</span>
+        <Connection state={state} rttMs={rttMs} />
+        <HudMenu restarts={false} leaveLabel="Leave" onLeave={onLeave} />
+      </header>
+      <div class="spectator-body">
+        <div class="frame spectator-frame" ref={frame}>
+          <canvas
+            ref={canvas}
+            role="img"
+            aria-label={
+              follow === null
+                ? "Spectator view of the whole room"
+                : `Spectator view, following ${ROLE_LABEL[roles.current[follow]]}`
+            }
+          />
+          <Captions lines={lines} cues={cues} />
+        </div>
+        <section
+          class="spectator-panel"
+          aria-label={`Spectators (${sitting.length + watchers.length})`}
+        >
+          <p class="spectator-panel-title">
+            Spectators ({sitting.length + watchers.length}) — only spectators see and hear this
+          </p>
+          <div class="spectator-tabs" role="tablist" aria-label="Panel">
+            {(["chat", "players"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                role="tab"
+                class="btn"
+                id={`spec-tab-${t}`}
+                aria-selected={tab === t}
+                aria-controls={`spec-pane-${t}`}
+                onClick={() => setTab(t)}
+              >
+                {t === "chat" ? "Chat" : "Players"}
+              </button>
+            ))}
+          </div>
+          <div
+            role="tabpanel"
+            id="spec-pane-players"
+            aria-labelledby="spec-tab-players"
+            class={tab === "players" ? "spectator-pane" : "spectator-pane off-phone"}
+          >
+            {players}
+          </div>
+          <div
+            role="tabpanel"
+            id="spec-pane-chat"
+            aria-labelledby="spec-tab-chat"
+            class={tab === "chat" ? "spectator-pane" : "spectator-pane off-phone"}
+          >
+            {chat}
+          </div>
+          <button type="button" class="btn primary" onClick={onStartNewTeam}>
+            Start a new team
+          </button>
+        </section>
+      </div>
       {gone && (
         <p class="hud-alert spectator-gone" role="status">
           {gone}

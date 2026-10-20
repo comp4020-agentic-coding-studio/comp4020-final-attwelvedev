@@ -309,35 +309,41 @@ body.playing main {
   background: var(--bg);
   overflow: hidden;
 }
+/* the top bar: crew chips, clock, loot, the live light, who is watching, the menu. One glass strip
+   over the frame; on a phone the crew takes the first line and the rest wraps below it. */
 .hud-top {
+  position: relative;
+  z-index: 6;
   flex: none;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--s-3);
-  min-height: 44px;
-  padding: 0 var(--s-3);
+  gap: var(--s-1) var(--s-3);
+  min-height: var(--target);
+  margin: var(--s-1) var(--s-3) 0;
+  padding: var(--s-1) var(--s-2);
+  background: var(--glass);
+  border-radius: var(--r);
   font-stretch: 75%;
   font-weight: 700;
-}
-.hud-role {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
 }
 .hud-room {
   flex: 1;
   min-width: 0;
-  color: var(--ui-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.hud-clock {
+.hud-clock,
+.hud-loot {
   font-variant-numeric: tabular-nums;
 }
+.hud-loot {
+  color: var(--goal);
+}
 .hud-btn {
-  min-height: 44px;
-  min-width: 48px;
+  min-height: var(--target);
+  min-width: var(--target);
   padding: 0 var(--s-2);
   background: transparent;
   color: var(--ui);
@@ -348,15 +354,17 @@ body.playing main {
   font-weight: 700;
   cursor: pointer;
 }
+.hud-btn[hidden] {
+  display: none;
+}
 .hud-crew {
-  flex: none;
+  flex: 1 1 14rem;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--s-1) var(--s-4);
+  gap: var(--s-1) var(--s-2);
   margin: 0;
-  padding: 0 var(--s-3);
-  min-height: 28px;
+  padding: 0;
   list-style: none;
   font-size: var(--t-14);
 }
@@ -364,11 +372,61 @@ body.playing main {
   display: inline-flex;
   align-items: center;
   gap: var(--s-1);
+  padding: var(--s-1) var(--s-2);
+  border: 2px solid transparent;
+  border-radius: var(--r);
+}
+.hud-crew li.you {
+  border-color: var(--ui-muted);
+}
+.hud-tag {
+  padding: 0 var(--s-1);
+  background: var(--ui);
+  color: var(--bg);
+  border-radius: var(--r);
+  font-size: 12px;
 }
 .hud-hint {
-  margin-left: auto;
+  flex: none;
+  margin: var(--s-1) var(--s-3) 0;
   color: var(--ui);
   font-weight: 700;
+}
+
+/* who is watching: a button that opens a list under the bar */
+.hud-watching {
+  position: relative;
+}
+.hud-watching-list {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 7;
+  margin: var(--s-1) 0 0;
+  padding: var(--s-2) var(--s-3);
+  min-width: 10rem;
+  list-style: none;
+  background: var(--panel);
+  border: 2px solid var(--ui-muted);
+  border-radius: var(--r);
+  font-stretch: 100%;
+  font-weight: 400;
+}
+
+/* the live light: the dot pulses once a second while live, and holds still otherwise or when
+   motion is reduced (the words say the same thing) */
+.conn-dot {
+  display: inline-block;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .conn-live .conn-dot {
+    animation: live-pulse 1s ease-in-out infinite;
+  }
+}
+@keyframes live-pulse {
+  50% {
+    opacity: 0.35;
+  }
 }
 
 .hud-alert {
@@ -381,8 +439,9 @@ body.playing main {
   font-weight: 700;
 }
 
-/* spectators: the same chrome shape as a game, but grey and dashed, no role
-   notch and no tray (spec §4.1) — nothing here belongs to a seat */
+/* spectators: the same chrome shape as a game, but grey and dashed, no role notch and no wheel
+   (spec §4.1): nothing here belongs to a seat. At 720 px and up the panel stands to the right of
+   the map; on a phone the map takes the top 60% and the panel is a sheet under it. */
 .spectator {
   display: flex;
   flex-direction: column;
@@ -392,19 +451,16 @@ body.playing main {
   background: var(--bg);
   overflow: hidden;
 }
-.hud-bar {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  min-height: 44px;
-  padding: 0 var(--s-3);
-  font-stretch: 75%;
-  font-weight: 700;
-}
-.spectator-frame {
-  position: relative;
+.spectator-body {
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* compounded with .frame, which comes later in the file with the same weight, so these win */
+.frame.spectator-frame {
+  position: relative;
+  flex: 0 0 calc(60dvh - var(--target)); /* 60% of the screen, less the bar above it */
   min-height: 0;
   margin: var(--s-1) var(--s-3);
   border: 4px dashed var(--ui-muted);
@@ -415,28 +471,84 @@ body.playing main {
   width: 100%;
   height: 100%;
 }
+.spectator-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0 var(--s-3) var(--s-3);
+  padding: var(--s-3);
+  background: var(--glass);
+  border-radius: var(--r);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.spectator-panel-title {
+  margin: 0;
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+}
+.spectator-tabs {
+  display: flex;
+  gap: var(--s-2);
+}
+.spectator-tabs .btn[aria-selected="true"] {
+  background: var(--ui);
+  color: var(--bg);
+}
+.spectator-pane {
+  display: grid;
+  gap: var(--s-2);
+}
+/* on a phone one pane shows at a time; wide enough for a side panel, both do */
+.off-phone {
+  display: none;
+}
 .spectator-follow {
-  flex: none;
   display: flex;
   flex-wrap: wrap;
   gap: var(--s-2);
-  margin: 0 var(--s-3) var(--s-2);
+  margin: 0;
   padding: 0;
   border: 0;
 }
 .spectator-follow legend {
   width: 100%;
-  margin-bottom: var(--s-1);
+  margin: 0 0 var(--s-1);
+  padding: 0;
   color: var(--ui-muted);
   font-size: var(--t-14);
+}
+.spectator-follow .btn {
+  gap: var(--s-1);
+  padding: 0 var(--s-3);
 }
 .spectator-follow .btn[aria-pressed="true"] {
   background: var(--ui);
   color: var(--bg);
 }
-.spectator > .btn.primary {
-  margin: var(--s-3) var(--s-3) var(--s-3);
+.spectator-panel > .btn.primary {
   align-self: flex-start;
+}
+@media (min-width: 720px) {
+  .spectator-body {
+    flex-direction: row;
+  }
+  .frame.spectator-frame {
+    flex: 1;
+    margin-right: 0;
+  }
+  .spectator-panel {
+    flex: 0 0 22rem;
+    margin: var(--s-1) var(--s-3) var(--s-3) var(--s-3);
+  }
+  .spectator-tabs {
+    display: none;
+  }
+  .off-phone {
+    display: grid;
+  }
 }
 
 /* the role frame: 4 px in the role colour, the role's shape notched in the corner */
@@ -595,9 +707,6 @@ body.playing main {
   font-weight: 700;
 }
 
-.hud-top {
-  position: relative;
-}
 .settings {
   position: absolute;
   top: 100%;
@@ -668,12 +777,44 @@ fieldset.settings {
   color: var(--bg);
   border-color: var(--danger);
 }
-.settings-leave {
-  margin-top: var(--s-1);
-  padding-top: var(--s-3);
-  border-top: 2px solid var(--ui-muted);
+
+/* the [≡] menu */
+.hud-menu {
+  position: relative;
+  margin-left: auto;
 }
-.settings-leave .hud-btn {
+.hud-menu-btn {
+  font-size: var(--t-18);
+}
+.hud-menu-panel {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 8;
+  display: grid;
+  gap: var(--s-2);
+  width: max-content;
+  max-width: calc(100vw - var(--s-5));
+  margin-top: var(--s-1);
+  padding: var(--s-3);
+  background: var(--panel);
+  border: 2px solid var(--ui);
+  border-radius: var(--r);
+  font-stretch: 100%;
+  font-weight: 400;
+}
+.hud-menu-panel > .hud-btn,
+.hud-menu-panel > .hud-btn.danger {
+  width: 100%;
+  text-align: left;
+}
+/* Settings opens a panel of its own: inside the menu it is one more section, not a second popup */
+.hud-menu-panel .settings {
+  position: static;
+  border: 0;
+  padding: var(--s-2) 0;
+}
+.hud-menu-panel > button.hud-btn[aria-controls="settings"] {
   width: 100%;
 }
 
@@ -1130,52 +1271,90 @@ fieldset.settings {
   }
 }
 
-/* a restart vote: a bar along the foot of the map, so people keep moving while they decide */
+/* a restart vote: a card at the top centre of the map, so people keep moving while they decide */
 .vote-prompt {
   position: absolute;
-  left: var(--s-2);
-  right: var(--s-2);
-  bottom: var(--s-2);
+  top: var(--s-2);
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 3;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
   gap: var(--s-2);
-  padding: var(--s-2) var(--s-3);
+  width: min(calc(100% - var(--s-4)), 26rem);
+  padding: var(--s-3);
   border: 2px solid var(--ui);
   border-radius: var(--r);
-  background: rgb(11 18 32 / 92%);
+  background: var(--glass);
 }
 .vote-prompt p {
   margin: 0;
 }
-.vote-actions {
+.vote-title {
   display: flex;
+  justify-content: space-between;
+  gap: var(--s-3);
+  font-weight: 700;
+}
+.vote-voters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--t-14);
+}
+.vote-voters li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+.vote-said {
+  color: var(--ui-muted);
+}
+.said-yes .vote-said,
+.said-no .vote-said {
+  color: var(--ui);
+  font-weight: 700;
+}
+.vote-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* side by side: a phone's map is short, and the card sits over it */
   gap: var(--s-2);
 }
+.vote-actions .btn {
+  padding: 0 var(--s-2);
+}
+.vote-bar {
+  height: 6px;
+  background: var(--panel);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.vote-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--ui);
+}
 
-/* the watchers' chat, under the map: plain until the spectator panel is restyled */
+/* the watchers' chat */
 .watch-chat {
   display: grid;
   gap: var(--s-2);
-  padding: 0 var(--s-3);
-}
-.watch-chat h2 {
-  margin: 0;
-  font-size: var(--t-18);
 }
 .watch-chat p {
   margin: 0;
+}
+.watch-note {
+  font-size: var(--t-14);
 }
 .watch-lines {
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: 7rem;
-  overflow-y: auto;
   display: grid;
   gap: var(--s-1);
+  overflow-wrap: anywhere;
 }
 .watch-say {
   display: flex;
@@ -1184,4 +1363,7 @@ fieldset.settings {
 .watch-say input {
   flex: 1;
   min-width: 0;
+}
+.watch-chat .talk-mic {
+  justify-self: start;
 }

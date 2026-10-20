@@ -1,10 +1,9 @@
 import { useState } from "preact/hooks";
 import type { Settings as SettingsState } from "../client/settings.ts";
 import type { Role } from "../game/types.ts";
-import { ConfirmButton } from "./ConfirmButton.tsx";
 
 // The few things a person may turn on or off. Kept to a button and a small
-// panel in the top bar; what a person's real-life setup implies arrives in `real`.
+// panel in the menu (HudMenu, which also holds Leave); what a person's real-life setup implies arrives in `real`.
 // Can't hear is told nothing in words or sound (they get faces and stamps,
 // which are pictures), so captions, sound and speech are shown off and can't
 // be changed, with the reason, rather than offering switches that do nothing.
@@ -12,7 +11,6 @@ export function Settings({
   role,
   settings,
   onChange,
-  onLeave,
   maskNoiseAvailable,
   othersSoundOff,
   voiceOn,
@@ -20,7 +18,6 @@ export function Settings({
   role: Role;
   settings: SettingsState;
   onChange: (next: SettingsState) => void;
-  onLeave: () => void;
   // Whether this person's setup says they have headphones, so Can't hear's masking noise can play;
   // they can still choose not to use it, but can't turn on what their setup rules out.
   maskNoiseAvailable: boolean;
@@ -164,14 +161,6 @@ export function Settings({
               )}
             </>
           )}
-          <div class="settings-leave">
-            <ConfirmButton
-              class="hud-btn danger"
-              label="Leave game"
-              confirmLabel="Sure? Leave game"
-              onConfirm={onLeave}
-            />
-          </div>
         </fieldset>
       )}
     </>

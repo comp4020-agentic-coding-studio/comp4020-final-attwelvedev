@@ -255,7 +255,14 @@ Build to the spec §4.1 wireframes. Specifics the wireframes leave open:
   watcher mode: capture and send for watchers, play `0x02` frames),
   `src/client/voice/playback.ts` (accept the `0x02` header),
   `src/styles/game.css`, `spec/layout/game.test.ts` (update),
-  new `spec/layout/hud.test.ts`, new `spec/layout/spectator.test.ts`.
+  new `spec/layout/hud.test.ts`, new `spec/layout/spectator.test.ts`;
+  also (added during execution, 2026-10-20, user ruling): `src/game/perception.ts`
+  (+ test) — `RoleView.loot`, the room's picked-up count for the HUD's ◆N, sent
+  to every seat and to spectators since the team hears every chime;
+  `src/components/Lobby.tsx` (one `LeaveGuard` over the game and the spectator
+  screen, so the menu's Leave and any link ask first), `src/components/Settings.tsx`
+  (Leave moves to the menu), `src/client/rotation.ts` (`nextRoomFor`, for "you
+  play room N"), `spec/lobbyUi.ts` (`joinAsWatcher`).
 - **Tests first (red):** browser: "the top bar lists every crew member with
   their role shape and name, and how many are watching"; "the live light says
   Live, and is still under reduced motion"; "any player proposes Restart room
@@ -268,7 +275,10 @@ Build to the spec §4.1 wireframes. Specifics the wireframes leave open:
   spectator panel at both viewports; phone controls don't overlap.
 - **Implementation (green):** §4.
 - **Acceptance criteria:** tests green; the old host-only restart button is
-  gone (`rg -n "Restart room" src/components` only in the menu and vote copy).
+  gone from the HUD (`rg -n "Restart room" src/components` finds it only in the
+  menu, the vote copy and `RoomCleared`, whose own buttons stay until Task 24
+  rebuilds that card — user ruling 2026-10-20, amended from "only in the menu
+  and vote copy").
 - **Human review:** on a local build the user plays a room with three players
   and two spectators at both widths and judges the HUD, vote and spectator
   panel against the wireframes. Pass = user says so.
@@ -396,6 +406,14 @@ None.
   running, made a later full run time out. Check for stray loops before a full run; do not rebuild
   under a server the user is running without saying so.
 
+- 2026-10-20, Task 12: expected a loot count (◆N) in the top bar, which the spec's wireframe
+  shows, but `RoleView` carried none, so the plan's file list could not deliver it. Asked
+  rather than drop it; the user chose to add `loot` to the view. First pass of this task
+  named no field for it.
+- 2026-10-20, Task 12: the plan's acceptance line said "Restart room" only in the menu and
+  vote copy, but `RoomCleared` has its own vote-asking buttons. Asked; the user kept them
+  until Task 24 and the criterion was amended to say so.
+
 ## 10. Task 11 execution notes (deviations from the plan as written)
 
 - The reveal message also carries `cues: BriefingCue[]` (Can't see only), from the
@@ -430,3 +448,35 @@ None.
   - A control run on the committed tree was invalid (my `git stash` left the untracked Task 11
     specs behind, so 23 tests failed every run). `git stash -u` or a worktree is needed.
 
+
+## 11. Task 12 execution notes (deviations from the plan as written)
+
+Built and verified on a local build; not yet ticked or committed, pending the **Human review:**.
+
+- `Settings` no longer holds Leave: it moved to `HudMenu`, whose Leave is one press because the
+  page's own modal (`LeaveGuard` in `Lobby.tsx`, now over the game and the spectator screen too)
+  asks first. The in-menu `ConfirmButton` for restarts stays, since a restart asks everyone else.
+- `Spectator` had no audio at all, so "a spectator hears what Ana hears" was untrue; it now plays
+  the followed seat's sounds through `createAudio` and shows them as captions with arrows. The
+  server already sent them.
+- `useVoice` takes `role: Role | "watcher"` (a watcher sends and hears); `playback.ts` gained
+  `parseFrame` and `WATCHER_LANE`, so a `0x02` frame gets a decoder lane of its own.
+- The spectator chat shows only the newest six lines and does not scroll. A scrolling region must
+  take the keyboard (axe `scrollable-region-focusable`) and biome forbids `tabIndex` on a
+  non-interactive element, so the two rules cannot both be met by a scroller; not scrolling meets both.
+- The phone map is `calc(60dvh - var(--target))` (about 54%), not a flat 60% of what is left
+  under the bar; `.frame.spectator-frame` is compounded because `.frame` sits later in the
+  file with the same weight and was winning.
+- Disconnect specs (`leave.test.ts`, `disconnect.test.ts`) need the server started with
+  `PAUSE_MS=3000`, as the overview says; without it they fail on `no "pause" message`.
+
+### Found, out of scope, not fixed
+
+- **`spec/layout/reveal.test.ts` "the person the host pulls in can still press I'm ready" fails
+  3 of 3, and not because of Task 12.** It fails identically on a clean build of `3c6e8aa` (the
+  phase 04 merge) and on a clean build of `635fd25` (Task 11's own commit, before the merge), so
+  neither the merge nor Task 12 caused it: it was already red when Task 11 was committed. It is
+  deterministic (a bug, not a flake). Line 459 expects no `alertdialog` for Ana after she pulls Di
+  in; there is one. Task 11's notes say its full runs were green, so this needs a look at how.
+- `src/game/sim/events.test.ts:3` has an unused `tap` import (a biome warning), from phase 04.
+- A stash `task12-spectatorchat-wip` exists that this session did not make; left alone.

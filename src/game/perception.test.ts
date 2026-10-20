@@ -163,6 +163,20 @@ describe("viewFor: what each role is told", () => {
     expect(view.you.seat).toBe(2);
   });
 
+  it("tells every role, and a spectator, how much loot the team has taken (a team-wide count)", () => {
+    const grid = GRID.map((r, y) => (y === 2 ? "#2.....$....K.................#" : r));
+    const w = worldWith(grid);
+    for (const role of ["blind", "deaf", "mute"] as const)
+      expect(viewFor(w, 0, role, false).loot).toBe(0);
+    place(w, 1, { x: 7, y: 2 });
+    step(w, {}, TICK_MS);
+    expect(w.loot).toBeGreaterThan(0);
+    for (const role of ["blind", "deaf", "mute"] as const) {
+      expect(viewFor(w, 0, role, false).loot).toBe(w.loot);
+    }
+    expect(spectatorView(w, null, ["blind", "deaf", "mute"], false).loot).toBe(w.loot);
+  });
+
   it("blind gets no entities even when an object lists blind in visibleTo", () => {
     const w = world();
     w.room.objects.find((o) => o.id === "p1")?.visibleTo.push("blind");

@@ -33,6 +33,7 @@ const blindView = (tick: number, sounds: RoleView["sounds"] = []): RoleView => (
   sounds,
   status: "playing",
   elapsedMs: tick * TICK_MS,
+  loot: 0,
   alarm: false,
   dark: false,
 });

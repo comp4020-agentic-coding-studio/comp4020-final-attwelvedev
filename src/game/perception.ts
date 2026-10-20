@@ -121,6 +121,7 @@ export interface RoleView {
   sounds: SoundCue[];
   status: RoomStatus;
   elapsedMs: number;
+  loot: number; // what the team has taken in this room: they hear every chime, so it is no secret
   alarm: boolean; // the alarm is on: deaf and mute see it, blind only ever hears it
   dark: boolean; // you are standing in a dark zone
 }
@@ -497,6 +498,7 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
     sounds: [],
     status: world.status,
     elapsedMs: world.tick * TICK_MS,
+    loot: world.loot,
     alarm: false,
     dark: false,
   };
@@ -552,6 +554,7 @@ export function spectatorView(
           : soundsFor(world, seat),
     status: world.status,
     elapsedMs: world.tick * TICK_MS,
+    loot: world.loot,
     alarm: role === "deaf" ? false : alarm,
     dark: false,
   };

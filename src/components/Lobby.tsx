@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { readNickname, saveNickname } from "../client/nickname.ts";
 import { loadSetup, saveSetup } from "../client/preferences.ts";
 import { qrSvg } from "../client/qr.ts";
-import { forecast } from "../client/rotation.ts";
+import { forecast, nextRoomFor } from "../client/rotation.ts";
 import { MAX_PEOPLE } from "../game/crew.ts";
 import { sharesRoom } from "../game/setup.ts";
 import type { Seat } from "../game/types.ts";
@@ -232,44 +232,85 @@ export function Lobby({ code }: { code: string }) {
     </div>
   );
 
+  const askLeave = () => {
+    leaveTo.current = "/";
+    setAsking("/");
+  };
+  // Leaving a game or a watch asks first too (FR22, FR33): any link of the page opens the modal, and
+  // the menu's Leave does. Confirming says so to the server, whose "left" takes the page home.
+  const guard = (watching: boolean) => (
+    <LeaveGuard
+      active
+      open={asking !== null}
+      onAsk={(href) => {
+        leaveTo.current = href;
+        setAsking(href);
+      }}
+      onStay={() => setAsking(null)}
+      onLeave={leave}
+      title={watching ? "Stop watching?" : "Leave the heist?"}
+      body={
+        watching
+          ? "You'll leave this lobby."
+          : "Your crew carries on with a bot or a teammate in your place."
+      }
+      leaveLabel={watching ? "Leave" : "Leave heist"}
+    />
+  );
+
   // A game is only this page's if the page is in the lobby its address names: typing another
   // code while in a game is told about that game again on connecting, and must still say "No lobby".
   if (reveal && socket && lobby && status === "in" && mySeat === null) {
     return (
-      <Spectator
-        key={reveal.index}
-        socket={socket}
-        state={state}
-        rttMs={rttMs}
-        seats={lobby.seats}
-        early={early.current}
-        crew={reveal.crew}
-        host={host}
-        hostName={lobby.people.find((p) => p.who === lobby.host)?.nickname ?? null}
-        sitting={sittingOutOf(lobby)}
-        watchers={watchersOf(lobby)}
-        onStartNewTeam={startNewTeam}
-      />
+      <>
+        <Spectator
+          key={reveal.index}
+          socket={socket}
+          state={state}
+          rttMs={rttMs}
+          seats={lobby.seats}
+          early={early.current}
+          crew={reveal.crew}
+          host={host}
+          hostName={lobby.people.find((p) => p.who === lobby.host)?.nickname ?? null}
+          sitting={sittingOutOf(lobby)}
+          watchers={watchersOf(lobby)}
+          onStartNewTeam={startNewTeam}
+          me={myPerson}
+          roomName={reveal.name}
+          next={
+            myPerson === null
+              ? null
+              : nextRoomFor(myPerson, lobby.people, reveal.index, reveal.rooms)
+          }
+          onLeave={askLeave}
+        />
+        {guard(true)}
+      </>
     );
   }
 
   if (reveal && socket && lobby && status === "in") {
     return (
-      <Game
-        early={early.current}
-        key={reveal.index}
-        socket={socket}
-        state={state}
-        rttMs={rttMs}
-        online={online}
-        reveal={reveal}
-        host={host}
-        hostName={lobby?.people.find((p) => p.who === lobby.host)?.nickname ?? null}
-        seats={lobby?.seats ?? null}
-        people={lobby.people.map((p) => p.nickname)}
-        watching={lobby.spectators.map((s) => s.nickname)}
-        sitting={sittingOutOf(lobby)}
-      />
+      <>
+        <Game
+          early={early.current}
+          key={reveal.index}
+          socket={socket}
+          state={state}
+          rttMs={rttMs}
+          online={online}
+          reveal={reveal}
+          host={host}
+          hostName={lobby?.people.find((p) => p.who === lobby.host)?.nickname ?? null}
+          seats={lobby?.seats ?? null}
+          people={lobby.people.map((p) => p.nickname)}
+          watching={lobby.spectators.map((s) => s.nickname)}
+          sitting={sittingOutOf(lobby)}
+          onLeave={askLeave}
+        />
+        {guard(false)}
+      </>
     );
   }
 
