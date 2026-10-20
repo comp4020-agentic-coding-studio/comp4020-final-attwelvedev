@@ -32,12 +32,11 @@ describe("describeGame", () => {
         callout: "left",
         clip: "airhorn",
         teamName: "Team Secret",
-        family: "say",
+        method: "callout",
         role: "deaf",
-        kind: "callout",
       },
     });
-    expect(line.detail).toEqual({ family: "say", role: "deaf", kind: "callout" });
+    expect(line.detail).toEqual({ method: "callout", role: "deaf" });
     expect(JSON.stringify(line)).not.toMatch(/1234|NOSY|ABCD|left|airhorn|Secret/);
   });
 

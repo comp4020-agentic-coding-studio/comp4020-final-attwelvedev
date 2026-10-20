@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { percentile, schedule } from "./playback.ts";
+import { parseFrame, percentile, schedule, WATCHER_LANE } from "./playback.ts";
 
 describe("schedule", () => {
   it("puts the first frame after a 60 ms buffer, then frames back to back", () => {
@@ -35,5 +35,31 @@ describe("percentile", () => {
     expect(percentile(values, 50)).toBe(50);
     expect(percentile(values, 95)).toBe(95);
     expect(percentile([], 50)).toBe(0);
+  });
+});
+
+describe("parseFrame", () => {
+  const frame = (kind: number, id: number, bytes = 20): Uint8Array => {
+    const buf = new Uint8Array(14 + bytes).fill(0xcd);
+    const view = new DataView(buf.buffer);
+    buf[0] = kind;
+    buf[1] = id;
+    view.setUint32(2, 7);
+    view.setFloat64(6, 1234.5);
+    return buf;
+  };
+  it("reads a player's frame (0x01) by seat", () => {
+    expect(parseFrame(frame(1, 2))).toMatchObject({ lane: 2, seq: 7, captureServerMs: 1234.5 });
+  });
+  it("reads a watcher's frame (0x02) into a lane of its own, apart from the seats", () => {
+    const parsed = parseFrame(frame(2, 1));
+    expect(parsed?.lane).toBe(WATCHER_LANE + 1);
+    expect(WATCHER_LANE).toBeGreaterThan(2);
+    expect(parsed?.opus.length).toBe(20);
+  });
+  it("drops a header with no audio after it, and any other first byte", () => {
+    expect(parseFrame(new Uint8Array(14).fill(1))).toBeNull();
+    expect(parseFrame(frame(3, 0))).toBeNull();
+    expect(parseFrame(new Uint8Array(0))).toBeNull();
   });
 });

@@ -130,3 +130,39 @@ footer a {
 .readme-content :first-child {
   margin-top: 0;
 }
+
+.credits-content {
+  max-width: none;
+}
+.credits-content > p {
+  max-width: 68ch;
+}
+.table-scroll {
+  overflow-x: auto;
+  margin: var(--s-3) 0;
+}
+.credits-content table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--t-14);
+}
+.credits-content th,
+.credits-content td {
+  padding: var(--s-2) var(--s-3);
+  border-bottom: 1px solid var(--ui-muted);
+  text-align: left;
+  vertical-align: top;
+}
+.credits-content th,
+.credits-content td:nth-child(1),
+.credits-content td:nth-child(4),
+.credits-content td:nth-child(5) {
+  white-space: nowrap;
+}
+.credits-content td:nth-child(3) {
+  min-width: 18rem;
+  overflow-wrap: anywhere;
+}
+.credits-content td:nth-child(2) {
+  min-width: 9rem;
+}

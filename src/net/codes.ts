@@ -1,18 +1,21 @@
 import { randomInt } from "node:crypto";
+import { LOBBY_ALPHABET, LOBBY_CODE_LENGTH } from "./protocol.ts";
 
-// No I, L or O: they read as 1 and 0 across a room. 23 letters, 4 places.
-export const LOBBY_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ";
+export { LOBBY_ALPHABET };
 
 export function newLobbyCode(isTaken: (code: string) => boolean): string {
   for (;;) {
     let code = "";
-    for (let i = 0; i < 4; i++) code += LOBBY_ALPHABET[randomInt(LOBBY_ALPHABET.length)];
+    for (let i = 0; i < LOBBY_CODE_LENGTH; i++)
+      code += LOBBY_ALPHABET[randomInt(LOBBY_ALPHABET.length)];
     if (!isTaken(code)) return code;
   }
 }
 
-// What a player typed, as a code: null unless it is exactly 4 alphabet letters.
+// What a player typed, as a code: null unless it is exactly LOBBY_CODE_LENGTH alphabet letters.
 export function normaliseLobbyCode(raw: string): string | null {
   const code = raw.trim().toUpperCase();
-  return code.length === 4 && [...code].every((c) => LOBBY_ALPHABET.includes(c)) ? code : null;
+  return code.length === LOBBY_CODE_LENGTH && [...code].every((c) => LOBBY_ALPHABET.includes(c))
+    ? code
+    : null;
 }

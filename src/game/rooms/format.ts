@@ -32,7 +32,8 @@ export interface RoomObject {
     | "hide"
     | "checkpoint"
     | "loot"
-    | "sign";
+    | "sign"
+    | "clue"; // a chime with no picture (A2): `n` of 1 to 3 every `everyS` seconds
   tiles: Vec[]; // integer tile coordinates
   visibleTo: Role[];
   audibleTo: Role[];
@@ -45,6 +46,8 @@ export interface Beat {
   name: string;
   x: [number, number];
   intent: Record<Role, string>;
+  lead?: Role; // the role this beat needs: with its sending off, the beat cannot be cleared
+  cue?: "twin" | "split"; // the kind of clue sound this beat uses; a clue (c) is allowed only in one
 }
 
 export interface Room {
@@ -116,6 +119,9 @@ const TILES = new Set([
   "K",
   "$",
   "S",
+  "=", // glass: sight passes, sound and bodies don't
+  "%", // vent: sound passes, sight and bodies don't
+  "c", // a clue: a chime nobody can see
 ]);
 
 // Single-tile objects numbered in reading order: letter -> [kind, id prefix].
@@ -127,6 +133,7 @@ const NUMBERED: Record<string, [RoomObject["kind"], string]> = {
   K: ["checkpoint", "K"],
   $: ["loot", "$"],
   S: ["sign", "S"],
+  c: ["clue", "c"],
 };
 // Kinds whose metadata is kept whole as `params`.
 const PARAMS: Record<string, true> = {
@@ -137,6 +144,7 @@ const PARAMS: Record<string, true> = {
   checkpoint: true,
   loot: true,
   sign: true,
+  clue: true,
 };
 const DEFAULT_VISIBLE_TO: Role[] = ["deaf", "mute"];
 const ROLE_SET = new Set<string>(["blind", "deaf", "mute"]);
@@ -165,10 +173,18 @@ function parseBeats(raw: unknown): Beat[] {
         throw new RoomFormatError(`beat "${beat.name}" needs an intent for ${role}`, 1);
       }
     }
+    if (beat.lead !== undefined && !ROLE_SET.has(String(beat.lead))) {
+      throw new RoomFormatError(`beat "${beat.name}" has an unknown lead ${beat.lead}`, 1);
+    }
+    if (beat.cue !== undefined && beat.cue !== "twin" && beat.cue !== "split") {
+      throw new RoomFormatError(`beat "${beat.name}" has an unknown cue ${beat.cue}`, 1);
+    }
     return {
       name: beat.name,
       x: [x[0] as number, x[1] as number],
       intent: intent as Record<Role, string>,
+      ...(beat.lead !== undefined ? { lead: beat.lead as Role } : {}),
+      ...(beat.cue !== undefined ? { cue: beat.cue as "twin" | "split" } : {}),
     };
   });
 }
@@ -246,7 +262,12 @@ export function parseRoom(text: string): Room {
       id,
       kind,
       tiles,
-      visibleTo: isRoleList(ov.visible_to) ? ov.visible_to : [...DEFAULT_VISIBLE_TO],
+      // a clue has no picture, so nobody sees it unless the room file says so
+      visibleTo: isRoleList(ov.visible_to)
+        ? ov.visible_to
+        : kind === "clue"
+          ? []
+          : [...DEFAULT_VISIBLE_TO],
       audibleTo: isRoleList(ov.audible_to) ? ov.audible_to : [],
     };
     if (kind === "door") {
@@ -279,7 +300,7 @@ export function parseRoom(text: string): Room {
   for (const [i, tiles] of components(raw, "D").entries()) add(`D${i + 1}`, "door", tiles);
   for (const [i, tiles] of components(raw, "E").entries()) add(`E${i + 1}`, "exit", tiles);
 
-  const grid = raw.map((row) => row.replace(/[^#D]/g, "."));
+  const grid = raw.map((row) => row.replace(/[^#D=%]/g, "."));
   return {
     id: meta.id,
     name: meta.name,

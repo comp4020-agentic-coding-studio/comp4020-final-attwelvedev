@@ -1,4 +1,4 @@
-import { CHANNEL_RULES, type Family, type Role, type Seat, type Vec } from "./types.ts";
+import { canReceive, canSend, type Method, type Role, type Seat, type Vec } from "./types.ts";
 
 // The 3×3 callout grid, in reading order.
 export const CALLOUTS = [
@@ -26,26 +26,32 @@ export const STAMPS = [
 ] as const;
 export type Stamp = (typeof STAMPS)[number];
 
-export const COOLDOWN_MS: Record<Family, number> = { say: 0, sound: 3000, show: 1500 };
-export const STAMP_COOLDOWN_MS = 1000;
+export const COOLDOWN_MS: Record<Method, number> = {
+  callout: 0,
+  text: 0,
+  voice: 0,
+  clip: 3000,
+  face: 1500,
+  mark: 1000,
+};
 export const MAX_TEXT = 120;
 export const STAMP_LIFE_MS = 8000; // a stamp fades over this long, then is gone
 export const FACE_POP_MS = 1500; // how long a face shows above its sender
 
 export type Outgoing =
-  | { family: "say"; kind: "callout"; callout: Callout }
-  | { family: "say"; kind: "text"; text: string }
-  | { family: "sound"; clip: string }
-  | { family: "show"; kind: "face"; id: string }
-  | { family: "show"; kind: "stamp"; id: Stamp; at: Vec };
+  | { method: "callout"; callout: Callout }
+  | { method: "text"; text: string }
+  | { method: "clip"; clip: string }
+  | { method: "face"; id: string }
+  | { method: "mark"; id: Stamp; at: Vec }; // at: the tile centre the sender picked
 
 export type ChannelMessage = Outgoing & {
-  from: { seat: Seat; role: Role; nickname: string };
+  from: { seat: Seat; role: Role; nickname: string; pos?: Vec }; // pos: faces only, the sender's position
   sentAt: number;
 };
 
 export interface CooldownState {
-  until: Record<string, number>; // key `${seat}:${family}` or `${seat}:stamp`
+  until: Record<string, number>; // key `${seat}:${method}`
 }
 
 export type RouteResult =
@@ -53,7 +59,8 @@ export type RouteResult =
   | { ok: false; code: "cant-send" | "cooldown"; until?: number };
 
 // The one place that decides who may send what, to whom, and how often. The
-// caller records `until` under `cooldownKey` on success.
+// caller records `until` under `cooldownKey` on success. The sender is never a
+// receiver: the UI shows "Sent" locally.
 export function route(
   roles: [Role, Role, Role],
   from: Seat,
@@ -61,16 +68,16 @@ export function route(
   cd: CooldownState,
   now: number,
 ): RouteResult {
-  const rule = CHANNEL_RULES[msg.family];
-  if (!rule.send.includes(roles[from])) return { ok: false, code: "cant-send" };
+  if (!canSend(roles[from], msg.method)) return { ok: false, code: "cant-send" };
 
-  const stamp = msg.family === "show" && msg.kind === "stamp";
-  const ms = stamp ? STAMP_COOLDOWN_MS : COOLDOWN_MS[msg.family];
-  const cooldownKey = ms > 0 ? `${from}:${stamp ? "stamp" : msg.family}` : null;
+  const ms = COOLDOWN_MS[msg.method];
+  const cooldownKey = ms > 0 ? `${from}:${msg.method}` : null;
   const busy = cooldownKey ? (cd.until[cooldownKey] ?? 0) : 0;
   if (busy > now) return { ok: false, code: "cooldown", until: busy };
 
-  const receivers = ([0, 1, 2] as const).filter((seat) => rule.receive.includes(roles[seat]));
+  const receivers = ([0, 1, 2] as const).filter(
+    (seat) => seat !== from && canReceive(roles[seat], msg.method),
+  );
   return { ok: true, receivers, cooldownKey, until: now + ms };
 }
 

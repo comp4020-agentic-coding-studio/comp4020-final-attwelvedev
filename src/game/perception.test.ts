@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { spectatorView, viewFor } from "./perception.ts";
+import { loadRooms } from "./rooms/load.ts";
 import { caughtBy } from "./sim/hazards.ts";
 import { step } from "./sim/step.ts";
 import { gather, place, tap, worldFrom, worldWith } from "./sim/testing.ts";
-import { TICK_MS } from "./sim/world.ts";
+import { decodeSeen } from "./sim/visibility.ts";
+import { createWorld, TICK_MS } from "./sim/world.ts";
 
 const GRID = [
   "##############################",
@@ -119,6 +121,25 @@ describe("viewFor: what each role is told", () => {
     expect(hum[0]?.pan).toBe(0);
   });
 
+  it("gives a directional sound the unit vector to its source, rounded to 0.01", () => {
+    const w = worldFrom(
+      ["##########", "#1.pD...E#", "#2..D...E#", "#3..D...E#", "##########"],
+      ["p1"],
+    );
+    place(w, 0, { x: 3, y: 1 });
+    place(w, 1, { x: 2.5, y: 3.5 }); // the door opens to the east and north of this seat
+    step(w, {}, TICK_MS);
+    const click = viewFor(w, 1, "blind", false).sounds.find((s) => s.kind === "door");
+    expect(click?.dir?.x).toBeGreaterThan(0);
+    expect(click?.dir?.y).toBeLessThan(0);
+    const { x, y } = click?.dir ?? { x: 0, y: 0 };
+    expect(Math.hypot(x, y)).toBeCloseTo(1, 1);
+    expect(Math.round(x * 100) / 100).toBe(x);
+    // your own steps and the team-wide sounds point nowhere
+    const own = viewFor(w, 0, "blind", false).sounds.filter((s) => s.kind === "step");
+    for (const o of own) expect(o.dir).toBeUndefined();
+  });
+
   it("clicks when a door opens, panned from the door", () => {
     const w = worldFrom(
       ["##########", "#1.pD...E#", "#2..D...E#", "#3..D...E#", "##########"],
@@ -142,10 +163,78 @@ describe("viewFor: what each role is told", () => {
     expect(view.you.seat).toBe(2);
   });
 
+  it("tells every role, and a spectator, how much loot the team has taken (a team-wide count)", () => {
+    const grid = GRID.map((r, y) => (y === 2 ? "#2.....$....K.................#" : r));
+    const w = worldWith(grid);
+    for (const role of ["blind", "deaf", "mute"] as const)
+      expect(viewFor(w, 0, role, false).loot).toBe(0);
+    place(w, 1, { x: 7, y: 2 });
+    step(w, {}, TICK_MS);
+    expect(w.loot).toBeGreaterThan(0);
+    for (const role of ["blind", "deaf", "mute"] as const) {
+      expect(viewFor(w, 0, role, false).loot).toBe(w.loot);
+    }
+    expect(spectatorView(w, null, ["blind", "deaf", "mute"], false).loot).toBe(w.loot);
+  });
+
   it("blind gets no entities even when an object lists blind in visibleTo", () => {
     const w = world();
     w.room.objects.find((o) => o.id === "p1")?.visibleTo.push("blind");
     expect(viewFor(w, 0, "blind", false).entities).toEqual([]); // blind still sees nothing
+  });
+});
+
+describe("viewFor: movement cues (FR31)", () => {
+  it("tells every role, blind included, whether its own seat is moving or blocked", () => {
+    for (const role of ["blind", "deaf", "mute"] as const) {
+      const w = world();
+      expect(viewFor(w, 0, role, false).you.motion).toEqual({ moving: false, blocked: false });
+      w.players[0].moving = true;
+      expect(viewFor(w, 0, role, false).you.motion).toEqual({ moving: true, blocked: false });
+      w.players[0].blocked = true;
+      expect(viewFor(w, 0, role, false).you.motion).toEqual({ moving: true, blocked: true });
+    }
+  });
+
+  it("gives the blind seat nothing else new: still no tiles, entities or position", () => {
+    const w = world();
+    w.players[0].moving = true;
+    const view = viewFor(w, 0, "blind", true);
+    expect(view.tiles).toBeUndefined();
+    expect(view.entities).toEqual([]);
+    expect(view.you).toEqual({ seat: 0, motion: { moving: true, blocked: false } });
+  });
+
+  it("reads only this seat's own state: another player's walking is not in your motion", () => {
+    const w = world();
+    w.players[1].moving = true;
+    w.players[1].blocked = true;
+    expect(viewFor(w, 0, "blind", false).you.motion).toEqual({ moving: false, blocked: false });
+  });
+
+  it("puts moving, blocked and facing on every player in a sighted view, still or not", () => {
+    const w = world();
+    gather(w, { x: 5, y: 2 });
+    w.players[1].facing = { x: 0, y: -1 };
+    w.players[2].moving = true;
+    w.players[2].blocked = true;
+    w.players[2].facing = { x: -1, y: 0 };
+    for (const role of ["deaf", "mute"] as const) {
+      const players = viewFor(w, 0, role, false).entities.filter((e) => e.kind === "player");
+      const by = (seat: number) => players.find((e) => e.seat === seat);
+      expect(by(1)).toMatchObject({ moving: false, blocked: false, facing: { x: 0, y: -1 } });
+      expect(by(2)).toMatchObject({ moving: true, blocked: true, facing: { x: -1, y: 0 } });
+    }
+  });
+
+  it("sends the same to a watcher", () => {
+    const w = world();
+    gather(w, { x: 5, y: 2 });
+    w.players[1].moving = true;
+    const me = spectatorView(w, 0, ["blind", "deaf", "mute"], false).entities.find(
+      (e) => e.kind === "player" && e.seat === 1,
+    );
+    expect(me).toMatchObject({ moving: true, blocked: false });
   });
 });
 
@@ -555,6 +644,11 @@ describe("viewFor: a sign tracks its sequence door", () => {
   };
   const press = (world: ReturnType<typeof worldWith>, x: number) =>
     tap(world, 0, { x, y: 1 }, { x: 2, y: 1 });
+  // a plate is held (FR11): the seat stays on it
+  const holdOn = (world: ReturnType<typeof worldWith>, seat: 0 | 1 | 2, x: number) => {
+    place(world, seat, { x, y: 1 });
+    step(world, {}, TICK_MS);
+  };
   const sign = (world: ReturnType<typeof worldWith>) =>
     viewFor(world, 1, "deaf", false).entities.find((e) => e.kind === "sign");
 
@@ -566,7 +660,8 @@ describe("viewFor: a sign tracks its sequence door", () => {
 
   it("counts plates done in order, with the share of the 5 s window left", () => {
     const world = worldWith(GRID, objects);
-    press(world, 6); // p2
+    holdOn(world, 0, 6); // p2
+    step(world, {}, TICK_MS); // a tap took two steps; keep the 1% the window has lost by now
     expect(sign(world)?.progress).toBe(1);
     expect(sign(world)?.window).toBeCloseTo(0.99, 2);
     for (let i = 0; i < 50; i++) step(world, {}, TICK_MS); // 2.5 s
@@ -586,9 +681,9 @@ describe("viewFor: a sign tracks its sequence door", () => {
 
   it("shows every plate done, and no clock, once the door has opened", () => {
     const world = worldWith(GRID, objects);
-    press(world, 6);
-    press(world, 4);
-    press(world, 8);
+    holdOn(world, 0, 6);
+    holdOn(world, 1, 4);
+    holdOn(world, 2, 8);
     expect(sign(world)?.progress).toBe(3);
     expect(sign(world)?.window).toBeUndefined();
   });
@@ -699,5 +794,176 @@ describe("spectatorView: a full view regardless of the followed role", () => {
     expect(view.dark).toBe(false);
     expect(view.entities.map((e) => e.id)).toContain("P1");
     expect(view.tiles?.[2]?.slice(10, 15)).not.toBe("     ");
+  });
+});
+
+describe("spectatorView with nobody followed: the whole room, no sounds", () => {
+  it("has the tiles and every player and object, but hears nothing", () => {
+    const w = world();
+    place(w, 0, { x: 10, y: 1 });
+    place(w, 1, { x: 5, y: 1 });
+    w.players[1].moving = true;
+    w.alarmUntil = w.tick + 100; // the alarm is on
+    const view = spectatorView(w, null, ["blind", "deaf", "mute"], true);
+    expect(view.tiles).toHaveLength(5);
+    expect(view.entities.filter((e) => e.kind === "player")).toHaveLength(3);
+    expect(view.sounds).toEqual([]);
+    expect(view.alarm).toBe(false);
+    expect(view.dark).toBe(false);
+  });
+
+  it("shows what Can't hear would see, even when seat 0 is Can't see", () => {
+    const w = world();
+    const some = spectatorView(w, null, ["blind", "deaf", "mute"], true);
+    const deaf = spectatorView(w, 1, ["blind", "deaf", "mute"], true);
+    // the same things drawn; only the followed seat's own marker (`role`) can differ
+    const ids = (v: ReturnType<typeof spectatorView>) => v.entities.map((e) => `${e.kind}:${e.id}`);
+    expect(ids(some)).toEqual(ids(deaf));
+    expect(some.entities.some((e) => e.kind === "player" && e.role !== undefined)).toBe(true);
+  });
+
+  it("points the camera at no one: no position for you", () => {
+    const view = spectatorView(world(), null, ["blind", "deaf", "mute"], false);
+    expect(view.you.pos).toBeUndefined();
+  });
+});
+
+describe("viewFor: line of sight", () => {
+  // A wall at x = 6; `mid` is the tile in the middle row that is under test.
+  const split = (mid: string, rest = "......") => [
+    "##############",
+    "#1....#......#",
+    `#2....${mid}${rest}#`,
+    "#3....#......#",
+    "##############",
+  ];
+  const GUARD = { G1: { sightTiles: 3, fovDeg: 20, speedTps: 0 } };
+  const ids = (view: ReturnType<typeof viewFor>) => view.entities.map((e) => e.id);
+
+  it("does not send a guard behind a wall or a vent, but does through glass", () => {
+    for (const [mid, seen] of [
+      ["#", false],
+      ["%", false],
+      ["=", true],
+    ] as const) {
+      const w = worldWith(split(mid, "..G..."), GUARD);
+      place(w, 1, { x: 3, y: 2 });
+      expect(ids(viewFor(w, 1, "deaf", false)).includes("G1"), `through ${mid}`).toBe(seen);
+    }
+  });
+
+  it("does not send a teammate who is out of sight, and always sends yourself", () => {
+    const w = worldWith(split("#"));
+    place(w, 1, { x: 3, y: 2 });
+    place(w, 2, { x: 9, y: 2 });
+    const got = ids(viewFor(w, 1, "deaf", false));
+    expect(got).toContain("P1");
+    expect(got).toContain("P0");
+    expect(got).not.toContain("P2");
+  });
+
+  it("carries footsteps through a vent, but stops them at a wall or glass", () => {
+    for (const [mid, heard] of [
+      ["%", true],
+      ["=", false],
+      ["#", false],
+    ] as const) {
+      const w = worldWith(split(mid));
+      place(w, 0, { x: 3, y: 2 });
+      place(w, 2, { x: 9, y: 2 });
+      w.players[2].moving = true;
+      const kinds = viewFor(w, 0, "blind", false).sounds.map((s) => s.kind);
+      expect(kinds.includes("footsteps"), `through ${mid}`).toBe(heard);
+    }
+  });
+
+  it("sends a mark in a dark zone and one behind a wall: marks always show", () => {
+    const open = [
+      "########################",
+      "#1.....................#",
+      "#2.....................#",
+      "#3.....................#",
+      "########################",
+    ];
+    const dark = worldWith(open, {}, { flips: [{ kind: "dark", zone: [10, 1, 14, 3] }] });
+    place(dark, 1, { x: 3, y: 1 });
+    dark.stamps.push({ key: "s1", id: "x", pos: { x: 12.5, y: 2.5 }, ageMs: 0 });
+    expect(ids(viewFor(dark, 1, "deaf", false))).toContain("s1");
+    const walled = worldWith(split("#"));
+    place(walled, 1, { x: 3, y: 2 });
+    walled.stamps.push({ key: "s2", id: "bang", pos: { x: 9.5, y: 2.5 }, ageMs: 0 });
+    expect(ids(viewFor(walled, 1, "deaf", false))).toContain("s2");
+  });
+
+  it("sends `seen` to the sighted, as the tiles in line of sight, and none to Can't see", () => {
+    const w = worldWith(split("#"));
+    place(w, 1, { x: 3, y: 2 });
+    const seen = decodeSeen(viewFor(w, 1, "deaf", false).seen ?? []);
+    expect(seen.has("3,2")).toBe(true);
+    expect(seen.has("9,2")).toBe(false);
+    expect(viewFor(w, 2, "mute", false).seen).toBeDefined();
+    expect(viewFor(w, 0, "blind", false).seen).toBeUndefined();
+  });
+
+  it("keeps team-wide loot audible wherever you stand", () => {
+    const w = worldWith(split("#", "..$..."));
+    place(w, 0, { x: 3, y: 2 });
+    place(w, 2, { x: 9, y: 2 });
+    step(w, {}, TICK_MS);
+    expect(viewFor(w, 0, "blind", false).sounds.map((s) => s.kind)).toContain("loot");
+  });
+
+  it("keeps the largest full view of room 03 under 8 KiB", () => {
+    const room = loadRooms().find((r) => r.id === "03-vault");
+    if (!room) throw new Error("room 03 is missing");
+    const w = createWorld(room);
+    let worst = 0;
+    for (let y = 1; y < room.height - 1; y++) {
+      for (let x = 1; x < room.width - 1; x++) {
+        if (room.grid[y]?.[x] !== ".") continue;
+        place(w, 1, { x, y });
+        worst = Math.max(worst, JSON.stringify(viewFor(w, 1, "deaf", true)).length);
+      }
+    }
+    expect(worst).toBeGreaterThan(0);
+    expect(worst, `largest view was ${worst} bytes`).toBeLessThan(8 * 1024);
+  });
+});
+
+describe("viewFor: the clue sound", () => {
+  const GRID = [
+    "########################",
+    "#1.....................#",
+    "#2.......c.............#",
+    "#3.....................#",
+    "########################",
+  ];
+  const clue = () => worldWith(GRID, { c1: { n: 2, everyS: 2 } });
+  const untilClue = (w: ReturnType<typeof clue>) => {
+    for (let i = 0; i < 60 && !w.events.some((e) => e.kind === "clue"); i++) step(w, {}, TICK_MS);
+  };
+
+  it("reaches Can't see and Can't speak within 8 tiles, with its count, and never Can't hear", () => {
+    const w = clue();
+    place(w, 0, { x: 5, y: 2 });
+    place(w, 2, { x: 2, y: 3 });
+    untilClue(w);
+    for (const [seat, role] of [
+      [0, "blind"],
+      [2, "mute"],
+    ] as const) {
+      const heard = viewFor(w, seat, role, false).sounds.find((s) => s.kind === "clue");
+      expect(heard?.n, role).toBe(2);
+    }
+    const deaf = viewFor(w, 1, "deaf", false);
+    expect(deaf.sounds).toEqual([]);
+    expect(deaf.entities.map((e) => e.id)).not.toContain("c1");
+  });
+
+  it("is local: gone beyond 8 tiles", () => {
+    const w = clue();
+    place(w, 0, { x: 19, y: 2 });
+    untilClue(w);
+    expect(viewFor(w, 0, "blind", false).sounds.map((s) => s.kind)).not.toContain("clue");
   });
 });

@@ -2,7 +2,7 @@ import { type ChannelMessage, type CooldownState, route } from "../channels.ts";
 import { viewFor } from "../perception.ts";
 import type { Room } from "../rooms/format.ts";
 import type { World } from "../sim/world.ts";
-import type { PlayerInput, Role, Seat } from "../types.ts";
+import type { Method, PlayerInput, Role, Seat } from "../types.ts";
 import { type BotMemory, think } from "./brain.ts";
 
 // The bots of one game: a memory and an inbox each. The inbox holds what the seat's
@@ -16,7 +16,7 @@ export interface BotSent {
   from: Seat;
   message: ChannelMessage;
   receivers: Seat[];
-  cooldown: { family: "say" | "sound" | "show"; until: number } | null;
+  cooldown: { method: Method; until: number } | null;
 }
 
 // One tick of every bot: each thinks from its own role's view, and what it says
@@ -32,6 +32,7 @@ export function botsAct(
   now: number,
   nickname: (seat: Seat) => string,
   full: ReadonlySet<Seat> = new Set(),
+  muted?: Seat, // the lead-role harness: this seat's sends are dropped before they are routed
 ): { inputs: Partial<Record<Seat, PlayerInput>>; sent: BotSent[]; refused: number } {
   const inputs: Partial<Record<Seat, PlayerInput>> = {};
   const sent: BotSent[] = [];
@@ -44,7 +45,7 @@ export function botsAct(
     const view = viewFor(world, seat, roles[seat], full.has(seat));
     const turn = think(room, view, bot.inbox.splice(0), bot.memory, now);
     inputs[seat] = turn.input;
-    if (!turn.send) continue;
+    if (!turn.send || seat === muted) continue;
     const result = route(roles as [Role, Role, Role], seat, turn.send, cooldowns, now);
     if (!result.ok) {
       refused++;
@@ -61,7 +62,7 @@ export function botsAct(
       from: seat,
       message,
       receivers: result.receivers,
-      cooldown: result.cooldownKey ? { family: turn.send.family, until: result.until } : null,
+      cooldown: result.cooldownKey ? { method: turn.send.method, until: result.until } : null,
     });
   }
   return { inputs, sent, refused };

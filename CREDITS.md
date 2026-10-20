@@ -1,7 +1,7 @@
 # Credits
 
 Everything else in this game is drawn in code. The only outside assets are the
-faces below and, once added, the soundboard clips.
+faces and soundboard clips below, plus the Archivo font.
 
 ## Faces
 
@@ -15,15 +15,15 @@ game's own images, unmodified.
 | File | Author | Source | Licence | Checked |
 | --- | --- | --- | --- | --- |
 | `desperate-blue-emoji-blue.png` | bluemoji.io | https://bluemoji.io/emoji/desperate | [Bluemoji Free Icon License](https://bluemoji.io/license) | 2026-10-08 |
-| `devious-blue-emoji-blue.png` | bluemoji.io | https://bluemoji.io/emoji/devious | [Bluemoji Free Icon License](https://bluemoji.io/license) | 2026-10-08 |
+| `devious-blue-emoji-blue.png` | bluemoji.io | https://bluemoji.io/emoji/devious-emoji | [Bluemoji Free Icon License](https://bluemoji.io/license) | 2026-10-08 |
 | `double-thumbs-up-emoji-blue.png` | bluemoji.io | https://bluemoji.io/emoji/double-thumbs-up | [Bluemoji Free Icon License](https://bluemoji.io/license) | 2026-10-08 |
 | `hold-up-blue-emoji-blue.png` | bluemoji.io | https://bluemoji.io/emoji/hold-up | [Bluemoji Free Icon License](https://bluemoji.io/license) | 2026-10-08 |
 | `ok-sign-blue-emoji-blue.png` | bluemoji.io | https://bluemoji.io/emoji/ok-sign | [Bluemoji Free Icon License](https://bluemoji.io/license) | 2026-10-08 |
 | `pointing-and-laughing-in-tears-blue-emoji-blue.png` | bluemoji.io | https://bluemoji.io/emoji/pointing-and-laughing-in-tears | [Bluemoji Free Icon License](https://bluemoji.io/license) | 2026-10-08 |
-| `secret-keep-quiet-hush-mewing-blue-emoji-blue.png` | bluemoji.io | https://bluemoji.io/emoji/secret-keep-quiet-hush-mewing | [Bluemoji Free Icon License](https://bluemoji.io/license) | 2026-10-08 |
+| `secret-keep-quiet-hush-mewing-blue-emoji-blue.png` | bluemoji.io | https://bluemoji.io/emoji/secret-keep-quiet-hush | [Bluemoji Free Icon License](https://bluemoji.io/license) | 2026-10-08 |
 | `shrug-blue-emoji-blue.png` | bluemoji.io | https://bluemoji.io/emoji/shrug | [Bluemoji Free Icon License](https://bluemoji.io/license) | 2026-10-08 |
 | `shy-blue-emoji-blue.png` | bluemoji.io | https://bluemoji.io/emoji/shy | [Bluemoji Free Icon License](https://bluemoji.io/license) | 2026-10-08 |
-| `thousand-yard-stare-blue-emoji-blue.png` | bluemoji.io | https://bluemoji.io/emoji/thousand-yard-stare | [Bluemoji Free Icon License](https://bluemoji.io/license) | 2026-10-08 |
+| `thousand-yard-stare-blue-emoji-blue.png` | bluemoji.io | https://bluemoji.io/emoji/1000-yard-stare | [Bluemoji Free Icon License](https://bluemoji.io/license) | 2026-10-08 |
 | `thumbs-down-blue-emoji-blue.png` | bluemoji.io | https://bluemoji.io/emoji/thumbs-down | [Bluemoji Free Icon License](https://bluemoji.io/license) | 2026-10-08 |
 | `trying-not-to-laugh-blue-emoji-blue.png` | bluemoji.io | https://bluemoji.io/emoji/trying-not-to-laugh | [Bluemoji Free Icon License](https://bluemoji.io/license) | 2026-10-08 |
 

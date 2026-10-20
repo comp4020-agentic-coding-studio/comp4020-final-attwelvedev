@@ -18,6 +18,7 @@ const mount = (over: Partial<Parameters<typeof RoomCleared>[0]> = {}) =>
       host: true,
       onNext: vi.fn(),
       onRestart: vi.fn(),
+      onRestartHeist: vi.fn(),
       ...over,
     }),
     document.body,
@@ -34,21 +35,30 @@ describe("RoomCleared", () => {
     }
   });
 
-  it("gives the host Next room and a clearly named Restart room", () => {
+  it("gives the host Next room, and anyone clearly named restarts that the others vote on", () => {
     mount({ host: true, last: false });
-    expect(names()).toEqual(["Next room", "Restart room"]);
+    expect(names()).toEqual(["Next room", "Restart room", "Restart heist"]);
   });
 
-  it("after the last room the host can still restart that room, and there is no next", () => {
+  it("after the last room there is no next, but a room or the heist can still be restarted", () => {
     mount({ host: true, last: true });
-    expect(names()).toEqual(["Restart room"]);
+    expect(names()).toEqual(["Restart room", "Restart heist"]);
     expect(document.body.textContent).toMatch(/last room/i);
   });
 
-  it("gives everyone else no buttons, only that the host decides", () => {
+  it("gives everyone else the restarts too, and says the host picks the next room", () => {
     mount({ host: false, last: false });
-    expect(names()).toEqual([]);
-    expect(document.body.textContent).toMatch(/waiting for the host/i);
+    expect(names()).toEqual(["Restart room", "Restart heist"]);
+    expect(document.body.textContent).toMatch(/host picks the next room/i);
+  });
+
+  it("asking to restart takes two presses and sends a proposal, not a restart", async () => {
+    const onRestart = vi.fn();
+    mount({ host: false, onRestart });
+    const room = document.querySelectorAll("button")[0] as HTMLButtonElement;
+    room.click();
+    await Promise.resolve();
+    expect(onRestart).not.toHaveBeenCalled();
   });
 
   it("shows the time and the loot", () => {

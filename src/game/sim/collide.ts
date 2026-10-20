@@ -44,10 +44,10 @@ export function crateAt(world: World, tx: number, ty: number): boolean {
   return world.crates.some((c) => c.tile.x === tx && c.tile.y === ty);
 }
 
-// A tile that stops a player: wall (or off the map), closed door, crate.
+// A tile that stops a player: wall (or off the map), glass, vent, closed door, crate.
 export function solidTile(world: World, tx: number, ty: number): boolean {
   const ch = world.room.grid[ty]?.[tx];
-  if (ch === undefined || ch === "#") return true;
+  if (ch === undefined || ch === "#" || ch === "=" || ch === "%") return true;
   if (ch === "D") {
     const id = indexOf(world.room).doorAt.get(tileKey(tx, ty));
     if (!id || !world.doorOpen[id]) return true;

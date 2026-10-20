@@ -1,5 +1,15 @@
 import { describe, expect, inject, it } from "vitest";
-import { byRole, closeAll, nextView, type Player, ready, startedGame } from "./play.ts";
+import {
+  byRole,
+  closeAll,
+  nextTick,
+  nextView,
+  type Player,
+  type RevealMsg,
+  ready,
+  startedFive,
+  startedGame,
+} from "./play.ts";
 import { connect } from "./ws.ts";
 
 const baseUrl = inject("baseUrl");
@@ -96,7 +106,7 @@ describe("a dropped connection pauses the game", () => {
     while (!lobby.lobby.seats.some((s) => s.bot)) lobby = await host.socket.next<LobbyMsg>("lobby");
     expect(lobby.lobby.seats.filter((s) => s.bot)).toHaveLength(1);
     expect(lobby.lobby.phase).toBe("playing");
-    expect((await nextView(guest, 2000)).tick).toBeGreaterThan(0);
+    expect((await nextTick(guest.socket, 2000)).tick).toBeGreaterThan(0); // the game is running, not the reveal's tick 0
     // the crew is sent again, with the bot where the person was
     let reveal = await host.socket.next<{ crew: { bot: boolean }[] }>("reveal");
     while (!reveal.crew.some((c) => c.bot)) {
@@ -188,5 +198,39 @@ describe("a dropped connection pauses the game", () => {
     await closeAll([host]);
     await again.close();
     await back.close();
+  });
+});
+
+// A dropped connection still waits its 45 s; once it is up, with someone sitting out, the host may pull
+// them in as well as choosing a bot or the lobby.
+describe("a dropped connection while others sit out", () => {
+  it("after the wait, the host can pull a sitting-out person in", async (ctx) => {
+    const five = await startedFive(baseUrl);
+    const [host, bo, cy, di] = five.sockets as [
+      (typeof five.sockets)[number],
+      (typeof five.sockets)[number],
+      (typeof five.sockets)[number],
+      (typeof five.sockets)[number],
+      (typeof five.sockets)[number],
+    ];
+    for (const s of [host, bo, cy]) s.send({ t: "ready" });
+    await host.next("view", 3000);
+    await cy.unload();
+    const first = await host.next<PauseMsg>("pause", 3000);
+    if (!isShort(first)) {
+      await closeAll(five.sockets.map((socket) => ({ socket }) as Player));
+      return ctx.skip(
+        `the pause is ${Math.round(first.left / 1000)} s: start the server with PAUSE_MS=3000`,
+      );
+    }
+    expect(first.choosing).toBe(false);
+    const choose = await host.next<PauseMsg>("pause", 8000);
+    expect(choose).toMatchObject({ waitingFor: "Cy", choosing: true });
+
+    host.send({ t: "host.choice", choice: "pull", person: 3 }); // Di
+    const reveal = await di.next<RevealMsg>("reveal", 3000);
+    expect(reveal.crew.map((c) => c.nickname)).toEqual(["Ana", "Bo", "Di"]);
+    expect(reveal.sittingOut).toEqual(["Ed"]);
+    await closeAll(five.sockets.map((socket) => ({ socket }) as Player));
   });
 });

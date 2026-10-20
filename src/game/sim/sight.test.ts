@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inCone, lineOfSight } from "./sight.ts";
+import { blocksSight, blocksSound, inCone, lineOfSight } from "./sight.ts";
 import { worldFrom } from "./testing.ts";
 
 const GRID = [
@@ -69,5 +69,42 @@ describe("inCone", () => {
     });
     expect(inCone(from, facing, off(30), 6, 70)).toBe(true);
     expect(inCone(from, facing, off(40), 6, 70)).toBe(false);
+  });
+});
+
+describe("glass and vents", () => {
+  const ROW = [
+    "####################",
+    "#1.........=.......#",
+    "#2.........%.......#",
+    "#3.................#",
+    "####################",
+  ];
+  it("lets sight through glass but not through a vent", () => {
+    const world = worldFrom(ROW);
+    expect(lineOfSight(world, at(9, 1), at(14, 1))).toBe(true);
+    expect(lineOfSight(world, at(9, 2), at(14, 2))).toBe(false);
+  });
+
+  it("blocks sound at a wall and at glass, and passes it at a vent or an open door", () => {
+    const world = worldFrom(GRID);
+    expect(blocksSound(world, 0, 0)).toBe(true);
+    expect(blocksSound(worldFrom(ROW), 11, 1)).toBe(true); // glass
+    expect(blocksSound(worldFrom(ROW), 11, 2)).toBe(false); // vent
+    expect(blocksSound(world, 11, 2)).toBe(true); // a closed door
+    world.doorOpen.D1 = true;
+    expect(blocksSound(world, 11, 2)).toBe(false);
+  });
+
+  it("hide spots block a hazard's sight but not a player's", () => {
+    const world = worldFrom([
+      "####################",
+      "#1.....h...........#",
+      "#2.................#",
+      "#3.................#",
+      "####################",
+    ]);
+    expect(blocksSight(world, 7, 1)).toBe(false);
+    expect(blocksSight(world, 7, 1, true)).toBe(true);
   });
 });

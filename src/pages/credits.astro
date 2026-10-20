@@ -5,9 +5,14 @@ import * as credits from "../../CREDITS.md";
 import Base from "../layouts/Base.astro";
 
 const title = credits.getHeadings().find((h) => h.depth === 1)?.text ?? "Credits";
-const html = await credits.compiledContent();
+const html = (await credits.compiledContent())
+  .replaceAll(
+    "<table>",
+    '<div class="table-scroll" tabindex="0" role="region" aria-label="Asset table"><table>',
+  )
+  .replaceAll("</table>", "</table></div>");
 ---
 
 <Base title={title}>
-  <div class="readme-content" set:html={html} />
+  <div class="readme-content credits-content" set:html={html} />
 </Base>

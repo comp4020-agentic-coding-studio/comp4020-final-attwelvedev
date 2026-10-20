@@ -1,4 +1,6 @@
 // Shared setup for the game specs: three sockets in a started game.
+
+import { expect } from "vitest";
 import type { RoleView } from "../src/game/perception.ts";
 import type { Role, Seat } from "../src/game/types.ts";
 import { connect, type Socket } from "./ws.ts";
@@ -14,11 +16,15 @@ interface LobbyMsg {
   lobby: { code: string };
   you: { seat: number | null; host: boolean };
 }
-interface RevealMsg {
+export interface RevealMsg {
+  t: "reveal";
   role: Role;
   index: number;
   room: string;
-  crew: { seat: Seat; role: Role; nickname: string }[];
+  crew: { seat: Seat; role: Role; nickname: string; bot: boolean }[];
+  rooms: number;
+  sittingOut: string[];
+  played: Record<string, Role[]>;
 }
 
 // Creates a lobby, seats three sockets, starts it and returns them by seat
@@ -63,4 +69,52 @@ export const byRole = (players: Player[], role: Role): Player => {
 export const nextView = async (p: Player, timeoutMs = 2000): Promise<RoleView> =>
   (await p.socket.next<{ t: "view"; view: RoleView }>("view", timeoutMs)).view;
 
+// A reveal is sent a view of the room at tick 0, to draw behind its card. "The game is running" is a
+// view from a later tick, so specs that mean that ask for it by name.
+export async function nextTick(socket: Socket, timeoutMs = 2000): Promise<RoleView> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const { view } = await socket.next<{ t: "view"; view: RoleView }>(
+      "view",
+      Math.max(1, deadline - Date.now()),
+    );
+    if (view.tick > 0) return view;
+  }
+}
+
+// Nothing has ticked: the room is still held at its reveal.
+export const noTick = (socket: Socket, ms = 700) =>
+  expect(nextTick(socket, ms)).rejects.toThrow(/no "view"/);
+
 export const closeAll = (players: Player[]) => Promise.all(players.map((p) => p.socket.close()));
+
+export const FIVE = ["Ana", "Bo", "Cy", "Di", "Ed"];
+
+export interface Five {
+  sockets: Socket[]; // by person: 0 is the host; the first three play room 1, the last two sit out
+  cookies: string[];
+  code: string;
+  reveals: RevealMsg[];
+}
+
+// Five people in a lobby, started: Ana, Bo and Cy play room 1 (in that order, as Can't see, Can't
+// hear and Can't speak) and Di and Ed sit it out and watch.
+export async function startedFive(baseUrl: string, url: string = baseUrl): Promise<Five> {
+  const cookies = await Promise.all(
+    FIVE.map(async () => {
+      const res = await fetch(new URL("/", url));
+      return res.headers.getSetCookie()[0]?.split(";")[0] ?? "";
+    }),
+  );
+  const sockets = await Promise.all(cookies.map((c) => connect(url, c)));
+  const [host, ...rest] = sockets as [Socket, ...Socket[]];
+  host.send({ t: "lobby.create", nickname: "Ana" });
+  const { lobby } = await host.next<LobbyMsg>("lobby");
+  for (const [i, s] of rest.entries()) {
+    s.send({ t: "lobby.join", code: lobby.code, nickname: FIVE[i + 1], as: "player" });
+    await s.next("lobby");
+  }
+  host.send({ t: "lobby.start" });
+  const reveals = await Promise.all(sockets.map((s) => s.next<RevealMsg>("reveal", 3000)));
+  return { sockets, cookies, code: lobby.code, reveals };
+}

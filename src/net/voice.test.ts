@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createRateLimiter,
   encodeVoiceOut,
+  encodeWatcherVoice,
   MAX_FRAME_BYTES,
   MAX_FRAMES_PER_S,
   parseVoiceFrame,
@@ -57,12 +58,48 @@ describe("voiceReceivers", () => {
   });
 });
 
+describe("encodeWatcherVoice", () => {
+  it("re-encodes a frame for the other watchers with header 0x02 and the speaker's place in the list", () => {
+    const parsed = parseVoiceFrame(frameIn(Uint8Array.from([9, 8, 7, 6]), 11, 99.5));
+    const out = encodeWatcherVoice(4, parsed as NonNullable<typeof parsed>);
+    const view = new DataView(out.buffer, out.byteOffset);
+    expect(out[0]).toBe(2); // not 1: a player's voice and a watcher's are never confused
+    expect(out[1]).toBe(4);
+    expect(view.getUint32(2)).toBe(11);
+    expect(view.getFloat64(6)).toBe(99.5);
+    expect([...out.slice(14)]).toEqual([9, 8, 7, 6]);
+    expect(out.length).toBe(14 + 4);
+  });
+});
+
 describe("createRateLimiter", () => {
   it("refuses the 26th frame within a second, then allows again", () => {
     const limiter = createRateLimiter();
-    for (let i = 0; i < MAX_FRAMES_PER_S; i++) expect(limiter.allow(1, 1000 + i)).toBe(true);
-    expect(limiter.allow(1, 1500)).toBe(false);
-    expect(limiter.allow(0, 1500)).toBe(true); // each seat has its own budget
-    expect(limiter.allow(1, 2100)).toBe(true);
+    for (let i = 0; i < MAX_FRAMES_PER_S; i++) expect(limiter.allow("a", 1000 + i)).toBe(true);
+    expect(limiter.allow("a", 1500)).toBe(false);
+    expect(limiter.allow("b", 1500)).toBe(true); // each device has its own budget
+    expect(limiter.allow("a", 2100)).toBe(true);
+  });
+
+  it("allows 25 frames a second per device, independently of any seat number", () => {
+    // seat 0 of two different lobbies is two devices: one must not use up the other's budget
+    const limiter = createRateLimiter();
+    for (let i = 0; i < MAX_FRAMES_PER_S; i++) {
+      expect(limiter.allow("device-in-lobby-1", 1000 + i)).toBe(true);
+    }
+    expect(limiter.allow("device-in-lobby-1", 1500)).toBe(false);
+    for (let i = 0; i < MAX_FRAMES_PER_S; i++) {
+      expect(limiter.allow("device-in-lobby-2", 1000 + i)).toBe(true);
+    }
+  });
+
+  it("forgets a device's frames once they are over a second old, so it does not grow forever", () => {
+    const limiter = createRateLimiter();
+    limiter.allow("a", 0);
+    limiter.allow("a", 5000);
+    expect(limiter.size()).toBe(1);
+    limiter.allow("b", 5000);
+    limiter.sweep(10_000);
+    expect(limiter.size()).toBe(0);
   });
 });

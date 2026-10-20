@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 import { ROLE_LABEL } from "../../src/game/types.ts";
 import { axeViolations, horizontalOverflow, launch } from "../browser.ts";
 import { leaveGameAndClose } from "../lobbyUi.ts";
-import { canvasHash, playRoom } from "../playUi.ts";
+import { canvasHash, playRoom, settledHash } from "../playUi.ts";
 
 const baseUrl = inject("baseUrl");
 let browser: Browser;
@@ -14,15 +14,19 @@ afterAll(async () => {
   await browser.close();
 });
 
-const SOLID = [0x3a, 0x4d, 0x7a]; // --solid, the wall colour (src/client/tokens.ts)
+const SOLID = [0xf4, 0xb9, 0xc3]; // --w-wall-top, the wall colour (src/client/tokens.ts)
 
 describe("the game screen", () => {
   it("shows each role's frame, and only the sighted roles' canvas has walls", async () => {
     const table = await playRoom(browser, baseUrl);
     for (const role of ["blind", "deaf", "mute"] as const) {
       const page = table.byRole[role];
-      await expect(page.locator(".hud-role").innerText()).resolves.toContain(ROLE_LABEL[role]);
-      expect(await page.locator(".hud-role svg").count()).toBe(1);
+      // this page's own chip in the top bar: their shape, and their role in words for a screen reader
+      await expect(page.locator(".hud-crew li.you").innerText()).resolves.toMatch(/\byou\b/);
+      expect(await page.locator(".hud-crew li.you svg").count()).toBe(1);
+      await expect(page.locator(".hud-crew li.you .sr-only").innerText()).resolves.toContain(
+        ROLE_LABEL[role],
+      );
       expect(await page.locator(".frame .notch svg").count()).toBe(1);
       const frameColour = await page
         .locator(".frame")
@@ -51,6 +55,40 @@ describe("the game screen", () => {
     for (const page of table.pages) await leaveGameAndClose(page, baseUrl);
   });
 
+  it("draws Can't see's own figure, black around it, and it moves when they walk", async () => {
+    const table = await playRoom(browser, baseUrl);
+    const blind = table.byRole.blind;
+    const canvas = blind.locator(".frame canvas");
+    // the picture, apart from the black: how many pixels are not
+    const lit = () =>
+      canvas.evaluate((el) => {
+        const c = el as HTMLCanvasElement;
+        const d = c.getContext("2d")?.getImageData(0, 0, c.width, c.height).data;
+        let n = 0;
+        for (let i = 0; d && i < d.length; i += 4)
+          if ((d[i] ?? 0) + (d[i + 1] ?? 0) + (d[i + 2] ?? 0) > 30) n++;
+        return n;
+      });
+    const walls = await blind.evaluate(() => 0);
+    expect(walls).toBe(0);
+    await expect.poll(lit, { timeout: 3000 }).toBeGreaterThan(200); // a figure, not a bare ring
+    const total = await canvas.evaluate(
+      (el) => (el as HTMLCanvasElement).width * (el as HTMLCanvasElement).height,
+    );
+    expect(await lit()).toBeLessThan(total * 0.1); // and black everywhere else
+    // walking changes the picture: it hops
+    await blind.emulateMedia({ reducedMotion: "no-preference" });
+    await blind.keyboard.down("d");
+    const seen = new Set<string>();
+    for (let i = 0; i < 12; i++) {
+      seen.add(await canvas.evaluate((el) => (el as HTMLCanvasElement).toDataURL()));
+      await blind.waitForTimeout(40);
+    }
+    await blind.keyboard.up("d");
+    expect(seen.size, "a hopping figure is not one still frame").toBeGreaterThan(1);
+    for (const page of table.pages) await leaveGameAndClose(page, baseUrl);
+  });
+
   it("has no overflow and no axe violations on the HUD at phone and desktop widths", async () => {
     const table = await playRoom(browser, baseUrl);
     for (const page of table.pages) {
@@ -62,18 +100,18 @@ describe("the game screen", () => {
     await leaveGameAndClose(table.byRole.mute, baseUrl);
   });
 
-  it("puts the joystick and Act on touch, clear of the tray, and no key hints there", async () => {
+  it("puts the joystick and Act on touch, clear of the talk bar, and no key hints there", async () => {
     const table = await playRoom(browser, baseUrl);
     const { phone } = table;
     await phone.locator("[data-joystick]").waitFor();
     await phone.locator("[data-act]").waitFor();
-    const tray = await phone.locator(".tray").boundingBox();
+    const bar = await phone.locator(".talk-bar").boundingBox();
     const stick = await phone.locator("[data-joystick]").boundingBox();
     const act = await phone.locator("[data-act]").boundingBox();
-    expect(tray && stick && act).toBeTruthy();
-    if (tray && stick && act) {
-      expect(stick.y).toBeGreaterThanOrEqual(tray.y + tray.height);
-      expect(act.y).toBeGreaterThanOrEqual(tray.y + tray.height);
+    expect(bar && stick && act).toBeTruthy();
+    if (bar && stick && act) {
+      expect(stick.y).toBeGreaterThanOrEqual(bar.y + bar.height);
+      expect(act.y).toBeGreaterThanOrEqual(bar.y + bar.height);
       expect(stick.x).toBeLessThan(act.x);
       expect(act.width).toBeGreaterThanOrEqual(48);
     }
@@ -118,35 +156,84 @@ describe("the game screen", () => {
     await leaveGameAndClose(table.byRole.mute, baseUrl);
   });
 
-  it("gives only the host a Restart that asks twice and then puts everyone back at spawn", async () => {
+  // Anyone may ask for a restart; it happens only when the other two accept.
+  const askToRestart = async (asker: Page, others: Page[]) => {
+    await asker.getByRole("button", { name: "Menu" }).click();
+    await asker.getByRole("button", { name: "Restart room", exact: true }).click();
+    await asker.getByRole("button", { name: "Sure? Ask to restart room", exact: true }).click();
+    for (const page of others) {
+      const prompt = page.getByRole("alertdialog");
+      await prompt.getByText(/wants to restart the room/).waitFor({ timeout: 2000 });
+      await prompt.getByRole("button", { name: "Restart room" }).click();
+    }
+  };
+
+  it("gives every player a Restart in the menu that asks twice, and puts everyone back at spawn once the others accept", async () => {
     const table = await playRoom(browser, baseUrl);
     const { blind: host, deaf, mute } = table.byRole;
-    expect(await deaf.getByRole("button", { name: /Restart/ }).count()).toBe(0);
-    expect(await mute.getByRole("button", { name: /Restart/ }).count()).toBe(0);
-    await deaf.waitForTimeout(300);
-    const spawn = await canvasHash(deaf);
-    await deaf.keyboard.down("d");
-    await deaf.waitForTimeout(800);
-    await deaf.keyboard.up("d");
-    await deaf.waitForTimeout(300);
-    expect(await canvasHash(deaf)).not.toBe(spawn);
-
-    await host.getByRole("button", { name: "Restart room", exact: true }).click();
-    await host.getByRole("button", { name: "Sure? Restart room", exact: true }).click();
-    await expect.poll(() => canvasHash(deaf), { timeout: 3000 }).toBe(spawn);
+    for (const page of [host, deaf, mute]) {
+      // the old bar button is gone: the proposals live in the menu
+      expect(await page.getByRole("button", { name: "Restart room", exact: true }).count()).toBe(0);
+      await page.getByRole("button", { name: "Menu" }).click();
+      expect(await page.getByRole("button", { name: "Restart room", exact: true }).count()).toBe(1);
+      await page.getByRole("button", { name: "Menu" }).click();
+    }
+    const move = async () => {
+      await deaf.keyboard.down("d");
+      await deaf.waitForTimeout(800);
+      await deaf.keyboard.up("d");
+    };
+    // The first frames of a new game are not the scene yet (a reveal fades into it), so a
+    // picture taken then can never match the real spawn. A restart puts everyone at the
+    // spawn with the page long since loaded: take the spawn from there, then move away,
+    // restart again, and check the second restart looks like the first.
+    await askToRestart(host, [deaf, mute]);
+    await deaf.waitForTimeout(500); // the restart reaches the page; then wait for it to stop changing
+    const spawn = await settledHash(deaf);
+    await move();
+    expect(await settledHash(deaf)).not.toBe(spawn);
+    await askToRestart(deaf, [host, mute]);
+    // back at the spawn, once the scene has come to rest: not whatever frame happens to be up
+    await expect.poll(() => settledHash(deaf, 1500), { timeout: 8000 }).toBe(spawn);
     await leaveGameAndClose(host, baseUrl);
     await leaveGameAndClose(deaf, baseUrl);
     await leaveGameAndClose(mute, baseUrl);
   });
 
-  it("lets a player move again after a restart, the one who pressed it and the others", async () => {
+  it("leaves everyone where they are when one person says No: nobody goes back to spawn", async () => {
+    const table = await playRoom(browser, baseUrl);
+    const { blind: host, deaf, mute } = table.byRole;
+    // the spawn picture, from a restart that was accepted (the same way the test above takes it)
+    await askToRestart(host, [deaf, mute]);
+    await deaf.waitForTimeout(500);
+    const spawn = await settledHash(deaf);
+    await deaf.keyboard.down("d");
+    await deaf.waitForTimeout(800);
+    await deaf.keyboard.up("d");
+    expect(await settledHash(deaf)).not.toBe(spawn); // they have moved away
+
+    await host.getByRole("button", { name: "Menu" }).click();
+    await host.getByRole("button", { name: "Restart room", exact: true }).click();
+    await host.getByRole("button", { name: "Sure? Ask to restart room", exact: true }).click();
+    await deaf.getByRole("alertdialog").getByRole("button", { name: "Keep playing" }).click();
+    await mute.getByText(/Not restarted: Bo kept playing/).waitFor({ timeout: 2000 });
+    // the others hear it end at slightly different moments: wait for the bar to go, don't read it once
+    await expect.poll(() => deaf.getByRole("alertdialog").count(), { timeout: 3000 }).toBe(0);
+    // the room was not restarted: the player is still away from the spawn, and stays there
+    await deaf.waitForTimeout(500);
+    expect(await settledHash(deaf)).not.toBe(spawn);
+    await leaveGameAndClose(host, baseUrl);
+    await leaveGameAndClose(deaf, baseUrl);
+    await leaveGameAndClose(mute, baseUrl);
+  });
+
+  it("lets a player move again after a restart, the one who asked and the others", async () => {
     const table = await playRoom(browser, baseUrl);
     const { blind: host, deaf, mute } = table.byRole;
     await deaf.keyboard.down("d");
     await deaf.waitForTimeout(600);
     await deaf.keyboard.up("d");
-    await host.getByRole("button", { name: "Restart room", exact: true }).click();
-    await host.getByRole("button", { name: "Sure? Restart room", exact: true }).click();
+    await askToRestart(host, [deaf, mute]);
     await deaf.waitForTimeout(500);
     for (const page of [deaf, mute]) {
       const before = await canvasHash(page);
@@ -218,5 +305,23 @@ describe("the game screen", () => {
     await leaveGameAndClose(host, baseUrl);
     await leaveGameAndClose(deaf, baseUrl);
     await leaveGameAndClose(mute, baseUrl);
+  });
+});
+
+describe("high contrast", () => {
+  it("passes axe contrast checks in the HUD chrome, at both viewports", async () => {
+    const table = await playRoom(browser, baseUrl);
+    for (const page of [table.byRole.blind, table.byRole.deaf, table.byRole.mute]) {
+      await page.getByRole("button", { name: "Menu" }).click();
+      await page.getByRole("button", { name: "Settings" }).click();
+      await page.getByLabel("High contrast").check();
+      await page.getByRole("button", { name: "Menu" }).click(); // close the menu
+    }
+    await canvasHash(table.byRole.blind); // let one frame draw with the new palette
+    for (const page of [table.byRole.blind, table.byRole.deaf, table.byRole.mute]) {
+      expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
+      expect(await axeViolations(page)).toEqual([]);
+    }
+    for (const page of table.pages) await page.context().close();
   });
 });

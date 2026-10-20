@@ -15,6 +15,7 @@ const mount = (over: Partial<Parameters<typeof Disconnect>[0]> = {}) =>
       secondsLeft: 45,
       choosing: false,
       host: true,
+      sitting: [],
       onChoice: vi.fn(),
       ...over,
     }),
@@ -70,5 +71,81 @@ describe("Disconnect", () => {
   it("stops the clock once it is the host's turn", () => {
     mount({ choosing: true, secondsLeft: 0 });
     expect(document.querySelector("[role=timer]")).toBeNull();
+  });
+});
+
+describe("Disconnect: someone is sitting out", () => {
+  const sitting = [
+    { index: 3, nickname: "Di" },
+    { index: 4, nickname: "Ed" },
+  ];
+
+  it("offers the host a Pull in button per person sitting out, as well as a bot and the lobby", () => {
+    const onChoice = vi.fn();
+    mount({ host: true, choosing: true, secondsLeft: 0, sitting, onChoice });
+    expect(names()).toEqual(["Pull in Di", "Pull in Ed", "Let a bot take over", "Back to lobby"]);
+    (document.querySelectorAll("button")[1] as HTMLButtonElement).click();
+    expect(onChoice).toHaveBeenCalledWith("pull", 4);
+  });
+
+  it("asks who takes the seat when people are free, with the bot last and quieter than they are", () => {
+    mount({ host: true, choosing: true, secondsLeft: 0, sitting });
+    expect(document.querySelector("h3, .pull-title")?.textContent).toMatch(/who takes/i);
+    const bot = [...document.querySelectorAll("button")].find((b) =>
+      /bot/i.test(b.textContent ?? ""),
+    );
+    expect(bot?.classList.contains("primary")).toBe(false);
+    for (const b of [...document.querySelectorAll("button")].filter((b) =>
+      /Pull in/.test(b.textContent ?? ""),
+    ))
+      expect(b.classList.contains("primary")).toBe(true);
+    expect(names().indexOf("Let a bot take over")).toBeGreaterThan(names().indexOf("Pull in Ed"));
+  });
+
+  it("offers a watcher the same way, by their own reference", () => {
+    const onChoice = vi.fn();
+    mount({
+      host: true,
+      choosing: true,
+      secondsLeft: 0,
+      sitting: [],
+      watching: [{ ref: -4, nickname: "Wes" }],
+      onChoice,
+    });
+    expect(names()).toEqual(["Pull in Wes", "Let a bot take over", "Back to lobby"]);
+    (document.querySelectorAll("button")[0] as HTMLButtonElement).click();
+    expect(onChoice).toHaveBeenCalledWith("pull", -4);
+  });
+
+  it("keeps the bot as the main choice when nobody is free", () => {
+    mount({ host: true, choosing: true, secondsLeft: 0, sitting: [], watching: [] });
+    const bot = [...document.querySelectorAll("button")].find((b) =>
+      /bot/i.test(b.textContent ?? ""),
+    );
+    expect(bot?.classList.contains("primary")).toBe(true);
+  });
+
+  it("offers no Pull in when nobody is sitting out, and never to a guest", () => {
+    mount({ host: true, choosing: true, secondsLeft: 0, sitting: [] });
+    expect(names()).toEqual(["Let a bot take over", "Back to lobby"]);
+    mount({ host: false, choosing: true, secondsLeft: 0, sitting });
+    expect(names()).toEqual([]);
+  });
+
+  it("says a person left, not that their connection dropped, when they pressed Leave", () => {
+    mount({ choosing: true, secondsLeft: 0, gone: true, sitting });
+    expect(document.body.textContent).toMatch(/Bo left/);
+    expect(document.body.textContent).not.toMatch(/connection dropped/i);
+  });
+});
+
+describe("Disconnect: waiting for the person pulled in", () => {
+  it("names them and asks for nothing from anyone but them, with no clock", () => {
+    mount({ waitingFor: "Di", forReady: true, choosing: false });
+    expect(document.querySelector("h2")?.textContent).toContain("Waiting for Di");
+    expect(document.body.textContent).toMatch(/to be ready/i);
+    expect(document.body.textContent).not.toMatch(/connection dropped/i);
+    expect(document.querySelector("[role=timer]")).toBeNull();
+    expect(names()).toEqual([]);
   });
 });

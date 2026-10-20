@@ -14,6 +14,7 @@
     "lint:rooms": "node scripts/lint-rooms.ts",
     "solve:rooms": "node scripts/solve-rooms.ts",
     "check:evidence": "node scripts/check-evidence.ts",
+    "check:flaky": "node scripts/check-flaky.ts",
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "db:generate": "drizzle-kit generate"

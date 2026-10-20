@@ -21,8 +21,13 @@ describe("defaultsFor", () => {
     }
   });
 
-  it("starts with game sound and spoken lines both on, and the sheet closing after a send", () => {
-    expect(defaultsFor("mute")).toMatchObject({ sound: true, speech: true, keepOpen: false });
+  it("starts with game sound and spoken lines both on, hold-to-talk and no pinned quick slot", () => {
+    expect(defaultsFor("mute")).toMatchObject({
+      sound: true,
+      speech: true,
+      voiceMode: "hold",
+      quick: null,
+    });
   });
 
   it("starts with high contrast off, masking noise on and its volume at half", () => {
@@ -48,7 +53,8 @@ describe("loadSettings and saveSettings", () => {
       {
         sound: false,
         speech: false,
-        keepOpen: true,
+        voiceMode: "toggle",
+        quick: "face:f03",
         captions: null,
         highContrast: false,
         maskNoiseOn: true,
@@ -57,7 +63,18 @@ describe("loadSettings and saveSettings", () => {
       s,
     );
     const loaded = loadSettings("deaf", s);
-    expect(loaded).toMatchObject({ sound: false, speech: false, keepOpen: true, captions: true });
+    expect(loaded).toMatchObject({
+      sound: false,
+      speech: false,
+      voiceMode: "toggle",
+      quick: "face:f03",
+      captions: true,
+    });
+  });
+
+  it("falls back to hold-to-talk and no quick slot for junk values", () => {
+    const s = store({ "heist.settings": JSON.stringify({ voiceMode: "shout", quick: 7 }) });
+    expect(loadSettings("blind", s)).toMatchObject({ voiceMode: "hold", quick: null });
   });
 
   it("keeps game sound and spoken lines apart", () => {

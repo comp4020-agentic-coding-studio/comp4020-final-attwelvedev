@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
+import type { RoomObject } from "../rooms/format.ts";
 import { loadRooms } from "../rooms/load.ts";
 import { blockedAt } from "./collide.ts";
-import { cameraWatching, caughtBy, findCatch, laserOn } from "./hazards.ts";
-import { hold, place, worldWith } from "./testing.ts";
+import { cameraWatching, caughtBy, findCatch, laserBeam, laserOn } from "./hazards.ts";
+import { hold, place, roomWith, worldWith } from "./testing.ts";
 import { createWorld, RADIUS, TICK_MS } from "./world.ts";
 
 const T = (seconds: number) => Math.round((seconds * 1000) / TICK_MS);
@@ -345,5 +346,42 @@ describe("the caught event", () => {
     hold(world, {}, 1);
     const event = world.events.find((e) => e.kind === "caught");
     expect(event).toEqual({ kind: "caught", by: "L1", hazard: "laser", seat: 2 });
+  });
+});
+
+describe("glass and vents against hazards", () => {
+  const row = (ch: string) => [
+    "######################",
+    `#1.......G...${ch}.......#`,
+    "#2...................#",
+    "#3...................#",
+    "######################",
+  ];
+  const GUARD = { G1: { sightTiles: 8, fovDeg: 70, speedTps: 0 } };
+
+  it("a guard sees a player through glass but not through a vent", () => {
+    const seen = worldWith(row("="), GUARD);
+    place(seen, 0, tile(15, 1));
+    expect(caughtBy(seen)).toBe("G1");
+    const blocked = worldWith(row("%"), GUARD);
+    place(blocked, 0, tile(15, 1));
+    expect(caughtBy(blocked)).toBeNull();
+  });
+
+  it("a laser beam stops at glass and at a vent", () => {
+    for (const ch of ["=", "%"]) {
+      const room = roomWith(
+        [
+          "######################",
+          `#1..L...${ch}............#`,
+          "#2...................#",
+          "#3...................#",
+          "######################",
+        ],
+        { L1: { dir: "right", onS: 2, offS: 2, offsetS: 0 } },
+      );
+      const laser = room.objects.find((o) => o.kind === "laser") as RoomObject;
+      expect(laserBeam(room, laser).at(-1)?.x).toBe(7);
+    }
   });
 });

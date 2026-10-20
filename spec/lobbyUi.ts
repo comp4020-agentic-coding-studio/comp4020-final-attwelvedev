@@ -13,7 +13,7 @@ export async function createLobbyAs(
 ): Promise<{ page: Page; code: string }> {
   const page = await openPage(browser, baseUrl, viewport);
   await page.getByLabel("Nickname").fill(nickname);
-  await page.getByRole("button", { name: "Create lobby" }).click();
+  await page.getByRole("button", { name: "Start a new team" }).click();
   await page.waitForURL(/\/lobby\/[A-Z]{4}$/);
   const code = new URL(page.url()).pathname.split("/").pop() ?? "";
   return { page, code };
@@ -38,9 +38,17 @@ export async function joinWithCode(
 // come back), so specs press Leave first or abandoned lobbies fill the server.
 export async function leaveAndClose(page: Page): Promise<void> {
   if (page.url().includes("/lobby/")) {
-    const leave = page.getByRole("button", { name: "Leave" });
+    const leave = page.getByRole("button", { name: "Leave lobby", exact: true });
     if (await leave.isVisible()) {
-      await leave.click();
+      // Leaving asks first. A cleanup must never be what hangs a spec, so each step is bounded:
+      // if the page is somewhere without the modal (a sheet open, or already in a reveal), the
+      // seat is released by closing the context, as it was before leaving asked.
+      await leave.click({ timeout: 3000 }).catch(() => {});
+      await page
+        .getByRole("dialog")
+        .getByRole("button", { name: "Leave lobby", exact: true })
+        .click({ timeout: 3000 })
+        .catch(() => {});
       await page.waitForURL((url) => url.pathname === "/", { timeout: 5000 }).catch(() => {});
     }
   }
@@ -57,3 +65,31 @@ export async function leaveGameAndClose(page: Page, baseUrl: string): Promise<vo
   if (cookie) await (await connect(baseUrl, cookie)).close();
   await page.context().close();
 }
+
+// Someone who joins a lobby that has started: it is full, so the join page offers to watch.
+// Resolves once their spectator screen has drawn.
+export async function joinAsWatcher(
+  browser: Browser,
+  baseUrl: string,
+  code: string,
+  nickname: string,
+  viewport: Viewport,
+  options: { hasTouch?: boolean } = {},
+): Promise<Page> {
+  const context = await browser.newContext({
+    viewport,
+    ...(options.hasTouch ? { hasTouch: true, isMobile: true } : {}),
+  });
+  const page = await context.newPage();
+  await page.goto(baseUrl, { waitUntil: "networkidle" });
+  await page.getByLabel("Nickname").fill(nickname);
+  await page.getByLabel("Lobby code").fill(code);
+  await page.getByRole("button", { name: "Join", exact: true }).click();
+  await page.getByRole("button", { name: "Watch" }).click();
+  await page.locator(".spectator-frame canvas").waitFor();
+  return page;
+}
+
+// The code of the lobby a page is in.
+export const lobbyCodeOf = (page: Page): string =>
+  new URL(page.url()).pathname.split("/").pop() ?? "";

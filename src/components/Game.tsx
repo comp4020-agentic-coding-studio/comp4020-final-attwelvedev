@@ -4,38 +4,57 @@ import { faceImage, preloadFaces } from "../client/faces.ts";
 import { detectFx, FX_MAX, FX_MS, type Fx } from "../client/fx.ts";
 import {
   CALLOUT_WORD,
+  type CueCaption,
   captionFor,
   caughtText,
   crewChangeText,
   cueCaptions,
+  cueKey,
   formatTime,
+  type HeldCues,
   hearCues,
   heardCues,
-  hostChangeText,
   lerpEntities,
 } from "../client/hud.ts";
 import { createInput } from "../client/input.ts";
 import { createPredictor, type Predictor } from "../client/predict.ts";
-import { draw, type FacePop, type Scene } from "../client/render.ts";
+import {
+  type Camera,
+  camera,
+  draw,
+  easeCamera,
+  type FacePop,
+  fromScreen,
+  type Motion,
+  type Scene,
+} from "../client/render.ts";
 import { loadSettings, type Settings as SettingsState, saveSettings } from "../client/settings.ts";
 import type { ConnectionState, GameSocket } from "../client/socket.ts";
 import { browserSpeech } from "../client/speech.ts";
 import { NET, setContrast } from "../client/tokens.ts";
-import { FACE_POP_MS } from "../game/channels.ts";
-import { ROLE_LABEL, type Role, type Vec } from "../game/types.ts";
-import type { CrewMember, LobbySettings, LobbyState, RoleView } from "../net/protocol.ts";
+import { quickSlot } from "../client/wheel.ts";
+import { FACE_POP_MS, type Stamp } from "../game/channels.ts";
+import { botRef } from "../game/crew.ts";
+import type { BriefingCue } from "../game/cues.ts";
+import { ROLE_LABEL, type Role, type Seat, type Vec } from "../game/types.ts";
+import type { CrewMember, LobbyState, RealLife, RoleView } from "../net/protocol.ts";
 import { type CaptionLine, Captions } from "./Captions.tsx";
-import { ConfirmButton } from "./ConfirmButton.tsx";
+import { type CommsApi, CommsWheel } from "./CommsWheel.tsx";
 import { Connection } from "./Connection.tsx";
 import { Disconnect } from "./Disconnect.tsx";
 import { HeistComplete } from "./HeistComplete.tsx";
+import { HudMenu } from "./HudMenu.tsx";
 import { RoleReveal } from "./RoleReveal.tsx";
 import { RoleShape } from "./RoleShape.tsx";
 import { RoomCleared } from "./RoomCleared.tsx";
 import { Settings } from "./Settings.tsx";
+import { TalkBar } from "./TalkBar.tsx";
 import { TouchControls } from "./TouchControls.tsx";
-import { Tray } from "./Tray.tsx";
+import { useGone } from "./useGone.ts";
+import { useHostNote } from "./useHostNote.ts";
+import { usePause } from "./usePause.ts";
 import { useVoice } from "./useVoice.ts";
+import { type OpenVote, outcomeText, VotePrompt } from "./VotePrompt.tsx";
 
 export interface Reveal {
   room: string;
@@ -43,10 +62,13 @@ export interface Reveal {
   index: number;
   role: Role;
   crew: CrewMember[];
+  rooms: number; // how many rooms the heist has
+  sittingOut: string[]; // nicknames of the people not playing this room
+  played: Record<string, Role[]>; // by nickname: roles played so far
+  real: RealLife; // what your setup means for you in this room
+  cues: BriefingCue[]; // Can't see only: the sounds to learn
   from?: Role; // your role in the room before, so the shape can morph into the new one
 }
-
-const LAST_ROOM = 2; // the heist is three rooms: index 0, 1, 2
 
 // What the frame loop and the input loop share. Plain mutable state in a ref:
 // it changes 20 times a second and must not re-render the page each time.
@@ -58,15 +80,157 @@ interface Runtime {
   predictor: Predictor | null;
   self: Vec | null; // where we think we are
   shown: Vec | null; // where we draw ourselves (self, eased)
-  pops: { seat: number; id: string; at: number }[]; // faces on show, by when they landed
-  cueHold: Map<string, number>; // cue captions and when to let each go
+  facing: Vec; // the way we last pushed: our own figure turns the moment the key goes down
+  walking: { moving: boolean; blocked: boolean }; // what the last input did to the predicted position
+  // faces and marks on show, by when they landed; `from` and `name` are what an edge pill needs
+  // when the sender is out of sight and so not among the entities
+  pops: { seat: number; id: string; at: number; from?: Vec; name?: string; mark?: Stamp }[];
+  cueHold: HeldCues; // cue captions and when to let each go
   fx: { fx: Fx; at: number }[]; // small effects for what just changed, by when they started
   soundOn: boolean;
+  // The world rising out of the reveal (FR25): when it began, and whether it is the 300 ms
+  // cross-fade of reduced motion. Null until the game starts; a page that loads mid-game never rises.
+  rise: { at: number; reduced: boolean } | null;
+  cam: { scale: number; ox: number; oy: number } | null; // the last frame's map camera, to turn a tap into a tile
 }
 
+const RISE_MS = 900; // the world rises out of the reveal
+const FADE_MS = 300; // reduced motion: a cross-fade instead
 const CAPTION_MS = 5000;
+const PILL_MS = 4000; // an edge pill outlasts the face on it (FACE_POP_MS) by a few seconds
+const fadeOut = (leftMs: number) => Math.min(1, leftMs / 300);
+const SPAWN_FACING: Vec = { x: 1, y: 0 }; // everyone starts a room facing east (src/game/sim/world.ts)
 const EASE = 0.5; // share of the gap to the predicted position closed each frame
 const SNAP_TILES = 1.5;
+
+// Draw every frame; the canvas is sized to its frame in device pixels. Shared by the reveal (the
+// room behind the card) and the game, so both read the same runtime.
+function useDraw(
+  rt: Runtime,
+  canvas: { current: HTMLCanvasElement | null },
+  frame: { current: HTMLDivElement | null },
+  role: Role,
+  crew: CrewMember[],
+  flat = false, // the reveal's backdrop: the whole room, flat, under the card
+) {
+  useEffect(() => {
+    const el = canvas.current;
+    const box = frame.current;
+    const ctx = el?.getContext("2d");
+    if (!el || !box || !ctx) return;
+    let size = { w: 0, h: 0 };
+    const resize = () => {
+      const dpr = window.devicePixelRatio || 1;
+      size = { w: box.clientWidth, h: box.clientHeight };
+      el.width = Math.round(size.w * dpr);
+      el.height = Math.round(size.h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(box);
+    let raf = 0;
+    let eased: Camera | null = null;
+    let lastFrame = performance.now();
+    const frameLoop = () => {
+      raf = requestAnimationFrame(frameLoop);
+      const view = rt.view;
+      if (!view || !el.isConnected) return; // the reveal's backdrop goes when the game starts
+      if (rt.self && rt.shown) {
+        const gap = Math.hypot(rt.self.x - rt.shown.x, rt.self.y - rt.shown.y);
+        rt.shown =
+          gap > SNAP_TILES
+            ? rt.self
+            : {
+                x: rt.shown.x + (rt.self.x - rt.shown.x) * EASE,
+                y: rt.shown.y + (rt.self.y - rt.shown.y) * EASE,
+              };
+      }
+      const t = (performance.now() - rt.at) / NET.interpolateMs;
+      const now = performance.now();
+      const pops: FacePop[] = [];
+      for (const p of rt.pops) {
+        const seat = p.seat as 0 | 1 | 2;
+        const age = now - p.at;
+        const pill = { from: p.from, name: p.name };
+        if (p.mark) {
+          // a mark has no face: its pill (if the mark is off screen) lasts the pill's time
+          if (age < PILL_MS)
+            pops.push({ seat, ...pill, mark: p.mark, fade: fadeOut(PILL_MS - age) });
+          continue;
+        }
+        const img = faceImage(p.id);
+        if (img && age < FACE_POP_MS) {
+          pops.push({ seat, img, ...pill, fade: fadeOut(FACE_POP_MS - age) });
+        } else if (p.from && age < PILL_MS) {
+          pops.push({ seat, ...pill, alone: true, fade: fadeOut(PILL_MS - age) }); // the pill outlasts the face
+        }
+      }
+      const scene: Scene = {
+        ...size,
+        role,
+        seat: view.you.seat,
+        roles: crew.map((c) => c.role) as Scene["roles"],
+        tiles: role === "blind" ? null : rt.tiles,
+        seen: role === "blind" ? undefined : view.seen, // the tiles in line of sight: the rest is mist
+        entities: lerpEntities(rt.prevEntities, view.entities, t),
+        self: rt.shown,
+        // Can't see is told whether they are walking or pushing (they hear it already); a sighted
+        // role reads it off its own predicted position, which is ahead of the server
+        own: ownMotion(rt, role),
+        bots: crew.map((c) => !!c.bot) as Scene["bots"],
+        layout: "follow", // the game camera on every screen; the rise eases it in from the whole room
+        rise: flat ? 0 : riseNow(rt, now),
+        pops,
+        fx: rt.fx
+          .filter((f) => now - f.at < FX_MS)
+          .map((f) => ({ ...f.fx, age: (now - f.at) / FX_MS })),
+        alarm: view.alarm,
+        nowMs: now,
+        reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+      };
+      // the camera is eased frame to frame so it never snaps; the home feeds and the reveal's flat
+      // backdrop ask for the whole room, which does not move, so easing leaves them alone
+      const target = camera(scene);
+      const cam = easeCamera(eased, target, now - lastFrame, scene);
+      eased = cam;
+      lastFrame = now;
+      scene.cam = cam;
+      if (!flat) {
+        rt.cam = cam; // the reveal's backdrop is not what a tap is turned into a tile by
+        // Where tile (0, 0) is, for the specs that read a pixel of a tile: the picture alone does not
+        // say where a tile is, and the camera is eased, so it is not worked out from the room.
+        const at = `${cam.scale.toFixed(3)},${cam.ox.toFixed(3)},${cam.oy.toFixed(3)}`;
+        if (el.dataset.camera !== at) el.dataset.camera = at;
+      }
+      draw(ctx, scene);
+    };
+    raf = requestAnimationFrame(frameLoop);
+    return () => {
+      cancelAnimationFrame(raf);
+      observer.disconnect();
+    };
+  }, [rt, role, crew, canvas, frame, flat]);
+}
+
+// How hard a held direction has to push to count as moving: under this share of the step, it is
+// blocked (the server's rule is the same shape: "almost nowhere").
+const BLOCKED_SHARE = 0.2;
+const STEP_TILES = 4 / NET.inputHz; // SPEED_TPS in predict.ts, per input
+
+// How far the world has risen, 0 to 1, eased out. Reduced motion has no rise frames: the world is
+// whole at once and the reveal over it cross-fades. Absent (a page loaded mid-game) is whole.
+function riseNow(rt: Runtime, now: number): number {
+  const r = rt.rise;
+  if (!r || r.reduced) return 1;
+  const t = Math.max(0, Math.min(1, (now - r.at) / RISE_MS));
+  return 1 - (1 - t) ** 3;
+}
+
+function ownMotion(rt: Runtime, role: Role): Motion {
+  const motion = role === "blind" ? rt.view?.you.motion : rt.walking;
+  return { facing: rt.facing, moving: motion?.moving ?? false, blocked: motion?.blocked ?? false };
+}
 
 function onView(rt: Runtime, view: RoleView, audio: GameAudio): void {
   // the tick going backwards means the room was restarted: forget what we predicted
@@ -74,6 +238,8 @@ function onView(rt: Runtime, view: RoleView, audio: GameAudio): void {
     rt.predictor = null;
     rt.self = null;
     rt.shown = null;
+    rt.facing = SPAWN_FACING;
+    rt.walking = { moving: false, blocked: false };
   }
   rt.prevEntities = rt.view?.entities ?? [];
   rt.view = view;
@@ -104,17 +270,25 @@ export function Game({
   host,
   hostName,
   seats,
-  lobbySettings,
+  sitting,
+  people,
+  watching,
+  early,
+  onLeave,
 }: {
   socket: GameSocket;
   state: ConnectionState;
   rttMs: number | null;
   online: boolean;
+  early: { view: RoleView | null; ready: Seat[] }; // what the server sent between the reveal and this page drawing
   reveal: Reveal;
   host: boolean;
   hostName: string | null;
   seats: LobbyState["seats"] | null;
-  lobbySettings: LobbySettings;
+  sitting: { index: number; nickname: string }[]; // people sitting out, whom the host may pull in
+  people: string[]; // nicknames by person index, so a swap named in the reveal is sent by index
+  watching: string[]; // spectators' nicknames, listed in the crew column
+  onLeave: () => void; // the menu's Leave: the lobby asks first, then leaves
 }) {
   const rt = useRef<Runtime>({
     view: null,
@@ -124,57 +298,190 @@ export function Game({
     predictor: null,
     self: null,
     shown: null,
+    facing: SPAWN_FACING,
+    walking: { moving: false, blocked: false },
     pops: [],
     fx: [],
     cueHold: new Map(),
     soundOn: true,
+    rise: null,
+    cam: null,
   });
   const audio = useRef<GameAudio | null>(null);
   const [playing, setPlaying] = useState(false);
+  // While the game rises under the reveal the reveal stays up, covering it and fading out: "rise",
+  // or "fade" for reduced motion. Null when nothing covers the game.
+  const [covering, setCovering] = useState<"rise" | "fade" | null>(null);
   const [ready, setReady] = useState(false);
+  const [readySeats, setReadySeats] = useState<Seat[]>(early.ready); // who the server says is ready, bots included
+  const stage = useRef<HTMLDivElement>(null);
+  const backdrop = useRef<HTMLCanvasElement>(null);
 
-  // Registered as soon as the reveal shows, so the first (full) view is never missed.
+  // Registered as soon as the reveal shows, so the first (full) view is never missed. The reveal
+  // is sent a view of the room at tick 0 to draw behind its card; the game has started once a view
+  // from a later tick arrives.
   useEffect(() => {
     audio.current = createAudio();
-    const off = socket.on("view", (m) => {
-      if (audio.current) onView(rt.current, m.view, audio.current);
+    // The game has started: the first view from a later tick. If this page watched the reveal it
+    // rises out of it; one that loads mid-game (a reload) is simply there.
+    const start = (sawReveal: boolean) => {
+      const r = rt.current;
+      if (r.rise === null) {
+        const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+        r.rise = { at: sawReveal ? performance.now() : Number.NEGATIVE_INFINITY, reduced };
+        if (sawReveal) setCovering(reduced ? "fade" : "rise");
+      }
       setPlaying(true);
+    };
+    // the view that came with the reveal, before this listener existed
+    if (early.view && rt.current.view === null) {
+      onView(rt.current, early.view, audio.current);
+      if (early.view.tick > 0) start(false);
+    }
+    const off = socket.on("view", (m) => {
+      const sawReveal = rt.current.view?.tick === 0;
+      if (audio.current) onView(rt.current, m.view, audio.current);
+      if (m.view.tick > 0) start(sawReveal);
     });
     return () => {
       off();
       audio.current?.dispose();
       audio.current = null;
     };
-  }, [socket]);
+  }, [socket, early]);
 
-  if (!playing) {
-    return (
-      <RoleReveal
-        {...reveal}
-        ready={ready}
-        onReady={() => {
-          audio.current?.resume(); // a tap is the browser's cue to let sound play
-          setReady(true);
-          socket.send({ t: "ready" });
-        }}
-        lobbySettings={lobbySettings}
-      />
-    );
-  }
+  // the cover goes when its fade is over
+  useEffect(() => {
+    if (!covering) return;
+    const id = setTimeout(() => setCovering(null), covering === "fade" ? FADE_MS : RISE_MS);
+    return () => clearTimeout(id);
+  }, [covering]);
+
+  // The server says who is ready, on every change. A swap clears everyone, so this page's own button
+  // follows the server rather than its own memory.
+  useEffect(
+    () =>
+      socket.on("ready", (m) => {
+        setReadySeats(m.seats);
+        setReady(m.seats.includes(reveal.crew.findIndex((c) => c.role === reveal.role) as Seat));
+      }),
+    [socket, reveal.crew, reveal.role],
+  );
+
+  // The reveal is full-bleed like the game: no site header or footer around the room behind it.
+  useEffect(() => {
+    document.body.classList.add("playing");
+    return () => document.body.classList.remove("playing");
+  }, []);
+
+  // The room behind the card: the view sent with the reveal, drawn flat, until the first tick.
+  useDraw(rt.current, backdrop, stage, reveal.role, reveal.crew, true);
+  const watchers = watching.map((nickname, n) => ({ ref: -4 - n, nickname }));
+  const gone = useGone(socket);
+  const hostNote = useHostNote(hostName, host);
+  const held = usePause(socket);
+  const myName = reveal.crew.find((c) => c.role === reveal.role)?.nickname;
+
+  // Before the game starts the reveal is the page. When it starts the game rises underneath and
+  // the reveal stays over it, fading, so it is the same element throughout: its backdrop canvas
+  // keeps drawing and nothing remounts.
+  const cover = !playing || covering !== null;
+  const me = (rt.current.view?.you.seat ??
+    reveal.crew.findIndex((c) => c.role === reveal.role)) as Seat;
   return (
-    <Hud
-      rt={rt.current}
-      socket={socket}
-      state={state}
-      rttMs={rttMs}
-      online={online}
-      reveal={reveal}
-      host={host}
-      hostName={hostName}
-      seats={seats}
-      audio={audio}
-      lobbySettings={lobbySettings}
-    />
+    <>
+      {playing && (
+        <Hud
+          rt={rt.current}
+          socket={socket}
+          state={state}
+          rttMs={rttMs}
+          online={online}
+          reveal={reveal}
+          host={host}
+          hostName={hostName}
+          seats={seats}
+          sitting={sitting}
+          watchers={watchers}
+          audio={audio}
+          onLeave={onLeave}
+        />
+      )}
+      {cover && (
+        <div
+          class={covering ? "reveal-frame covering" : "reveal-frame"}
+          data-rise={covering ?? undefined}
+          inert={covering !== null}
+          aria-hidden={covering !== null ? "true" : undefined} // decoration while it fades: the HUD speaks
+          ref={stage}
+        >
+          <div class="reveal-canvas" aria-hidden="true">
+            <canvas ref={backdrop} />
+          </div>
+          <div class="reveal-scrim" />
+          {!covering && (gone || hostNote) && (
+            <p class="hud-alert reveal-gone" role="status">
+              {[gone, hostNote].filter(Boolean).join(" ")}
+            </p>
+          )}
+          <RoleReveal
+            {...reveal}
+            me={me}
+            ready={ready}
+            readySeats={readySeats}
+            host={host}
+            watching={watching}
+            audio={audio}
+            onSwap={(a, b) => {
+              // a person is their index in the lobby; a bot, who has no index, is named by its seat
+              const ref = (name: string): number | null => {
+                const at = people.indexOf(name);
+                if (at >= 0) return at;
+                const bot = reveal.crew.find((c) => c.bot && c.nickname === name);
+                if (bot) return botRef(bot.seat);
+                const watcher = watching.indexOf(name); // -4 - n: the nth spectator
+                return watcher >= 0 ? -4 - watcher : null;
+              };
+              const first = ref(a);
+              const second = ref(b);
+              if (first !== null && second !== null) {
+                socket.send({ t: "crew.swap", a: first, b: second });
+              }
+            }}
+            onReady={(on) => {
+              void audio.current?.resume(); // a tap is the browser's cue to let sound play
+              setReady(on);
+              socket.send(on ? { t: "ready" } : { t: "ready", on: false });
+            }}
+          />
+          {!covering && held.pause?.forReady && held.pause.waitingFor === myName && (
+            <p class="hud-alert reveal-gone" role="status">
+              The game is waiting for you. Press I'm ready.
+            </p>
+          )}
+          {!covering && held.pause && !held.pause.forReady && (
+            <Disconnect
+              waitingFor={held.pause.waitingFor}
+              secondsLeft={held.secondsLeft}
+              choosing={held.pause.choosing}
+              host={host}
+              sitting={sitting}
+              watching={watchers}
+              gone={held.pause.gone}
+              forReady={held.pause.forReady}
+              hostName={hostName}
+              onChoice={(choice, person) =>
+                socket.send({
+                  t: "host.choice",
+                  choice,
+                  ...(person === undefined ? {} : { person }),
+                })
+              }
+            />
+          )}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -188,8 +495,10 @@ function Hud({
   host,
   hostName,
   seats,
+  sitting,
+  watchers,
   audio,
-  lobbySettings,
+  onLeave,
 }: {
   rt: Runtime;
   socket: GameSocket;
@@ -200,14 +509,18 @@ function Hud({
   host: boolean;
   hostName: string | null;
   seats: LobbyState["seats"] | null;
+  sitting: { index: number; nickname: string }[];
+  watchers: { ref: number; nickname: string }[]; // spectators the host may pull into an empty seat
   audio: { current: GameAudio | null };
-  lobbySettings: LobbySettings;
+  onLeave: () => void;
 }) {
-  const { role } = reveal;
+  const { role, real } = reveal;
   const frame = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const root = useRef<HTMLDivElement>(null);
   const [clock, setClock] = useState("0:00");
+  const [loot, setLoot] = useState(0);
+  const [watchOpen, setWatchOpen] = useState(false);
   const [cleared, setCleared] = useState(false);
   const [summary, setSummary] = useState<{ ms: number; loot: number; lootTotal: number } | null>(
     null,
@@ -218,16 +531,10 @@ function Hud({
     lootTotal: number;
     rank: number;
   } | null>(null);
-  // the game is paused for a dropped seat; `until` is on this page's clock (the server says how long is left)
-  const [pause, setPause] = useState<{
-    waitingFor: string;
-    until: number;
-    choosing: boolean;
-  } | null>(null);
-  const [secondsLeft, setSecondsLeft] = useState(0);
-  const [back, setBack] = useState<string | null>(null);
-  const [hostNote, setHostNote] = useState<string | null>(null); // the host role passed to someone
-  const hostSeen = useRef({ name: hostName, you: host });
+  const { pause, secondsLeft, back } = usePause(socket);
+  const [vote, setVote] = useState<OpenVote | null>(null); // a restart is being voted on
+  const [voteLeft, setVoteLeft] = useState(0);
+  const [voteNote, setVoteNote] = useState<string | null>(null); // how the last vote ended
   const [replaced, setReplaced] = useState<string | null>(null); // someone left and a bot took their seat
   const crewSeen = useRef(reveal.crew);
   const [caught, setCaught] = useState<string | null>(null); // why the team was just sent back
@@ -235,17 +542,35 @@ function Hud({
   const lastSent = useRef<string | null>(null);
   const [settings, setSettings] = useState<SettingsState>(() => loadSettings(role));
   const [lines, setLines] = useState<CaptionLine[]>([]);
-  const [cues, setCues] = useState<string[]>([]);
+  const [cues, setCues] = useState<CueCaption[]>([]);
   const [typing, setTyping] = useState(false);
-  const voice = useVoice(socket, role, lobbySettings.voice, root);
-  // Can't see and Can't speak get captions instead of game sound when the
-  // host's wizard says the room's other players don't have headphones, so the
-  // game's own audio never leaks out to everyone sitting around them.
-  const forceCaptions = lobbySettings.othersSoundOff && role !== "deaf";
+  const [writing, setWriting] = useState(false);
+  const field = useRef<HTMLInputElement>(null);
+  const comms = useRef<CommsApi | null>(null);
+  const voice = useVoice(socket, role, real.voice, root, settings.voiceMode);
+  const goneNote = useGone(socket);
+  // A hearing role without headphones gets captions instead of game sound, so the game's own
+  // audio never leaks out to everyone sitting around them.
+  const forceCaptions = real.soundOff;
   const live = useRef({ settings, lineId: 0, forceCaptions });
   live.current.settings = settings;
   live.current.forceCaptions = forceCaptions;
   rt.soundOn = settings.sound && !forceCaptions;
+
+  // The tile centre under a client point, for placing a mark; `open` is false
+  // for a wall (the server decides what is in sight).
+  function toTile(clientX: number, clientY: number): { at: Vec; open: boolean } | null {
+    const box = canvas.current?.getBoundingClientRect();
+    const cam = rt.cam;
+    const tiles = rt.tiles;
+    if (!box || !cam || !tiles) return null;
+    const floor = fromScreen(cam, clientX - box.left, clientY - box.top);
+    const tx = Math.floor(floor.x);
+    const ty = Math.floor(floor.y);
+    const row = tiles[ty];
+    if (row === undefined || tx < 0 || tx >= row.length) return null;
+    return { at: { x: tx + 0.5, y: ty + 0.5 }, open: row[tx] !== "#" && row[tx] !== "%" };
+  }
 
   function change(next: SettingsState) {
     setSettings(next);
@@ -261,10 +586,9 @@ function Hud({
     };
   }, [settings.highContrast]);
 
-  // The deaf seat's own masking noise: on only when the host turned it on for
-  // an in-person table and this seat hasn't personally turned it off, at the
-  // volume this seat chose for themselves.
-  const maskNoiseOn = role === "deaf" && lobbySettings.maskNoise && settings.maskNoiseOn;
+  // The deaf seat's own masking noise: on when their setup says they have headphones, unless they
+  // turned it off, at the volume they chose.
+  const maskNoiseOn = real.maskNoise && settings.maskNoiseOn;
   useEffect(() => {
     audio.current?.setMaskNoise(maskNoiseOn, settings.volume);
   }, [audio, maskNoiseOn, settings.volume]);
@@ -276,19 +600,31 @@ function Hud({
     return socket.on("msg", (m) => {
       const now = performance.now();
       const { settings: s, forceCaptions } = live.current;
-      if (m.family === "say") {
-        speech.say(m.kind === "callout" ? CALLOUT_WORD[m.callout] : m.text);
-      } else if (m.family === "sound" && s.sound && !forceCaptions) {
+      if (m.method === "callout" || m.method === "text") {
+        speech.say(m.method === "callout" ? CALLOUT_WORD[m.callout] : m.text);
+      } else if (m.method === "clip" && s.sound && !forceCaptions) {
         audio.current?.playClip(m.clip);
-      } else if (m.family === "show" && m.kind === "face") {
-        rt.pops.push({ seat: m.from.seat, id: m.id, at: now });
+      } else if (m.method === "face") {
+        rt.pops.push({
+          seat: m.from.seat,
+          id: m.id,
+          at: now,
+          from: m.from.pos,
+          name: m.from.nickname,
+        });
+      } else if (m.method === "mark") {
+        rt.pops.push({
+          seat: m.from.seat,
+          id: m.id,
+          at: now,
+          from: m.at,
+          name: m.from.nickname,
+          mark: m.id,
+        });
       }
       // text to Can't speak is always shown, since reading it is their only way
       const caption = captionFor(m);
-      const wanted =
-        s.captions ||
-        forceCaptions ||
-        (m.family === "say" && m.kind === "text" && role !== "blind");
+      const wanted = s.captions || forceCaptions || (m.method === "text" && role !== "blind");
       if (caption && wanted) {
         const line = { id: ++live.current.lineId, ...caption, until: now + CAPTION_MS };
         setLines((old) => [...old.filter((l) => l.until > now), line].slice(-3));
@@ -310,22 +646,29 @@ function Hud({
     [socket],
   );
 
+  // A restart vote: opened and updated by the server, ended with one line saying how. A passed one
+  // has put everyone back at spawn, so what this page remembered of the room goes.
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const offs = [
-      socket.on("pause", (m) => {
-        setBack(null);
-        setPause({
-          waitingFor: m.waitingFor,
+      socket.on("vote", (m) =>
+        setVote((old) => ({
+          kind: m.kind,
+          by: m.by,
           until: performance.now() + m.left,
-          choosing: m.choosing,
-        });
-      }),
-      socket.on("resume", (m) => {
-        setPause(null);
-        setBack(m.back);
+          // the first message of a vote carries all its time: later ones only what is left
+          total: old && old.kind === m.kind && old.by === m.by ? old.total : m.left,
+          yes: m.yes,
+          no: m.no,
+          voters: m.voters,
+        })),
+      ),
+      socket.on("vote.end", (m) => {
+        setVote(null);
+        if (m.result === "passed") restarted();
+        setVoteNote(outcomeText(m.kind, m.result, m.by));
         clearTimeout(timer);
-        if (m.back) timer = setTimeout(() => setBack(null), 4000);
+        timer = setTimeout(() => setVoteNote(null), 3000);
       }),
     ];
     return () => {
@@ -334,16 +677,23 @@ function Hud({
     };
   }, [socket]);
 
-  // The host role passed to someone: say who, so nobody has to work it out from a button.
   useEffect(() => {
-    const before = hostSeen.current;
-    hostSeen.current = { name: hostName, you: host };
-    const text = hostChangeText(before, hostSeen.current);
-    if (!text) return;
-    setHostNote(text);
-    const timer = setTimeout(() => setHostNote(null), 6000);
-    return () => clearTimeout(timer);
-  }, [hostName, host]);
+    if (!vote) return;
+    const tick = () => setVoteLeft((vote.until - performance.now()) / 1000);
+    tick();
+    const timer = setInterval(tick, 250);
+    return () => clearInterval(timer);
+  }, [vote]);
+
+  const hostNote = useHostNote(hostName, host);
+  const watching = [...sitting.map((p) => p.nickname), ...watchers.map((w) => w.nickname)];
+
+  useEffect(() => {
+    if (!watchOpen) return;
+    const close = (e: KeyboardEvent) => e.key === "Escape" && setWatchOpen(false);
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, [watchOpen]);
 
   // A seat changed hands: a person left and a bot took it, or they came back. The crew changes
   // under us, so say so.
@@ -379,20 +729,16 @@ function Hud({
     };
   }, [socket, role, reveal.crew, rt]);
 
-  useEffect(() => {
-    if (!pause) return;
-    const tick = () => setSecondsLeft((pause.until - performance.now()) / 1000);
-    tick();
-    const timer = setInterval(tick, 250);
-    return () => clearInterval(timer);
-  }, [pause]);
+  // Asks for a restart: the others vote, and if everyone says yes the room (or the heist) starts
+  // again. The buttons that call it (ConfirmButton) have already asked twice.
+  function ask(kind: "room" | "heist") {
+    socket.send({ t: "vote.propose", kind });
+  }
 
-  // Restarts the room, not the heist: everyone back to this room's start. The
-  // buttons that call it (ConfirmButton) have already asked twice.
-  function restart() {
+  // A restart that passed puts everyone back at spawn: drop what this page remembered of the room.
+  function restarted() {
     lastSent.current = null;
     setSummary(null);
-    socket.send({ t: "room.restart" });
   }
 
   useEffect(() => {
@@ -402,15 +748,17 @@ function Hud({
       const view = rt.view;
       if (!view) return;
       setClock(formatTime(view.elapsedMs));
+      setLoot(view.loot);
       setCleared(view.status === "cleared");
       const now = performance.now();
-      rt.pops = rt.pops.filter((p) => now - p.at < FACE_POP_MS);
+      rt.pops = rt.pops.filter((p) => now - p.at < PILL_MS);
       setLines((old) => (old.some((l) => l.until <= now) ? old.filter((l) => l.until > now) : old));
+      // Can't hear is never given a sound caption: nothing is played to them to caption
       const heard =
-        live.current.settings.captions || live.current.forceCaptions
+        role !== "deaf" && (live.current.settings.captions || live.current.forceCaptions)
           ? heardCues(rt.cueHold, now)
           : [];
-      setCues((old) => (old.join("|") === heard.join("|") ? old : heard));
+      setCues((old) => (cueKey(old) === cueKey(heard) ? old : heard));
     }, 100);
     return () => {
       document.body.classList.remove("playing");
@@ -418,72 +766,7 @@ function Hud({
     };
   }, [rt]);
 
-  // Draw every frame; the canvas is sized to its frame in device pixels.
-  useEffect(() => {
-    const el = canvas.current;
-    const box = frame.current;
-    const ctx = el?.getContext("2d");
-    if (!el || !box || !ctx) return;
-    let size = { w: 0, h: 0 };
-    const resize = () => {
-      const dpr = window.devicePixelRatio || 1;
-      size = { w: box.clientWidth, h: box.clientHeight };
-      el.width = Math.round(size.w * dpr);
-      el.height = Math.round(size.h * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    };
-    resize();
-    const observer = new ResizeObserver(resize);
-    observer.observe(box);
-    let raf = 0;
-    const frameLoop = () => {
-      raf = requestAnimationFrame(frameLoop);
-      const view = rt.view;
-      if (!view) return;
-      if (rt.self && rt.shown) {
-        const gap = Math.hypot(rt.self.x - rt.shown.x, rt.self.y - rt.shown.y);
-        rt.shown =
-          gap > SNAP_TILES
-            ? rt.self
-            : {
-                x: rt.shown.x + (rt.self.x - rt.shown.x) * EASE,
-                y: rt.shown.y + (rt.self.y - rt.shown.y) * EASE,
-              };
-      }
-      const t = (performance.now() - rt.at) / NET.interpolateMs;
-      const now = performance.now();
-      const pops: FacePop[] = [];
-      for (const p of rt.pops) {
-        const img = faceImage(p.id);
-        const left = FACE_POP_MS - (now - p.at);
-        if (img && left > 0)
-          pops.push({ seat: p.seat as 0 | 1 | 2, img, fade: Math.min(1, left / 300) });
-      }
-      const scene: Scene = {
-        ...size,
-        role,
-        seat: view.you.seat,
-        roles: reveal.crew.map((c) => c.role) as Scene["roles"],
-        tiles: role === "blind" ? null : rt.tiles,
-        entities: lerpEntities(rt.prevEntities, view.entities, t),
-        self: rt.shown,
-        layout: size.w >= 720 ? "fit" : "follow",
-        pops,
-        fx: rt.fx
-          .filter((f) => now - f.at < FX_MS)
-          .map((f) => ({ ...f.fx, age: (now - f.at) / FX_MS })),
-        alarm: view.alarm,
-        nowMs: now,
-        reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
-      };
-      draw(ctx, scene);
-    };
-    raf = requestAnimationFrame(frameLoop);
-    return () => {
-      cancelAnimationFrame(raf);
-      observer.disconnect();
-    };
-  }, [rt, role, reveal.crew]);
+  useDraw(rt, canvas, frame, role, reveal.crew);
 
   // Keyboard and touch, sent at 20 Hz while moving or changing; nothing goes
   // out while offline, and coming back online sends the current input afresh.
@@ -495,11 +778,18 @@ function Hud({
       if (!online || rt.view?.status === "cleared") return;
       const input = source.read();
       const moving = input.move.x !== 0 || input.move.y !== 0;
+      if (moving) rt.facing = input.move;
+      else rt.walking = { moving: false, blocked: false };
       const sig = `${input.move.x},${input.move.y},${input.act}`;
       if (!moving && sig === lastSent.current) return;
       lastSent.current = sig;
       socket.send({ t: "input", ...input });
-      if (moving && rt.predictor) rt.self = rt.predictor.apply(input, 1000 / NET.inputHz);
+      if (moving && rt.predictor) {
+        const from = rt.self;
+        rt.self = rt.predictor.apply(input, 1000 / NET.inputHz);
+        const moved = from ? Math.hypot(rt.self.x - from.x, rt.self.y - from.y) : STEP_TILES;
+        rt.walking = { moving: true, blocked: moved < STEP_TILES * BLOCKED_SHARE };
+      } else if (moving) rt.walking = { moving: true, blocked: false };
     }, 1000 / NET.inputHz);
     return () => {
       clearInterval(timer);
@@ -517,6 +807,8 @@ function Hud({
   const gone = reveal.crew.flatMap((c, i) =>
     presence[i] ? [{ name: c.nickname, how: presence[i] }] : [],
   );
+  // each role appears once in a crew, so the seat that has this page's role is this page's seat
+  const me = reveal.crew.find((c) => c.role === role)?.seat ?? 0;
   const label = ROLE_LABEL[role];
   return (
     <div class="game" ref={root} style={{ "--frame": `var(--role-${role})` }}>
@@ -524,47 +816,65 @@ function Hud({
         {reveal.name}: {label}
       </h1>
       <header class="hud-top">
-        <span class="hud-role">
-          <RoleShape role={role} size={20} />
-          {label}
-        </span>
-        <span class="hud-room">{reveal.name}</span>
+        <ul class="hud-crew" aria-label="Your team">
+          {reveal.crew.map((c) => (
+            <li key={c.seat} class={c.seat === rt.view?.you.seat ? "you" : undefined}>
+              <RoleShape role={c.role} size={16} />
+              <span class="hud-who">
+                {c.nickname}
+                {presence[c.seat] ? ` (${presence[c.seat]})` : ""}
+              </span>
+              {c.seat === rt.view?.you.seat && <span class="hud-tag">you</span>}
+              {c.bot && <span class="hud-tag">bot</span>}
+              {voice.speaking.has(c.seat) && <span class="talking hud-tag">talking</span>}
+              <span class="sr-only">, {ROLE_LABEL[c.role]}</span>
+            </li>
+          ))}
+        </ul>
         <span class="hud-clock" role="timer" aria-label="Time">
           {clock}
         </span>
+        <span class="hud-loot" role="img" aria-label={`Loot ${loot}`}>
+          <span aria-hidden="true">◆ {loot}</span>
+        </span>
         <Connection state={state} rttMs={rttMs} />
-        <Settings
-          role={role}
-          settings={settings}
-          onChange={change}
-          onLeave={() => socket.send({ t: "lobby.leave" })}
-          maskNoiseAvailable={lobbySettings.maskNoise}
-          othersSoundOff={lobbySettings.othersSoundOff}
-        />
-        {host && (
-          <ConfirmButton
+        <span class="hud-watching">
+          <button
+            type="button"
             class="hud-btn"
-            label="Restart room"
-            confirmLabel="Sure? Restart room"
-            onConfirm={restart}
-          />
-        )}
+            aria-expanded={watchOpen}
+            aria-controls="hud-watching"
+            disabled={watching.length === 0}
+            hidden={watching.length === 0}
+            onClick={() => setWatchOpen(!watchOpen)}
+          >
+            {watching.length} watching
+          </button>
+          {watchOpen && watching.length > 0 && (
+            <ul class="hud-watching-list" id="hud-watching" aria-label="Watching">
+              {watching.map((name, n) => (
+                <li key={`${n}:${name}`}>{name}</li>
+              ))}
+            </ul>
+          )}
+        </span>
+        <HudMenu
+          onAsk={ask}
+          onLeave={onLeave}
+          settings={
+            <Settings
+              role={role}
+              settings={settings}
+              onChange={change}
+              maskNoiseAvailable={real.maskNoise}
+              othersSoundOff={real.soundOff}
+              voiceOn={real.voice}
+            />
+          }
+        />
       </header>
 
-      <ul class="hud-crew" aria-label="Your team">
-        {reveal.crew.map((c) => (
-          <li key={c.seat}>
-            <RoleShape role={c.role} size={16} />
-            <span>
-              {c.nickname}
-              {c.seat === rt.view?.you.seat ? " (you)" : ""}
-              {presence[c.seat] ? ` (${presence[c.seat]})` : ""}
-            </span>
-            {voice.speaking.has(c.seat) && <span class="talking">talking</span>}
-          </li>
-        ))}
-        {role === "blind" && <li class="hud-hint">No map. Listen.</li>}
-      </ul>
+      {role === "blind" && <p class="hud-hint">No map. Listen.</p>}
 
       {voice.lagging && (
         <p class="hud-alert" role="status">
@@ -584,9 +894,21 @@ function Hud({
         </p>
       )}
 
+      {goneNote && (
+        <p class="hud-alert" role="status">
+          {goneNote}
+        </p>
+      )}
+
       {back && (
         <p class="hud-alert" role="status">
           {back} is back.
+        </p>
+      )}
+
+      {voteNote && (
+        <p class="hud-alert" role="status">
+          {voteNote}
         </p>
       )}
 
@@ -610,6 +932,28 @@ function Hud({
           aria-label={role === "blind" ? "No map. Listen to the room." : "Map of the room"}
         />
         <Captions lines={lines} cues={cues} />
+        <CommsWheel
+          role={role}
+          me={me}
+          crew={reveal.crew}
+          socket={socket}
+          quick={settings.quick}
+          voice={voice}
+          api={comms}
+          typing={typing}
+          toTile={toTile}
+          onPin={(id) => change({ ...settings, quick: id })}
+          onText={() => {
+            if (role === "mute") return;
+            setWriting(true);
+            setTimeout(() => field.current?.focus(), 0);
+          }}
+          onClose={() => setWriting(false)}
+          onOwnFace={(id) => {
+            // Can't see has no map, so there is no character to put it over
+            if (role !== "blind") rt.pops.push({ seat: me, id, at: performance.now() });
+          }}
+        />
         {typing && (
           <span class="typing-badge" role="status">
             Typing
@@ -628,10 +972,11 @@ function Hud({
               ms={summary?.ms ?? rt.view?.elapsedMs ?? 0}
               loot={summary?.loot ?? 0}
               lootTotal={summary?.lootTotal ?? 0}
-              last={reveal.index >= LAST_ROOM}
+              last={reveal.index >= reveal.rooms - 1}
               host={host}
               onNext={() => socket.send({ t: "next" })}
-              onRestart={restart}
+              onRestart={() => ask("room")}
+              onRestartHeist={() => ask("heist")}
             />
           )
         )}
@@ -640,13 +985,29 @@ function Hud({
             {caught}
           </p>
         )}
+        {vote && (
+          <VotePrompt
+            vote={vote}
+            seat={me as Seat}
+            crew={reveal.crew}
+            secondsLeft={voteLeft}
+            onCast={(yes) => socket.send({ t: "vote.cast", yes })}
+          />
+        )}
         {pause && (
           <Disconnect
             waitingFor={pause.waitingFor}
             secondsLeft={secondsLeft}
             choosing={pause.choosing}
             host={host}
-            onChoice={(choice) => socket.send({ t: "host.choice", choice })}
+            sitting={sitting}
+            watching={watchers}
+            gone={pause.gone}
+            forReady={pause.forReady}
+            hostName={hostName}
+            onChoice={(choice, person) =>
+              socket.send({ t: "host.choice", choice, ...(person === undefined ? {} : { person }) })
+            }
           />
         )}
         {!online && (
@@ -657,16 +1018,31 @@ function Hud({
         )}
       </div>
 
-      <Tray
+      <TalkBar
         role={role}
-        socket={socket}
-        keepOpen={settings.keepOpen}
-        onTyping={setTyping}
         voice={voice}
+        writing={writing}
+        field={field}
+        onWrite={() => {
+          setWriting(true);
+          setTimeout(() => field.current?.focus(), 0);
+        }}
+        onText={(text) => {
+          if (text.trim() === "") return;
+          socket.send({ t: "send", msg: { method: "text", text } });
+          setWriting(false);
+        }}
+        onFocus={setTyping}
+        onComms={touch ? undefined : () => comms.current?.toggle()}
+        commsDisabled={cleared}
       />
 
       {touch ? (
-        <TouchControls disabled={cleared} />
+        <TouchControls
+          disabled={cleared}
+          comms={comms}
+          quickLabel={quickSlot(role, settings.quick).name}
+        />
       ) : (
         <p class={cleared ? "keys is-off" : "keys"}>WASD or arrows move · Space acts</p>
       )}

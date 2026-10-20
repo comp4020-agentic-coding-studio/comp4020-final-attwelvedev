@@ -66,11 +66,6 @@ input {
 .btn.primary:hover {
   background: var(--ui-muted);
 }
-@media (max-width: 879px) {
-  .home .btn.primary {
-    width: 100%;
-  }
-}
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -94,20 +89,46 @@ input {
   text-transform: none;
 }
 
-/* home */
+/* home: the hero (headline + feeds) and the desk where you get in. Phone: one
+   column, desk right under the headline so joining needs no scroll. Desktop: the
+   feeds take the width, the desk is a narrow column beside them. */
 .home {
   display: grid;
+  grid-template-areas: "title" "desk" "feeds";
   gap: var(--s-6);
 }
-.home h1 {
-  margin-bottom: var(--s-5);
-  max-width: 18ch;
-  font-size: var(--t-28);
+.home-hero {
+  display: contents;
 }
-.join {
-  margin-top: var(--s-6);
-  padding-top: var(--s-5);
-  border-top: 2px solid var(--panel);
+.home h1 {
+  grid-area: title;
+}
+.feeds {
+  grid-area: feeds;
+}
+.home-desk {
+  grid-area: desk;
+}
+.home h1 {
+  font-size: clamp(30px, 8.4vw, 40px);
+  line-height: 1.02;
+  letter-spacing: -0.01em;
+}
+.home h1 > span {
+  display: block;
+}
+.home h1 .role-shape {
+  width: 0.62em;
+  height: 0.62em;
+  margin-right: 0.08em;
+  vertical-align: 0.02em;
+}
+
+/* the desk */
+.home-desk {
+  display: grid;
+  gap: var(--s-5);
+  align-content: start;
 }
 .join-row {
   display: flex;
@@ -120,13 +141,75 @@ input {
 }
 .join-row .btn {
   flex: none;
+  min-width: 96px;
   white-space: nowrap;
 }
 .code-input {
+  min-height: 64px;
+  font-size: var(--t-28);
   font-stretch: 125%;
   font-weight: 900;
   letter-spacing: 0.3em;
   text-transform: uppercase;
+}
+.code-input::placeholder {
+  color: var(--solid);
+}
+.code-hint {
+  margin: var(--s-2) 0 0;
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+}
+/* a Join that cannot go yet: still focusable, so a press can say why */
+.btn.primary[aria-disabled="true"] {
+  background: transparent;
+  color: var(--ui-muted);
+  border-color: var(--solid);
+  cursor: not-allowed;
+}
+.desk-join .btn.primary {
+  min-height: 64px;
+}
+.desk-new {
+  padding-top: var(--s-5);
+  border-top: 2px solid var(--panel);
+}
+.desk-new p {
+  margin: 0 0 var(--s-3);
+  color: var(--ui-muted);
+}
+.home-desk .conn {
+  justify-self: start;
+}
+
+/* teams waiting: only on the page when there are some, so its light means something */
+.waiting h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-bottom: var(--s-3);
+}
+.waiting-light {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--goal);
+  box-shadow: 0 0 0 0 var(--goal);
+  animation: waiting 1.6s ease-out infinite;
+}
+@keyframes waiting {
+  70% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .waiting-light {
+    animation: none;
+  }
 }
 .open-list {
   list-style: none;
@@ -135,12 +218,17 @@ input {
   display: grid;
   gap: var(--s-2);
 }
+.list-more {
+  width: 100%;
+  margin-top: var(--s-2);
+}
 .open-list li {
   display: flex;
   align-items: center;
   gap: var(--s-3);
   padding: var(--s-2) var(--s-2) var(--s-2) var(--s-4);
   background: var(--panel);
+  border-left: 4px solid var(--goal);
   border-radius: var(--r);
 }
 .open-list .team {
@@ -152,6 +240,94 @@ input {
   color: var(--ui-muted);
   font-stretch: 75%;
   font-weight: 700;
+}
+
+/* the feeds: one room, three seats. Each is a strip of the map as wide as the
+   column; the Can't-see strip is the game's own black. */
+.feeds {
+  display: grid;
+  gap: var(--s-4);
+  margin: 0;
+}
+.feed {
+  position: relative;
+  margin: 0;
+}
+.feed-screen {
+  position: relative;
+}
+.feed canvas {
+  display: block;
+  width: 100%;
+  height: 96px;
+  background: var(--ink);
+  border-radius: var(--r);
+}
+.feed figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--s-2);
+  margin-top: var(--s-2);
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+}
+.feed figcaption b {
+  color: var(--ui);
+  font-stretch: 125%;
+  font-weight: 900;
+}
+.feed-captions,
+.feed-tag {
+  position: absolute;
+  left: var(--s-2);
+  right: var(--s-2);
+  bottom: var(--s-2);
+  display: grid;
+  justify-items: end; /* the right edge: room 1's crate push happens on the left */
+  gap: 2px;
+  margin: 0;
+  pointer-events: none;
+}
+.feed-captions p,
+.feed-tag {
+  margin: 0;
+  padding: 1px var(--s-2);
+  background: rgb(11 18 32 / 85%);
+  border-radius: var(--r);
+  font-size: var(--t-14);
+  line-height: 1.4;
+}
+.feed-captions p {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+@media (max-width: 879px) {
+  .feed-captions p:not(:last-child) {
+    display: none; /* one line at a time: a phone feed is too short for more */
+  }
+}
+.feed-captions .cue {
+  color: var(--ui-muted);
+  font-style: italic;
+}
+.feed-tag {
+  left: auto;
+  color: var(--ui-muted);
+}
+.feeds-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+}
+.feeds-foot p {
+  flex: 1 1 20ch;
+  margin: 0;
 }
 
 /* lobby */
@@ -213,37 +389,6 @@ input {
 .lobby-side .section-head h2 {
   margin: 0;
 }
-.seats {
-  list-style: none;
-  margin: 0 0 var(--s-4);
-  padding: 0;
-  display: grid;
-  gap: var(--s-2);
-}
-.seat {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  min-height: var(--target);
-  padding: var(--s-2) var(--s-4);
-  background: var(--panel);
-  border-radius: var(--r);
-}
-.seat .shape {
-  flex: none;
-  width: 28px;
-  height: 28px;
-  fill: var(--ui);
-}
-.seat .nick {
-  flex: 1;
-  min-width: 0;
-  font-weight: 700;
-}
-.seat.empty .nick {
-  color: var(--ui-muted);
-  font-weight: 400;
-}
 .tag {
   padding: 2px var(--s-2);
   border: 2px solid var(--ui-muted);
@@ -270,75 +415,273 @@ input {
   color: var(--ui-muted);
 }
 
-/* the real-life setup wizard */
-.real-life {
-  margin: var(--s-4) 0;
-}
-.wizard {
-  display: grid;
-  gap: var(--s-3);
-  margin-top: var(--s-3);
-}
-.wizard fieldset {
-  border: 1px solid var(--ui-muted);
-  border-radius: var(--r);
-  padding: var(--s-3);
-  display: grid;
-  gap: var(--s-2);
-  margin: 0;
-}
-.wizard-actions {
-  display: flex;
-  gap: var(--s-2);
-  flex-wrap: wrap;
-  margin-top: var(--s-1);
-}
-.wizard-review {
-  display: grid;
-  gap: var(--s-3);
-}
-/* a caution, not a danger (that colour means something specific in-game) */
-.wizard-honour {
-  color: var(--camera-light);
-  font-weight: 700;
-  margin: 0;
-}
-.wizard-rows {
+/* the people in a lobby (spec §4.1 "Lobby") */
+.players,
+.rotation {
   list-style: none;
-  margin: 0;
+  margin: 0 0 var(--s-4);
   padding: 0;
   display: grid;
-  gap: var(--s-3);
+  gap: var(--s-2);
 }
-.wizard-rows p {
-  margin: var(--s-1) 0 0;
+.player-row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-areas: "place grip who status" ". . actions actions";
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  min-height: var(--target);
+  padding: var(--s-2) var(--s-3);
+  background: var(--panel);
+  border-radius: var(--r);
+}
+.player-row[draggable="true"] {
+  cursor: grab;
+}
+.player-row .place {
+  grid-area: place;
+  min-width: 1.2em;
+  font-stretch: 125%;
+  font-weight: 900;
+  color: var(--ui-muted);
+}
+.player-row .grip {
+  grid-area: grip;
+  color: var(--ui-muted);
+  letter-spacing: -0.2em;
+}
+.player-row .who {
+  grid-area: who;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-2);
+}
+.player-row .nick {
+  font-weight: 700;
+  min-width: 0;
+}
+.player-row .nick-input {
+  width: 100%;
+  max-width: 14rem;
+}
+.player-row .meta {
+  flex-basis: 100%;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--s-3);
   color: var(--ui-muted);
   font-size: var(--t-14);
 }
-/* checkbox/radio rows: the global `label`/`input` rules above are sized for
-   text fields, so a plain checkbox or radio here would stretch to fill the
-   row (width: 100%) and wrap its own label text underneath it. */
-.wizard label {
+.player-row .meta:empty {
+  display: none;
+}
+.player-row .status {
+  grid-area: status;
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.player-row .status.done {
+  color: var(--goal);
+}
+.player-row .row-actions {
+  grid-area: actions;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  justify-content: flex-end;
+}
+.player-row .row-actions:empty {
+  display: none;
+}
+.btn.icon {
+  padding: 0;
+}
+/* "Private" is a switch: the word and "on/off" say the state, not colour alone */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--target);
+  padding: 0 var(--s-4);
+  background: var(--panel);
+  color: var(--ui);
+  border: 2px solid var(--ui-muted);
+  border-radius: var(--r);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.toggle .state {
+  min-width: 2.2em;
+  padding: 2px var(--s-2);
+  border: 2px solid var(--ui-muted);
+  border-radius: var(--r);
+  font-size: var(--t-14);
+  text-align: center;
+}
+.toggle.on {
+  border-color: var(--ui);
+}
+.toggle.on .state {
+  background: var(--ui);
+  color: var(--bg);
+  border-color: var(--ui);
+}
+.private-note {
+  margin: 0 0 var(--s-4);
+}
+.rotation li {
+  display: grid;
+  gap: var(--s-1);
+  padding: var(--s-2) var(--s-3);
+  background: var(--panel);
+  border-radius: var(--r);
+}
+.rotation .room-name {
+  font-weight: 700;
+}
+.rotation .out {
+  color: var(--ui-muted);
+}
+
+/* a person's own real-life setup: in the lobby, and on /preferences */
+.setup {
+  display: grid;
+  gap: var(--s-3);
+  margin: var(--s-4) 0;
+}
+.setup fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: var(--s-2);
+}
+.setup legend {
+  padding: 0;
+  margin-bottom: var(--s-1);
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+  font-weight: 600;
+}
+.segmented {
+  display: flex;
+  gap: var(--s-2);
+}
+/* the radio sits inside its label and is hidden: the whole 48 px box is the target, and a
+   checked choice is filled and ringed, not only coloured */
+.setup .seg {
+  position: relative;
+  flex: 1 1 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--target);
+  padding: 0 var(--s-3);
+  background: var(--panel);
+  color: var(--ui);
+  border: 2px solid var(--ui-muted);
+  border-radius: var(--r);
+  font-size: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.setup .seg input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.setup .seg:has(input:checked) {
+  background: var(--ui);
+  color: var(--bg);
+  border-color: var(--ui);
+}
+.setup .seg:has(input:focus-visible) {
+  outline: 3px solid var(--ui);
+  outline-offset: 2px;
+}
+/* checkbox rows: the global label/input rules are sized for text fields, so a plain checkbox
+   would stretch to the row and wrap its own text underneath it */
+.setup .tick,
+.prefs .tick {
   display: flex;
   align-items: center;
   gap: var(--s-2);
   margin-bottom: 0;
   min-height: var(--target);
+  color: var(--ui);
+  font-size: inherit;
+  font-weight: 400;
 }
-.wizard input[type="checkbox"],
-.wizard input[type="radio"] {
+.setup input[type="checkbox"] {
   width: 24px;
   min-height: 24px;
   flex: none;
-  /* the OS default for an unchecked control is too dark against this
-     background to see clearly; an explicit border and accent fix that for
-     both the unchecked ring and the checked fill. */
+  /* the OS default for an unchecked control is too dark against this background */
   accent-color: var(--ui);
   border: 2px solid var(--ui-muted);
   background: var(--panel);
 }
-.wizard input[type="radio"] {
-  border-radius: 50%;
+.setup .volume {
+  display: grid;
+  gap: var(--s-2);
+  color: var(--ui);
+}
+.more-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target);
+  color: var(--ui);
+}
+.prefs {
+  max-width: 34rem;
+}
+.prefs .saved {
+  min-height: 1.5em;
+  margin: 0;
+  color: var(--goal);
+  font-weight: 700;
+}
+
+/* the leave modal: glass over a scrim (spec §4.1 "Leave warning") */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: var(--s-4);
+  background: var(--scrim);
+}
+.modal {
+  width: min(100%, 26rem);
+  padding: var(--s-5);
+  background: var(
+    --panel
+  ); /* solid: --glass is for chips over the canvas, and text behind a modal would bleed through */
+  border: 2px solid var(--ui-muted);
+  border-radius: var(--r);
+}
+.modal-title {
+  margin: 0 0 var(--s-3);
+}
+.modal p {
+  margin: 0 0 var(--s-5);
+}
+.modal .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
 }
 
 /* the stats page */
@@ -359,8 +702,32 @@ input {
 
 @media (min-width: 880px) {
   .home {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: var(--s-6) 64px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 21rem);
+    grid-template-rows: auto 1fr; /* a tall desk stretches the feeds' row, not the title's */
+    grid-template-areas: "title desk" "feeds desk";
+    gap: var(--s-5) 48px;
+    align-items: start;
+  }
+  .home h1 {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 0.4em;
+  }
+  .home h1 > span {
+    white-space: nowrap;
+  }
+  .home-desk {
+    padding: var(--s-5);
+    background: var(--panel);
+    border-radius: var(--r);
+  }
+  .home-desk input,
+  .home-desk .open-list li {
+    background: var(--bg);
+  }
+  .feed canvas {
+    height: auto;
+    aspect-ratio: 48 / 9;
   }
   .lobby {
     grid-template-columns: minmax(0, 1fr) minmax(0, 24rem);
@@ -370,4 +737,41 @@ input {
   .lobby-code {
     padding-top: var(--s-5);
   }
+}
+
+/* the rotation heading needs air above it */
+.rotation-title {
+  margin: var(--s-5) 0 var(--s-3);
+}
+
+/* neighbours in the lobby's columns never touch: the container owns the gap, not each child */
+.lobby-code,
+.lobby-side {
+  display: grid;
+  gap: var(--s-4);
+  align-content: start;
+}
+.lobby-code > *,
+.lobby-side > * {
+  margin: 0;
+}
+.lobby-side > .section-head {
+  align-items: baseline;
+}
+
+/* the preferences sheet is a modal that scrolls on a short phone */
+.sheet {
+  width: min(100%, 34rem);
+  max-height: calc(100dvh - 2 * var(--s-4));
+  overflow-y: auto;
+}
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-bottom: var(--s-3);
+}
+.sheet-head .modal-title {
+  margin: 0;
 }

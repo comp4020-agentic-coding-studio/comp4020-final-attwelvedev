@@ -27,7 +27,7 @@ export function createPredictor(start: Vec, tiles: string[]): Predictor {
 
   const solid = (tx: number, ty: number): boolean => {
     const ch = tiles[ty]?.[tx];
-    if (ch === undefined || ch === "#") return true;
+    if (ch === undefined || ch === "#" || ch === "=" || ch === "%") return true;
     if (ch === "D" && !openDoors.has(key(tx, ty))) return true;
     return crates.has(key(tx, ty));
   };

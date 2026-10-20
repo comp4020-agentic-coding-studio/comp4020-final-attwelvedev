@@ -20,6 +20,29 @@ describe("per-role perception on the wire", () => {
     await closeAll(players);
   });
 
+  it("tells the Can't-see player only whether they are moving and blocked, and nothing new", async () => {
+    const { players } = await startedGame(baseUrl);
+    ready(players);
+    const blind = byRole(players, "blind");
+    // walk into the room's west wall: moving, then blocked against it
+    blind.socket.send({ t: "input", seq: 1, move: { x: -1, y: 0 }, act: false });
+    let blocked = false;
+    for (let i = 0; i < 80 && !blocked; i++) {
+      const view = await nextView(blind);
+      expect(Object.keys(view.you).sort()).toEqual(["motion", "seat"]);
+      expect(view.tiles).toBeUndefined();
+      expect(view.entities).toEqual([]);
+      blocked = view.you.motion?.blocked === true;
+    }
+    expect(blocked, "blocked while pushing at the wall").toBe(true);
+    blind.socket.send({ t: "input", seq: 2, move: { x: 0, y: 0 }, act: false });
+    let still = false;
+    for (let i = 0; i < 40 && !still; i++)
+      still = (await nextView(blind)).you.motion?.moving === false;
+    expect(still, "not moving once the input stops").toBe(true);
+    await closeAll(players);
+  });
+
   it("never sends the Can't-hear player a sound, even while others walk", async () => {
     const { players } = await startedGame(baseUrl);
     ready(players);

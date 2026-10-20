@@ -81,9 +81,6 @@ describe("a sequence door's results", () => {
   ];
   const door = { D1: { mode: "sequence", opensWhen: ["p2", "p1", "p3"] } };
   const park = tile(2, 1);
-  const press = (w: World, x: number) => {
-    tap(w, 0, tile(x, 1), park);
-  };
   // the tap's two steps: the press is in the first one's events
   const results = (w: World, x: number) => {
     place(w, 0, tile(x, 1));
@@ -93,12 +90,18 @@ describe("a sequence door's results", () => {
     go(w);
     return found;
   };
+  // Plates are held (FR11): each press is a different seat that then stays on its plate.
+  const hold = (w: World, seat: 0 | 1 | 2, x: number) => {
+    place(w, seat, tile(x, 1));
+    go(w);
+    return kinds(w, "seq");
+  };
 
   it("says ok for each right plate, with how many are done, and open for the last", () => {
     const w = worldWith(GRID, door);
-    expect(results(w, 6)).toMatchObject([{ door: "D1", result: "ok", n: 1 }]);
-    expect(results(w, 4)).toMatchObject([{ result: "ok", n: 2 }]);
-    expect(results(w, 8)).toMatchObject([{ result: "open", n: 3 }]);
+    expect(hold(w, 0, 6)).toMatchObject([{ door: "D1", result: "ok", n: 1 }]);
+    expect(hold(w, 1, 4)).toMatchObject([{ result: "ok", n: 2 }]);
+    expect(hold(w, 2, 8)).toMatchObject([{ result: "open", n: 3 }]);
   });
 
   it("says wrong for a wrong plate", () => {
@@ -108,7 +111,8 @@ describe("a sequence door's results", () => {
 
   it("says wrong when the 5 s run out on a started sequence", () => {
     const w = worldWith(GRID, door);
-    press(w, 6);
+    place(w, 0, tile(6, 1)); // pressed and held, so it is the clock that ends it
+    go(w); // the press itself says ok
     let found: unknown[] = [];
     for (let i = 0; i < 110 && found.length === 0; i++) {
       go(w);

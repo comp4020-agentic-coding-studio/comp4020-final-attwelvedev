@@ -14,7 +14,7 @@ const ROLE_NAME: Record<string, string> = {
   deaf: "Can't hear",
   mute: "Can't speak",
 };
-const FAMILIES = ["say", "sound", "show"];
+const METHODS = ["callout", "text", "voice", "clip", "face", "mark"];
 const { game } = s;
 ---
 
@@ -44,9 +44,9 @@ const { game } = s;
 
   <h2>Channels by role</h2>
   <table>
-    <thead><tr><th scope="col">Role</th>{FAMILIES.map((f) => <th scope="col">{f}</th>)}</tr></thead>
+    <thead><tr><th scope="col">Role</th>{METHODS.map((f) => <th scope="col">{f}</th>)}</tr></thead>
     <tbody id="channels">
-      {ROLES.map((role) => <tr><th scope="row">{ROLE_NAME[role]}</th>{FAMILIES.map((f) => <td>{game.channelsByRole[role]?.[f] ?? 0}</td>)}</tr>)}
+      {ROLES.map((role) => <tr><th scope="row">{ROLE_NAME[role]}</th>{METHODS.map((f) => <td>{game.channelsByRole[role]?.[f] ?? 0}</td>)}</tr>)}
     </tbody>
   </table>
 
@@ -107,7 +107,7 @@ const { game } = s;
       return li;
     };
     var ROLES = [["blind", "Can't see"], ["deaf", "Can't hear"], ["mute", "Can't speak"]];
-    var FAMILIES = ["say", "sound", "show"];
+    var METHODS = ["callout", "text", "voice", "clip", "face", "mark"];
     function cell(tag, value, scope) {
       var el = document.createElement(tag);
       if (scope) el.scope = scope;
@@ -133,7 +133,7 @@ const { game } = s;
         ROLES.map(function (r) {
           var tr = document.createElement("tr");
           tr.append(cell("th", r[1], "row"));
-          FAMILIES.forEach(function (f) {
+          METHODS.forEach(function (f) {
             tr.append(cell("td", (g.channelsByRole[r[0]] || {})[f] || 0));
           });
           return tr;

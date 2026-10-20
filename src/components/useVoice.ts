@@ -1,5 +1,7 @@
 import type { RefObject } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
+import { micAfter } from "../client/mic.ts";
+import type { Settings } from "../client/settings.ts";
 import type { GameSocket } from "../client/socket.ts";
 import { type Capture, startCapture, voiceSupport } from "../client/voice/capture.ts";
 import { startPlayer, type VoicePlayer } from "../client/voice/playback.ts";
@@ -18,6 +20,9 @@ export interface Voice {
   status: VoiceStatus;
   talking: boolean;
   talk(on: boolean): void;
+  mode: Settings["voiceMode"];
+  // a V or mic-button event, read by the mode: hold follows the key, toggle flips on each press
+  mic(event: "down" | "up" | "off"): void;
   speaking: ReadonlySet<number>; // seats heard in the last moment: for the "talking" badge
   lagging: boolean;
 }
@@ -25,13 +30,16 @@ export interface Voice {
 const SPEAKING_MS = 400;
 
 // Push-to-talk voice for one page: the microphone for the roles that may Say (Can't see, Can't hear),
-// and playback for the roles that hear Say (Can't see, Can't speak). `frames` is the page's count of
-// voice frames received, written to a data attribute so a spec can see audio arriving.
+// and playback for the roles that hear Say (Can't see, Can't speak). A watcher (a spectator, or
+// someone sitting the room out) does both: it talks to the other watchers, and hears them and the
+// seat it follows (ADR 0015). `frames` is the page's count of voice frames received, written to a
+// data attribute so a spec can see audio arriving.
 export function useVoice(
   socket: GameSocket,
-  role: Role,
+  role: Role | "watcher",
   voiceOn: boolean,
   frames: RefObject<HTMLElement>,
+  mode: Settings["voiceMode"] = "hold",
 ): Voice {
   const sends = role !== "mute";
   const hears = role !== "deaf";
@@ -92,11 +100,23 @@ export function useVoice(
     };
   }, [socket, sends, hears, voiceOn, support, frames]);
 
+  const open = useRef(false);
   function talk(on: boolean): void {
     if (!capture.current) return;
     capture.current.talk(on);
+    open.current = on;
     setTalking(on);
   }
 
-  return { status, talking, talk, speaking, lagging };
+  function mic(event: "down" | "up" | "off"): void {
+    const next = micAfter(mode, open.current, event);
+    if (next !== open.current) talk(next);
+  }
+
+  // switching the setting while the mic is live must not leave it open
+  useEffect(() => {
+    if (open.current) talk(false);
+  }, [mode]);
+
+  return { status, talking, talk, mode, mic, speaking, lagging };
 }

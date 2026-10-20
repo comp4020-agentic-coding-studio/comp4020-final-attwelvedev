@@ -1,5 +1,5 @@
 import { type Callout, CLIPS, type Stamp } from "../game/channels.ts";
-import { CHANNEL_RULES, type Family, type Role } from "../game/types.ts";
+import type { Role } from "../game/types.ts";
 import type { ChannelMessage, EntityView, SoundCue } from "../net/protocol.ts";
 
 export const ROLE_GLYPH: Record<Role, string> = { blind: "●", deaf: "■", mute: "▲" };
@@ -56,20 +56,19 @@ export interface Caption {
   text: string;
 }
 
-// Null when the message is already a picture (faces and stamps).
+// Null when the message is already a picture (faces and marks).
 export function captionFor(m: ChannelMessage): Caption | null {
   const who = { role: m.from.role, name: m.from.nickname };
-  if (m.family === "say") {
-    return { ...who, text: m.kind === "callout" ? CALLOUT_WORD[m.callout] : m.text };
+  if (m.method === "callout" || m.method === "text") {
+    return { ...who, text: m.method === "callout" ? CALLOUT_WORD[m.callout] : m.text };
   }
-  if (m.family === "sound") {
+  if (m.method === "clip") {
     return { ...who, text: `[${CLIPS.find((c) => c.id === m.clip)?.label ?? m.clip}]` };
   }
   return null;
 }
 
-const SIDE = 0.2;
-const CUE_WORD: Record<SoundCue["kind"], string> = {
+export const CUE_WORD: Record<SoundCue["kind"], string> = {
   footsteps: "footsteps",
   hum: "hum",
   door: "door click",
@@ -87,10 +86,11 @@ const CUE_WORD: Record<SoundCue["kind"], string> = {
   crate: "crate scrape",
   flag: "at the flag",
   exit: "on the exit",
-  "seq-ok": "right plate",
+  "seq-ok": "correct plate",
   "seq-wrong": "wrong plate",
   "seq-open": "sequence door unlocked",
   hide: "rustle",
+  clue: "chime",
   cleared: "room cleared",
 };
 
@@ -101,78 +101,64 @@ const EVERYWHERE = new Set<SoundCue["kind"]>(["checkpoint", "caught", "alarm", "
 function word(s: SoundCue): string {
   if (s.kind === "flag" || s.kind === "exit") return `${CUE_WORD[s.kind]} ${s.n ?? 0}/3`;
   if (s.kind === "seq-ok") return `${CUE_WORD[s.kind]}: ${s.n ?? 0} done`;
+  if (s.kind === "clue") return `${CUE_WORD[s.kind]} ×${s.n ?? 1}`;
   return CUE_WORD[s.kind];
 }
 
-// What the room sounds like right now, as captions: one per sound and side.
-export function cueCaptions(sounds: SoundCue[]): string[] {
-  const out = new Set<string>();
-  for (const s of sounds) {
-    if (s.kind === "step") continue; // you made it: nothing to caption
-    if (s.kind === "hum") {
-      out.add("[hum]");
-      continue;
-    }
-    if (EVERYWHERE.has(s.kind)) {
-      out.add(`[${word(s)}]`);
-      continue;
-    }
-    const side = s.pan < -SIDE ? "left" : s.pan > SIDE ? "right" : "ahead";
-    out.add(`[${word(s)}, ${side}]`);
-  }
-  return [...out];
+export type Dir8 = "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW";
+const DIR8: Dir8[] = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+
+// The eight-way sector of a direction on screen, screen up being north.
+export function dirOf(v: { x: number; y: number }): Dir8 {
+  const deg = (Math.atan2(v.x, -v.y) * 180) / Math.PI; // 0 = up, clockwise
+  return DIR8[Math.round((deg + 360) / 45) % 8] as Dir8;
 }
 
-export const CUE_HOLD_MS = 2000; // how long a cue caption stays after it was last heard
+export interface CueCaption {
+  text: string;
+  dir: Dir8 | null; // where it came from, drawn as an arrow; null for the whole room
+}
+
+// What the room sounds like right now, as captions: one per sound and direction.
+export function cueCaptions(sounds: SoundCue[]): CueCaption[] {
+  const out = new Map<string, CueCaption>();
+  for (const s of sounds) {
+    if (s.kind === "step") continue; // you made it: nothing to caption
+    const dir = s.kind === "hum" || EVERYWHERE.has(s.kind) || !s.dir ? null : dirOf(s.dir);
+    const text = s.kind === "hum" ? "hum" : word(s);
+    out.set(`${text}|${dir}`, { text, dir });
+  }
+  return [...out.values()];
+}
+
+export const CUE_HOLD_MS = 3500; // how long a cue caption stays after it was last heard (playtest 1: 2 s was too quick to read)
 const MAX_CUES = 4;
+
+export const cueKey = (cues: CueCaption[]): string =>
+  cues.map((c) => `${c.text}|${c.dir}`).join(",");
+
+export type HeldCues = Map<string, { cue: CueCaption; until: number }>;
 
 // Remembers each cue caption until CUE_HOLD_MS after it last came in, newest last.
 // A one-shot sound lives in a single 50 ms view, so showing only the newest view
 // would almost never show it; this is what makes a camera whir readable.
-export function hearCues(held: Map<string, number>, captions: string[], now: number): void {
+export function hearCues(held: HeldCues, captions: CueCaption[], now: number): void {
   for (const c of captions) {
-    held.delete(c); // so a repeat moves to the end
-    held.set(c, now + CUE_HOLD_MS);
+    const key = `${c.text}|${c.dir}`;
+    held.delete(key); // so a repeat moves to the end
+    held.set(key, { cue: c, until: now + CUE_HOLD_MS });
   }
 }
 
 // The captions still within their hold, forgetting the rest.
-export function heardCues(held: Map<string, number>, now: number): string[] {
-  for (const [caption, until] of held) if (until <= now) held.delete(caption);
-  return [...held.keys()].slice(-MAX_CUES);
+export function heardCues(held: HeldCues, now: number): CueCaption[] {
+  for (const [key, h] of held) if (h.until <= now) held.delete(key);
+  return [...held.values()].map((h) => h.cue).slice(-MAX_CUES);
 }
 
 export function formatTime(ms: number): string {
   const total = Math.floor(ms / 1000);
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
-}
-
-export interface TrayTile {
-  family: Family;
-  label: string;
-  canSend: boolean;
-  receivers: Role[]; // who it goes to, in role order
-  youReceive: boolean;
-}
-
-const FAMILIES: [Family, string][] = [
-  ["say", "Say"],
-  ["sound", "Sound"],
-  ["show", "Show"],
-];
-
-// A family a role can't send on stays in the tray (shown as "Can't send"), never hidden.
-export function trayFor(role: Role): TrayTile[] {
-  return FAMILIES.map(([family, label]) => {
-    const rule = CHANNEL_RULES[family];
-    return {
-      family,
-      label,
-      canSend: rule.send.includes(role),
-      receivers: [...rule.receive],
-      youReceive: rule.receive.includes(role),
-    };
-  });
 }
 
 const JUMP_TILES = 3; // further than this in one view is a push or a reconnect, not a walk

@@ -1,96 +1,74 @@
 import { describe, expect, it } from "vitest";
-import { CALLOUTS } from "../game/channels.ts";
-import { calloutAt, keyAction } from "./keys.ts";
+import { keyAction } from "./keys.ts";
 
-describe("keyAction: the tray's keys", () => {
-  it("1, 2, 3 open Say, Sound, Show when nothing is open", () => {
-    expect(keyAction(null, "1", false)).toEqual({ type: "open", sheet: "say" });
-    expect(keyAction(null, "2", false)).toEqual({ type: "open", sheet: "sound" });
-    expect(keyAction(null, "3", false)).toEqual({ type: "open", sheet: "show" });
-  });
+const k = (key: string, extra: { shift?: boolean; code?: string } = {}) => ({
+  key,
+  shiftKey: extra.shift ?? false,
+  code: extra.code ?? (/^[0-9]$/.test(key) ? `Digit${key}` : ""),
+});
+const idle = { wheel: false, typing: false };
+const held = { wheel: true, typing: false };
 
-  it("other digits do nothing when nothing is open", () => {
-    for (const k of ["0", "4", "9"]) expect(keyAction(null, k, false)).toBeNull();
-  });
-
-  it("with a sheet open, 1..9 pick that slot, counted from 0", () => {
-    for (const sheet of ["say", "sound", "show"] as const) {
-      for (let n = 1; n <= 9; n++) {
-        expect(keyAction(sheet, String(n), false)).toEqual({ type: "pick", index: n - 1 });
-      }
+describe("keyAction: the wheel", () => {
+  it("Q opens the wheel, in either case, for every role", () => {
+    for (const role of ["blind", "deaf", "mute"] as const) {
+      expect(keyAction(role, idle, k("q"))).toEqual({ type: "wheel" });
+      expect(keyAction(role, idle, k("Q"))).toEqual({ type: "wheel" });
     }
   });
 
-  it("with Say open, 1..9 reach CALLOUTS in order: 1 is Push, 4 is Left, 9 is Go", () => {
-    const at = (n: number) =>
-      calloutAt((keyAction("say", String(n), false) as { index: number }).index);
-    expect([1, 2, 3, 4, 5, 6, 7, 8, 9].map(at)).toEqual([...CALLOUTS]);
-    expect(at(4)).toBe("left");
+  it("1 to 4 pick the page while the wheel is held", () => {
+    expect(keyAction("blind", held, k("1"))).toEqual({ type: "page", page: "talk" });
+    expect(keyAction("blind", held, k("2"))).toEqual({ type: "page", page: "faces" });
+    expect(keyAction("blind", held, k("3"))).toEqual({ type: "page", page: "clips" });
+    expect(keyAction("blind", held, k("4"))).toEqual({ type: "page", page: "marks" });
+    expect(keyAction("blind", held, k("5"))).toBeNull();
   });
 
-  it("0 turns the hotbar page while a sheet is open, and does nothing otherwise", () => {
-    for (const sheet of ["say", "sound", "show"] as const) {
-      expect(keyAction(sheet, "0", false)).toEqual({ type: "page" });
-    }
-    expect(keyAction(null, "0", false)).toBeNull();
-    expect(keyAction("show", "0", true)).toBeNull(); // typing a 0 in a message
+  it("reads the physical digit key, so Shift does not change the page", () => {
+    expect(keyAction("blind", held, k("@", { shift: true, code: "Digit2" }))).toEqual({
+      type: "page",
+      page: "faces",
+    });
   });
+});
 
-  it("F and T pick the Faces and Stamps tabs inside Show only", () => {
-    expect(keyAction("show", "f", false)).toEqual({ type: "tab", tab: "faces" });
-    expect(keyAction("show", "T", false)).toEqual({ type: "tab", tab: "stamps" });
-    for (const sheet of ["say", "sound", null] as const) {
-      expect(keyAction(sheet, "f", false)).toBeNull();
-      expect(keyAction(sheet, "t", false)).toBeNull();
-    }
-    expect(keyAction("show", "f", true)).toBeNull(); // an f typed into a message
-  });
-
-  it("Esc closes an open sheet, and does nothing with none open", () => {
-    expect(keyAction("say", "Escape", false)).toEqual({ type: "close" });
-    expect(keyAction(null, "Escape", false)).toBeNull();
-  });
-
-  it("Enter opens the text field only in Say", () => {
-    expect(keyAction("say", "Enter", false)).toEqual({ type: "text" });
-    expect(keyAction("sound", "Enter", false)).toBeNull();
-    expect(keyAction(null, "Enter", false)).toBeNull();
-  });
-
-  it("Tab shows the key list", () => {
-    expect(keyAction(null, "Tab", false)).toEqual({ type: "keys" });
-  });
-
-  it("while typing, only Esc is read: digits and movement keys belong to the text field", () => {
-    for (const k of ["1", "5", "w", "a", " ", "Enter", "Tab"]) {
-      expect(keyAction("say", k, true)).toBeNull();
-    }
-    expect(keyAction("say", "Escape", true)).toEqual({ type: "close" });
-  });
-
-  it("leaves the movement keys alone", () => {
-    for (const k of ["w", "a", "s", "d", "W", "A", "S", "D", " "]) {
-      for (const sheet of ["say", "sound", "show", null] as const) {
-        expect(keyAction(sheet, k, false)).toBeNull();
+describe("keyAction: nothing is sent by a remembered number", () => {
+  it("number keys do nothing without the wheel, for any role, with or without Shift", () => {
+    for (const role of ["blind", "deaf", "mute"] as const) {
+      for (let n = 0; n <= 9; n++) {
+        expect(keyAction(role, idle, k(String(n))), `${role} ${n}`).toBeNull();
+        expect(
+          keyAction(role, idle, k("!", { shift: true, code: `Digit${n}` })),
+          `${role} S${n}`,
+        ).toBeNull();
       }
     }
   });
 });
 
-describe("calloutAt", () => {
-  it("is undefined past the grid", () => {
-    expect(calloutAt(9)).toBeUndefined();
+describe("keyAction: talk keys", () => {
+  it("Enter opens the text field, V talks, Tab lists the keys, Esc closes", () => {
+    expect(keyAction("blind", idle, k("Enter"))).toEqual({ type: "text" });
+    expect(keyAction("blind", idle, k("v"))).toEqual({ type: "talk" });
+    expect(keyAction("blind", idle, k("V"))).toEqual({ type: "talk" });
+    expect(keyAction("blind", idle, k("Tab"))).toEqual({ type: "keys" });
+    expect(keyAction("blind", idle, k("Escape"))).toEqual({ type: "close" });
+  });
+
+  it("leaves the movement keys and Space alone", () => {
+    for (const key of ["w", "a", "s", "d", "W", "ArrowUp", " "]) {
+      expect(keyAction("blind", idle, k(key))).toBeNull();
+    }
   });
 });
 
-describe("keyAction: push to talk", () => {
-  it("V talks whether or not a sheet is open, in either case", () => {
-    for (const open of [null, "say", "sound", "show"] as const) {
-      expect(keyAction(open, "v", false)).toEqual({ type: "talk" });
-      expect(keyAction(open, "V", false)).toEqual({ type: "talk" });
+describe("keyAction: while typing", () => {
+  const typing = { wheel: false, typing: true };
+  it("reads only Esc: digits, Q, V and Enter belong to the text field", () => {
+    for (const key of ["1", "5", "q", "v", "w", " ", "Tab"]) {
+      expect(keyAction("deaf", typing, k(key))).toBeNull();
     }
-  });
-  it("a v typed into a message is just a letter", () => {
-    expect(keyAction("say", "v", true)).toBeNull();
+    expect(keyAction("deaf", typing, k("Escape"))).toEqual({ type: "close" });
   });
 });

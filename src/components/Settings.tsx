@@ -1,10 +1,9 @@
 import { useState } from "preact/hooks";
 import type { Settings as SettingsState } from "../client/settings.ts";
 import type { Role } from "../game/types.ts";
-import { ConfirmButton } from "./ConfirmButton.tsx";
 
 // The few things a person may turn on or off. Kept to a button and a small
-// panel in the top bar: the real-life presets arrive with the wizard (Task 19).
+// panel in the menu (HudMenu, which also holds Leave); what a person's real-life setup implies arrives in `real`.
 // Can't hear is told nothing in words or sound (they get faces and stamps,
 // which are pictures), so captions, sound and speech are shown off and can't
 // be changed, with the reason, rather than offering switches that do nothing.
@@ -12,22 +11,22 @@ export function Settings({
   role,
   settings,
   onChange,
-  onLeave,
   maskNoiseAvailable,
   othersSoundOff,
+  voiceOn,
 }: {
   role: Role;
   settings: SettingsState;
   onChange: (next: SettingsState) => void;
-  onLeave: () => void;
-  // Whether the host's real-life setup has turned masking noise on for the
-  // team; Can't hear can still choose not to use it, but can't turn on what
-  // the host hasn't.
+  // Whether this person's setup says they have headphones, so Can't hear's masking noise can play;
+  // they can still choose not to use it, but can't turn on what their setup rules out.
   maskNoiseAvailable: boolean;
-  // The host's real-life setup has turned game sound off for Can't see and
-  // Can't speak (captions carry it instead): forced on everyone, so the
-  // checkbox has to say so rather than show a personal choice that isn't one.
+  // This person's setup says they have no headphones (Can't see, Can't speak): captions carry
+  // the game's sound instead, so the checkboxes say so rather than show a choice that isn't one.
   othersSoundOff: boolean;
+  // In-app voice is on for this room. It is off when the whole crew sits in one room and can just
+  // talk, so there is no mic to turn on, and the switch says so rather than doing nothing.
+  voiceOn: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const deaf = role === "deaf";
@@ -90,13 +89,32 @@ export function Settings({
           )}
           {forcedCaptions && (
             <p class="settings-note" id="others-sound-off-note">
-              The host turned off game sound for the table: captions are on for everyone instead.
+              You said you have no headphones, so game sound is off and captions are on instead.
             </p>
           )}
-          <label>
-            <input type="checkbox" checked={settings.keepOpen} onChange={toggle("keepOpen")} />
-            Keep the comms sheet open after sending
-          </label>
+          {role !== "mute" && (
+            <label>
+              <input
+                type="checkbox"
+                disabled={!voiceOn}
+                aria-describedby={voiceOn ? undefined : "voice-off-note"}
+                checked={settings.voiceMode === "toggle"}
+                onChange={(e) =>
+                  onChange({
+                    ...settings,
+                    voiceMode: (e.target as HTMLInputElement).checked ? "toggle" : "hold",
+                  })
+                }
+              />
+              Press V to turn the mic on and off
+            </label>
+          )}
+          {role !== "mute" && !voiceOn && (
+            <p class="settings-note" id="voice-off-note">
+              Voice is off in this room: everyone said they are sitting together, so you can talk
+              out loud. There is no mic to turn on.
+            </p>
+          )}
           <label>
             <input
               type="checkbox"
@@ -138,19 +156,11 @@ export function Settings({
               </label>
               {!maskNoiseAvailable && (
                 <p class="mask-noise-note" id="mask-noise-note">
-                  Turn masking noise on in the host's real-life setup first.
+                  Masking noise needs headphones: say you have them in your setup, in the lobby.
                 </p>
               )}
             </>
           )}
-          <div class="settings-leave">
-            <ConfirmButton
-              class="hud-btn danger"
-              label="Leave game"
-              confirmLabel="Sure? Leave game"
-              onConfirm={onLeave}
-            />
-          </div>
         </fieldset>
       )}
     </>

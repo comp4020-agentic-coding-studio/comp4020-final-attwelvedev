@@ -16,7 +16,7 @@ describe.each([
   ["phone", PHONE],
   ["desktop", DESKTOP],
 ])("the lobby page at %s width", (_name, viewport) => {
-  it("has no horizontal overflow and no axe violations, with seats and spectators filled", async () => {
+  it("has no horizontal overflow and no axe violations, with people and spectators listed", async () => {
     const { page, code } = await createLobbyAs(browser, baseUrl, "Ana the Magnificent", viewport);
     const other = await joinWithCode(browser, baseUrl, code, "Bo", viewport);
     await page.getByText("Bo").first().waitFor();
@@ -53,7 +53,7 @@ describe.each([
     await page.getByRole("button", { name: "Join lobby" }).click();
     await page.getByText("No lobby ZZZY.").waitFor();
     await page.getByRole("link", { name: "Try another code" }).waitFor();
-    await page.getByRole("button", { name: "Create lobby" }).waitFor();
+    await page.getByRole("button", { name: "Start a new team" }).waitFor();
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
     expect(await axeViolations(page)).toEqual([]);
     await leaveAndClose(page);
@@ -80,7 +80,7 @@ describe("the lobby over the socket", () => {
     const second = await joinWithCode(browser, baseUrl, code, "Bo", PHONE);
     await second.getByText("Bo").first().waitFor(); // the server has accepted the join
     const started = Date.now();
-    await first.getByRole("listitem").filter({ hasText: "Bo" }).waitFor({ timeout: 1000 });
+    await first.locator(".player-row").filter({ hasText: "Bo" }).waitFor({ timeout: 1000 });
     expect(Date.now() - started).toBeLessThanOrEqual(1000);
     await leaveAndClose(first);
     await leaveAndClose(second);
@@ -96,22 +96,30 @@ describe("the lobby over the socket", () => {
     await leaveAndClose(other);
   });
 
-  it("offers Watch or Start a new team to a fourth joiner", async () => {
+  it("lists everyone in the lobby, and offers Watch or Start a new team to a seventh joiner", async () => {
     const { page: host, code } = await createLobbyAs(browser, baseUrl, "Ana", DESKTOP);
-    const crew = [
-      await joinWithCode(browser, baseUrl, code, "Bo", PHONE),
-      await joinWithCode(browser, baseUrl, code, "Cy", PHONE),
-    ];
-    const fourth = await joinWithCode(browser, baseUrl, code, "Di", PHONE);
-    await fourth.getByRole("button", { name: "Watch" }).click();
-    await host.getByText("Spectators: Di").waitFor({ timeout: 1500 });
-    for (const p of [host, fourth, ...crew]) await leaveAndClose(p);
+    const crew = [];
+    for (const name of ["Bo", "Cy", "Di", "Ed", "Flo"]) {
+      crew.push(await joinWithCode(browser, baseUrl, code, name, PHONE));
+    }
+    for (const name of ["Bo", "Cy", "Di", "Ed", "Flo"]) {
+      await host
+        .locator(".player-row")
+        .filter({ has: host.getByText(name, { exact: true }) })
+        .waitFor({ timeout: 1500 });
+    }
+    expect(await host.locator(".player-row").count()).toBe(6);
+    const seventh = await joinWithCode(browser, baseUrl, code, "Gus", PHONE);
+    await seventh.getByRole("button", { name: "Watch" }).click();
+    await host.getByText("Spectators: Gus").waitFor({ timeout: 1500 });
+    for (const p of [host, seventh, ...crew]) await leaveAndClose(p);
   });
 
   it("takes someone back home when they leave", async () => {
     const { page, code } = await createLobbyAs(browser, baseUrl, "Ana", PHONE);
     expect(code).toMatch(/^[A-Z]{4}$/);
-    await page.getByRole("button", { name: "Leave" }).click();
+    await page.getByRole("button", { name: "Leave lobby" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Leave lobby" }).click();
     await page.waitForURL(`${baseUrl}/`);
     await leaveAndClose(page);
   });

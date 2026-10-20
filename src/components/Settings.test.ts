@@ -13,21 +13,22 @@ const settings = {
   captions: true,
   sound: true,
   speech: true,
-  keepOpen: false,
+  voiceMode: "hold" as const,
+  quick: null,
   highContrast: false,
   maskNoiseOn: true,
   volume: 0.5,
 };
 
-async function open(onLeave: () => void) {
+async function open() {
   render(
     h(Settings, {
       role: "mute",
       settings,
       onChange: () => {},
-      onLeave,
       maskNoiseAvailable: false,
       othersSoundOff: false,
+      voiceOn: true,
     }),
     document.body,
   );
@@ -40,15 +41,16 @@ async function openAs(
   maskNoiseAvailable: boolean,
   onChange = () => {},
   othersSoundOff = false,
+  voiceOn = true,
 ) {
   render(
     h(Settings, {
       role,
       settings,
       onChange,
-      onLeave: () => {},
       maskNoiseAvailable,
       othersSoundOff,
+      voiceOn,
     }),
     document.body,
   );
@@ -62,9 +64,9 @@ describe("Settings: high contrast", () => {
         role: "deaf",
         settings,
         onChange: () => {},
-        onLeave: () => {},
         maskNoiseAvailable: false,
         othersSoundOff: false,
+        voiceOn: true,
       }),
       document.body,
     );
@@ -83,9 +85,9 @@ describe("Settings: high contrast", () => {
         role: "mute",
         settings,
         onChange,
-        onLeave: () => {},
         maskNoiseAvailable: false,
         othersSoundOff: false,
+        voiceOn: true,
       }),
       document.body,
     );
@@ -104,7 +106,7 @@ describe("Settings: masking noise", () => {
     expect(document.body.textContent).not.toMatch(/masking noise/i);
   });
 
-  it("offers a toggle and a volume slider when the host has turned it on", async () => {
+  it("offers a toggle and a volume slider when their setup has headphones", async () => {
     await openAs("deaf", true);
     const toggle = document.querySelector('input[type="checkbox"][name="mask-noise"]');
     const slider = document.querySelector('input[type="range"]');
@@ -112,13 +114,13 @@ describe("Settings: masking noise", () => {
     expect((slider as HTMLInputElement)?.disabled).toBe(false);
   });
 
-  it("is greyed out with an explanation when the host hasn't turned it on", async () => {
+  it("is greyed out with an explanation when their setup has no headphones", async () => {
     await openAs("deaf", false);
     const toggle = document.querySelector('input[type="checkbox"][name="mask-noise"]');
     const slider = document.querySelector('input[type="range"]');
     expect((toggle as HTMLInputElement)?.disabled).toBe(true);
     expect((slider as HTMLInputElement)?.disabled).toBe(true);
-    expect(document.body.textContent).toMatch(/real-life setup/i);
+    expect(document.body.textContent).toMatch(/headphones/i);
   });
 
   it("calls onChange with maskNoiseOn flipped", async () => {
@@ -132,7 +134,7 @@ describe("Settings: masking noise", () => {
   });
 });
 
-describe("Settings: forced captions (host turned off game sound)", () => {
+describe("Settings: forced captions (no headphones, so game sound is off)", () => {
   it("shows captions checked and disabled, and game sound unchecked and disabled, with a note", async () => {
     await openAs("blind", false, () => {}, true);
     const checkbox = (label: string) =>
@@ -145,12 +147,12 @@ describe("Settings: forced captions (host turned off game sound)", () => {
     expect(captions.disabled).toBe(true);
     expect(sound.checked).toBe(false);
     expect(sound.disabled).toBe(true);
-    expect(document.body.textContent).toMatch(/host turned off game sound/i);
+    expect(document.body.textContent).toMatch(/no headphones, so game sound is off/i);
   });
 
   it("does not disable captions or sound for Can't hear, who has their own note already", async () => {
     await openAs("deaf", false, () => {}, true);
-    expect(document.body.textContent).not.toMatch(/host turned off game sound/i);
+    expect(document.body.textContent).not.toMatch(/no headphones, so game sound is off/i);
   });
 
   it("leaves spoken lines alone: the say channel is unaffected", async () => {
@@ -162,32 +164,40 @@ describe("Settings: forced captions (host turned off game sound)", () => {
   });
 });
 
-describe("Settings: Leave game", () => {
-  it("is tucked inside the panel, not on the bar", async () => {
-    render(
-      h(Settings, {
-        role: "mute",
-        settings,
-        onChange: () => {},
-        onLeave: () => {},
-        maskNoiseAvailable: false,
-        othersSoundOff: false,
-      }),
-      document.body,
-    );
-    expect(document.body.textContent).not.toMatch(/leave/i);
-    const leave = await open(() => {});
-    expect(leave?.textContent).toBe("Leave game");
+describe("Settings: no Leave", () => {
+  it("leaves Leave to the menu, which asks with a modal of its own", async () => {
+    await open();
+    expect(
+      [...document.querySelectorAll("button")].some((b) => /leave/i.test(b.textContent ?? "")),
+    ).toBe(false);
+  });
+});
+
+describe("Settings: the mic switch", () => {
+  const micSwitch = () =>
+    [...document.querySelectorAll("input[type=checkbox]")].find((i) =>
+      /turn the mic on and off/i.test(i.closest("label")?.textContent ?? ""),
+    ) as HTMLInputElement | undefined;
+
+  it("is on offer and enabled when the room has voice", async () => {
+    await openAs("blind", false);
+    expect(micSwitch()?.disabled).toBe(false);
+    expect(document.querySelector("#voice-off-note")).toBeNull();
   });
 
-  it("looks destructive and asks twice before leaving", async () => {
-    const onLeave = vi.fn();
-    const leave = (await open(onLeave)) as HTMLButtonElement;
-    expect(leave.classList.contains("danger")).toBe(true);
-    await act(() => leave.click());
-    expect(onLeave).not.toHaveBeenCalled();
-    expect(leave.textContent).toBe("Sure? Leave game");
-    await act(() => leave.click());
-    expect(onLeave).toHaveBeenCalledTimes(1);
+  it("is disabled, with the reason beside it, when voice is off for the room", async () => {
+    await openAs("deaf", false, () => {}, false, false);
+    const sw = micSwitch();
+    expect(sw?.disabled).toBe(true);
+    const note = document.querySelector("#voice-off-note");
+    expect(note?.textContent).toMatch(/voice is off in this room/i);
+    expect(note?.textContent).toMatch(/talk out loud/i);
+    expect(sw?.getAttribute("aria-describedby")).toBe("voice-off-note");
+  });
+
+  it("is not shown to Can't speak, who has no mic", async () => {
+    await openAs("mute", false, () => {}, false, false);
+    expect(micSwitch()).toBeUndefined();
+    expect(document.querySelector("#voice-off-note")).toBeNull();
   });
 });

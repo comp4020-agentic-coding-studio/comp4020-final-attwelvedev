@@ -30,7 +30,7 @@ export async function playRoom(browser: Browser, baseUrl: string): Promise<Table
     await page.getByLabel("Lobby code").fill(code);
     await page.getByRole("button", { name: "Join", exact: true }).click();
     await page.waitForURL(new RegExp(`/lobby/${code}$`));
-    await page.getByText("Seats").waitFor();
+    await page.getByRole("heading", { name: /^Players \d of 6/ }).waitFor();
   }
   // The button reads plain "Start" only once all three are seated; before that it
   // reads "Start (n bots fill)" and would start a game with bots. click waits for the
@@ -39,7 +39,7 @@ export async function playRoom(browser: Browser, baseUrl: string): Promise<Table
   const start = host.getByRole("button", { name: "Start", exact: true });
   await start.click({ timeout: 5000 });
   const pages = [host, phone, third];
-  for (const page of pages) await page.getByRole("button", { name: "Ready" }).click();
+  for (const page of pages) await page.getByRole("button", { name: "I'm ready" }).click();
   for (const page of pages) await page.locator(".frame canvas").waitFor();
   // seats rotate by room: room 1 is seat 0 blind, seat 1 deaf, seat 2 mute
   return { pages, phone, byRole: { blind: host, deaf: phone, mute: third } };
@@ -47,3 +47,22 @@ export async function playRoom(browser: Browser, baseUrl: string): Promise<Table
 
 export const canvasHash = (page: Page) =>
   page.locator(".frame canvas").evaluate((c) => (c as HTMLCanvasElement).toDataURL());
+
+// The canvas once it has stopped changing: two frames in a row that are identical. A single
+// frame is a moving picture (the camera eases, effects play out), so comparing a later
+// frame to one taken a fixed time after something happened is a race. Gives up after
+// `timeoutMs` and returns the last frame.
+export async function settledHash(page: Page, timeoutMs = 3000): Promise<string> {
+  // The sea drifts unless motion is reduced, so a canvas never holds still to be compared. The
+  // drift is not what any caller is measuring, so take it out (idempotent, and the pages are ours).
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const deadline = Date.now() + timeoutMs;
+  let last = await canvasHash(page);
+  while (Date.now() < deadline) {
+    await page.waitForTimeout(120);
+    const next = await canvasHash(page);
+    if (next === last) return next;
+    last = next;
+  }
+  return last;
+}
