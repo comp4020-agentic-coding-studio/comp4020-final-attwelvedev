@@ -160,11 +160,21 @@ describe("restart votes", () => {
     await closeAll(table.pages);
   });
 
-  it("a heist restart says so on the card", async () => {
+  it("a heist restart says so on the card, and its timer stays on one line beside the long title", async () => {
     const table = await playRoom(browser, baseUrl);
     await proposeFrom(table.byRole.blind, "heist");
     const prompt = card(table.byRole.deaf);
     await prompt.waitFor({ timeout: 2000 });
+    for (const page of [table.phone, table.byRole.deaf]) {
+      const timer = card(page).getByRole("timer");
+      await timer.waitFor();
+      const { h, line } = await timer.evaluate((el) => ({
+        h: el.getBoundingClientRect().height,
+        line:
+          Number.parseFloat(getComputedStyle(el).lineHeight) || el.getBoundingClientRect().height,
+      }));
+      expect(h).toBeLessThanOrEqual(line * 1.5);
+    }
     expect(await prompt.innerText()).toMatch(/restart the heist from room 1/);
     expect(await prompt.getByRole("button").allInnerTexts()).toEqual([
       "Restart heist",

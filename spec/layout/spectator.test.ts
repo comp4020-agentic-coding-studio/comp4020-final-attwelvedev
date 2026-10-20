@@ -115,6 +115,21 @@ describe("the spectator panel", () => {
     expect(text).toMatch(/Sitting out this room/i);
     expect(text).toMatch(/Di/);
     const talk = di.getByRole("button", { name: /Hold to talk/ });
+    // the key hint is set apart from the words, in the muted colour, as on a player's buttons
+    const hint = await talk.evaluate((el) => {
+      const kbd = el.querySelector("kbd") as HTMLElement;
+      const label = getComputedStyle(el).color;
+      return {
+        gap:
+          kbd.nextSibling?.textContent?.startsWith(" ") ||
+          Number.parseFloat(getComputedStyle(kbd).marginRight),
+        muted: getComputedStyle(kbd).color !== label,
+        shown: getComputedStyle(kbd).display !== "none",
+      };
+    });
+    expect(hint.shown).toBe(true);
+    expect(hint.muted).toBe(true);
+    expect(Number(hint.gap) || hint.gap).toBeTruthy();
     expect(await talk.getAttribute("aria-keyshortcuts")).toBe("V");
     await di.keyboard.down("v");
     await di.getByText("Mic live").waitFor({ timeout: 2000 });

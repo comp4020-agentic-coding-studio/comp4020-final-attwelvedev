@@ -1157,7 +1157,8 @@ fieldset.settings {
   min-height: var(--target);
   min-width: var(--target);
 }
-.talk-bar kbd {
+.talk-bar kbd,
+.watch-chat kbd {
   display: none;
   margin-right: var(--s-2);
   font: inherit;
@@ -1211,7 +1212,8 @@ fieldset.settings {
   text-align: center;
 }
 @media (hover: hover) and (pointer: fine) {
-  .talk-bar kbd {
+  .talk-bar kbd,
+  .watch-chat kbd {
     display: inline;
   }
 }
@@ -1292,8 +1294,14 @@ fieldset.settings {
 .vote-title {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   gap: var(--s-3);
   font-weight: 700;
+}
+/* the title wraps, the time never does: it must not shrink to make room for a long name */
+.vote-title .countdown {
+  flex: none;
+  white-space: nowrap;
 }
 .vote-voters {
   display: flex;

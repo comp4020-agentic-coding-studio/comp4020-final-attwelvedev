@@ -242,7 +242,7 @@ Build to the spec §4.1 wireframes. Specifics the wireframes leave open:
   and what to do in real life. Pass = user says so.
 - **Depends on:** Task 10.
 
-### Task 12: The HUD: crew, watchers, live light, votes, leaving, spectator panel
+### Task 12: The HUD: crew, watchers, live light, votes, leaving, spectator panel [x]
 
 - **Description:** The glass top bar, crew chips with roles, "N watching", the
   pulsing live light, the `[≡]` menu with vote proposals and Leave, the vote
@@ -451,7 +451,7 @@ None.
 
 ## 11. Task 12 execution notes (deviations from the plan as written)
 
-Built and verified on a local build; not yet ticked or committed, pending the **Human review:**.
+Built and verified on a local build; human review accepted by the user 2026-10-20.
 
 - `Settings` no longer holds Leave: it moved to `HudMenu`, whose Leave is one press because the
   page's own modal (`LeaveGuard` in `Lobby.tsx`, now over the game and the spectator screen too)
@@ -472,11 +472,13 @@ Built and verified on a local build; not yet ticked or committed, pending the **
 
 ### Found, out of scope, not fixed
 
-- **`spec/layout/reveal.test.ts` "the person the host pulls in can still press I'm ready" fails
-  3 of 3, and not because of Task 12.** It fails identically on a clean build of `3c6e8aa` (the
-  phase 04 merge) and on a clean build of `635fd25` (Task 11's own commit, before the merge), so
-  neither the merge nor Task 12 caused it: it was already red when Task 11 was committed. It is
-  deterministic (a bug, not a flake). Line 459 expects no `alertdialog` for Ana after she pulls Di
-  in; there is one. Task 11's notes say its full runs were green, so this needs a look at how.
+- **`spec/layout/reveal.test.ts` "the person the host pulls in can still press I'm ready" is
+  flaky, and not because of Task 12.** It failed 3 of 3 alone on clean builds of `3c6e8aa` and
+  `635fd25` (no Task 12 code), yet passed in one later full run and failed in another, so it
+  depends on timing (line 459 expects no `alertdialog` for Ana right after she pulls Di in).
+  Needs a wait-for-the-thing fix in its own change.
+- Full `pnpm check` runs on this machine fail 2 to 7 timing-sensitive specs that differ each run
+  (`lobby-people`, `home`, `lobby`, `wheel`, `voice` hooks, `attract`) and pass alone 3 of 3; the
+  server also reached its 40-lobby cap (21 `lobby-full`). The last run: 1269 of 1274 passed.
 - `src/game/sim/events.test.ts:3` has an unused `tap` import (a biome warning), from phase 04.
 - A stash `task12-spectatorchat-wip` exists that this session did not make; left alone.
