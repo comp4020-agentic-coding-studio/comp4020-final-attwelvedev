@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Seat } from "../types.ts";
 import { step } from "./step.ts";
-import { hold, input, place, worldFrom } from "./testing.ts";
+import { hold, input, place, worldFrom, worldWith } from "./testing.ts";
 import { createWorld, RADIUS, TICK_MS, type World } from "./world.ts";
 
 const OPEN = [
@@ -268,6 +268,59 @@ describe("plates and doors", () => {
     expect(w.players[0].pos.x).toBeGreaterThan(8.4);
     hold(w, { 0: input(-1, 0) }, 30);
     expect(w.players[0].pos.x).toBeLessThan(6);
+  });
+});
+
+describe("held sequences", () => {
+  // three plates three or more apart, a sequence door p2 -> p1 -> p3, and a spare tile
+  const HALL = [
+    "####################",
+    "#1.p...p...p..#....#",
+    "#2............D..E.#",
+    "#3............#....#",
+    "####################",
+  ];
+  const world = () => worldWith(HALL, { D1: { mode: "sequence", opensWhen: ["p2", "p1", "p3"] } });
+  const at = (x: number) => ({ x, y: 1 });
+  // p1 is at x = 3, p2 at x = 7, p3 at x = 11 (reading order)
+
+  it("opens and latches when every plate is held in order", () => {
+    const w = world();
+    place(w, 0, at(7));
+    hold(w, {}, 1);
+    place(w, 1, at(3));
+    hold(w, {}, 1);
+    place(w, 2, at(11));
+    hold(w, {}, 1);
+    expect(w.doorOpen.D1).toBe(true);
+    for (const s of [0, 1, 2] as const) place(w, s, { x: 1, y: 2 });
+    hold(w, {}, 20);
+    expect(w.doorOpen.D1).toBe(true); // latched
+  });
+
+  it("resets when an earlier plate is let go before the last is pressed", () => {
+    const w = world();
+    place(w, 0, at(7));
+    hold(w, {}, 1);
+    place(w, 1, at(3));
+    hold(w, {}, 1);
+    expect(w.seqProgress.D1?.next).toBe(2);
+    place(w, 0, { x: 1, y: 2 }); // steps off the first plate
+    hold(w, {}, 1);
+    expect(w.seqProgress.D1?.next).toBe(0);
+    expect(w.events.some((e) => e.kind === "seq" && e.result === "wrong")).toBe(true);
+    place(w, 2, at(11)); // the last plate now finds nothing held
+    hold(w, {}, 1);
+    expect(w.doorOpen.D1).toBe(false);
+  });
+
+  it("does not reset while the plates stay held", () => {
+    const w = world();
+    place(w, 0, at(7));
+    hold(w, {}, 1);
+    place(w, 1, at(3));
+    hold(w, {}, 40); // still inside the 5 s window
+    expect(w.seqProgress.D1?.next).toBe(2);
   });
 });
 

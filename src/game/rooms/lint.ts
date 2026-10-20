@@ -1,6 +1,7 @@
 import { parseJob, rawJobs } from "../bots/jobs.ts";
 import { cameraParams, laserBeam, laserParams } from "../sim/hazards.ts";
 import { patrolOf } from "../sim/world.ts";
+import type { Role } from "../types.ts";
 import { flipsOf, type Room } from "./format.ts";
 
 const SAFE_S = 2; // FR14: a cue-dependent safe window is at least this long
@@ -53,6 +54,7 @@ export function lintRoom(room: Room): LintIssue[] {
   if (!threePlate) issue("no beat has a door that needs three plates (three-plate beat, FR10)");
 
   lintHazards(room, issue);
+  lintSight(room, issue);
   lintHints(room, issue);
 
   // every exit tile must be reachable from every spawn, treating doors as open
@@ -165,6 +167,75 @@ function lintHazards(room: Room, issue: (message: string) => void): void {
     const checkpoints = room.objects.filter((o) => o.kind === "checkpoint");
     if (!checkpoints.some((k) => (k.tiles[0]?.x ?? Number.POSITIVE_INFINITY) <= first)) {
       issue(`no checkpoint before the first hazard (at x=${first}): add a K to the left of it`);
+    }
+  }
+}
+
+const ROLES: readonly Role[] = ["blind", "deaf", "mute"];
+const HOLD_APART = 3; // tiles between a sequence door's plates, Chebyshev: one body holds one
+
+// Rules that come with line of sight (plan 04): clues, dark beats with an alarm, held
+// sequences, and the lead roles.
+function lintSight(room: Room, issue: (message: string) => void): void {
+  const beatAt = (x: number) => room.beats.find((b) => x >= b.x[0] && x <= b.x[1]);
+
+  // A clue is a sound with no picture, so a room may use one only where a beat declares a cue.
+  for (const clue of room.objects.filter((o) => o.kind === "clue")) {
+    const beat = beatAt(clue.tiles[0]?.x ?? -1);
+    if (!beat?.cue)
+      issue(`clue ${clue.id} is not inside a beat that declares a cue (twin or split)`);
+  }
+
+  // No role may be left with nothing to perceive: a beat that is dark everywhere while an
+  // alarm can sound leaves the sighted seeing nothing and the hearing hearing only the alarm.
+  const zones = flipsOf(room).flatMap((f) => (f.kind === "dark" ? [f.zone] : []));
+  const alarms = flipsOf(room).flatMap((f) => (f.kind === "alarm" ? [f.trigger] : []));
+  const dark = (x: number, y: number) =>
+    zones.some(([x0, y0, x1, y1]) => x >= x0 && x <= x1 && y >= y0 && y <= y1);
+  for (const beat of room.beats) {
+    const alarmed = room.objects.some(
+      (o) =>
+        o.kind === "plate" &&
+        alarms.includes(o.id) &&
+        o.tiles.some((t) => t.x >= beat.x[0] && t.x <= beat.x[1]),
+    );
+    if (!alarmed) continue;
+    let floor = 0;
+    let lit = 0;
+    for (let y = 0; y < room.height; y++) {
+      for (let x = beat.x[0]; x <= beat.x[1]; x++) {
+        if (room.grid[y]?.[x] !== ".") continue;
+        floor++;
+        if (!dark(x, y)) lit++;
+      }
+    }
+    if (floor > 0 && lit === 0) {
+      issue(`beat "${beat.name}" is dark everywhere while an alarm can sound in it`);
+    }
+  }
+
+  // A held sequence needs three bodies: its plates must be far enough apart that one cannot hold two.
+  const plates = new Map(room.objects.filter((o) => o.kind === "plate").map((o) => [o.id, o]));
+  for (const door of room.objects.filter((o) => o.kind === "door" && o.mode === "sequence")) {
+    const ids = door.opensWhen ?? [];
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const a = plates.get(ids[i] as string)?.tiles[0];
+        const b = plates.get(ids[j] as string)?.tiles[0];
+        if (!a || !b) continue;
+        if (Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y)) < HOLD_APART) {
+          issue(
+            `door ${door.id}: plates ${ids[i]} and ${ids[j]} are under ${HOLD_APART} tiles apart, so one body could hold both`,
+          );
+        }
+      }
+    }
+  }
+
+  // A room that says `"leads": true` gives every role a beat of its own to lead.
+  if (room.meta.leads === true) {
+    for (const role of ROLES) {
+      if (!room.beats.some((b) => b.lead === role)) issue(`no beat has ${role} as its lead`);
     }
   }
 }

@@ -576,6 +576,11 @@ describe("viewFor: a sign tracks its sequence door", () => {
   };
   const press = (world: ReturnType<typeof worldWith>, x: number) =>
     tap(world, 0, { x, y: 1 }, { x: 2, y: 1 });
+  // a plate is held (FR11): the seat stays on it
+  const holdOn = (world: ReturnType<typeof worldWith>, seat: 0 | 1 | 2, x: number) => {
+    place(world, seat, { x, y: 1 });
+    step(world, {}, TICK_MS);
+  };
   const sign = (world: ReturnType<typeof worldWith>) =>
     viewFor(world, 1, "deaf", false).entities.find((e) => e.kind === "sign");
 
@@ -587,7 +592,8 @@ describe("viewFor: a sign tracks its sequence door", () => {
 
   it("counts plates done in order, with the share of the 5 s window left", () => {
     const world = worldWith(GRID, objects);
-    press(world, 6); // p2
+    holdOn(world, 0, 6); // p2
+    step(world, {}, TICK_MS); // a tap took two steps; keep the 1% the window has lost by now
     expect(sign(world)?.progress).toBe(1);
     expect(sign(world)?.window).toBeCloseTo(0.99, 2);
     for (let i = 0; i < 50; i++) step(world, {}, TICK_MS); // 2.5 s
@@ -607,9 +613,9 @@ describe("viewFor: a sign tracks its sequence door", () => {
 
   it("shows every plate done, and no clock, once the door has opened", () => {
     const world = worldWith(GRID, objects);
-    press(world, 6);
-    press(world, 4);
-    press(world, 8);
+    holdOn(world, 0, 6);
+    holdOn(world, 1, 4);
+    holdOn(world, 2, 8);
     expect(sign(world)?.progress).toBe(3);
     expect(sign(world)?.window).toBeUndefined();
   });

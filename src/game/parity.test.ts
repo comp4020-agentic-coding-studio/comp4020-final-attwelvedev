@@ -62,8 +62,9 @@ const SEQ_OBJECTS = {
   S1: { shows: ["p2", "p1", "p3"] },
 };
 const seqWorld = () => worldWith(SEQ, SEQ_OBJECTS);
-const press = (w: World, x: number) => {
-  place(w, 0, { x, y: 1 });
+// Plates in a sequence are held (FR11), so each press is by the seat that then stays on it.
+const press = (w: World, x: number, seat: 0 | 1 | 2 = 0) => {
+  place(w, seat, { x, y: 1 });
   go(w);
 };
 const sign = (v: RoleView) => ent(v, "S1");
@@ -239,11 +240,11 @@ const PARITY: Record<SoundCue["kind"], Scenario> = {
   })(),
   "seq-open": (() => {
     const world = seqWorld();
-    press(world, 6);
-    press(world, 4);
+    press(world, 6, 0);
+    press(world, 4, 1);
     return {
       world,
-      act: () => press(world, 8),
+      act: () => press(world, 8, 2),
       sees: (b, a) => (sign(b)?.progress ?? 0) < 3 && sign(a)?.progress === 3,
     };
   })(),

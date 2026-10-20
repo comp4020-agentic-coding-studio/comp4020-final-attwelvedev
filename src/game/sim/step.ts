@@ -137,6 +137,11 @@ function updateSequences(world: World) {
       progress.next = 0;
       say("wrong"); // the time ran out: start again
     }
+    // held: a plate already matched has to stay down until the door opens
+    if (progress.next > 0 && order.slice(0, progress.next).some((id) => !world.pressed[id])) {
+      progress.next = 0;
+      say("wrong");
+    }
     for (const id of pressedNow) {
       if (!order.includes(id)) continue;
       if (id === order[progress.next]) {

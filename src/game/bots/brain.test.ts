@@ -308,6 +308,27 @@ describe("with a person on the team", () => {
     }
   });
 
+  it("keeps each plate of the sequence held until the door opens: nobody steps off early", () => {
+    let wrong = 0;
+    let letGo = 0;
+    let opened = 0;
+    const seq = ["p7", "p1", "p4"];
+    const run = play("03-vault", ROTATION_2, [0, 1, 2], 4000, () => {}, {
+      onTick: (world) => {
+        wrong += world.events.filter((e) => e.kind === "seq" && e.result === "wrong").length;
+        // a plate of the sequence released before the door has opened
+        letGo += world.events.filter(
+          (e) => e.kind === "plate" && !e.pressed && seq.includes(e.id) && !world.doorOpen.D1,
+        ).length;
+        if (opened === 0 && world.doorOpen.D1) opened = world.tick;
+      },
+    });
+    expect(run.world.status).toBe("cleared");
+    expect(opened).toBeGreaterThan(0);
+    expect(letGo, "a plate was let go before the door opened").toBe(0);
+    expect(wrong, "the sequence was never reset by a bot letting go").toBe(0);
+  });
+
   it("waits at each checkpoint for the person, so the whole team sets every one", () => {
     for (const slow of [0, 2] as const) {
       const run = play("03-vault", ROTATION_2, [0, 1, 2], 4000, () => {}, {

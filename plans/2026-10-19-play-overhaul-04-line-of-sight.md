@@ -276,7 +276,15 @@ latches once open.
   fail, stop and report. (Amended in execution, 2026-10-20.)
 - **Depends on:** Task 13.
 
-### Task 15: Held sequences, beats with leads and cues, new linter rules
+### Task 15: Held sequences, beats with leads and cues, new linter rules [x]
+
+> Execution note (2026-10-20): the bot change this task lists (`goalFor` /
+> `sequenceTurn` keeping earlier plates held) turned out not to be needed: a
+> plate job is done only when its door is open (`isDone`), so a bot already stays
+> on its plate until then. A new test in `brain.test.ts` proves it (no sequence
+> plate released and no reset before the door opens). Four older tests pressed
+> plates with one seat that then walked off (the rule the task replaces); they now
+> hold each plate with its own seat.
 
 - **Description:** §4 "Held sequence", "Room format additions", "Linter
   additions". Room 03's sequence plates fail the 3-tile spacing rule today: p7 (24,6),
