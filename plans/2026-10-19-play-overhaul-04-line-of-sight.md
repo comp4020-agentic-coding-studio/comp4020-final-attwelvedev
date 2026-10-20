@@ -308,7 +308,31 @@ latches once open.
   sequence).
 - **Depends on:** Task 14.
 
-### Task 16: Bots perceive like their role; the lead-role harness
+### Task 16: Bots perceive like their role; the lead-role harness (partly done)
+
+> Execution note (2026-10-20), with the user's rulings:
+>
+> **Done:** the lead-role harness (`solveRoom(…, { mute })`, `botsAct`'s `muted`,
+> `SolveResult.sentBy`, and the skipped-until-leads describe in
+> `spec/rooms.test.ts`); `forecastFor(room, alarms, only?)`; a `Known.seenHazards`
+> record fed by sight and by hearing (a cue names the nearest hazard along its
+> bearing); `clue:` targets in `parseJob`; `Known.clues` filled from heard chimes;
+> the guide's regain-sight and `muteClip`'s last-seen position (landed in Task 14).
+>
+> **Not done, so A3 is NOT met:** the planner (`decide`) still plans from the
+> room file, not from `seenHazards`. Wiring it in broke rooms 02 and 03 in every
+> rotation. Hearing alone left room 03's opening unsolvable: the first beat is a
+> dark corridor in which only Can't see perceives the guard. A Can't-see bot
+> warning the team with the Hold up face either froze the team (a face every
+> 1.6 s kept resetting the hold) or came too late (warning only when loud: 35
+> catches). Two attempts at the same mechanism each broke the opposite thing, so
+> it was stopped, not tuned. A3 needs its own design for room 03's lead beat, to
+> be done with the phase 06 rooms.
+>
+> **Also not done:** the tolerant guide (decide off tile centres, resend
+> stop/go after 800 ms) and blind pauses back on in `attract.ts`. Turning the
+> pause on (`pauseChance` 0.01) made `attract.test.ts` run past its budget, which
+> is the strand its own comment warns about, so it was reverted.
 
 - **Description:** §4 "Bots (A3)": hazards planned only when perceived,
   regaining sight of Can't see, a tolerant guide, clue jobs, and
@@ -354,7 +378,7 @@ latches once open.
 | FR13 | Task 15 |
 | FR14 (harness) | Task 16 |
 | A2 | Tasks 14, 15 |
-| A3 | Task 16 |
+| A3 | Task 16 (**not met**: recording only; the planner is not wired, see Task 16's note) |
 | A4 (CLAUDE.md parity) | Task 14 |
 
 ## 8. Risks / open questions
@@ -375,3 +399,6 @@ No open questions. Rulings from the execution review (2026-10-20):
 - Baseline: `spec/layout/voice.test.ts` is flaky on this machine (its `afterAll`
   times out in about 2 of 3 runs, passes alone in 26 s). Not part of this phase;
   logged, not fixed.
+- Also seen flaky once under a full `pnpm check`: four `spec/layout/wheel.test.ts`
+  cases (1 to 1.5 s `waitFor` timeouts); they passed 25/25 in three isolated
+  runs. Nothing in this phase touches that file. Logged, not fixed.

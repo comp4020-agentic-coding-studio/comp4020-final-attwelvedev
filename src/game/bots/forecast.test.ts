@@ -56,6 +56,27 @@ describe("forecastFor", () => {
     expect(forecastFor(r, [{ from: 10, to: 100 }])).not.toBe(forecastFor(r));
   });
 
+  it("plans only around the hazards it is told of: none, or just the named ones", () => {
+    const r = room("03-vault");
+    const sum = (a: Uint8Array) => a.reduce((n, v) => n + v, 0);
+    const all = forecastFor(r);
+    const none = forecastFor(r, [], new Set());
+    const lasers = forecastFor(r, [], new Set(["L1", "L2"]));
+    let sawLaser = false;
+    for (let tick = 1; tick < 200; tick++) {
+      expect(sum(none.danger(tick)), `tick ${tick}`).toBe(0);
+      expect(sum(none.rest(tick))).toBe(0);
+      const mine = lasers.danger(tick);
+      const every = all.danger(tick);
+      for (let i = 0; i < mine.length; i++) expect(mine[i] ?? 0).toBeLessThanOrEqual(every[i] ?? 0);
+      if (sum(mine) > 0) sawLaser = true;
+    }
+    expect(sawLaser).toBe(true);
+    // a set is a different forecast from "everything", and the same set gives the same one
+    expect(forecastFor(r, [], new Set(["L1"]))).toBe(forecastFor(r, [], new Set(["L1"])));
+    expect(forecastFor(r, [], new Set(["L1"]))).not.toBe(all);
+  });
+
   it("holds every camera on while the alarm rings", () => {
     const r = room("03-vault");
     const quiet = forecastFor(r);

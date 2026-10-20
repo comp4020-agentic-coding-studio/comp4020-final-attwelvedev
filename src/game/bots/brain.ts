@@ -1,7 +1,8 @@
 import type { Callout, ChannelMessage, Outgoing } from "../channels.ts";
-import type { EntityView, RoleView } from "../perception.ts";
+import type { EntityView, RoleView, SoundCue } from "../perception.ts";
 import type { Room } from "../rooms/format.ts";
 import { blockedAt } from "../sim/collide.ts";
+import { laserBeam } from "../sim/hazards.ts";
 import { createWorld, SPEED_TPS, TICK_MS, type World } from "../sim/world.ts";
 import { type PlayerInput, ROLES, type Role, type Seat, type Vec } from "../types.ts";
 import { type AlarmWindow, forecastFor } from "./forecast.ts";
@@ -213,7 +214,15 @@ function thinkBlind(view: RoleView, inbox: ChannelMessage[], m: BotMemory, now: 
 
 function ensureKnown(room: Room, m: BotMemory): Known {
   if (m.known) return m.known;
-  const known: Known = { doorOpen: {}, pressed: {}, crates: {}, seq: {}, checkpoint: 0 };
+  const known: Known = {
+    doorOpen: {},
+    pressed: {},
+    crates: {},
+    seq: {},
+    seenHazards: {},
+    clues: {},
+    checkpoint: 0,
+  };
   for (const o of room.objects) {
     if (o.kind === "door") known.doorOpen[o.id] = false;
     else if (o.kind === "plate") known.pressed[o.id] = false;
@@ -223,8 +232,64 @@ function ensureKnown(room: Room, m: BotMemory): Known {
   return known;
 }
 
+const HEARD_KIND: Partial<Record<SoundCue["kind"], "guard" | "camera" | "laser">> = {
+  guard: "guard",
+  camera: "camera",
+  laser: "laser",
+};
+const BEARING_COS = Math.cos((25 * Math.PI) / 180); // a hazard counts as "along the sound" within 25 degrees
+
+// The nearest object of `kind` that lies along `dir` (within 25 degrees) from `me`.
+function alongBearing(room: Room, kind: "clue", me: Vec, dir: Vec): string | null {
+  let best: { id: string; d: number } | null = null;
+  for (const o of room.objects) {
+    const t = o.tiles[0];
+    if (o.kind !== kind || !t) continue;
+    const dx = t.x + 0.5 - me.x;
+    const dy = t.y + 0.5 - me.y;
+    const d = Math.hypot(dx, dy);
+    if (d < 0.01 || (dx * dir.x + dy * dir.y) / d < BEARING_COS) continue;
+    if (!best || d < best.d) best = { id: o.id, d };
+  }
+  return best?.id ?? null;
+}
+
+// A hazard heard, not seen: a cue carries only a direction, so it names the nearest hazard of
+// its kind that lies along that bearing from where the bot stands. (A laser hums from its
+// nearest beam tile, so any tile of the beam can be the source.)
+function hearHazards(room: Room, view: RoleView, known: Known): void {
+  const me = view.you.pos;
+  if (!me) return;
+  for (const s of view.sounds) {
+    if (s.kind === "clue" && s.dir && s.n !== undefined) {
+      // a chime: the nearest clue along the bearing says n, with no picture to go with it
+      const clue = alongBearing(room, "clue", me, s.dir);
+      if (clue) known.clues[clue] = s.n;
+      continue;
+    }
+    const kind = HEARD_KIND[s.kind];
+    if (!kind || !s.dir) continue;
+    let best: { id: string; d: number } | null = null;
+    for (const o of room.objects) {
+      if (o.kind !== kind) continue;
+      const spots =
+        kind === "laser" ? [o.tiles[0] as Vec, ...laserBeam(room, o)] : [o.tiles[0] as Vec];
+      for (const t of spots) {
+        const dx = t.x + 0.5 - me.x;
+        const dy = t.y + 0.5 - me.y;
+        const d = Math.hypot(dx, dy);
+        if (d < 0.01) continue;
+        if ((dx * s.dir.x + dy * s.dir.y) / d < BEARING_COS) continue;
+        if (!best || d < best.d) best = { id: o.id, d };
+      }
+    }
+    if (best) known.seenHazards[best.id] = { lastTick: view.tick };
+  }
+}
+
 function observe(room: Room, view: RoleView, m: BotMemory): Known {
   const known = ensureKnown(room, m);
+  hearHazards(room, view, known);
   for (const e of view.entities) {
     if (e.kind === "door") known.doorOpen[e.id] = e.state === "open";
     else if (e.kind === "plate") known.pressed[e.id] = e.state === "pressed";
@@ -232,6 +297,9 @@ function observe(room: Room, view: RoleView, m: BotMemory): Known {
     else if (e.kind === "checkpoint" && e.state === "reached") {
       known.checkpoint = Math.max(known.checkpoint, Number(e.id.slice(1)));
     } else if (e.kind === "sign" && e.shows) known.seq[e.shows.join()] = e.progress ?? 0;
+    else if (e.kind === "guard" || e.kind === "camera" || e.kind === "laser") {
+      known.seenHazards[e.id] = { lastTick: view.tick }; // in line of sight right now
+    }
   }
   // an alarm speeds the guards up and holds the cameras on: the forecast needs its windows
   if (view.alarm && m.alarmFrom === null) m.alarmFrom = view.tick;
