@@ -658,3 +658,33 @@ Checked by rendering the lobby at 375 and 1280 px, the full suite (98 files,
 1094 passing), and unit tests for the rule. The same screenshot caught the sheet
 using the translucent `--glass`, which let lobby text show through; it now uses
 `--panel`.
+
+## 2026-10-20 — Stopping A3 twice instead of tuning the bots to pass
+
+7d3aa6a, b2269d2, d00bc84
+
+Line of sight made the sighted roles blind to a dark zone, and the plan's A3 rule
+said bots must plan only around hazards they have perceived, never from the room
+file. I wired the planner to a record of hazards seen or heard, and rooms 02 and
+03 stopped clearing in every rotation. The obvious next step was to tune it until
+the spec went green. I stopped instead, twice, and asked.
+
+The first run showed why: every catch came in the first 120 ticks, at the edge of
+room 03's dark corridor, where only Can't see perceives the guard and the bot in
+that seat tells no one. I tried the one thing the method table allowed, the Hold up
+face. Warning on every hazard sound sent 70-75 faces a run and the team never
+left the spawns; warning only on loud sounds gave 35 catches. Each setting fixed
+one failure by causing the opposite, which is tuning to a test. I reverted the
+planner change and the warning, kept the harness, the hazard-set forecast and the
+seen-or-heard record with their tests, and recorded A3 as not met in the plan.
+
+The earlier call that paid off: a held sequence reset three tests that pressed a
+plate with one seat that then walked off. I changed those tests to hold each plate
+with its own seat, because the rule they encoded is the one the task replaces, and
+I wrote a test that no sequence plate is released before the door opens to show
+the bots already satisfied it (a plate job only finishes when its door opens).
+
+Checked by `pnpm check` (99 files, 1132 tests, 90 s against a 141 s baseline) after
+Task 15, and the bench (3.1-3.4 ms per tick for 10 lobbies against a 10 ms
+budget). Two specs were seen flaky and left alone: `voice.test.ts` (fails 2 runs in
+3, passes alone) and four wheel cases (pass 25/25 in three isolated runs).
