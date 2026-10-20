@@ -169,10 +169,11 @@ linter only allows it inside a beat that declares one."
    dark (FR7) and sound still carries.
 3. Held sequences: the plates of a sequence door are pairwise ≥ 3 tiles apart
    (Chebyshev), so one body can't hold two.
-4. If any beat has `lead`, every role in the room is a `lead` of some beat
-   (rooms 2–4 each lead one role, the tutorial none: the linter only requires
-   that declared leads are valid roles and that rooms 02–04 — files whose meta
-   has `"leads": true` — declare all three).
+4. Every declared `lead` is a valid role, in every room. A room whose meta has
+   `"leads": true` must have all three roles as the `lead` of some beat; a room
+   without it (today's `01`–`03`, and the tutorial) declares none and is not
+   checked. (Amended in execution, 2026-10-20: the plan's "rooms 02–04" numbering
+   did not match the files, and "if any beat has `lead`" contradicted it.)
 
 **Held sequence (`step.ts`).** In `updateSequences`, before handling new
 presses: if any plate in `order[0..next-1]` is no longer `world.pressed`,
@@ -200,7 +201,7 @@ latches once open.
 
 ## 5. Task breakdown
 
-### Task 13: Glass and vent tiles
+### Task 13: Glass and vent tiles [x]
 
 - **Description:** `=` and `%` in the format, movement, lasers, linter BFS,
   bots' paths, sight and sound blocking helpers (§4 "Tiles").
@@ -260,8 +261,9 @@ latches once open.
   `PROCESS_LOG.md`; if over, cache `visibleFrom` per tile position (players
   rarely change tile) before anything else; `spec/rooms.test.ts` green — if a
   rotation fails because a bot now can't see what it relied on, that's
-  Task 16's job: mark the failing rotations `it.fails` with a pointer to
-  Task 16 only if Task 16 is the very next commit, else fix here.
+  Task 16's job, but no commit may carry a red or `it.fails` room spec: fix
+  the rotations here (the smallest bot change that restores them), and if many
+  fail, stop and report. (Amended in execution, 2026-10-20.)
 - **Depends on:** Task 13.
 
 ### Task 15: Held sequences, beats with leads and cues, new linter rules
@@ -339,4 +341,19 @@ latches once open.
 
 ## 8. Risks / open questions
 
-None.
+No open questions. Rulings from the execution review (2026-10-20):
+
+- Task 14 adds a test that the largest view (room 03, `seen` included) stays
+  under 8 KiB and reports the measured size.
+- Hide spots block hazards' sight only: `hazards.ts` and `forecast.ts` pass
+  `forHazard = true`; the existing cover tests stay unchanged.
+- Task 13 also fixes the other places that hard-code `"#"`/`"D"` and would treat
+  glass or a vent as floor: `forecast.ts` (`floor`), `brain.ts` (`tight`),
+  and, minimally, `Game.tsx` (`open`) and `render.ts` (wall adjacency).
+- `botsAct` gains a `muted?: Seat` parameter; `solveRoom` maps `opts.mute` (a
+  role) to the seat holding it.
+- If moving room 03's plates breaks a bot rotation, stop and ask; do not tune
+  the room.
+- Baseline: `spec/layout/voice.test.ts` is flaky on this machine (its `afterAll`
+  times out in about 2 of 3 runs, passes alone in 26 s). Not part of this phase;
+  logged, not fixed.

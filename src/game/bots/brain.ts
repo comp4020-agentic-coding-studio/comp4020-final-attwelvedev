@@ -306,7 +306,7 @@ function blockedFor(room: Room, known: Known, goal: Vec) {
   const crates = new Set(Object.values(known.crates).map(key));
   return (x: number, y: number): boolean => {
     const ch = room.grid[y]?.[x];
-    if (ch === undefined || ch === "#") return true;
+    if (ch === undefined || ch === "#" || ch === "=" || ch === "%") return true;
     const k = `${x},${y}`;
     if (ch === "D" && known.doorOpen[doorAt.get(k) ?? ""] !== true) return true;
     if (crates.has(k)) return true;
@@ -781,7 +781,7 @@ function tight(room: Room, tile: Vec, step: Step): boolean {
   const side = step === "left" || step === "right" ? { x: 0, y: 1 } : { x: 1, y: 0 };
   const wall = (t: Vec) => {
     const ch = room.grid[t.y]?.[t.x];
-    return ch === undefined || ch === "#" || ch === "D";
+    return ch === undefined || ch === "#" || ch === "D" || ch === "=" || ch === "%";
   };
   return [tile, next].some(
     (t) => wall({ x: t.x + side.x, y: t.y + side.y }) || wall({ x: t.x - side.x, y: t.y - side.y }),

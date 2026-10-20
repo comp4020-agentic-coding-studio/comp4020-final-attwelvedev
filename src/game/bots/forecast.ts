@@ -81,7 +81,10 @@ function build(room: Room, alarms: readonly AlarmWindow[]): Forecast {
   for (const o of room.objects) {
     if (o.kind === "hide") for (const t of o.tiles) hide.add(t.y * width + t.x);
   }
-  const floor = (x: number, y: number) => room.grid[y]?.[x] !== "#";
+  const floor = (x: number, y: number) => {
+    const ch = room.grid[y]?.[x];
+    return ch !== "#" && ch !== "=" && ch !== "%";
+  };
 
   const lasers = room.objects.filter((o) => o.kind === "laser");
   const beams = new Map(lasers.map((o) => [o.id, laserBeam(room, o)]));

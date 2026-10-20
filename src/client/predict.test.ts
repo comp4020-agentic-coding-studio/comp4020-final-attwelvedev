@@ -94,3 +94,25 @@ describe("createPredictor", () => {
     near(predictor.reconcile({ x: 7, y: 2 }, 1), { x: 7, y: 2 });
   });
 });
+
+describe("createPredictor: glass and vents", () => {
+  for (const [name, ch] of [
+    ["glass", "="],
+    ["a vent", "%"],
+  ] as const) {
+    it(`is stopped by ${name}`, () => {
+      const grid = [
+        "##############",
+        "#1...........#",
+        `#2...${ch}.......#`,
+        "#3...........#",
+        "##############",
+      ];
+      const predictor = createPredictor({ x: 1.5, y: 2.5 }, roomFrom(grid).grid);
+      let pos = { x: 1.5, y: 2.5 };
+      for (let i = 0; i < 40; i++)
+        pos = predictor.apply({ seq: i + 1, move: { x: 1, y: 0 }, act: false }, TICK_MS);
+      expect(pos.x).toBeLessThanOrEqual(5 - 0.4 + 1e-9);
+    });
+  }
+});

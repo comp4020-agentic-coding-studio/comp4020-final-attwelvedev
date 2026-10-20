@@ -120,6 +120,7 @@ function drawTiles(ctx: CanvasRenderingContext2D, tiles: string[], cam: Camera) 
   // a space is a tile inside a dark zone: the server sends nothing about it
   for (const [ch, color] of [
     ["#", COLOR.solid],
+    ["%", COLOR.solid],
     [" ", COLOR.ink],
   ] as const) {
     ctx.fillStyle = color;
@@ -133,6 +134,23 @@ function drawTiles(ctx: CanvasRenderingContext2D, tiles: string[], cam: Camera) 
             cam.scale + 0.5,
             cam.scale + 0.5,
           );
+      }
+    }
+  }
+  // a vent is a wall with slats cut in it; glass is an outlined, empty tile
+  const s = cam.scale;
+  ctx.fillStyle = COLOR.bg;
+  ctx.strokeStyle = COLOR.uiMuted;
+  ctx.lineWidth = 2;
+  for (let y = 0; y < tiles.length; y++) {
+    const row = tiles[y] ?? "";
+    for (let x = 0; x < row.length; x++) {
+      const px = cam.ox + x * s;
+      const py = cam.oy + y * s;
+      if (row[x] === "%") {
+        for (let i = 1; i <= 3; i++) ctx.fillRect(px + s * 0.15, py + (s * i) / 4 - 1, s * 0.7, 2);
+      } else if (row[x] === "=") {
+        ctx.strokeRect(px + 1, py + 1, s - 2, s - 2);
       }
     }
   }
@@ -205,8 +223,11 @@ function blockedFor(scene: Scene): (tx: number, ty: number) => boolean {
     const closedDoor = e.kind === "door" && e.state === "closed";
     if (closedDoor || e.kind === "hide") solid.add(`${Math.floor(e.pos.x)},${Math.floor(e.pos.y)}`);
   }
-  const fn = (tx: number, ty: number) =>
-    scene.tiles?.[ty]?.[tx] === "#" || solid.has(`${tx},${ty}`);
+  // glass lets a hazard's sight through, so only walls and vents cut its cone
+  const fn = (tx: number, ty: number) => {
+    const ch = scene.tiles?.[ty]?.[tx];
+    return ch === "#" || ch === "%" || solid.has(`${tx},${ty}`);
+  };
   blockerCache.set(scene, fn);
   return fn;
 }

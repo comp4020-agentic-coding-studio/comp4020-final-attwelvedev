@@ -116,6 +116,8 @@ const TILES = new Set([
   "K",
   "$",
   "S",
+  "=", // glass: sight passes, sound and bodies don't
+  "%", // vent: sound passes, sight and bodies don't
 ]);
 
 // Single-tile objects numbered in reading order: letter -> [kind, id prefix].
@@ -279,7 +281,7 @@ export function parseRoom(text: string): Room {
   for (const [i, tiles] of components(raw, "D").entries()) add(`D${i + 1}`, "door", tiles);
   for (const [i, tiles] of components(raw, "E").entries()) add(`E${i + 1}`, "exit", tiles);
 
-  const grid = raw.map((row) => row.replace(/[^#D]/g, "."));
+  const grid = raw.map((row) => row.replace(/[^#D=%]/g, "."));
   return {
     id: meta.id,
     name: meta.name,

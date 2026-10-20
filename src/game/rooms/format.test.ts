@@ -150,3 +150,13 @@ describe("parseRoom: hazards, checkpoints, loot and signs", () => {
     );
   });
 });
+
+describe("parseRoom: glass and vents", () => {
+  it("keeps = (glass) and % (vent) in the grid, like walls", () => {
+    const grid = [...GRID];
+    grid[4] = "#..#=...%.........#";
+    const room = parseRoom(text(grid));
+    expect(room.grid[4]?.[4]).toBe("=");
+    expect(room.grid[4]?.[8]).toBe("%");
+  });
+});

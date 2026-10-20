@@ -253,3 +253,16 @@ describe("the fixture rooms", () => {
     for (const r of rooms) expect(lintRoom(r)).toEqual([]);
   });
 });
+
+describe("lintRoom: glass and vents are walls for walking", () => {
+  it("flags an exit behind a vent or glass wall as unreachable", () => {
+    for (const ch of ["%", "="]) {
+      const walled = [...GOOD];
+      walled[1] = `#1.#.........D${ch}..E.#`;
+      walled[2] = `#2.#....p....D${ch}....#`;
+      walled[3] = `#3.B....p....D${ch}....#`;
+      walled[4] = `#..#....p.....${ch}....#`;
+      expect(messages(room(walled))).toContainEqual(expect.stringMatching(/exit.*reach/i));
+    }
+  });
+});

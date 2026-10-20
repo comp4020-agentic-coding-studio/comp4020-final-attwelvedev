@@ -274,7 +274,7 @@ function Hud({
     const ty = Math.floor((clientY - box.top - cam.oy) / cam.scale);
     const row = tiles[ty];
     if (row === undefined || tx < 0 || tx >= row.length) return null;
-    return { at: { x: tx + 0.5, y: ty + 0.5 }, open: row[tx] !== "#" };
+    return { at: { x: tx + 0.5, y: ty + 0.5 }, open: row[tx] !== "#" && row[tx] !== "%" };
   }
 
   function change(next: SettingsState) {

@@ -73,7 +73,7 @@ export function lintRoom(room: Room): LintIssue[] {
           const n = { x: t.x + dx, y: t.y + dy };
           const key = `${n.x},${n.y}`;
           const ch = room.grid[n.y]?.[n.x];
-          if (ch === undefined || ch === "#" || seen.has(key)) continue;
+          if (ch === undefined || ch === "#" || ch === "=" || ch === "%" || seen.has(key)) continue;
           seen.add(key);
           queue.push(n);
         }
