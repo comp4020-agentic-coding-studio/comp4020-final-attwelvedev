@@ -4,6 +4,7 @@
   {"name":"Out","x":[15,19],"intent":{"blind":"follows the footsteps to the exit","deaf":"guides the others onto the exit","mute":"confirms everyone is on it"}}
  ],
  "objects":{"D1":{"opensWhen":["p1","p2","p3"]}},
+ "flips":[{"kind":"alarm","trigger":"p3","durationS":30}],
  "hints":{"jobs":[
   {"beat":1,"goTo":"p2","prefer":"blind"},
   {"beat":1,"goTo":"p1","prefer":"deaf"},
