@@ -688,3 +688,25 @@ Checked by `pnpm check` (99 files, 1132 tests, 90 s against a 141 s baseline) af
 Task 15, and the bench (3.1-3.4 ms per tick for 10 lobbies against a 10 ms
 budget). Two specs were seen flaky and left alone: `voice.test.ts` (fails 2 runs in
 3, passes alone) and four wheel cases (pass 25/25 in three isolated runs).
+
+## 2026-10-20 — Two screenshot misses with one cause, put into CLAUDE.md
+
+resolved by the commit that adds this entry
+
+In Task 12 the user found two defects by eye that my green specs had passed: the
+vote card's countdown broke at its colon ("0:0" over "2") beside a long title, and
+the spectator's Hold to talk read "VHold to talk" where the players' buttons set
+the key apart. I had looked at screenshots for both, but at the short names and the
+players' panel, not the long title and not the spectator's.
+
+The cause was the same twice: a style that worked where it was written (a flex
+timer with short text, a `kbd` rule scoped to `.talk-bar`) and nothing that checked
+it anywhere else. Fixing the two instances would have left the next reused
+component open, so I added a line to CLAUDE.md's visual-change rule: look at a
+screenshot at the new place and with a longer input before reporting done.
+
+Each fix started with a spec that fails first: the timer spec measures the
+countdown's height on the long heist title and failed at 52 px against 39 before
+the CSS change; the spectator spec checks the key hint is shown and muted. I put
+the CSS back and re-ran to see the timer spec pass, so I knew it was testing the
+bug and not passing by default.

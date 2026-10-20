@@ -73,6 +73,9 @@ a failing test.
   spec measures the promise, not a stand-in for it (slot boxes that never
   touch, not "centres are far apart"; a target at least 48 px, not "the scale
   is 1"; text not clipped via `scrollHeight`), for every role and viewport.
+  When a component is reused outside the parent its styles were written for,
+  or is given a longer name, title or number than the test used, look at a
+  screenshot at that place and with that input before reporting done.
 
 ## Tests
 
