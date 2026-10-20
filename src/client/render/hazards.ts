@@ -2,7 +2,7 @@ import { visiblePolygon } from "../../game/cone.ts";
 import type { EntityView } from "../../net/protocol.ts";
 import { COLOR, WORLD } from "../tokens.ts";
 import type { Scene } from "./index.ts";
-import { type Camera, TILT, toScreen } from "./project.ts";
+import { type Camera, LIVE, toScreen } from "./project.ts";
 import { diamond, floorRing, hatch } from "./shared.ts";
 
 // What blocks sight, as the server counts it: walls, vents, closed doors and hide spots
@@ -119,7 +119,7 @@ function drawCamera(
   s: number,
 ) {
   const watching = e.state === "watching";
-  const aim = Math.atan2((e.facing?.y ?? 1) * TILT.depth, e.facing?.x ?? 0); // the lens points where it looks
+  const aim = Math.atan2((e.facing?.y ?? 1) * LIVE.depth, e.facing?.x ?? 0); // the lens points where it looks
   const ink = watching ? WORLD.watch : WORLD.line;
   ctx.save();
   ctx.translate(at.x, at.y);
@@ -231,7 +231,7 @@ export function drawHazard(
     const foot = toScreen(cam, e.pos.x, e.pos.y);
     ctx.fillStyle = WORLD.line;
     ctx.globalAlpha = 0.25;
-    floorRing(ctx, foot.x, foot.y, s * 0.5, TILT.depth);
+    floorRing(ctx, foot.x, foot.y, s * 0.5, LIVE.depth);
     ctx.fill();
     ctx.globalAlpha = 1;
     const body = toScreen(cam, e.pos.x, e.pos.y, 0.5);

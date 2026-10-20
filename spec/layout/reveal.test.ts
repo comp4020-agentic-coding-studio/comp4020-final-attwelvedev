@@ -121,6 +121,62 @@ describe("each role's reveal card", () => {
   });
 });
 
+describe("the world rises out of the reveal (FR25)", () => {
+  // Records every value `data-rise` takes on the covering reveal, so a transition that is over in
+  // 300 ms still leaves a record of what kind it was.
+  const watchRise = (page: Page) =>
+    page.evaluate(() => {
+      const seen = new Set<string | null>();
+      (window as unknown as { __rise: Set<string | null> }).__rise = seen;
+      new MutationObserver(() => {
+        const el = document.querySelector(".reveal-frame.covering");
+        if (el) seen.add(el.getAttribute("data-rise"));
+      }).observe(document.body, { subtree: true, childList: true, attributes: true });
+    });
+  const risesSeen = (page: Page) =>
+    page.evaluate(() => [...(window as unknown as { __rise: Set<string | null> }).__rise]);
+  const allReady = async (pages: Page[]) => {
+    for (const page of pages) await page.getByRole("button", { name: "I'm ready" }).click();
+  };
+
+  it("after everyone is ready the reveal card is gone and the game's canvas is visible within 1.5 s", async () => {
+    const { pages } = await revealed(["Ana", "Bo", "Cy"]);
+    for (const page of pages) await watchRise(page);
+    await allReady(pages);
+    for (const page of pages) {
+      await expect.poll(() => page.locator(".reveal").count(), { timeout: 1500 }).toBe(0);
+      await page.locator(".frame canvas").waitFor({ state: "visible", timeout: 1500 });
+    }
+    // it rose: the reveal covered the game for the transition, as a rise and not a fade
+    expect(await risesSeen(pages[1] as Page)).toEqual(["rise"]);
+    await closeAll(pages);
+  });
+
+  it("with reduced motion the swap is a cross-fade: no rise, and over in well under a second", async () => {
+    const { pages } = await revealed(["Ana", "Bo", "Cy"]);
+    for (const page of pages) {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await watchRise(page);
+    }
+    await allReady(pages);
+    for (const page of pages) {
+      await expect.poll(() => page.locator(".reveal").count(), { timeout: 1500 }).toBe(0);
+      await page.locator(".frame canvas").waitFor({ state: "visible", timeout: 1500 });
+      expect(await risesSeen(page)).toEqual(["fade"]);
+    }
+    await closeAll(pages);
+  });
+
+  it("the cover can't be focused or pressed while it fades: I'm ready is not still live", async () => {
+    const { pages } = await revealed(["Ana", "Bo", "Cy"]);
+    await allReady(pages);
+    const ana = pages[0] as Page;
+    await ana.locator(".reveal-frame.covering").waitFor({ state: "attached", timeout: 3000 });
+    expect(await ana.locator(".reveal-frame.covering").getAttribute("inert")).not.toBeNull();
+    await closeAll(pages);
+  });
+});
+
 describe("the crew column", () => {
   it("shows Ready for those who pressed I'm ready, and bots as ready", async () => {
     const { pages } = await revealed(["Ana", "Bo", "Cy"]);

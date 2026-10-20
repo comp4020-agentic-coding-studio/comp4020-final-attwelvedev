@@ -117,9 +117,9 @@ a symbol into copy; it would fall back to another font and look wrong.
 
 - Axis-aligned grid, north up, about a 55° tilt: a floor tile's top face is 0.82 of a tile deep (`TILT.depth`), a wall's front 1.1 tiles tall (`TILT.wall`), crates and doors 0.7 (`TILT.block`). `toScreen` in `src/client/render/project.ts` is the one projection.
 - Painter's order by row, north to south: the floor, then each row's blocks, then what stands in that row (doors, crates, flags, hazards, figures, marks) by row.
-- `follow` is the game camera: your avatar stays in frame, about 18 tiles wide on desktop and 7 on a phone, clamped to the room. `fit` shows the whole room (the home feeds).
+- `follow` is the game camera: about 18 tiles wide on desktop and 7 on a phone, clamped to the room. It keeps your avatar a third of the view in from the edge (`MAP.edgeMargin`), so it starts to follow well before you reach it, and it is **eased** by `easeCamera`, a critically damped spring with a velocity of its own (0.15 s), so its speed never changes in a single frame. The constant was measured, not chosen: over a walk the length of a 48-tile room with the teammates left behind, 0.3 s let the avatar within 6% of a phone window's edge and 0.4 s let it out; 0.15 s keeps it 14% (desktop) to 18% (phone) in, with the worst single-frame change at about a tenth of cruise speed. A jump (a restart) takes the target outright. `fit` shows the whole room (the home feeds).
 - The room is one island slab with a 2-tile cliff into the water, under a peach-to-mint sky. The ripples drift unless motion is reduced.
-- A wall in front of a figure fades to 35 % and the figure is outlined dashed behind it.
+- A wall in front of a figure is see-through by distance: 35 % where it is right over them, fading smoothly to solid over about 1.6 tiles, so walking along a wall moves a soft window with you and no tile flips. The figure behind it is drawn again, outline only and dashed, over the wall, by the same figure code as the body, so it hops, squashes and leans with it.
 - Glass is translucent and a vent is opaque and slatted; both are solid to bodies. Doors slide into the floor (an open one is a dashed slot). Plates sink 3 px when pressed. Loot is a gem that bobs. Marks are upright signposts.
 - Lasers run at 0.6 of a tile with a floor shadow (off is dotted); a camera or guard's sight is a hatched cone on the floor when watching.
 
@@ -140,16 +140,19 @@ a symbol into copy; it would fall back to another font and look wrong.
 ### 4.4 Glass, vents, mist, night (built, Tasks 18 and 20)
 
 - **Glass** is translucent with glints: you see through it, sound doesn't pass. **Vents** are slatted: sound passes, sight doesn't. Neither lets a body through. (The "no sound" and "sound passes" marks on them are still to draw.)
-- **Mist** veils every tile outside your line of sight (`seen` in the view): its floor, and a wall up to its top, under `--w-mist` at 60 % with a static stipple (half black under high contrast). You still know the layout; the server never sends what is in it. Watchers are sent no `seen`, so they see the whole room clear.
+- **Mist** veils everything outside your line of sight, under `--w-mist` at 60 % with a static stipple (half black under high contrast). You still know the layout; the server never sends what is in it. The edge of the light is the **true ray cast** from where you stand (`lightPolygon`): it runs exactly through the corners of walls, as a camera's or guard's cone does, with the same blockers as the server (walls, vents, closed doors; glass passes). Tiles the server did not send (`seen`) stay under mist whatever the ray says, so the picture never shows more than it was sent. A wall is lit where a ray lands on its face. Watchers are sent no `seen`, so they see the whole room clear.
 - **Night** is a dark zone: `--w-night` with a rim along its edge. Only Show items, marks and your own ring are in it.
 - **Marks** in a tile you can't see are drawn at 35 % through the mist: only a teammate's message, never room state.
 - **Edge pills.** A face or mark from someone you can't see (or a mark placed off screen) is a glass pill at the screen edge, where the ray from the middle of the screen to them leaves it: their role shape, their name in the HUD's font, and the face (a 1.5 s plate) or the mark's glyph. The face goes after 1.5 s; the pill stays alone for 4 s, then fades. A sender in sight shows over their head instead.
 
-### 4.5 The world rises (planned, Task 21)
+### 4.5 The world rises (built, Task 21)
 
-When everyone is ready, the flat blurred room under the reveal tilts up into the
-3/4 world over 900 ms. Reduced motion: a 300 ms cross-fade. The canvas stays
-mounted throughout.
+When everyone is ready the game starts underneath the reveal and **rises**: over 900 ms, ease-out, depth goes from a full tile to 0.82 and every wall, block and door grows from no height to its own, while the camera eases from the whole room to the game camera. The reveal stays over it as the same element (its flat backdrop keeps drawing, nothing remounts), and its card, scrim and blur fade away over the same 900 ms. The cover takes no clicks and is `inert`.
+
+- **Reduced motion:** no rise frames. The world is whole at once and the reveal cross-fades away over 300 ms.
+- **Can't see** has no world to rise: their screen is black throughout, and their dimmed figure fades in over the first 400 ms.
+- A page that loads mid-game (a reload) does not rise; it is simply there.
+- `Scene.rise` (0 to 1) drives it; `LIVE` in `src/client/render/project.ts` is the projection a frame draws with, and `TILT` is the finished one.
 
 ### 4.6 Labels
 

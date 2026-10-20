@@ -293,7 +293,7 @@ without `nowMs`).
 - **Acceptance criteria:** tests green. `DESIGN.md`'s world section updated to match (planned → built).
 - **Depends on:** Task 19, Task 14.
 
-### Task 21: The world rises out of the reveal
+### Task 21: The world rises out of the reveal [x]
 
 - **Description:** The 900 ms rise from the flat blurred reveal into the 3/4
   world; Can't see's fade to black; reduced-motion cross-fade.
@@ -347,4 +347,9 @@ None.
 
 One line per redirect after the user has seen a result: expected, wanted, why the first attempt missed.
 
-_(none yet)_
+- 2026-10-20, Task 19/18: expected the dashed figure behind a wall to move with the figure; user saw it lag the animation. Cause: the outline is a separate rectangle at the server's position, while the figure is drawn at your predicted position with hop, squash and lean. Fix (done): the outline is drawn by the same figure code, over the wall.
+- 2026-10-20, Task 18: expected the wall fade to read as smooth; user saw wall tiles go transparent one at a time as they walked along it, "janky and cheap". Cause: the fade is a per-tile yes/no on the tile column the figure is in. Fix (done): a radius around the figure, smoothstep falloff.
+- 2026-10-20, Task 20: expected tile-level mist to pass; user wants the mist to be the exact line of sight, ray-cast like the camera and guard cones. Cause: mist is drawn per tile from the server's `seen` set, Fix (done): the edge is a ray-cast polygon, clipped to the server's tiles.
+- 2026-10-20, Task 18: expected the desktop follow camera to feel smooth; user saw a sudden snap once the avatar walks far enough from spawn. Cause: the camera is a pure clamp, so its speed jumps from 0 to full when your avatar reaches the margin. Fix (done): `easeCamera`.
+- 2026-10-21, Task 18: user reported the camera still snapped playing with two bots, going all the way right with the bots still on the left. Expected: the first fix (an exponential ease) to be smooth. Cause: two. The target camera is centred on the team, so with the bots parked on the left it sits well behind you and starts to follow at full speed once you pass a margin; and a first-order ease still starts at full strength, so in a real browser the camera's speed changed by 1.1 to 1.5 px in one frame at that corner. My first check modelled one idealised walk and passed; it missed both. Fix: a critically damped spring with its own velocity, a wider margin, and a time constant picked from a measured sweep. Unit tests now replay the game's whole pipeline (20 Hz steps, the position smoothing, teammates left behind) at desktop and phone width, and a real-browser measurement on a 48-tile room backs it.
+- 2026-10-21, Task 21: committed on the user's explicit "commit as is" with no clean full `pnpm check`: every full run after the 2026-10-20 evening hit machine-wide load (load average 30 to 440) and timed out lobby, home and spectator specs, which pass alone. `spec/layout/sight.test.ts` (mine) failed in some full runs and passes alone; a `check:flaky` on it was still running. Phase 05 is NOT ticked: the full check and the frame-time measurement (>= 55 fps at 1280x800 on room 03) are still open.

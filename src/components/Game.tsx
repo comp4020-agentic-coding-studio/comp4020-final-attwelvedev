@@ -19,8 +19,10 @@ import {
 import { createInput } from "../client/input.ts";
 import { createPredictor, type Predictor } from "../client/predict.ts";
 import {
+  type Camera,
   camera,
   draw,
+  easeCamera,
   type FacePop,
   fromScreen,
   type Motion,
@@ -86,9 +88,14 @@ interface Runtime {
   cueHold: HeldCues; // cue captions and when to let each go
   fx: { fx: Fx; at: number }[]; // small effects for what just changed, by when they started
   soundOn: boolean;
+  // The world rising out of the reveal (FR25): when it began, and whether it is the 300 ms
+  // cross-fade of reduced motion. Null until the game starts; a page that loads mid-game never rises.
+  rise: { at: number; reduced: boolean } | null;
   cam: { scale: number; ox: number; oy: number } | null; // the last frame's map camera, to turn a tap into a tile
 }
 
+const RISE_MS = 900; // the world rises out of the reveal
+const FADE_MS = 300; // reduced motion: a cross-fade instead
 const CAPTION_MS = 5000;
 const PILL_MS = 4000; // an edge pill outlasts the face on it (FACE_POP_MS) by a few seconds
 const fadeOut = (leftMs: number) => Math.min(1, leftMs / 300);
@@ -104,6 +111,7 @@ function useDraw(
   frame: { current: HTMLDivElement | null },
   role: Role,
   crew: CrewMember[],
+  flat = false, // the reveal's backdrop: the whole room, flat, under the card
 ) {
   useEffect(() => {
     const el = canvas.current;
@@ -122,6 +130,8 @@ function useDraw(
     const observer = new ResizeObserver(resize);
     observer.observe(box);
     let raf = 0;
+    let eased: Camera | null = null;
+    let lastFrame = performance.now();
     const frameLoop = () => {
       raf = requestAnimationFrame(frameLoop);
       const view = rt.view;
@@ -169,7 +179,8 @@ function useDraw(
         // role reads it off its own predicted position, which is ahead of the server
         own: ownMotion(rt, role),
         bots: crew.map((c) => !!c.bot) as Scene["bots"],
-        layout: size.w >= 720 ? "fit" : "follow",
+        layout: "follow", // the game camera on every screen; the rise eases it in from the whole room
+        rise: flat ? 0 : riseNow(rt, now),
         pops,
         fx: rt.fx
           .filter((f) => now - f.at < FX_MS)
@@ -178,7 +189,20 @@ function useDraw(
         nowMs: now,
         reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
       };
-      rt.cam = camera(scene);
+      // the camera is eased frame to frame so it never snaps; the home feeds and the reveal's flat
+      // backdrop ask for the whole room, which does not move, so easing leaves them alone
+      const target = camera(scene);
+      const cam = easeCamera(eased, target, now - lastFrame, scene);
+      eased = cam;
+      lastFrame = now;
+      scene.cam = cam;
+      if (!flat) {
+        rt.cam = cam; // the reveal's backdrop is not what a tap is turned into a tile by
+        // Where tile (0, 0) is, for the specs that read a pixel of a tile: the picture alone does not
+        // say where a tile is, and the camera is eased, so it is not worked out from the room.
+        const at = `${cam.scale.toFixed(3)},${cam.ox.toFixed(3)},${cam.oy.toFixed(3)}`;
+        if (el.dataset.camera !== at) el.dataset.camera = at;
+      }
       draw(ctx, scene);
     };
     raf = requestAnimationFrame(frameLoop);
@@ -186,13 +210,22 @@ function useDraw(
       cancelAnimationFrame(raf);
       observer.disconnect();
     };
-  }, [rt, role, crew, canvas, frame]);
+  }, [rt, role, crew, canvas, frame, flat]);
 }
 
 // How hard a held direction has to push to count as moving: under this share of the step, it is
 // blocked (the server's rule is the same shape: "almost nowhere").
 const BLOCKED_SHARE = 0.2;
 const STEP_TILES = 4 / NET.inputHz; // SPEED_TPS in predict.ts, per input
+
+// How far the world has risen, 0 to 1, eased out. Reduced motion has no rise frames: the world is
+// whole at once and the reveal over it cross-fades. Absent (a page loaded mid-game) is whole.
+function riseNow(rt: Runtime, now: number): number {
+  const r = rt.rise;
+  if (!r || r.reduced) return 1;
+  const t = Math.max(0, Math.min(1, (now - r.at) / RISE_MS));
+  return 1 - (1 - t) ** 3;
+}
 
 function ownMotion(rt: Runtime, role: Role): Motion {
   const motion = role === "blind" ? rt.view?.you.motion : rt.walking;
@@ -271,10 +304,14 @@ export function Game({
     fx: [],
     cueHold: new Map(),
     soundOn: true,
+    rise: null,
     cam: null,
   });
   const audio = useRef<GameAudio | null>(null);
   const [playing, setPlaying] = useState(false);
+  // While the game rises under the reveal the reveal stays up, covering it and fading out: "rise",
+  // or "fade" for reduced motion. Null when nothing covers the game.
+  const [covering, setCovering] = useState<"rise" | "fade" | null>(null);
   const [ready, setReady] = useState(false);
   const [readySeats, setReadySeats] = useState<Seat[]>(early.ready); // who the server says is ready, bots included
   const stage = useRef<HTMLDivElement>(null);
@@ -285,14 +322,26 @@ export function Game({
   // from a later tick arrives.
   useEffect(() => {
     audio.current = createAudio();
+    // The game has started: the first view from a later tick. If this page watched the reveal it
+    // rises out of it; one that loads mid-game (a reload) is simply there.
+    const start = (sawReveal: boolean) => {
+      const r = rt.current;
+      if (r.rise === null) {
+        const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+        r.rise = { at: sawReveal ? performance.now() : Number.NEGATIVE_INFINITY, reduced };
+        if (sawReveal) setCovering(reduced ? "fade" : "rise");
+      }
+      setPlaying(true);
+    };
     // the view that came with the reveal, before this listener existed
     if (early.view && rt.current.view === null) {
       onView(rt.current, early.view, audio.current);
-      if (early.view.tick > 0) setPlaying(true);
+      if (early.view.tick > 0) start(false);
     }
     const off = socket.on("view", (m) => {
+      const sawReveal = rt.current.view?.tick === 0;
       if (audio.current) onView(rt.current, m.view, audio.current);
-      if (m.view.tick > 0) setPlaying(true);
+      if (m.view.tick > 0) start(sawReveal);
     });
     return () => {
       off();
@@ -300,6 +349,13 @@ export function Game({
       audio.current = null;
     };
   }, [socket, early]);
+
+  // the cover goes when its fade is over
+  useEffect(() => {
+    if (!covering) return;
+    const id = setTimeout(() => setCovering(null), covering === "fade" ? FADE_MS : RISE_MS);
+    return () => clearTimeout(id);
+  }, [covering]);
 
   // The server says who is ready, on every change. A swap clears everyone, so this page's own button
   // follows the server rather than its own memory.
@@ -319,97 +375,113 @@ export function Game({
   }, []);
 
   // The room behind the card: the view sent with the reveal, drawn flat, until the first tick.
-  useDraw(rt.current, backdrop, stage, reveal.role, reveal.crew);
+  useDraw(rt.current, backdrop, stage, reveal.role, reveal.crew, true);
   const watchers = watching.map((nickname, n) => ({ ref: -4 - n, nickname }));
   const gone = useGone(socket);
   const hostNote = useHostNote(hostName, host);
   const held = usePause(socket);
   const myName = reveal.crew.find((c) => c.role === reveal.role)?.nickname;
 
-  if (!playing) {
-    const me = (rt.current.view?.you.seat ??
-      reveal.crew.findIndex((c) => c.role === reveal.role)) as Seat;
-    return (
-      <div class="reveal-frame" ref={stage}>
-        <div class="reveal-canvas" aria-hidden="true">
-          <canvas ref={backdrop} />
-        </div>
-        <div class="reveal-scrim" />
-        {(gone || hostNote) && (
-          <p class="hud-alert reveal-gone" role="status">
-            {[gone, hostNote].filter(Boolean).join(" ")}
-          </p>
-        )}
-        <RoleReveal
-          {...reveal}
-          me={me}
-          ready={ready}
-          readySeats={readySeats}
-          host={host}
-          watching={watching}
-          audio={audio}
-          onSwap={(a, b) => {
-            // a person is their index in the lobby; a bot, who has no index, is named by its seat
-            const ref = (name: string): number | null => {
-              const at = people.indexOf(name);
-              if (at >= 0) return at;
-              const bot = reveal.crew.find((c) => c.bot && c.nickname === name);
-              if (bot) return botRef(bot.seat);
-              const watcher = watching.indexOf(name); // -4 - n: the nth spectator
-              return watcher >= 0 ? -4 - watcher : null;
-            };
-            const first = ref(a);
-            const second = ref(b);
-            if (first !== null && second !== null) {
-              socket.send({ t: "crew.swap", a: first, b: second });
-            }
-          }}
-          onReady={(on) => {
-            void audio.current?.resume(); // a tap is the browser's cue to let sound play
-            setReady(on);
-            socket.send(on ? { t: "ready" } : { t: "ready", on: false });
-          }}
-        />
-        {held.pause?.forReady && held.pause.waitingFor === myName && (
-          <p class="hud-alert reveal-gone" role="status">
-            The game is waiting for you. Press I'm ready.
-          </p>
-        )}
-        {held.pause && !held.pause.forReady && (
-          <Disconnect
-            waitingFor={held.pause.waitingFor}
-            secondsLeft={held.secondsLeft}
-            choosing={held.pause.choosing}
-            host={host}
-            sitting={sitting}
-            watching={watchers}
-            gone={held.pause.gone}
-            forReady={held.pause.forReady}
-            hostName={hostName}
-            onChoice={(choice, person) =>
-              socket.send({ t: "host.choice", choice, ...(person === undefined ? {} : { person }) })
-            }
-          />
-        )}
-      </div>
-    );
-  }
+  // Before the game starts the reveal is the page. When it starts the game rises underneath and
+  // the reveal stays over it, fading, so it is the same element throughout: its backdrop canvas
+  // keeps drawing and nothing remounts.
+  const cover = !playing || covering !== null;
+  const me = (rt.current.view?.you.seat ??
+    reveal.crew.findIndex((c) => c.role === reveal.role)) as Seat;
   return (
-    <Hud
-      rt={rt.current}
-      socket={socket}
-      state={state}
-      rttMs={rttMs}
-      online={online}
-      reveal={reveal}
-      host={host}
-      hostName={hostName}
-      seats={seats}
-      sitting={sitting}
-      watchers={watchers}
-      audio={audio}
-      onLeave={onLeave}
-    />
+    <>
+      {playing && (
+        <Hud
+          rt={rt.current}
+          socket={socket}
+          state={state}
+          rttMs={rttMs}
+          online={online}
+          reveal={reveal}
+          host={host}
+          hostName={hostName}
+          seats={seats}
+          sitting={sitting}
+          watchers={watchers}
+          audio={audio}
+          onLeave={onLeave}
+        />
+      )}
+      {cover && (
+        <div
+          class={covering ? "reveal-frame covering" : "reveal-frame"}
+          data-rise={covering ?? undefined}
+          inert={covering !== null}
+          aria-hidden={covering !== null ? "true" : undefined} // decoration while it fades: the HUD speaks
+          ref={stage}
+        >
+          <div class="reveal-canvas" aria-hidden="true">
+            <canvas ref={backdrop} />
+          </div>
+          <div class="reveal-scrim" />
+          {!covering && (gone || hostNote) && (
+            <p class="hud-alert reveal-gone" role="status">
+              {[gone, hostNote].filter(Boolean).join(" ")}
+            </p>
+          )}
+          <RoleReveal
+            {...reveal}
+            me={me}
+            ready={ready}
+            readySeats={readySeats}
+            host={host}
+            watching={watching}
+            audio={audio}
+            onSwap={(a, b) => {
+              // a person is their index in the lobby; a bot, who has no index, is named by its seat
+              const ref = (name: string): number | null => {
+                const at = people.indexOf(name);
+                if (at >= 0) return at;
+                const bot = reveal.crew.find((c) => c.bot && c.nickname === name);
+                if (bot) return botRef(bot.seat);
+                const watcher = watching.indexOf(name); // -4 - n: the nth spectator
+                return watcher >= 0 ? -4 - watcher : null;
+              };
+              const first = ref(a);
+              const second = ref(b);
+              if (first !== null && second !== null) {
+                socket.send({ t: "crew.swap", a: first, b: second });
+              }
+            }}
+            onReady={(on) => {
+              void audio.current?.resume(); // a tap is the browser's cue to let sound play
+              setReady(on);
+              socket.send(on ? { t: "ready" } : { t: "ready", on: false });
+            }}
+          />
+          {!covering && held.pause?.forReady && held.pause.waitingFor === myName && (
+            <p class="hud-alert reveal-gone" role="status">
+              The game is waiting for you. Press I'm ready.
+            </p>
+          )}
+          {!covering && held.pause && !held.pause.forReady && (
+            <Disconnect
+              waitingFor={held.pause.waitingFor}
+              secondsLeft={held.secondsLeft}
+              choosing={held.pause.choosing}
+              host={host}
+              sitting={sitting}
+              watching={watchers}
+              gone={held.pause.gone}
+              forReady={held.pause.forReady}
+              hostName={hostName}
+              onChoice={(choice, person) =>
+                socket.send({
+                  t: "host.choice",
+                  choice,
+                  ...(person === undefined ? {} : { person }),
+                })
+              }
+            />
+          )}
+        </div>
+      )}
+    </>
   );
 }
 

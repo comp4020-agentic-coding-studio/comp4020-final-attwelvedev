@@ -2,11 +2,13 @@ import type { Vec } from "../../game/types.ts";
 import type { EntityView } from "../../net/protocol.ts";
 import { COLOR, MAP, ROLE_COLOR, ROLE_SHAPE, WORLD } from "../tokens.ts";
 import type { Motion, Scene } from "./index.ts";
-import { type Camera, TILT, toScreen } from "./project.ts";
+import { type Camera, LIVE, toScreen } from "./project.ts";
 import { floorRing, shapePath } from "./shared.ts";
 
 const BODY_H = 0.95; // tiles, foot to crown of the pill
 const BODY_W = 0.62;
+const RISE_MS = 900; // the world rising out of the reveal (FR25)
+const BLIND_FADE_MS = 400; // Can't see's figure fades in over the first part of it
 const HOP_HZ = 2.5; // a hop is sin(t * 2π * 2.5) * 2 px
 const HOP_PX = 2;
 const DUST_MS = 250; // a puff every quarter second
@@ -65,6 +67,7 @@ function figure(
   scene: Scene,
   who: { role: "blind" | "deaf" | "mute"; isSelf: boolean; bot: boolean },
   pose: Pose,
+  outlineOnly = false,
 ) {
   const color = ROLE_COLOR[who.role];
   const moving = animated(scene) && pose.moving;
@@ -83,6 +86,19 @@ function figure(
     if (horizontal) ctx.scale(SQUASH, 1);
     else ctx.scale(1, SQUASH);
     ctx.translate(-foot.x, -foot.y);
+  }
+  if (outlineOnly) {
+    // the same pill and hat, in the same pose, as a dashed outline: what shows of a figure behind a
+    // wall. Nothing is filled, and it is the same transform as the body, so it cannot drift from it.
+    ctx.strokeStyle = WORLD.line;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([3, 3]);
+    pill(ctx, at, s);
+    ctx.stroke();
+    hat(ctx, at, s, ROLE_SHAPE[who.role]);
+    ctx.stroke();
+    ctx.restore();
+    return;
   }
   ctx.fillStyle = color;
   ctx.strokeStyle = WORLD.line;
@@ -146,13 +162,50 @@ function dust(ctx: CanvasRenderingContext2D, foot: Vec, s: number, facing: Vec, 
     ctx.beginPath();
     ctx.arc(
       foot.x - facing.x * behind + side * s * 0.1 * (1 + p),
-      foot.y - facing.y * behind * TILT.depth,
+      foot.y - facing.y * behind * LIVE.depth,
       s * 0.06 * (1 + p),
       0,
       Math.PI * 2,
     );
     ctx.fill();
   }
+  ctx.restore();
+}
+
+// What a player is doing and how to draw them, from the view and (for you) the client's own state.
+// Shared by the body and the outline behind a wall, so the two are always the same figure.
+function playerLook(e: EntityView, scene: Scene) {
+  const role = scene.roles[e.seat ?? 0] ?? "blind";
+  const isSelf = !scene.noSelf && e.seat === scene.seat;
+  // you are ahead of the server: your own pose comes from the client when it has one
+  const mine = isSelf ? scene.own : undefined;
+  const facing = mine?.facing ?? e.facing ?? { x: 0, y: 1 };
+  const moving = mine?.moving ?? e.moving ?? false;
+  const blocked = mine?.blocked ?? e.blocked ?? false;
+  const pose: Pose = {
+    facing,
+    moving,
+    blocked,
+    pushing: blocked && pushesCrate(scene, e.pos, facing),
+  };
+  return { role, isSelf, pose, bot: scene.bots?.[e.seat ?? 0] ?? false };
+}
+
+// The outline of a figure that a wall in front of it hides, drawn after the wall at `strength`
+// (how much of the figure is covered). The same figure() as the body, so the hop, the squash and
+// the lean come with it. `e.pos` is where the body was drawn (yours is already the predicted one).
+export function drawHidden(
+  ctx: CanvasRenderingContext2D,
+  e: EntityView,
+  cam: Camera,
+  scene: Scene,
+  strength: number,
+) {
+  if (e.seat === undefined || strength <= 0 || e.state === "dim" || e.state === "hidden") return;
+  const { role, isSelf, pose, bot } = playerLook(e, scene);
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, strength * 1.4);
+  figure(ctx, toScreen(cam, e.pos.x, e.pos.y), cam.scale, scene, { role, isSelf, bot }, pose, true);
   ctx.restore();
 }
 
@@ -165,34 +218,23 @@ export function drawPlayer(
 ) {
   if (e.seat === undefined) return;
   const s = cam.scale;
-  const role = scene.roles[e.seat] ?? "blind";
-  const isSelf = !scene.noSelf && e.seat === scene.seat;
+  const { role, isSelf, pose, bot } = playerLook(e, scene);
+  const { facing, moving, blocked } = pose;
   const foot = toScreen(cam, e.pos.x, e.pos.y);
   const color = ROLE_COLOR[role];
-  // you are ahead of the server: your own pose comes from the client when it has one
-  const mine = isSelf ? scene.own : undefined;
-  const facing = mine?.facing ?? e.facing ?? { x: 0, y: 1 };
-  const moving = mine?.moving ?? e.moving ?? false;
-  const blocked = mine?.blocked ?? e.blocked ?? false;
-  const pose: Pose = {
-    facing,
-    moving,
-    blocked,
-    pushing: blocked && pushesCrate(scene, e.pos, facing),
-  };
 
   // the shadow, and for you the ring
   ctx.save();
   ctx.fillStyle = WORLD.line;
   ctx.globalAlpha = 0.25;
-  floorRing(ctx, foot.x, foot.y, s * 0.36, TILT.depth);
+  floorRing(ctx, foot.x, foot.y, s * 0.36, LIVE.depth);
   ctx.fill();
   ctx.restore();
   if (isSelf && e.state !== "hidden" && e.state !== "dim") {
     ctx.save();
     ctx.lineWidth = MAP.selfRingPx;
     ctx.strokeStyle = COLOR.ui;
-    floorRing(ctx, foot.x, foot.y, s * 0.5, TILT.depth);
+    floorRing(ctx, foot.x, foot.y, s * 0.5, LIVE.depth);
     ctx.stroke();
     ctx.restore();
   }
@@ -218,13 +260,13 @@ export function drawPlayer(
     ctx.globalAlpha = MAP.blindRingAlpha + 0.2;
     ctx.lineWidth = MAP.ringWidthPx;
     ctx.strokeStyle = color;
-    floorRing(ctx, foot.x, foot.y, s * 0.45, TILT.depth);
+    floorRing(ctx, foot.x, foot.y, s * 0.45, LIVE.depth);
     ctx.stroke();
     ctx.restore();
     return;
   }
   if (animated(scene) && moving && !blocked) dust(ctx, foot, s, facing, scene.nowMs);
-  figure(ctx, foot, s, scene, { role, isSelf, bot: scene.bots?.[e.seat] ?? false }, pose);
+  figure(ctx, foot, s, scene, { role, isSelf, bot }, pose);
 }
 
 // Can't see's own screen: black, and in the middle of it their figure, dimmed, facing the way they
@@ -232,8 +274,11 @@ export function drawPlayer(
 export function drawOwnBlind(ctx: CanvasRenderingContext2D, scene: Scene, own: Motion) {
   const s = MAP.phoneTilePx * 2;
   const foot = { x: scene.w / 2, y: scene.h / 2 + s * BODY_H * 0.5 };
+  // Can't see's screen is black from the start; their figure fades in over the first 400 ms of the
+  // 900 ms rise, so the room they never see rises behind a black veil and not in front of one
+  const arrive = Math.min(1, (scene.rise ?? 1) / (BLIND_FADE_MS / RISE_MS));
   ctx.save();
-  ctx.globalAlpha = 0.4;
+  ctx.globalAlpha = 0.4 * arrive;
   figure(
     ctx,
     foot,

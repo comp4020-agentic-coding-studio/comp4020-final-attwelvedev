@@ -3,7 +3,7 @@ import type { EntityView } from "../../net/protocol.ts";
 import { STAMP_FACE } from "../hud.ts";
 import { COLOR, MAP, WORLD } from "../tokens.ts";
 import type { Scene } from "./index.ts";
-import { type Camera, TILT, toScreen } from "./project.ts";
+import { type Camera, LIVE, toScreen } from "./project.ts";
 import { diamond, hatch } from "./shared.ts";
 
 // An extruded box: a top face and a south-facing front, light from the north-west. x, y, w, d
@@ -19,7 +19,7 @@ export function block(
   const t = toScreen(cam, box.x, box.y, box.h);
   const f = toScreen(cam, box.x, box.y + box.d, box.h);
   ctx.fillStyle = top;
-  ctx.fillRect(t.x, t.y, box.w * s + 0.5, box.d * s * TILT.depth + 0.5);
+  ctx.fillRect(t.x, t.y, box.w * s + 0.5, box.d * s * LIVE.depth + 0.5);
   ctx.fillStyle = front;
   ctx.fillRect(f.x, f.y, box.w * s + 0.5, box.h * s + 0.5);
 }
@@ -33,7 +33,7 @@ export function floorTop(
   fill: string,
 ) {
   const p = toScreen(cam, x, y);
-  const d = cam.scale * TILT.depth;
+  const d = cam.scale * LIVE.depth;
   ctx.fillStyle = fill;
   ctx.fillRect(p.x, p.y, cam.scale + 0.5, d + 0.5);
   if (fill === WORLD.floor) {
@@ -51,7 +51,7 @@ export function wall(
   y: number,
   southOpen: boolean,
 ) {
-  block(ctx, cam, { x, y, w: 1, d: 1, h: TILT.wall }, WORLD.wallTop, WORLD.wallFront);
+  block(ctx, cam, { x, y, w: 1, d: 1, h: LIVE.wall }, WORLD.wallTop, WORLD.wallFront);
   if (southOpen) {
     const foot = toScreen(cam, x, y + 1);
     ctx.fillStyle = WORLD.wallShade;
@@ -62,15 +62,15 @@ export function wall(
 // Glass: a wall you can see through. Translucent top and front with two glints.
 export function glass(ctx: CanvasRenderingContext2D, cam: Camera, x: number, y: number) {
   const s = cam.scale;
-  const top = toScreen(cam, x, y, TILT.wall);
-  const frontY = toScreen(cam, x, y + 1, TILT.wall).y;
+  const top = toScreen(cam, x, y, LIVE.wall);
+  const frontY = toScreen(cam, x, y + 1, LIVE.wall).y;
   ctx.save();
   ctx.globalAlpha = 0.55;
   ctx.fillStyle = WORLD.glass;
-  ctx.fillRect(top.x, top.y, s + 0.5, s * TILT.depth + 0.5);
+  ctx.fillRect(top.x, top.y, s + 0.5, s * LIVE.depth + 0.5);
   ctx.globalAlpha = 0.7;
   ctx.fillStyle = WORLD.glassFront;
-  ctx.fillRect(top.x, frontY, s + 0.5, TILT.wall * s + 0.5);
+  ctx.fillRect(top.x, frontY, s + 0.5, LIVE.wall * s + 0.5);
   ctx.globalAlpha = 0.85;
   ctx.strokeStyle = COLOR.ui;
   ctx.lineWidth = 2;
@@ -86,25 +86,25 @@ export function glass(ctx: CanvasRenderingContext2D, cam: Camera, x: number, y: 
   // the outline marks it interactive-looking-but-solid: you cannot walk through
   ctx.globalAlpha = 1;
   ctx.strokeStyle = WORLD.line;
-  ctx.strokeRect(top.x + 1, frontY, s - 2, TILT.wall * s);
+  ctx.strokeRect(top.x + 1, frontY, s - 2, LIVE.wall * s);
   ctx.restore();
 }
 
 // A vent: an opaque slatted wall. Sight stops at it, sound goes through.
 export function vent(ctx: CanvasRenderingContext2D, cam: Camera, x: number, y: number) {
   const s = cam.scale;
-  block(ctx, cam, { x, y, w: 1, d: 1, h: TILT.wall }, WORLD.vent, WORLD.ventFront);
-  const f = toScreen(cam, x, y + 1, TILT.wall);
+  block(ctx, cam, { x, y, w: 1, d: 1, h: LIVE.wall }, WORLD.vent, WORLD.ventFront);
+  const f = toScreen(cam, x, y + 1, LIVE.wall);
   ctx.fillStyle = WORLD.ventSlat;
   for (let i = 1; i <= 4; i++)
-    ctx.fillRect(f.x + s * 0.15, f.y + (TILT.wall * s * i) / 5 - 1, s * 0.7, 2);
+    ctx.fillRect(f.x + s * 0.15, f.y + (LIVE.wall * s * i) / 5 - 1, s * 0.7, 2);
 }
 
 // Flat things lying on the floor: plates, the exit, hide spots, an open door's slot, the sign.
 export function drawFlat(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera, scene: Scene) {
   const s = cam.scale;
   const p = toScreen(cam, e.pos.x - 0.5, e.pos.y - 0.5);
-  const d = s * TILT.depth;
+  const d = s * LIVE.depth;
   if (e.kind === "plate") {
     const inset = MAP.plateInset;
     const sunk = e.state === "pressed" ? 3 : 0;
@@ -216,11 +216,11 @@ export function drawStanding(
 ) {
   const s = cam.scale;
   if (e.kind === "door") {
-    const box = { x: e.pos.x - 0.5, y: e.pos.y - 0.5, w: 1, d: 1, h: TILT.block };
+    const box = { x: e.pos.x - 0.5, y: e.pos.y - 0.5, w: 1, d: 1, h: LIVE.block };
     block(ctx, cam, box, WORLD.door, WORLD.doorFront);
-    const f = toScreen(cam, box.x, box.y + 1, TILT.block);
+    const f = toScreen(cam, box.x, box.y + 1, LIVE.block);
     ctx.fillStyle = WORLD.doorSeam;
-    ctx.fillRect(f.x + s / 2 - 1, f.y, 2, TILT.block * s);
+    ctx.fillRect(f.x + s / 2 - 1, f.y, 2, LIVE.block * s);
   } else if (e.kind === "crate") {
     const inset = 0.08;
     const box = {
@@ -228,17 +228,17 @@ export function drawStanding(
       y: e.pos.y - 0.5 + inset,
       w: 1 - inset * 2,
       d: 1 - inset * 2,
-      h: TILT.block,
+      h: LIVE.block,
     };
     block(ctx, cam, box, WORLD.crate, WORLD.crateFront);
-    const f = toScreen(cam, box.x, box.y + box.d, TILT.block);
+    const f = toScreen(cam, box.x, box.y + box.d, LIVE.block);
     ctx.strokeStyle = WORLD.crateBrace;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(f.x, f.y);
-    ctx.lineTo(f.x + box.w * s, f.y + TILT.block * s);
+    ctx.lineTo(f.x + box.w * s, f.y + LIVE.block * s);
     ctx.moveTo(f.x + box.w * s, f.y);
-    ctx.lineTo(f.x, f.y + TILT.block * s);
+    ctx.lineTo(f.x, f.y + LIVE.block * s);
     ctx.stroke();
   } else if (e.kind === "loot") {
     const bob =

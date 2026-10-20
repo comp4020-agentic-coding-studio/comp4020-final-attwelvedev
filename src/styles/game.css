@@ -37,6 +37,46 @@ body.playing main {
   inset: 0;
   background: var(--scrim);
 }
+/* The game has started and rises underneath (FR25): the reveal is still over it, fading, so the
+   card goes, the scrim goes and the blur clears while the room tilts up. It floats over the
+   game's own frame and takes no clicks. */
+.reveal-frame.covering {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  min-height: 0;
+  background: transparent;
+  pointer-events: none;
+}
+.reveal-frame.covering .reveal-canvas {
+  animation: reveal-clear 900ms ease-out both;
+}
+.reveal-frame.covering .reveal-scrim,
+.reveal-frame.covering .reveal-stage,
+.reveal-frame.covering .reveal-gone {
+  animation: reveal-out 900ms ease-out both;
+}
+@keyframes reveal-clear {
+  to {
+    filter: blur(0);
+    opacity: 0;
+  }
+}
+@keyframes reveal-out {
+  to {
+    opacity: 0;
+  }
+}
+/* reduced motion: the room is whole at once and the reveal cross-fades away, with no rise and no
+   blur animating (the blur is not motion, it simply goes with the fade) */
+@media (prefers-reduced-motion: reduce) {
+  .reveal-frame.covering .reveal-canvas,
+  .reveal-frame.covering .reveal-scrim,
+  .reveal-frame.covering .reveal-stage,
+  .reveal-frame.covering .reveal-gone {
+    animation: reveal-out 300ms linear both;
+  }
+}
 .reveal-stage {
   position: relative;
   display: grid;

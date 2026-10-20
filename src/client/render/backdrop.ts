@@ -1,6 +1,6 @@
 import { COLOR, WORLD } from "../tokens.ts";
 import type { Scene } from "./index.ts";
-import { type Camera, TILT, toScreen } from "./project.ts";
+import { type Camera, LIVE, toScreen } from "./project.ts";
 
 const CLIFF_TILES = 2; // the island's slab runs this far down before it meets the water
 const SLAB_TILES = 0.3; // of which the top part is the floor's own edge
@@ -13,7 +13,7 @@ export function drawBackdrop(ctx: CanvasRenderingContext2D, scene: Scene, cam: C
   const { w, h } = scene;
   const rows = scene.tiles?.length ?? 1;
   const cols = scene.tiles?.[0]?.length ?? 1;
-  const horizon = Math.max(0, Math.min(h, toScreen(cam, 0, 0, TILT.wall).y - cam.scale * 0.8));
+  const horizon = Math.max(0, Math.min(h, toScreen(cam, 0, 0, LIVE.wall).y - cam.scale * 0.8));
   const sky = ctx.createLinearGradient(0, 0, 0, Math.max(1, horizon));
   sky.addColorStop(0, WORLD.skyHi);
   sky.addColorStop(1, WORLD.skyLo);

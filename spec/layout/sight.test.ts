@@ -4,9 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Browser, Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { camera, toScreen } from "../../src/client/render.ts";
 import { MIST, ROLE_COLOR, WORLD } from "../../src/client/tokens.ts";
-import { loadRooms } from "../../src/game/rooms/load.ts";
 import { DESKTOP, launch } from "../browser.ts";
 import { playRoom, type Table } from "../playUi.ts";
 
@@ -14,7 +12,6 @@ import { playRoom, type Table } from "../playUi.ts";
 // the west end between Can't hear's spawn (north of it) and Can't speak's (south of it), so
 // each is out of the other's sight. Its own app, since the rooms come from ROOMS_DIR.
 const ROOMS = "spec/fixtures/rooms-sight";
-const grid = loadRooms(`./${ROOMS}`)[0]?.grid ?? [];
 const port = 19080 + Math.floor(Math.random() * 1000);
 const dir = mkdtempSync(join(tmpdir(), "sight-spec-"));
 const url = `http://127.0.0.1:${port}`;
@@ -50,6 +47,15 @@ beforeAll(async () => {
   mute = table.byRole.mute;
   // Can't hear is the phone: give it the desktop's whole-room camera, so a tile has one place
   await deaf.setViewportSize(DESKTOP);
+  // the canvas redraws at the new size on the next frame; a pixel read before that is the old picture
+  await deaf.waitForFunction(() => {
+    const c = document.querySelector<HTMLCanvasElement>(".frame canvas");
+    return (
+      !!c &&
+      c.clientWidth > 1000 &&
+      c.width === Math.round(c.clientWidth * (window.devicePixelRatio || 1))
+    );
+  });
   // the sea drifts and a hop is a motion: nothing here measures them
   for (const page of table.pages) await page.emulateMedia({ reducedMotion: "reduce" });
 }, 60_000);
@@ -68,36 +74,28 @@ const rgb = (hex: string): Rgb =>
 const near = (a: Rgb, b: Rgb, tol: number) =>
   a.every((v, i) => Math.abs(v - (b[i] as number)) <= tol);
 
-// What the page's canvas shows at a point on the floor of tile (tx, ty), offset within the tile.
+// What the page's canvas shows at a point on the floor of tile (tx, ty), offset within the tile. Where
+// the tile is comes from the page's own camera (`data-camera`), which is eased and follows you, so
+// it is read, never worked out. The picture is read in the same frame as the camera it was drawn with.
 async function pixelAt(page: Page, tx: number, ty: number, ox: number, oy: number): Promise<Rgb> {
-  const canvas = page.locator(".frame canvas");
-  const size = await canvas.evaluate((el) => ({
-    w: (el as HTMLCanvasElement).clientWidth,
-    h: (el as HTMLCanvasElement).clientHeight,
-    dpr: window.devicePixelRatio || 1,
-  }));
-  // the whole room is in frame on a desktop, so the camera needs only the room and the canvas
-  const cam = camera({
-    w: size.w,
-    h: size.h,
-    role: "deaf",
-    seat: 1,
-    roles: ["blind", "deaf", "mute"],
-    tiles: grid,
-    entities: [],
-    self: null,
-    layout: "fit",
-  });
-  const at = toScreen(cam, tx + ox, ty + oy);
-  return canvas.evaluate(
+  return page.locator(".frame canvas").evaluate(
     (el, p) => {
       const c = el as HTMLCanvasElement;
+      const [scale, camX, camY] = (c.dataset.camera ?? "0,0,0").split(",").map(Number) as [
+        number,
+        number,
+        number,
+      ];
+      const dpr = window.devicePixelRatio || 1;
+      // the projection's depth is 0.82 once the world has risen, which it has by the time this is read
+      const x = camX + (p.tx + p.ox) * scale;
+      const y = camY + (p.ty + p.oy) * scale * 0.82;
       const d = c
         .getContext("2d")
-        ?.getImageData(Math.round(p.x * p.dpr), Math.round(p.y * p.dpr), 1, 1).data;
+        ?.getImageData(Math.round(x * dpr), Math.round(y * dpr), 1, 1).data;
       return [d?.[0] ?? 0, d?.[1] ?? 0, d?.[2] ?? 0] as Rgb;
     },
-    { x: at.x, y: at.y, dpr: size.dpr },
+    { tx, ty, ox, oy },
   );
 }
 
@@ -124,20 +122,29 @@ const floorShare = async (page: Page, tx: number, ty: number) => {
   return { floor, misty };
 };
 
+// A tile is plain floor (all its sampled pixels), or veiled (the floor under the mist), or neither
+// yet because the frame has not caught up: so every read is polled, never taken once.
+const showsFloor = (page: Page, tx: number, ty: number) => async () =>
+  (await floorShare(page, tx, ty)).floor >= 3;
+const showsMist = (page: Page, tx: number, ty: number) => async () => {
+  const { floor, misty } = await floorShare(page, tx, ty);
+  return floor === 0 && misty >= 2;
+};
+
 describe("line of sight, drawn", () => {
   it("the area behind the wall is drawn as mist on Can't hear's canvas, not as floor", async () => {
     // (5, 1) is open ground in Can't hear's sight; (5, 4) is the other side of the wall
-    await expect.poll(async () => (await floorShare(deaf, 5, 1)).floor).toBeGreaterThanOrEqual(3);
-    const behind = await floorShare(deaf, 5, 4);
-    expect(behind.floor, "no pixel of it is plain floor").toBe(0);
-    expect(behind.misty, "it is veiled").toBeGreaterThanOrEqual(2);
+    await expect.poll(showsFloor(deaf, 5, 1)).toBe(true);
+    await expect
+      .poll(showsMist(deaf, 5, 4), { message: "veiled, and no pixel plain floor" })
+      .toBe(true);
   });
 
   it("and the same for Can't speak, the other way round", async () => {
-    await expect.poll(async () => (await floorShare(mute, 5, 4)).floor).toBeGreaterThanOrEqual(3);
-    const behind = await floorShare(mute, 5, 1);
-    expect(behind.floor).toBe(0);
-    expect(behind.misty).toBeGreaterThanOrEqual(2);
+    await expect.poll(showsFloor(mute, 5, 4)).toBe(true);
+    await expect
+      .poll(showsMist(mute, 5, 1), { message: "veiled, and no pixel plain floor" })
+      .toBe(true);
   });
 
   it("Can't speak's face reaches Can't hear as an edge pill pointing toward them", async () => {

@@ -238,7 +238,7 @@ export const ROLE_SHAPE: Record<Role, Shape> = {
 export const MAP = {
   desktopMinTilePx: 12,
   phoneTilePx: 28, // the phone shows a window of the room, following the team
-  edgeMarginTiles: 1.5, // own avatar stays this far inside the phone window
+  edgeMargin: 0.3, // your avatar stays this share of the view inside the window's edge, either axis
   avatarRadius: 0.4, // tiles
   ringWidthPx: 3,
   blindRingAlpha: 0.4,

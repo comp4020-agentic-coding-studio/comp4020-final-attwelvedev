@@ -6,13 +6,14 @@ import { COLOR, MAP, ROLE_COLOR, setDusk, WORLD } from "../tokens.ts";
 import { drawAlarm } from "./alarm.ts";
 import { drawBackdrop } from "./backdrop.ts";
 import { block, drawFlat, drawStanding, floorTop, glass, vent, wall } from "./blocks.ts";
-import { drawOwnBlind, drawPlayer } from "./figures.ts";
+import { drawHidden, drawOwnBlind, drawPlayer } from "./figures.ts";
 import { drawHazard, drawSight } from "./hazards.ts";
+import { figureCover, wallAlpha } from "./occlusion.ts";
 import { drawEdgePills, drawPops } from "./pops.ts";
-import { type Camera, camera, TILT, tileWindow, toScreen } from "./project.ts";
-import { inSight, nightTile, seenOf, veilTile } from "./sight.ts";
+import { type Camera, camera, LIVE, setRise, tileWindow, toScreen } from "./project.ts";
+import { drawMist, inSight, lightPolygon, nightTile, seenOf } from "./sight.ts";
 
-export { type Camera, camera, fromScreen, TILT, toScreen } from "./project.ts";
+export { type Camera, camera, easeCamera, fromScreen, LIVE, TILT, toScreen } from "./project.ts";
 
 export interface Scene {
   w: number; // canvas size in CSS pixels
@@ -40,6 +41,12 @@ export interface Scene {
   // and whether you are walking or pushing at something. Overrides what the view says about you;
   // for Can't see it is all there is to draw.
   own?: Motion;
+  // How far the world has risen out of the flat reveal, 0 to 1 (FR25). Absent is fully risen. Scales
+  // depth and every height, eases the follow camera in from the whole room, and fades Can't see's
+  // figure in over the first 400 ms of 900.
+  rise?: number;
+  // The camera to draw with, when the caller eases one (the game does). Absent: the scene's own.
+  cam?: Camera;
   // The view's `seen`: the tiles in your line of sight. Present for the sighted, who draw everything
   // else under mist; absent for watchers, who see the whole room.
   seen?: string[];
@@ -64,7 +71,6 @@ export interface FacePop {
   alone?: boolean; // past the face's 1.5 s: the pill stays on its own for a few seconds
 }
 
-const FADED_WALL = 0.35; // a wall in front of a figure
 const FAINT_MARK = 0.35; // a mark in a tile you cannot see
 const isBlock = (ch: string | undefined) => ch === "#" || ch === "%" || ch === "=";
 
@@ -87,6 +93,7 @@ const STANDING: EntityView["kind"][] = [
 // else; the renderer is told nothing more than that player was sent.
 export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
   ctx.clearRect(0, 0, scene.w, scene.h);
+  setRise(scene.rise ?? 1);
   if ((scene.role === "blind" && !scene.spectator) || !scene.tiles) {
     ctx.fillStyle = COLOR.ink;
     ctx.fillRect(0, 0, scene.w, scene.h);
@@ -108,7 +115,7 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
   // the dusk palette follows the alarm; with no clock (a paused feed) it is simply on or off
   setDusk(!!scene.alarm, scene.nowMs ?? 0, scene.reducedMotion || scene.nowMs === undefined);
   const tiles = scene.tiles;
-  const cam = camera(scene);
+  const cam = scene.cam ?? camera(scene);
   drawBackdrop(ctx, scene, cam);
 
   const win = tileWindow(cam, scene.w, scene.h, tiles[0]?.length ?? 0, tiles.length);
@@ -119,8 +126,12 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
     const row = Math.floor(shown.pos.y);
     byRow.set(row, [...(byRow.get(row) ?? []), shown]);
   }
-  // figures, to see which walls stand between them and the viewer
-  const figures = scene.entities.filter((e) => e.kind === "player" && e.state !== "dim");
+  // figures, where they are drawn (yours is the predicted position), to see which walls stand
+  // between them and the viewer
+  const figures = scene.entities
+    .filter((e) => e.kind === "player" && e.state !== "dim")
+    .map((e) => (e.seat === scene.seat && scene.self ? { ...e, pos: scene.self } : e));
+  const behindWalls = figures.map((f) => f.pos);
 
   // floor tops first, so no block front is painted over by the floor of the row behind it
   for (let y = win.y0; y <= win.y1; y++) {
@@ -144,13 +155,9 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
     for (let x = win.x0; x <= win.x1; x++) {
       const ch = row[x];
       if (!isBlock(ch)) continue;
-      // a wall whose front covers a figure standing north of it
-      const hides = figures.some((f) => {
-        const fx = Math.floor(f.pos.x);
-        return fx === x && f.pos.y < y && f.pos.y > y - TILT.wall / TILT.depth;
-      });
+      // a wall in front of a figure is see-through by distance: a soft window that follows them
       ctx.save();
-      if (hides) ctx.globalAlpha = FADED_WALL;
+      ctx.globalAlpha = wallAlpha(cam, x, y, behindWalls);
       if (ch === "#") wall(ctx, cam, x, y, !isBlock((tiles[y + 1] ?? "")[x]));
       else if (ch === "%") vent(ctx, cam, x, y);
       else glass(ctx, cam, x, y);
@@ -168,16 +175,18 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
       }
     }
   }
-  // the mist: every tile outside your line of sight, over its floor, its block and what stands on it
+  // the mist: everything outside your line of sight. The server decides which tiles you are told of
+  // (`seen`); the edge of the light inside them is the true ray, cast from where you stand.
   const seen = scene.seen ? seenOf(scene.seen) : null;
   if (seen) {
-    for (let y = win.y0; y <= win.y1; y++) {
-      const row = tiles[y] ?? "";
-      for (let x = win.x0; x <= win.x1; x++) {
-        if (seen.has(x, y) || row[x] === " ") continue;
-        veilTile(ctx, cam, x, y, isBlock(row[x]) ? TILT.wall : 0);
-      }
-    }
+    const closed = new Set<string>();
+    for (const e of scene.entities)
+      if (e.kind === "door" && e.state === "closed")
+        closed.add(`${Math.floor(e.pos.x)},${Math.floor(e.pos.y)}`);
+    const light = scene.self
+      ? lightPolygon(scene.self, tiles, (tx, ty) => closed.has(`${tx},${ty}`))
+      : null;
+    drawMist(ctx, cam, tiles, seen, light, win);
   }
   // a mark in a place you can't see shows faintly through the haze: only a teammate's message,
   // never room state
@@ -188,30 +197,8 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
     drawStanding(ctx, e, cam, scene);
     ctx.restore();
   }
-  // the dashed silhouette of a figure behind a faded wall
-  for (const f of figures) {
-    const fx = Math.floor(f.pos.x);
-    const fy = Math.floor(f.pos.y);
-    const behind = [fy + 1, fy + 2].some(
-      (ry) => isBlock((tiles[ry] ?? "")[fx]) && f.pos.y > ry - TILT.wall / TILT.depth,
-    );
-    if (!behind) continue;
-    const foot = toScreen(cam, f.pos.x, f.pos.y);
-    ctx.save();
-    ctx.setLineDash([3, 3]);
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = WORLD.line;
-    ctx.beginPath();
-    ctx.roundRect(
-      foot.x - cam.scale * 0.31,
-      foot.y - cam.scale * 0.95,
-      cam.scale * 0.62,
-      cam.scale * 0.95,
-      cam.scale * 0.31,
-    );
-    ctx.stroke();
-    ctx.restore();
-  }
+  // the outline of a figure a wall hides: the figure itself, outline only, over the wall
+  for (const f of figures) drawHidden(ctx, f, cam, scene, figureCover(cam, f.pos, tiles));
   void block;
   drawFx(ctx, scene, cam);
   drawPops(ctx, scene, cam);
@@ -239,7 +226,7 @@ function drawFx(ctx: CanvasRenderingContext2D, scene: Scene, cam: Camera) {
     if (f.kind === "ring") {
       ctx.beginPath();
       const r = cam.scale * (f.big ? 1.6 : 0.9) * grow;
-      ctx.ellipse(x, y, r, r * TILT.depth, 0, 0, Math.PI * 2);
+      ctx.ellipse(x, y, r, r * LIVE.depth, 0, 0, Math.PI * 2);
       ctx.stroke();
     } else if (f.kind === "dust") {
       for (const [dx, dy] of [

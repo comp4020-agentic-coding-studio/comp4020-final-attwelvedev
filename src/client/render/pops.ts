@@ -1,7 +1,7 @@
 import { STAMP_FACE } from "../hud.ts";
 import { COLOR, MAP, ROLE_COLOR, ROLE_SHAPE, WORLD } from "../tokens.ts";
 import type { FacePop, Scene } from "./index.ts";
-import { type Camera, TILT, toScreen } from "./project.ts";
+import { type Camera, LIVE, toScreen } from "./project.ts";
 import { shapePath } from "./shared.ts";
 
 // A face pop is 1.4 tiles on a white plate, above its sender's head. A sender who is out of sight
@@ -16,7 +16,7 @@ function drawPop(ctx: CanvasRenderingContext2D, scene: Scene, cam: Camera, pop: 
   if (!who) return;
   const at = pop.seat === scene.seat && scene.self ? scene.self : who.pos; // own avatar is drawn predicted
   const size = Math.max(28, cam.scale * 1.4);
-  const head = toScreen(cam, at.x, at.y, TILT.block + MAP.avatarRadius);
+  const head = toScreen(cam, at.x, at.y, LIVE.block + MAP.avatarRadius);
   const x = head.x - size / 2;
   const y = head.y - size - cam.scale * 0.3;
   ctx.save();
