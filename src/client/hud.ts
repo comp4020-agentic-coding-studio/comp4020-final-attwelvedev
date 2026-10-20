@@ -90,6 +90,7 @@ export const CUE_WORD: Record<SoundCue["kind"], string> = {
   "seq-wrong": "wrong plate",
   "seq-open": "sequence door unlocked",
   hide: "rustle",
+  clue: "chime",
   cleared: "room cleared",
 };
 
@@ -100,6 +101,7 @@ const EVERYWHERE = new Set<SoundCue["kind"]>(["checkpoint", "caught", "alarm", "
 function word(s: SoundCue): string {
   if (s.kind === "flag" || s.kind === "exit") return `${CUE_WORD[s.kind]} ${s.n ?? 0}/3`;
   if (s.kind === "seq-ok") return `${CUE_WORD[s.kind]}: ${s.n ?? 0} done`;
+  if (s.kind === "clue") return `${CUE_WORD[s.kind]} ×${s.n ?? 1}`;
   return CUE_WORD[s.kind];
 }
 

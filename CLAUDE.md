@@ -28,12 +28,16 @@
 - **Perception:** the server sends each client only what its role perceives
   (ADR 0007). Never add a field to a view or message without checking it
   against the role tables in `src/game/types.ts`.
-- **Sensory parity:** whatever happens in a room reaches every role through
-  something that role can perceive (Can't see and Can't speak hear it, captioned;
-  Can't hear sees it, in the same tick). Every sound has a row in
+- **Sensory parity:** team-wide events (loot, checkpoint, caught, alarm, cleared,
+  flag, exit, sequence results) reach every role in the same tick. Local events
+  reach the roles that can perceive them from where they stand: the sighted see
+  what is in their line of sight (`visibleFrom`; walls, vents and closed doors
+  block it, glass does not), the hearing hear what the sound reaches (walls and
+  glass stop it, vents do not; ADR 0012). Every sound has a row in
   `src/game/parity.test.ts`; the typecheck and test fail without one. The alarm
-  is the one deliberate exception. A new effect or state for the sighted goes in
-  `detectFx` (`src/client/fx.ts`) or the view, with its sound.
+  and the `clue` chime are the two deliberate exceptions (a `clue` has no
+  picture, by design). A new effect or state for the sighted goes in `detectFx`
+  (`src/client/fx.ts`) or the view, with its sound.
 - **Rooms:** `rooms/NN-slug.room` (format in the phase 02 plan §4.1). Never
   hand-write one without running `pnpm lint:rooms` and `spec/rooms.test.ts`
   (bots must clear it in every role rotation).

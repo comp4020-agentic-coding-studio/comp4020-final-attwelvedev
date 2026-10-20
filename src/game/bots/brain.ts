@@ -45,6 +45,7 @@ export interface BotMemory {
   alarmFrom: number | null;
   guide: Guide;
   lastClipAt: number;
+  blindAt: Vec | null; // a Can't-speak bot: where it last saw the Can't-see seat
   celebrated: boolean;
   model: World | null;
   lastPos: Vec | null; // where the bot was last tick: a jump is the team being sent back
@@ -142,6 +143,7 @@ export function createBotMemory(
       tapAt: Number.NEGATIVE_INFINITY,
     },
     lastClipAt: Number.NEGATIVE_INFINITY,
+    blindAt: null,
     celebrated: false,
     model: null,
     lastPos: null,
@@ -510,7 +512,7 @@ function thinkSighted(room: Room, view: RoleView, m: BotMemory, now: number): Bo
 
   const input = view.alarm ? idle(m) : moveSelf(room, view, m, known, pos);
   if (view.role === "deaf") send = guideBlind(room, view, m, known, now);
-  else if (view.role === "mute") send = muteClip(view, m, now);
+  else if (view.role === "mute") send = muteClip(room, view, m, now);
   return { input, send: stamp(m, send, now) };
 }
 
@@ -525,6 +527,11 @@ function moveSelf(room: Room, view: RoleView, m: BotMemory, known: Known, pos: V
   const seat = m.seat;
   const tile = tileOf(pos);
   const { goal, job } = goalFor(room, m, seat, view.role, pos, known, tile, view);
+
+  // The guide steers by sight: when the Can't-see seat drops out of view it goes back to
+  // where it last reckoned them to be, before doing anything of its own.
+  const lost = view.role === "deaf" && m.guide.est ? blindOutOfSight(view, m) : null;
+  if (lost) return follow(room, view, m, known, pos, centreOf(tileOf(lost)));
 
   // pushing: stand behind the crate and walk into it until it is where it belongs
   if (job?.target.kind === "push") {
@@ -541,6 +548,14 @@ function moveSelf(room: Room, view: RoleView, m: BotMemory, known: Known, pos: V
     }
   }
   return follow(room, view, m, known, pos, goal);
+}
+
+// Where the guide last put the Can't-see seat, if it cannot see them now.
+function blindOutOfSight(view: RoleView, m: BotMemory): Vec | null {
+  const b = rolesOf(m, view.role).indexOf("blind");
+  if (b < 0 || b === m.seat) return null;
+  const seen = view.entities.some((e) => e.kind === "player" && e.seat === b);
+  return seen ? null : m.guide.est;
 }
 
 function follow(
@@ -819,19 +834,23 @@ function reckon(room: Room, m: BotMemory, known: Known, from: Vec, heading: Vec)
 
 // --- Can't speak: a clip when the blind teammate is on the wrong side of a door -----
 
-function muteClip(view: RoleView, m: BotMemory, now: number): Outgoing | null {
+function muteClip(room: Room, view: RoleView, m: BotMemory, now: number): Outgoing | null {
   if (now - m.lastClipAt < CLIP_MS || !view.you.pos) return null;
   const roles = rolesOf(m, view.role);
   const b = roles.indexOf("blind");
-  const blind = view.entities.find((e) => e.kind === "player" && e.seat === b);
+  // Where the Can't-see seat is: seen now, else where it was last seen, else its spawn.
+  const seen = view.entities.find((e) => e.kind === "player" && e.seat === b);
+  if (seen) m.blindAt = seen.pos;
+  const spawn = room.objects.find((o) => o.id === `s${b + 1}`)?.tiles[0];
+  const blind = m.blindAt ?? (spawn ? centreOf(spawn) : null);
   if (!blind) return null;
   const mine = view.you.pos;
   const wrong = view.entities.some(
     (e) =>
       e.kind === "door" &&
       e.state === "closed" &&
-      Math.min(blind.pos.x, mine.x) < e.pos.x &&
-      e.pos.x < Math.max(blind.pos.x, mine.x),
+      Math.min(blind.x, mine.x) < e.pos.x &&
+      e.pos.x < Math.max(blind.x, mine.x),
   );
   if (!wrong) return null;
   m.lastClipAt = now;

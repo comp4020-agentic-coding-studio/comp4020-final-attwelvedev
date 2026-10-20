@@ -197,6 +197,17 @@ function updateFlags(world: World) {
   }
 }
 
+// A clue chimes `n` (1 to 3) every `everyS` seconds (default 2): a sound with no picture.
+function updateClues(world: World) {
+  for (const o of world.room.objects) {
+    if (o.kind !== "clue") continue;
+    const every = Math.max(1, Math.round(((Number(o.params?.everyS) || 2) * 1000) / TICK_MS));
+    if (world.tick % every !== 0) continue;
+    const n = Math.max(1, Math.min(3, Math.round(Number(o.params?.n) || 1)));
+    world.events.push({ kind: "clue", id: o.id, n, at: tileCentre(o.tiles[0] as Vec) });
+  }
+}
+
 function updateExitCount(world: World) {
   const { exitAt } = indexOf(world.room);
   const present = world.players.filter((p) =>
@@ -362,6 +373,7 @@ export function step(
   updateFlags(world);
   updateCheckpoints(world);
   updateLoot(world);
+  updateClues(world);
   updateExitCount(world);
   const caught = findCatch(world);
   if (caught !== null) sendBack(world, caught);

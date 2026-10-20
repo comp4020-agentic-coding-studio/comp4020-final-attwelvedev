@@ -42,6 +42,23 @@ export function lineOfSight(world: World, a: Vec, b: Vec, forHazard = true): boo
   return true;
 }
 
+// True when sound from `a` reaches `b`: the straight path crosses no wall, glass or
+// closed door. A vent on the way lets it through.
+export function soundReaches(world: World, a: Vec, b: Vec): boolean {
+  const dist = Math.hypot(b.x - a.x, b.y - a.y);
+  const steps = Math.ceil(dist / SAMPLE);
+  const from = { x: Math.floor(a.x), y: Math.floor(a.y) };
+  const to = { x: Math.floor(b.x), y: Math.floor(b.y) };
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    const tx = Math.floor(a.x + (b.x - a.x) * t);
+    const ty = Math.floor(a.y + (b.y - a.y) * t);
+    if ((tx === from.x && ty === from.y) || (tx === to.x && ty === to.y)) continue;
+    if (blocksSound(world, tx, ty)) return false;
+  }
+  return true;
+}
+
 // Is `target` within `range` tiles of `from` and within half of `fovDeg` either
 // side of `facing`?
 export function inCone(

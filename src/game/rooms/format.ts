@@ -32,7 +32,8 @@ export interface RoomObject {
     | "hide"
     | "checkpoint"
     | "loot"
-    | "sign";
+    | "sign"
+    | "clue"; // a chime with no picture (A2): `n` of 1 to 3 every `everyS` seconds
   tiles: Vec[]; // integer tile coordinates
   visibleTo: Role[];
   audibleTo: Role[];
@@ -118,6 +119,7 @@ const TILES = new Set([
   "S",
   "=", // glass: sight passes, sound and bodies don't
   "%", // vent: sound passes, sight and bodies don't
+  "c", // a clue: a chime nobody can see
 ]);
 
 // Single-tile objects numbered in reading order: letter -> [kind, id prefix].
@@ -129,6 +131,7 @@ const NUMBERED: Record<string, [RoomObject["kind"], string]> = {
   K: ["checkpoint", "K"],
   $: ["loot", "$"],
   S: ["sign", "S"],
+  c: ["clue", "c"],
 };
 // Kinds whose metadata is kept whole as `params`.
 const PARAMS: Record<string, true> = {
@@ -139,6 +142,7 @@ const PARAMS: Record<string, true> = {
   checkpoint: true,
   loot: true,
   sign: true,
+  clue: true,
 };
 const DEFAULT_VISIBLE_TO: Role[] = ["deaf", "mute"];
 const ROLE_SET = new Set<string>(["blind", "deaf", "mute"]);
@@ -248,7 +252,12 @@ export function parseRoom(text: string): Room {
       id,
       kind,
       tiles,
-      visibleTo: isRoleList(ov.visible_to) ? ov.visible_to : [...DEFAULT_VISIBLE_TO],
+      // a clue has no picture, so nobody sees it unless the room file says so
+      visibleTo: isRoleList(ov.visible_to)
+        ? ov.visible_to
+        : kind === "clue"
+          ? []
+          : [...DEFAULT_VISIBLE_TO],
       audibleTo: isRoleList(ov.audible_to) ? ov.audible_to : [],
     };
     if (kind === "door") {

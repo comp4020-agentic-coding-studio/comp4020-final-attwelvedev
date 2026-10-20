@@ -247,6 +247,18 @@ const PARITY: Record<SoundCue["kind"], Scenario> = {
       sees: (b, a) => (sign(b)?.progress ?? 0) < 3 && sign(a)?.progress === 3,
     };
   })(),
+  clue: (() => {
+    const world = worldWith(put([6, 2, "c"]), { c1: { n: 2, everyS: 1 } });
+    world.tick = 19; // the next tick is when it chimes
+    place(world, BLIND, { x: 3, y: 2 });
+    return {
+      world,
+      act: () => go(world),
+      sees: () => true,
+      exempt:
+        "A clue is the one sound with no picture: rooms use it for twin and split cues (A2), and the linter only allows it inside a beat that declares one.",
+    };
+  })(),
   guard: (() => {
     const world = worldWith(put([11, 2, "G"]), {
       G1: {

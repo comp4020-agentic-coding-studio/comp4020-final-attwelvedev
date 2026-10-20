@@ -223,7 +223,17 @@ latches once open.
   `spec/rooms.test.ts` green (no room uses them yet).
 - **Depends on:** none in this phase (Task 1 for the build to be green).
 
-### Task 14: Line-of-sight views, sound occlusion, Show in the dark, clue sound
+### Task 14: Line-of-sight views, sound occlusion, Show in the dark, clue sound [x]
+
+> Execution note (2026-10-20): three existing `brain.test.ts` cases broke once
+> sight was local (a guide that loses sight of Can't see; a Can't-speak bot that
+> clips only when it sees them). With the user's ruling, a minimal slice of
+> Task 16 landed here: the deaf guide walks back to its last estimate of the
+> Can't-see seat when it loses sight (`blindOutOfSight` in `brain.ts`), and
+> `muteClip` uses the seat's last-seen position (`BotMemory.blindAt`, spawn
+> before any sighting). Task 16 still owns hazards-only-when-perceived, the
+> tolerant guide, clue jobs and the lead-role harness. Bench: 3.1–3.4 ms per
+> tick for 10 lobbies.
 
 - **Description:** `visibleFrom`, the per-seat filter, `RoleView.seen`,
   occluded cues, the `clue` object and cue, the parity rewrite, `CLAUDE.md`'s
