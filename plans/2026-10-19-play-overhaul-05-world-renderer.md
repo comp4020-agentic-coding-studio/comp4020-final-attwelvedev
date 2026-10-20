@@ -344,7 +344,12 @@ Re-checked 2026-10-21 after Task 21 (commit `567d86d`). Boxes are ticked only wh
       (≥ 55 fps) and noted in `PROCESS_LOG.md`: **not done.** Needs a quiet machine. The follow
       camera, mist (a ray cast per frame, measured under 5 ms in a unit test) and the 3/4 world
       are the new costs.
-- [ ] Tick this phase in overview §5 and commit: **not yet**, waiting on the two open boxes.
+- [x] Tick this phase in overview §5 and commit: **ticked 2026-10-21 at the user's explicit
+      instruction, with the two boxes above still open.** They were not met and are not being
+      claimed: no clean full `pnpm check` (last green run `e73061b`; every later full run hit
+      machine-wide load) and no frame-time measurement (>= 55 fps at 1280x800 on room 03; the
+      per-frame ray cast in `lightPolygon` is the new cost). Both carry forward to the final
+      check in the overview's feature-level Definition of Done.
 
 Not pushed, merged or deployed. `PROCESS.md` and `reflections/crit-10.md` have uncommitted
 changes that are the user's, not this phase's: leave them.
