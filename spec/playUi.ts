@@ -53,6 +53,9 @@ export const canvasHash = (page: Page) =>
 // frame to one taken a fixed time after something happened is a race. Gives up after
 // `timeoutMs` and returns the last frame.
 export async function settledHash(page: Page, timeoutMs = 3000): Promise<string> {
+  // The sea drifts unless motion is reduced, so a canvas never holds still to be compared. The
+  // drift is not what any caller is measuring, so take it out (idempotent, and the pages are ours).
+  await page.emulateMedia({ reducedMotion: "reduce" });
   const deadline = Date.now() + timeoutMs;
   let last = await canvasHash(page);
   while (Date.now() < deadline) {

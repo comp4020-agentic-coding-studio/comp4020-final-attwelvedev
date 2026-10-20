@@ -4,7 +4,6 @@ import { faceImage } from "../client/faces.ts";
 import { detectFx, FX_MAX, FX_MS, type Fx } from "../client/fx.ts";
 import { captionFor, cueCaptions, type HeldCues, hearCues, heardCues } from "../client/hud.ts";
 import { draw, type FacePop, type Scene } from "../client/render.ts";
-import { MAP } from "../client/tokens.ts";
 import { type AttractTick, createAttract } from "../game/bots/attract.ts";
 import { FACE_POP_MS } from "../game/channels.ts";
 import { parseRoom } from "../game/rooms/format.ts";
@@ -119,26 +118,22 @@ function paint(canvas: HTMLCanvasElement, run: Run, seat: Seat, now: number, cal
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
   }
-  const rows = room.height;
-  const cols = room.width;
-  // the whole room when it fits, else a window that follows the team, zoomed out
-  const fits = (w / cols) * rows <= h + 1;
-  const zoom = fits ? 1 : h / (rows * MAP.phoneTilePx);
-  ctx.setTransform(dpr * zoom, 0, 0, dpr * zoom, 0, 0);
+  // the whole room, always: a feed is a glance, not a camera
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   // the cleared room holds its last frame: nothing left to move between
   const t = run.clearedAt !== null ? 1 : Math.min(1, (now - run.at) / TICK_MS);
   const entities = between(run, seat, t);
   const self = entities.find((e) => e.kind === "player" && e.seat === seat)?.pos ?? null;
   const scene: Scene = {
-    w: w / zoom,
-    h: h / zoom,
+    w,
+    h,
     role: FEED_ROLES[seat],
     seat,
     roles: [...FEED_ROLES] as [Role, Role, Role],
     tiles: FEED_ROLES[seat] === "blind" ? null : run.tiles,
     entities,
     self: FEED_ROLES[seat] === "blind" ? null : self,
-    layout: fits ? "fit" : "follow",
+    layout: "fit",
     fx: run.fx[seat]
       ?.filter((f) => now - f.at < FX_MS)
       .map((f) => ({ ...f.fx, age: (now - f.at) / FX_MS })),

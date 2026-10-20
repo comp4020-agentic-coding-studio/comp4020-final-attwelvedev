@@ -14,7 +14,7 @@ afterAll(async () => {
   await browser.close();
 });
 
-const SOLID = [0x3a, 0x4d, 0x7a]; // --solid, the wall colour (src/client/tokens.ts)
+const SOLID = [0xf4, 0xb9, 0xc3]; // --w-wall-top, the wall colour (src/client/tokens.ts)
 
 describe("the game screen", () => {
   it("shows each role's frame, and only the sighted roles' canvas has walls", async () => {

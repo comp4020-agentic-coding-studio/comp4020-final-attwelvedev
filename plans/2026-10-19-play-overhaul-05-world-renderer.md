@@ -222,7 +222,7 @@ without `nowMs`).
 - **Depends on:** Tasks 2 and 10–12 if phase 03 is done; otherwise it documents
   what exists and marks the rest planned.
 
-### Task 18: Projection, backdrop and blocks
+### Task 18: Projection, backdrop and blocks [x]
 
 - **Description:** The module split, world tokens, `toScreen`, the follow
   camera, backdrop, island, extruded walls/glass/vents/doors/crates/plates/

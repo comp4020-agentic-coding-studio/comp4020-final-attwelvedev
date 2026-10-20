@@ -389,6 +389,8 @@ describe("watchers at the reveal", () => {
     const di = pages[3] as Page;
     const canvas = di.locator(".spectator-frame canvas");
     await canvas.waitFor();
+    // its own settle (not settledHash), so it takes the sea's drift out itself
+    await di.emulateMedia({ reducedMotion: "reduce" });
     const settled = async (): Promise<string> => {
       const a = await canvas.evaluate((c) => (c as HTMLCanvasElement).toDataURL());
       await di.waitForTimeout(150);

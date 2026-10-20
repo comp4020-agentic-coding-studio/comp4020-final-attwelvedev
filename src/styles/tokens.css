@@ -33,9 +33,7 @@
   --role-blind: #f2a93b; /* circle */
   --role-deaf: #4db3ff; /* square */
   --role-mute: #9b7ee0; /* triangle */
-  --solid: #3a4d7a; /* walls on the map */
-  --floor: #0f1830; /* map floor */
-  --crate: #c98f5a;
+  --solid: #3a4d7a; /* the join button's disabled border and the code field's placeholder */
   --paper: #ffffff; /* the QR code's quiet zone: scanners need dark on light */
   /* spec §4.1 shell tokens: every chip over the world sits on --glass (--ui on it is >= 10:1) */
   --glass: rgb(20 30 54 / 88%);
@@ -45,6 +43,54 @@
     rgb(154 167 194 / 35%) 0 2px,
     transparent 2px 6px
   ); /* "can't": 45-degree stripes of --ui-muted */
+
+  /* the world (DESIGN.md section 2): a daylight island. Light from the north-west; a block's
+     front is its top, darker and shifted toward rose. The canvas mirrors these in tokens.ts. */
+  --w-sky-hi: #fadccb;
+  --w-sky-lo: #cdebdf;
+  --w-water: #6cc3b8;
+  --w-water-deep: #3f9a98;
+  --w-ripple: #a9e2d6;
+  --w-floor: #f7e9d2;
+  --w-floor-front: #e6c7a0;
+  --w-seam: #eedcc1;
+  --w-cliff-hi: #e9b48c;
+  --w-cliff-lo: #c98a86;
+  --w-wall-top: #f4b9c3;
+  --w-wall-front: #dc8fa6;
+  --w-wall-shade: #b9708f;
+  --w-crate: #f2b57a;
+  --w-crate-front: #cf8a55;
+  --w-crate-brace: #a86a3d;
+  --w-door: #f6cf63;
+  --w-door-front: #d9a93a;
+  --w-door-seam: #a9822a;
+  --w-plate: #a8e3c9;
+  --w-plate-pressed: #7fcfae;
+  --w-glass: #d6f2f8;
+  --w-glass-front: #9ccfdb;
+  --w-vent: #a3a8c4;
+  --w-vent-front: #8e93b0;
+  --w-vent-slat: #6c7192;
+  --w-mist: #e4e8ec;
+  --w-night: #1d2130;
+  --w-night-rim: #3a4157;
+  --w-line: #2e2a4a;
+  --w-laser: #e5304f;
+  --w-watch: #e9a400;
+  --w-exit: #bdefd8;
+  --w-exit-flag: #2fa678;
+  /* the alarm's dusk set: the world blends toward these over 600 ms */
+  --dusk-sky-hi: #3a2e44;
+  --dusk-sky-lo: #5a2236;
+  --dusk-water: #2b3346;
+  --dusk-water-deep: #1f2536;
+  --dusk-wall-top: #4a5068;
+  --dusk-wall-front: #353a4f;
+  --dusk-wall-shade: #2a2e40;
+  --dusk-floor: #5c6178;
+  --dusk-floor-front: #474c62;
+  --dusk-seam: #50556c;
 
   --font: "Archivo", "Archivo fallback", system-ui, sans-serif;
   --t-14: 14px;
@@ -89,8 +135,40 @@
   --role-deaf: #00ccff;
   --role-mute: #dd88ff;
   --solid: #ffffff;
-  --floor: #000000;
-  --crate: #ffaa00;
+  --w-sky-hi: #000000;
+  --w-sky-lo: #000000;
+  --w-water: #000000;
+  --w-water-deep: #000000;
+  --w-ripple: #262626;
+  --w-floor: #1a1a1a;
+  --w-floor-front: #333333;
+  --w-seam: #2e2e2e;
+  --w-cliff-hi: #262626;
+  --w-cliff-lo: #0d0d0d;
+  --w-wall-top: #ffffff;
+  --w-wall-front: #bdbdbd;
+  --w-wall-shade: #7a7a7a;
+  --w-crate: #ffaa00;
+  --w-crate-front: #cc8800;
+  --w-crate-brace: #000000;
+  --w-door: #ffdd00;
+  --w-door-front: #b39b00;
+  --w-door-seam: #000000;
+  --w-plate: #00ff88;
+  --w-plate-pressed: #00b35f;
+  --w-glass: #66ddff;
+  --w-glass-front: #00aacc;
+  --w-vent: #cccccc;
+  --w-vent-front: #999999;
+  --w-vent-slat: #000000;
+  --w-mist: #000000;
+  --w-night: #000000;
+  --w-night-rim: #ffffff;
+  --w-line: #ffffff;
+  --w-laser: #ff1a1a;
+  --w-watch: #ffff00;
+  --w-exit: #00ff88;
+  --w-exit-flag: #ffffff;
   --glass: rgb(0 0 0 / 92%);
   --scrim: rgb(0 0 0 / 70%);
   --hatch: repeating-linear-gradient(45deg, rgb(255 255 255 / 55%) 0 2px, transparent 2px 6px);

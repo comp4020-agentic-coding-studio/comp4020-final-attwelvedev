@@ -18,7 +18,7 @@ import {
 } from "../client/hud.ts";
 import { createInput } from "../client/input.ts";
 import { createPredictor, type Predictor } from "../client/predict.ts";
-import { camera, draw, type FacePop, type Scene } from "../client/render.ts";
+import { camera, draw, type FacePop, fromScreen, type Scene } from "../client/render.ts";
 import { loadSettings, type Settings as SettingsState, saveSettings } from "../client/settings.ts";
 import type { ConnectionState, GameSocket } from "../client/socket.ts";
 import { browserSpeech } from "../client/speech.ts";
@@ -448,8 +448,9 @@ function Hud({
     const cam = rt.cam;
     const tiles = rt.tiles;
     if (!box || !cam || !tiles) return null;
-    const tx = Math.floor((clientX - box.left - cam.ox) / cam.scale);
-    const ty = Math.floor((clientY - box.top - cam.oy) / cam.scale);
+    const floor = fromScreen(cam, clientX - box.left, clientY - box.top);
+    const tx = Math.floor(floor.x);
+    const ty = Math.floor(floor.y);
     const row = tiles[ty];
     if (row === undefined || tx < 0 || tx >= row.length) return null;
     return { at: { x: tx + 0.5, y: ty + 0.5 }, open: row[tx] !== "#" && row[tx] !== "%" };
