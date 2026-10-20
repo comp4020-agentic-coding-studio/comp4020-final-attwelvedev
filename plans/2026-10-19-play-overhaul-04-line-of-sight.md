@@ -384,15 +384,16 @@ Re-checked 2026-10-20 after the re-scope (A3 and the tolerant guide moved to Tas
       and Task 16 (harness, record, clue jobs). A3's planner and the tolerant guide
       are not in this phase any more (Task 28, phase 06).
 - [x] `pnpm test:unit` passes (882 tests at `d00bc84`)
-- [ ] `pnpm build && pnpm start` then `pnpm check` passes: green after Task 15
-      (99 files, 1132 tests); the run after Task 16 had four
-      `spec/layout/wheel.test.ts` cases time out under load (pass 25/25 alone),
-      and no clean full run has been taken since. Take one before ticking.
-- [x] Bench result recorded in `PROCESS_LOG.md` (3.1–3.4 ms per tick, 10 lobbies)
-- [ ] Browser check of glass, vent and a sighted view (Tasks 13, 14): not done, the
-      Chrome connection was down. Do it on a local build before merging.
-- [ ] Tick this phase in overview §5 and commit: **not yet**; waiting on the two
-      open boxes above and on the user's decision to merge with A3 open
+- [x] `pnpm build && pnpm start` then `pnpm check` passes: full run 2026-10-20,
+      108 files, 1271 tests, 3 skipped, 158 s (the first run had two
+      disconnect/reveal specs fail because the server was started without
+      `PAUSE_MS=3000`; both pass with it).
+- [x] Bench result recorded in `PROCESS_LOG.md` (3.1-3.4 ms per tick, 10 lobbies)
+- [x] Browser check of glass, vent and a sighted view (Tasks 13, 14): done
+      2026-10-20 with Playwright on a local build and a temporary room with `=`
+      and `%` (not committed): glass drawn as a light outlined tile, vent as a
+      slatted wall, sight stops at the vent, Can't see's canvas black. Desktop and phone.
+- [x] Tick this phase in overview §5 and commit (A3 open, moved to Task 28)
 
 ## 7. Requirements coverage (this phase)
 
