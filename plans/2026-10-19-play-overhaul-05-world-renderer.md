@@ -320,13 +320,34 @@ without `nowMs`).
 
 ## 6. Phase Definition of Done
 
-- [ ] Every task in §5 is complete and its tests pass
-- [ ] `pnpm test:unit` passes
-- [ ] `pnpm build && pnpm start` then `pnpm check` passes
-- [ ] Tasks 17 and 21 human reviews accepted
+Re-checked 2026-10-21 after Task 21 (commit `567d86d`). Boxes are ticked only where verified.
+
+- [x] Every task in §5 is complete and its tests pass: Tasks 17-21 are ticked and committed
+      (`7d04b87`, `7407d0e`, `409fc62`, `e73061b`, `567d86d`). Task 21 was committed with
+      no clean full check, on the user's explicit "commit as is" (see below).
+- [x] `pnpm test:unit` passes (1017 tests at `567d86d`)
+- [ ] `pnpm build && pnpm start` then `pnpm check` passes: **not met.** Typecheck, lint and the
+      unit tests are clean. Every full run after 2026-10-20 evening was wrecked by machine-wide
+      load (load average 30 to 440, from orphaned `yes` loops that were killed, then macOS
+      system processes) and timed out lobby, home and spectator specs; those pass alone. The one
+      full run on a quiet machine (109 files, 1314 tests) was green at `e73061b`, before Task 21.
+      **To close this:** wait for the load average to fall below 5, then
+      `PAUSE_MS=3000 DATABASE_PATH=/tmp/x.db pnpm start` on a fresh build and run `pnpm check`
+      once. If `spec/layout/sight.test.ts` (mine, in `rooms-sight`) fails again, it passes alone
+      3 of 3, so run `pnpm check:flaky` before touching it: it failed in 2 of 4 earlier flaky
+      runs, always in the full suite. (The flaky run started 2026-10-21 reported 152 failures in
+      run 1, a stall, and tells nothing; kill it with `pkill -f check-flaky` if it is still
+      going and start another on a quiet machine.)
+- [x] Tasks 17 and 21 human reviews accepted (Task 17 on 2026-10-20, Task 21 on 2026-10-21 after
+      four rounds of critique, all logged in section 9)
 - [ ] Frame time measured in Chrome's performance panel at 1280×800 on room 03
-      (≥ 55 fps) and noted in `PROCESS_LOG.md`
-- [ ] Tick this phase in overview §5 and commit
+      (≥ 55 fps) and noted in `PROCESS_LOG.md`: **not done.** Needs a quiet machine. The follow
+      camera, mist (a ray cast per frame, measured under 5 ms in a unit test) and the 3/4 world
+      are the new costs.
+- [ ] Tick this phase in overview §5 and commit: **not yet**, waiting on the two open boxes.
+
+Not pushed, merged or deployed. `PROCESS.md` and `reflections/crit-10.md` have uncommitted
+changes that are the user's, not this phase's: leave them.
 
 ## 7. Requirements coverage (this phase)
 
