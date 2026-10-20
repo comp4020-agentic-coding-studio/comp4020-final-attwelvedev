@@ -522,7 +522,7 @@ export function relay(
     if (!canSend(game.roles[from], "mark")) return { ok: false, code: "cant-send" };
     const at = { x: Math.floor(req.at.x) + 0.5, y: Math.floor(req.at.y) + 0.5 };
     const ch = game.world.room.grid[Math.floor(at.y)]?.[Math.floor(at.x)];
-    if (ch === undefined || ch === "#" || !lineOfSight(game.world, pos, at)) {
+    if (ch === undefined || ch === "#" || ch === "%" || !lineOfSight(game.world, pos, at, false)) {
       return { ok: false, code: "not-in-sight" };
     }
     out = { method: "mark", id: req.id, at };

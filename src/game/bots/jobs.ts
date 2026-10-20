@@ -27,6 +27,8 @@ export interface Known {
   crates: Record<string, Vec>; // tile of each crate
   checkpoint: number; // the highest checkpoint reached
   seq: Record<string, number>; // sequence signs: plates matched so far, by the plates it shows ("p7,p1,p4")
+  seenHazards: Record<string, { lastTick: number }>; // hazards perceived (seen, or heard from the right place), by id
+  clues: Record<string, number>; // the count n of each clue chime heard, by clue id
 }
 
 export interface SeatInfo {
@@ -66,6 +68,31 @@ export function parseJob(room: Room, j: unknown, index: number): Job | string {
     if (!flag || !tile)
       return `hint job ${index + 1} goes to ${j.goTo}, which is not a checkpoint in this room`;
     target = { kind: "flag", id: flag.id, tile, n: Number(flag.id.slice(1)) };
+  } else if (typeof j.goTo === "string" && /^clue:/.test(j.goTo)) {
+    // "clue:c1": the plate whose number equals the clue's n, among the plates of the beat the
+    // clue lies in, in reading order. The bot learns n by hearing the chime.
+    const id = j.goTo.slice("clue:".length);
+    const clue = room.objects.find((o) => o.id === id && o.kind === "clue");
+    const at = clue?.tiles[0];
+    if (!clue || !at) {
+      return `hint job ${index + 1} goes to clue ${id}, which is not a clue in this room`;
+    }
+    const beat = room.beats.find((b) => at.x >= b.x[0] && at.x <= b.x[1]);
+    const n = Number(clue.params?.n);
+    const plates = room.objects
+      .filter((o) => o.kind === "plate" && beat && (o.tiles[0]?.x ?? -1) >= beat.x[0])
+      .filter((o) => (o.tiles[0]?.x ?? -1) <= (beat?.x[1] ?? -1))
+      .sort(
+        (a, b) =>
+          (a.tiles[0]?.y ?? 0) - (b.tiles[0]?.y ?? 0) ||
+          (a.tiles[0]?.x ?? 0) - (b.tiles[0]?.x ?? 0),
+      );
+    const plate = plates[n - 1];
+    const tile = plate?.tiles[0];
+    if (!beat || !plate || !tile) {
+      return `hint job ${index + 1} goes to clue ${id}, but its beat has no plate number ${n}`;
+    }
+    target = { kind: "plate", id: plate.id, tile };
   } else if (typeof j.goTo === "string") {
     const plate = room.objects.find((o) => o.id === j.goTo && o.kind === "plate");
     const tile = plate?.tiles[0];

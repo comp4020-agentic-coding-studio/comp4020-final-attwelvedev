@@ -12,6 +12,7 @@ export interface SolveResult {
   caught: number;
   refused: number; // a bot's message the router turned down: bots must keep their own cooldowns
   messages: number;
+  sentBy: [number, number, number]; // messages each seat got through the router
 }
 
 // Three bots in the room, no humans, the channel router in the loop: the room solver.
@@ -20,8 +21,11 @@ export function solveRoom(
   roles: readonly [Role, Role, Role],
   budgetS = 600,
   humans: ReadonlySet<Seat> = new Set(),
+  opts: { mute?: Role } = {}, // drop every send from the seat holding this role (FR14)
 ): SolveResult {
   const world = createWorld(room);
+  const muted = opts.mute === undefined ? undefined : (roles.indexOf(opts.mute) as Seat);
+  const sentBy: [number, number, number] = [0, 0, 0];
   const cooldowns = { until: {} };
   const bots: Partial<Record<Seat, BotSeat>> = {};
   for (const seat of [0, 1, 2] as const) {
@@ -34,9 +38,10 @@ export function solveRoom(
   while (world.tick < budget && world.status !== "cleared") {
     const now = world.tick * TICK_MS;
     const full = world.tick === 0 ? new Set<Seat>([0, 1, 2]) : new Set<Seat>();
-    const turn = botsAct(room, world, roles, bots, cooldowns, now, (s) => `Bot ${s}`, full);
+    const turn = botsAct(room, world, roles, bots, cooldowns, now, (s) => `Bot ${s}`, full, muted);
     refused += turn.refused;
     messages += turn.sent.length;
+    for (const s of turn.sent) sentBy[s.from]++;
     step(world, turn.inputs, TICK_MS);
     caught += world.events.filter((e) => e.kind === "caught").length;
   }
@@ -47,5 +52,6 @@ export function solveRoom(
     caught,
     refused,
     messages,
+    sentBy,
   };
 }

@@ -88,6 +88,7 @@ export type WorldEvent =
   | { kind: "caught"; by: string; hazard: "guard" | "camera" | "laser"; seat: Seat } // `by` is the hazard's id, `seat` the player it got
   | { kind: "checkpoint"; index: number }
   | { kind: "loot"; id: string; at: Vec }
+  | { kind: "clue"; id: string; n: number; at: Vec } // a chime with no picture: it carries a count
   | { kind: "cleared" };
 
 export type Inputs = Partial<Record<Seat, PlayerInput>>;

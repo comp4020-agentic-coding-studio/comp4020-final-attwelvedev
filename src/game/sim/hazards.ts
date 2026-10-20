@@ -88,7 +88,7 @@ export function laserBeam(room: Room, o: RoomObject): Vec[] {
   let y = start.y + dir.y;
   for (;;) {
     const ch = room.grid[y]?.[x];
-    if (ch === undefined || ch === "#" || ch === "D") break;
+    if (ch === undefined || ch === "#" || ch === "D" || ch === "=" || ch === "%") break;
     out.push({ x, y });
     x += dir.x;
     y += dir.y;

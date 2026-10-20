@@ -103,7 +103,10 @@ under the alarm (it silences the rest, FR9). Settings gains `ambience: boolean`
   against the code (shape of the app names methods and line of sight; rooms
   legend mentions `=`, `%`, `c`; sensory parity as amended); a
   `PROCESS_LOG.md` entry for the overhaul's key calls (line of sight as the
-  root fix, A1–A3, the lead-role harness), citing commits.
+  root fix, A1–A3, the lead-role harness), citing commits. A3 landed in phase 06
+  as Task 28, after phase 04 stopped twice on it (`PROCESS_LOG.md`, 2026-10-20):
+  the entry says what Task 28 actually did, and if it ended in the user changing
+  or dropping A3, says that instead of calling it met.
 - **Files touched:** `README.md`, `specs/backlog.md`, `CLAUDE.md`,
   `DESIGN.md` (final check against the code), `PROCESS_LOG.md`.
 - **Tests first (red):** `spec/readme.test.ts` (existing) still passes;

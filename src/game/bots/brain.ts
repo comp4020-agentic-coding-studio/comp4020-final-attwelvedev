@@ -1,7 +1,8 @@
 import type { Callout, ChannelMessage, Outgoing } from "../channels.ts";
-import type { EntityView, RoleView } from "../perception.ts";
+import type { EntityView, RoleView, SoundCue } from "../perception.ts";
 import type { Room } from "../rooms/format.ts";
 import { blockedAt } from "../sim/collide.ts";
+import { laserBeam } from "../sim/hazards.ts";
 import { createWorld, SPEED_TPS, TICK_MS, type World } from "../sim/world.ts";
 import { type PlayerInput, ROLES, type Role, type Seat, type Vec } from "../types.ts";
 import { type AlarmWindow, forecastFor } from "./forecast.ts";
@@ -45,6 +46,7 @@ export interface BotMemory {
   alarmFrom: number | null;
   guide: Guide;
   lastClipAt: number;
+  blindAt: Vec | null; // a Can't-speak bot: where it last saw the Can't-see seat
   celebrated: boolean;
   model: World | null;
   lastPos: Vec | null; // where the bot was last tick: a jump is the team being sent back
@@ -142,6 +144,7 @@ export function createBotMemory(
       tapAt: Number.NEGATIVE_INFINITY,
     },
     lastClipAt: Number.NEGATIVE_INFINITY,
+    blindAt: null,
     celebrated: false,
     model: null,
     lastPos: null,
@@ -211,7 +214,15 @@ function thinkBlind(view: RoleView, inbox: ChannelMessage[], m: BotMemory, now: 
 
 function ensureKnown(room: Room, m: BotMemory): Known {
   if (m.known) return m.known;
-  const known: Known = { doorOpen: {}, pressed: {}, crates: {}, seq: {}, checkpoint: 0 };
+  const known: Known = {
+    doorOpen: {},
+    pressed: {},
+    crates: {},
+    seq: {},
+    seenHazards: {},
+    clues: {},
+    checkpoint: 0,
+  };
   for (const o of room.objects) {
     if (o.kind === "door") known.doorOpen[o.id] = false;
     else if (o.kind === "plate") known.pressed[o.id] = false;
@@ -221,8 +232,64 @@ function ensureKnown(room: Room, m: BotMemory): Known {
   return known;
 }
 
+const HEARD_KIND: Partial<Record<SoundCue["kind"], "guard" | "camera" | "laser">> = {
+  guard: "guard",
+  camera: "camera",
+  laser: "laser",
+};
+const BEARING_COS = Math.cos((25 * Math.PI) / 180); // a hazard counts as "along the sound" within 25 degrees
+
+// The nearest object of `kind` that lies along `dir` (within 25 degrees) from `me`.
+function alongBearing(room: Room, kind: "clue", me: Vec, dir: Vec): string | null {
+  let best: { id: string; d: number } | null = null;
+  for (const o of room.objects) {
+    const t = o.tiles[0];
+    if (o.kind !== kind || !t) continue;
+    const dx = t.x + 0.5 - me.x;
+    const dy = t.y + 0.5 - me.y;
+    const d = Math.hypot(dx, dy);
+    if (d < 0.01 || (dx * dir.x + dy * dir.y) / d < BEARING_COS) continue;
+    if (!best || d < best.d) best = { id: o.id, d };
+  }
+  return best?.id ?? null;
+}
+
+// A hazard heard, not seen: a cue carries only a direction, so it names the nearest hazard of
+// its kind that lies along that bearing from where the bot stands. (A laser hums from its
+// nearest beam tile, so any tile of the beam can be the source.)
+function hearHazards(room: Room, view: RoleView, known: Known): void {
+  const me = view.you.pos;
+  if (!me) return;
+  for (const s of view.sounds) {
+    if (s.kind === "clue" && s.dir && s.n !== undefined) {
+      // a chime: the nearest clue along the bearing says n, with no picture to go with it
+      const clue = alongBearing(room, "clue", me, s.dir);
+      if (clue) known.clues[clue] = s.n;
+      continue;
+    }
+    const kind = HEARD_KIND[s.kind];
+    if (!kind || !s.dir) continue;
+    let best: { id: string; d: number } | null = null;
+    for (const o of room.objects) {
+      if (o.kind !== kind) continue;
+      const spots =
+        kind === "laser" ? [o.tiles[0] as Vec, ...laserBeam(room, o)] : [o.tiles[0] as Vec];
+      for (const t of spots) {
+        const dx = t.x + 0.5 - me.x;
+        const dy = t.y + 0.5 - me.y;
+        const d = Math.hypot(dx, dy);
+        if (d < 0.01) continue;
+        if ((dx * s.dir.x + dy * s.dir.y) / d < BEARING_COS) continue;
+        if (!best || d < best.d) best = { id: o.id, d };
+      }
+    }
+    if (best) known.seenHazards[best.id] = { lastTick: view.tick };
+  }
+}
+
 function observe(room: Room, view: RoleView, m: BotMemory): Known {
   const known = ensureKnown(room, m);
+  hearHazards(room, view, known);
   for (const e of view.entities) {
     if (e.kind === "door") known.doorOpen[e.id] = e.state === "open";
     else if (e.kind === "plate") known.pressed[e.id] = e.state === "pressed";
@@ -230,6 +297,9 @@ function observe(room: Room, view: RoleView, m: BotMemory): Known {
     else if (e.kind === "checkpoint" && e.state === "reached") {
       known.checkpoint = Math.max(known.checkpoint, Number(e.id.slice(1)));
     } else if (e.kind === "sign" && e.shows) known.seq[e.shows.join()] = e.progress ?? 0;
+    else if (e.kind === "guard" || e.kind === "camera" || e.kind === "laser") {
+      known.seenHazards[e.id] = { lastTick: view.tick }; // in line of sight right now
+    }
   }
   // an alarm speeds the guards up and holds the cameras on: the forecast needs its windows
   if (view.alarm && m.alarmFrom === null) m.alarmFrom = view.tick;
@@ -306,7 +376,7 @@ function blockedFor(room: Room, known: Known, goal: Vec) {
   const crates = new Set(Object.values(known.crates).map(key));
   return (x: number, y: number): boolean => {
     const ch = room.grid[y]?.[x];
-    if (ch === undefined || ch === "#") return true;
+    if (ch === undefined || ch === "#" || ch === "=" || ch === "%") return true;
     const k = `${x},${y}`;
     if (ch === "D" && known.doorOpen[doorAt.get(k) ?? ""] !== true) return true;
     if (crates.has(k)) return true;
@@ -510,7 +580,7 @@ function thinkSighted(room: Room, view: RoleView, m: BotMemory, now: number): Bo
 
   const input = view.alarm ? idle(m) : moveSelf(room, view, m, known, pos);
   if (view.role === "deaf") send = guideBlind(room, view, m, known, now);
-  else if (view.role === "mute") send = muteClip(view, m, now);
+  else if (view.role === "mute") send = muteClip(room, view, m, now);
   return { input, send: stamp(m, send, now) };
 }
 
@@ -525,6 +595,11 @@ function moveSelf(room: Room, view: RoleView, m: BotMemory, known: Known, pos: V
   const seat = m.seat;
   const tile = tileOf(pos);
   const { goal, job } = goalFor(room, m, seat, view.role, pos, known, tile, view);
+
+  // The guide steers by sight: when the Can't-see seat drops out of view it goes back to
+  // where it last reckoned them to be, before doing anything of its own.
+  const lost = view.role === "deaf" && m.guide.est ? blindOutOfSight(view, m) : null;
+  if (lost) return follow(room, view, m, known, pos, centreOf(tileOf(lost)));
 
   // pushing: stand behind the crate and walk into it until it is where it belongs
   if (job?.target.kind === "push") {
@@ -541,6 +616,14 @@ function moveSelf(room: Room, view: RoleView, m: BotMemory, known: Known, pos: V
     }
   }
   return follow(room, view, m, known, pos, goal);
+}
+
+// Where the guide last put the Can't-see seat, if it cannot see them now.
+function blindOutOfSight(view: RoleView, m: BotMemory): Vec | null {
+  const b = rolesOf(m, view.role).indexOf("blind");
+  if (b < 0 || b === m.seat) return null;
+  const seen = view.entities.some((e) => e.kind === "player" && e.seat === b);
+  return seen ? null : m.guide.est;
 }
 
 function follow(
@@ -781,7 +864,7 @@ function tight(room: Room, tile: Vec, step: Step): boolean {
   const side = step === "left" || step === "right" ? { x: 0, y: 1 } : { x: 1, y: 0 };
   const wall = (t: Vec) => {
     const ch = room.grid[t.y]?.[t.x];
-    return ch === undefined || ch === "#" || ch === "D";
+    return ch === undefined || ch === "#" || ch === "D" || ch === "=" || ch === "%";
   };
   return [tile, next].some(
     (t) => wall({ x: t.x + side.x, y: t.y + side.y }) || wall({ x: t.x - side.x, y: t.y - side.y }),
@@ -819,19 +902,23 @@ function reckon(room: Room, m: BotMemory, known: Known, from: Vec, heading: Vec)
 
 // --- Can't speak: a clip when the blind teammate is on the wrong side of a door -----
 
-function muteClip(view: RoleView, m: BotMemory, now: number): Outgoing | null {
+function muteClip(room: Room, view: RoleView, m: BotMemory, now: number): Outgoing | null {
   if (now - m.lastClipAt < CLIP_MS || !view.you.pos) return null;
   const roles = rolesOf(m, view.role);
   const b = roles.indexOf("blind");
-  const blind = view.entities.find((e) => e.kind === "player" && e.seat === b);
+  // Where the Can't-see seat is: seen now, else where it was last seen, else its spawn.
+  const seen = view.entities.find((e) => e.kind === "player" && e.seat === b);
+  if (seen) m.blindAt = seen.pos;
+  const spawn = room.objects.find((o) => o.id === `s${b + 1}`)?.tiles[0];
+  const blind = m.blindAt ?? (spawn ? centreOf(spawn) : null);
   if (!blind) return null;
   const mine = view.you.pos;
   const wrong = view.entities.some(
     (e) =>
       e.kind === "door" &&
       e.state === "closed" &&
-      Math.min(blind.pos.x, mine.x) < e.pos.x &&
-      e.pos.x < Math.max(blind.pos.x, mine.x),
+      Math.min(blind.x, mine.x) < e.pos.x &&
+      e.pos.x < Math.max(blind.x, mine.x),
   );
   if (!wrong) return null;
   m.lastClipAt = now;

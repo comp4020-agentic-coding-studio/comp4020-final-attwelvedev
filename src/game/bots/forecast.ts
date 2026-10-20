@@ -44,8 +44,14 @@ const SAMPLES: readonly Vec[] = [
 
 const cache = new WeakMap<Room, Map<string, Forecast>>();
 
-export function forecastFor(room: Room, alarms: readonly AlarmWindow[] = []): Forecast {
-  const key = alarms.map((a) => `${a.from}-${a.to}`).join(",");
+// `only` names the hazards to plan around (a bot plans only around what it has perceived,
+// A3); left out, every hazard in the room counts.
+export function forecastFor(
+  room: Room,
+  alarms: readonly AlarmWindow[] = [],
+  only?: ReadonlySet<string>,
+): Forecast {
+  const key = `${alarms.map((a) => `${a.from}-${a.to}`).join(",")}|${only ? [...only].sort().join(",") : "*"}`;
   let byKey = cache.get(room);
   if (!byKey) {
     byKey = new Map();
@@ -53,14 +59,19 @@ export function forecastFor(room: Room, alarms: readonly AlarmWindow[] = []): Fo
   }
   let forecast = byKey.get(key);
   if (!forecast) {
-    forecast = build(room, alarms);
+    forecast = build(room, alarms, only);
     byKey.set(key, forecast);
   }
   return forecast;
 }
 
-function build(room: Room, alarms: readonly AlarmWindow[]): Forecast {
+function build(
+  room: Room,
+  alarms: readonly AlarmWindow[],
+  only: ReadonlySet<string> | undefined,
+): Forecast {
   const { width, height } = room;
+  const counts = (id: string) => only === undefined || only.has(id);
   // Every door open, so sight is as far as it could ever be: the safe side to err on.
   const shadow: World = createWorld(room);
   for (const id of Object.keys(shadow.doorOpen)) shadow.doorOpen[id] = true;
@@ -81,12 +92,15 @@ function build(room: Room, alarms: readonly AlarmWindow[]): Forecast {
   for (const o of room.objects) {
     if (o.kind === "hide") for (const t of o.tiles) hide.add(t.y * width + t.x);
   }
-  const floor = (x: number, y: number) => room.grid[y]?.[x] !== "#";
+  const floor = (x: number, y: number) => {
+    const ch = room.grid[y]?.[x];
+    return ch !== "#" && ch !== "=" && ch !== "%";
+  };
 
-  const lasers = room.objects.filter((o) => o.kind === "laser");
+  const lasers = room.objects.filter((o) => o.kind === "laser" && counts(o.id));
   const beams = new Map(lasers.map((o) => [o.id, laserBeam(room, o)]));
   const cameras = room.objects
-    .filter((o) => o.kind === "camera")
+    .filter((o) => o.kind === "camera" && counts(o.id))
     .map((o) => {
       const { facing, fovDeg, range } = cameraCone(o);
       const apex = cameraApex(o);
@@ -106,7 +120,7 @@ function build(room: Room, alarms: readonly AlarmWindow[]): Forecast {
       };
       return { params: cameraParams(o), through: watchedBy(SAMPLES), rest: watchedBy(CENTRE) };
     });
-  const guards = room.objects.filter((o) => o.kind === "guard");
+  const guards = room.objects.filter((o) => o.kind === "guard" && counts(o.id));
 
   const maskFor =
     (cache: Map<number, Uint8Array>, samples: readonly Vec[], rest: boolean) =>

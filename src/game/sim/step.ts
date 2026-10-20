@@ -137,6 +137,11 @@ function updateSequences(world: World) {
       progress.next = 0;
       say("wrong"); // the time ran out: start again
     }
+    // held: a plate already matched has to stay down until the door opens
+    if (progress.next > 0 && order.slice(0, progress.next).some((id) => !world.pressed[id])) {
+      progress.next = 0;
+      say("wrong");
+    }
     for (const id of pressedNow) {
       if (!order.includes(id)) continue;
       if (id === order[progress.next]) {
@@ -194,6 +199,17 @@ function updateFlags(world: World) {
     if (present === (world.flagPresent[o.id] ?? 0)) continue;
     world.flagPresent[o.id] = present;
     world.events.push({ kind: "flag", id: o.id, present, at: flag });
+  }
+}
+
+// A clue chimes `n` (1 to 3) every `everyS` seconds (default 2): a sound with no picture.
+function updateClues(world: World) {
+  for (const o of world.room.objects) {
+    if (o.kind !== "clue") continue;
+    const every = Math.max(1, Math.round(((Number(o.params?.everyS) || 2) * 1000) / TICK_MS));
+    if (world.tick % every !== 0) continue;
+    const n = Math.max(1, Math.min(3, Math.round(Number(o.params?.n) || 1)));
+    world.events.push({ kind: "clue", id: o.id, n, at: tileCentre(o.tiles[0] as Vec) });
   }
 }
 
@@ -362,6 +378,7 @@ export function step(
   updateFlags(world);
   updateCheckpoints(world);
   updateLoot(world);
+  updateClues(world);
   updateExitCount(world);
   const caught = findCatch(world);
   if (caught !== null) sendBack(world, caught);

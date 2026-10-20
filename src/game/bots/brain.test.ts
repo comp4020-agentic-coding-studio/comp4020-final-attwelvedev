@@ -3,6 +3,7 @@ import type { ChannelMessage } from "../channels.ts";
 import { type RoleView, viewFor } from "../perception.ts";
 import { loadRooms } from "../rooms/load.ts";
 import { step } from "../sim/step.ts";
+import { roomWith } from "../sim/testing.ts";
 import { createWorld, TICK_MS } from "../sim/world.ts";
 import type { Role, Seat } from "../types.ts";
 import { createBotMemory, think } from "./brain.ts";
@@ -95,6 +96,114 @@ describe("a Can't-see bot", () => {
 });
 
 // A run of the real simulation with bots in the chosen seats; `watch` sees every tick.
+// A3 is only half built (plan 04, Task 16): a bot keeps a record of the hazards it has seen or
+// heard, but its planner does not use it yet, so it still plans from the room file. See the
+// plan's execution note for why.
+describe("a seeing bot records the hazards it has perceived (A3, recording only)", () => {
+  // The corridor runs east along the top, then turns south at x = 11 to a guard who watches
+  // the bend. From the west half the guard is out of sight, so a bot there has seen nothing.
+  const GRID = [
+    "##############",
+    "#1...........#",
+    "#2.........#.#",
+    "#3.........#.#",
+    "###########G.#",
+    "###########.E#",
+    "##############",
+  ];
+  const GUARD = { G1: { sightTiles: 5, fovDeg: 90, speedTps: 0 } };
+  const setup = () => {
+    const r = roomWith(GRID, GUARD, {
+      hints: { jobs: [{ beat: 1, goTo: "E", all: true }] },
+    });
+    const world = createWorld(r);
+    const guard = world.guards[0];
+    if (guard) guard.facing = { x: 0, y: -1 }; // looking up the leg, at the bend
+    world.players[0].pos = { x: 1.5, y: 2.5 };
+    world.players[2].pos = { x: 1.5, y: 3.5 };
+    const memory = createBotMemory(1, new Set([0, 2] as Seat[]), ROLES3);
+    return { r, world, memory };
+  };
+  const at = (x: number, y: number) => ({ x: x + 0.5, y: y + 0.5 });
+
+  it("plans from nothing about a guard it has not seen: it records no hazard", () => {
+    const { r, world, memory } = setup();
+    world.players[1].pos = at(2, 1);
+    const view = viewFor(world, 1, "deaf", true);
+    expect(
+      view.entities.some((e) => e.id === "G1"),
+      "out of sight here",
+    ).toBe(false);
+    think(r, view, [], memory, 0);
+    expect(memory.known?.seenHazards).toEqual({});
+  });
+
+  it("a bot that hears a guard records the guard that lies along the sound, not the others", () => {
+    // two guards, each in a closed pocket behind a wall, so the bot cannot see either
+    const grid = [
+      "####################",
+      "#1.......#G#...#G#.#",
+      "#2.......#.#...#.#.#",
+      "#3.................#",
+      "####################",
+    ];
+    const r = roomWith(grid, {
+      G1: { sightTiles: 3, fovDeg: 60, speedTps: 0 },
+      G2: { sightTiles: 3, fovDeg: 60, speedTps: 0 },
+    });
+    const world = createWorld(r);
+    const memory = createBotMemory(1, new Set([0, 2] as Seat[]), ROLES3);
+    world.players[1].pos = at(2, 1); // a hearing bot with both guards to its east
+    const view = viewFor(world, 1, "deaf", true);
+    expect(
+      view.entities.some((e) => e.kind === "guard"),
+      "neither guard is in sight",
+    ).toBe(false);
+    // a footstep-like cue pointing east, from the nearer guard (G1, 7 tiles off)
+    view.sounds = [{ kind: "guard", pan: 0.5, gain: 0.4, dir: { x: 1, y: 0 } }];
+    think(r, view, [], memory, 0);
+    expect(Object.keys(memory.known?.seenHazards ?? {})).toEqual(["G1"]);
+  });
+
+  it("records the count of a clue chime it hears, from the nearest clue", () => {
+    const grid = [
+      "####################",
+      "#1.......c.......c.#",
+      "#2.................#",
+      "#3.................#",
+      "####################",
+    ];
+    const r = roomWith(grid, { c1: { n: 2 }, c2: { n: 3 } });
+    const world = createWorld(r);
+    const memory = createBotMemory(2, new Set([0, 1] as Seat[]), ROLES3);
+    world.players[2].pos = at(12, 1); // c1 is 3 tiles west of here, c2 is 5 tiles east
+    const view = viewFor(world, 2, "mute", true);
+    view.sounds = [{ kind: "clue", pan: 0, gain: 0.5, dir: { x: -1, y: 0 }, n: 2 }];
+    think(r, view, [], memory, 0);
+    expect(memory.known?.clues).toEqual({ c1: 2 });
+  });
+
+  it("is told of a guard once it sees it, and the record keeps the tick it last did", () => {
+    const { r, world, memory } = setup();
+    world.players[1].pos = at(9, 1);
+    world.tick = 100;
+    const near = viewFor(world, 1, "deaf", true);
+    expect(
+      near.entities.some((e) => e.id === "G1"),
+      "in sight from here",
+    ).toBe(true);
+    think(r, near, [], memory, world.tick * TICK_MS);
+    expect(memory.known?.seenHazards.G1?.lastTick).toBe(100);
+    // back out of sight 3 s later: the record is not refreshed, so its age is visible
+    world.players[1].pos = at(2, 1);
+    world.tick = 160;
+    const away = viewFor(world, 1, "deaf", true);
+    expect(away.entities.some((e) => e.id === "G1")).toBe(false);
+    think(r, away, [], memory, world.tick * TICK_MS);
+    expect(memory.known?.seenHazards.G1?.lastTick).toBe(100);
+  });
+});
+
 function play(
   roomId: string,
   roles: [Role, Role, Role],
@@ -306,6 +415,27 @@ describe("with a person on the team", () => {
       });
       expect(run.world.status, `seat ${slow} slow`).toBe("cleared");
     }
+  });
+
+  it("keeps each plate of the sequence held until the door opens: nobody steps off early", () => {
+    let wrong = 0;
+    let letGo = 0;
+    let opened = 0;
+    const seq = ["p7", "p1", "p4"];
+    const run = play("03-vault", ROTATION_2, [0, 1, 2], 4000, () => {}, {
+      onTick: (world) => {
+        wrong += world.events.filter((e) => e.kind === "seq" && e.result === "wrong").length;
+        // a plate of the sequence released before the door has opened
+        letGo += world.events.filter(
+          (e) => e.kind === "plate" && !e.pressed && seq.includes(e.id) && !world.doorOpen.D1,
+        ).length;
+        if (opened === 0 && world.doorOpen.D1) opened = world.tick;
+      },
+    });
+    expect(run.world.status).toBe("cleared");
+    expect(opened).toBeGreaterThan(0);
+    expect(letGo, "a plate was let go before the door opened").toBe(0);
+    expect(wrong, "the sequence was never reset by a bot letting go").toBe(0);
   });
 
   it("waits at each checkpoint for the person, so the whole team sets every one", () => {

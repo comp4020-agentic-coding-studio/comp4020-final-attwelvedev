@@ -13,7 +13,8 @@ import {
   laserOn,
   laserParams,
 } from "./sim/hazards.ts";
-import { blocksSight } from "./sim/sight.ts";
+import { blocksSight, soundReaches } from "./sim/sight.ts";
+import { encodeSeen, type Visible, visibleFrom } from "./sim/visibility.ts";
 import {
   CHECKPOINT_RADIUS,
   patrolOf,
@@ -93,6 +94,7 @@ export interface SoundCue {
     | "seq-wrong" // a wrong plate, or the 5 s ran out
     | "seq-open" // the sequence is done
     | "hide" // someone stepped onto or off a hide spot
+    | "clue" // a chime with no picture (A2): `n` of them, heard only nearby
     | "cleared" // the room is cleared
     | "step" // your own footstep: centred, softer, and never the same cue as someone else's
     | "bump"; // you are pushing at a wall, door or crate and getting nowhere
@@ -112,6 +114,9 @@ export interface RoleView {
   full: boolean; // true when tiles are included
   you: { seat: Seat; pos?: Vec };
   tiles?: string[];
+  // The tiles in your line of sight, one string per row ("y:x0-x1,x2-x3"), for the sighted
+  // only: the client draws mist outside them. Absent for Can't see.
+  seen?: string[];
   entities: EntityView[];
   sounds: SoundCue[];
   status: RoomStatus;
@@ -130,6 +135,7 @@ const RANGE: Partial<Record<SoundCue["kind"], number>> = {
   plate: 8,
   "plate-up": 6,
   hide: 6,
+  clue: 8,
 };
 const PAN_RANGE = 8;
 const LASER_HUM_RANGE = 3;
@@ -284,10 +290,12 @@ function dirTo(source: Vec, listener: Vec): { dir: Vec } | Record<string, never>
   return { dir: { x: Math.round((dx / d) * 100) / 100, y: Math.round((dy / d) * 100) / 100 } };
 }
 
-function cue(kind: SoundCue["kind"], source: Vec, listener: Vec): SoundCue | null {
+// A local sound: it fades with distance, and stops at a wall, glass or a closed door
+// (a vent lets it through).
+function cue(world: World, kind: SoundCue["kind"], source: Vec, listener: Vec): SoundCue | null {
   const range = RANGE[kind] ?? HEARING_RANGE;
   const gain = 1 - Math.hypot(source.x - listener.x, source.y - listener.y) / range;
-  if (gain <= 0) return null;
+  if (gain <= 0 || !soundReaches(world, source, listener)) return null;
   return { kind, pan: panOf(source, listener), gain, ...dirTo(source, listener) };
 }
 
@@ -300,7 +308,7 @@ function soundsFor(world: World, seat: Seat): SoundCue[] {
   for (const p of world.players) {
     // someone pressed against a wall is not walking, so makes no footsteps
     if (p.seat === seat || !p.moving || p.blocked) continue;
-    const c = cue("footsteps", p.pos, me);
+    const c = cue(world, "footsteps", p.pos, me);
     if (c) out.push(c);
   }
   // Your own movement, so Can't see knows they are moving or stopped. Centred and a
@@ -321,7 +329,7 @@ function soundsFor(world: World, seat: Seat): SoundCue[] {
   if (onPlate) out.push({ kind: "hum", pan: 0, gain: 1 });
   for (const e of world.events) {
     if (e.kind === "door" && e.open) {
-      const c = cue("door", e.at, me);
+      const c = cue(world, "door", e.at, me);
       if (c) out.push(c);
     } else if (e.kind === "loot") {
       out.push({ kind: "loot", pan: panOf(e.at, me), gain: 1, ...dirTo(e.at, me) }); // the whole team hears it
@@ -331,11 +339,14 @@ function soundsFor(world: World, seat: Seat): SoundCue[] {
       out.push({ kind: "caught", pan: 0, gain: 1 });
     } else if (e.kind === "plate") {
       // a click in the room: local, like any other sound the world makes
-      const c = cue(e.pressed ? "plate" : "plate-up", e.at, me);
+      const c = cue(world, e.pressed ? "plate" : "plate-up", e.at, me);
       if (c) out.push(c);
     } else if (e.kind === "crate") {
-      const c = cue("crate", e.at, me);
+      const c = cue(world, "crate", e.at, me);
       if (c) out.push(c);
+    } else if (e.kind === "clue") {
+      const c = cue(world, "clue", e.at, me);
+      if (c) out.push({ ...c, n: e.n });
     } else if (e.kind === "flag") {
       out.push({ kind: "flag", pan: panOf(e.at, me), gain: 1, n: e.present, ...dirTo(e.at, me) });
     } else if (e.kind === "exit") {
@@ -347,7 +358,7 @@ function soundsFor(world: World, seat: Seat): SoundCue[] {
       const own = e.seat === seat;
       const c = own
         ? { kind: "hide" as const, pan: 0, gain: OWN_STEP_GAIN }
-        : cue("hide", e.at, me);
+        : cue(world, "hide", e.at, me);
       if (c) out.push(c);
     } else if (e.kind === "cleared") {
       out.push({ kind: "cleared", pan: 0, gain: 1 });
@@ -365,14 +376,14 @@ function hazardSounds(world: World, me: Vec, out: SoundCue[]): void {
       const guard = world.guards.find((g) => g.id === o.id);
       // footsteps only while it walks: standing and turning round it is silent
       if (!guard?.moving || patrolOf(o.params).length < 2) continue;
-      const c = cue("guard", guard.pos, me);
+      const c = cue(world, "guard", guard.pos, me);
       if (c) out.push(c);
     } else if (o.kind === "camera") {
       const params = cameraParams(o);
       const starts =
         cameraWatching(params, world.tick) &&
         !(world.tick > 0 && cameraWatching(params, world.tick - 1));
-      const c = starts ? cue("camera", centre(o.tiles[0] as Vec), me) : null;
+      const c = starts ? cue(world, "camera", centre(o.tiles[0] as Vec), me) : null;
       if (c) out.push(c);
     } else if (o.kind === "laser") {
       if (!laserOn(laserParams(o), world.tick)) continue;
@@ -408,6 +419,8 @@ function darken(world: World, seat: Seat, role: Role, zones: Zone[]): EntityView
   for (const e of entitiesFor(world, seat, role)) {
     if (e.kind === "player" && e.seat === seat) {
       out.push(inAny(zones, e.pos) ? { ...e, state: "dim" } : e);
+    } else if (e.kind === "stamp") {
+      out.push(e); // a mark shows wherever it lands, even in the dark
     } else if (!inAny(zones, e.pos)) {
       out.push(e.beam ? { ...e, beam: e.beam.filter((t) => !inAny(zones, t)) } : e);
     } else if ((e.kind === "guard" || e.kind === "camera") && e.cone) {
@@ -433,7 +446,7 @@ function sightInLight(world: World, e: EntityView, zones: Zone[]): EntityView | 
       fovDeg: cone.fovDeg,
       range: cone.range,
     },
-    (tx, ty) => blocksSight(world, tx, ty),
+    (tx, ty) => blocksSight(world, tx, ty, true), // a hazard's sight: cover blocks it
     SIGHT_RAYS,
   );
   const dark = zones.map(([x0, y0, x1, y1]) => ({ x0, y0, x1: x1 + 1, y1: y1 + 1 }));
@@ -442,6 +455,26 @@ function sightInLight(world: World, e: EntityView, zones: Zone[]): EntityView | 
   );
   const first = polys[0]?.[0];
   return first ? { id: e.id, kind: "sight", pos: first, polys, state: e.state } : null;
+}
+
+// What a sighted role may be told of: itself, marks (they show wherever they land, even in
+// the dark), the lit tiles a hazard in the dark covers, and anything else only if its
+// tile is in line of sight. A laser keeps just the part of its beam that is seen.
+function inSight(entities: EntityView[], seat: Seat, seen: Visible): EntityView[] {
+  const out: EntityView[] = [];
+  for (const e of entities) {
+    if (e.kind === "stamp" || e.kind === "sight" || (e.kind === "player" && e.seat === seat)) {
+      out.push(e);
+    } else if (e.beam) {
+      const beam = e.beam.filter((t) => seen.has(Math.floor(t.x), Math.floor(t.y)));
+      if (seen.has(Math.floor(e.pos.x), Math.floor(e.pos.y)) || beam.length > 0) {
+        out.push({ ...e, beam });
+      }
+    } else if (seen.has(Math.floor(e.pos.x), Math.floor(e.pos.y))) {
+      out.push(e);
+    }
+  }
+  return out;
 }
 
 function maskTiles(grid: string[], zones: Zone[]): string[] {
@@ -474,8 +507,13 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
     const zones = darkZones(world);
     view.dark = inAny(zones, me);
     view.alarm = alarm;
-    view.entities =
-      zones.length === 0 ? entitiesFor(world, seat, role) : darken(world, seat, role, zones);
+    const seen = visibleFrom(world, me);
+    view.seen = encodeSeen(seen.tiles);
+    view.entities = inSight(
+      zones.length === 0 ? entitiesFor(world, seat, role) : darken(world, seat, role, zones),
+      seat,
+      seen,
+    );
     if (full) view.tiles = zones.length === 0 ? world.room.grid : maskTiles(world.room.grid, zones);
   }
   if (role !== "deaf")

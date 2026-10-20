@@ -228,6 +228,11 @@ export function createAudio(): GameAudio {
           [523, 659, 784].forEach((hz, i) => {
             tone(c, s, "triangle", hz, hz, 0.22, 0.3, i * 0.09);
           });
+        } else if (s.kind === "clue") {
+          // n soft bells, so the count is something you hear and can count
+          for (let i = 0; i < Math.max(1, Math.min(3, s.n ?? 1)); i++) {
+            tone(c, s, "sine", 880, 880, 0.35, 0.2, i * 0.28);
+          }
         } else if (s.kind === "hide") rustle(c, s);
         else if (s.kind === "cleared") {
           [523, 659, 784, 1047].forEach((hz, i) => {

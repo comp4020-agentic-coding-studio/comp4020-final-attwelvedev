@@ -161,7 +161,15 @@ describe("lintRoom: hazards", () => {
   it("flags a sequence door with no sign, or a sign that lists the wrong plates", () => {
     const seq = { D1: { mode: "sequence", opensWhen: ["p2", "p1", "p3"] } };
     expect(lint({ ...GOOD, ...seq })).toContainEqual(expect.stringMatching(/door D1.*sign/i));
-    const signed = GRID.map((r, y) => (y === 4 ? "#..#S......p.......#" : r));
+    // (the plates sit 3 tiles apart: this test is about the sign, not the spacing)
+    const signed = [
+      "####################",
+      "#1.K.C.......D...E.#",
+      "#2......p....D.....#",
+      "#3.B.L.....p.D.....#",
+      "#..#S...........p..#",
+      "####################",
+    ];
     expect(lint({ ...GOOD, ...seq, S1: { shows: ["p1", "p2", "p3"] } }, signed)).toContainEqual(
       expect.stringMatching(/door D1.*sign/i),
     );
@@ -251,5 +259,99 @@ describe("the fixture rooms", () => {
     const rooms = loadRooms("./spec/fixtures/rooms");
     expect(rooms.map((r) => r.id)).toEqual(["01-tiny"]);
     for (const r of rooms) expect(lintRoom(r)).toEqual([]);
+  });
+});
+
+describe("lintRoom: line-of-sight rules", () => {
+  const intent = `"intent":{"blind":"b","deaf":"d","mute":"m"}`;
+  const beat = (x: string, extra = "") => `{"name":"Beat","x":${x}${extra},${intent}}`;
+  const head = (beats: string[], objects: Record<string, unknown> = {}, extra = "") =>
+    `{"id":"t-room","name":"Test room","version":1,"beats":[${beats.join(",")}],"objects":${JSON.stringify({ D1: { opensWhen: ["p1", "p2", "p3"] }, ...objects })},"hints":{"jobs":[${beats.map((_, i) => `{"beat":${i + 1},"goTo":"p1"}`).join(",")}]}${extra}}`;
+  const lint = (grid: string[], beats: string[], objects = {}, extra = "") =>
+    lintRoom(parseRoom(`${head(beats, objects, extra)}\n---\n${grid.join("\n")}\n`)).map(
+      (i) => i.message,
+    );
+  const BASE = [
+    "####################",
+    "#1.c.....p...D...E.#",
+    "#2.......p...D.....#",
+    "#3.......p.........#",
+    "#..................#",
+    "####################",
+  ];
+  const WHOLE = beat("[1,18]");
+
+  it("allows a clue only inside a beat that declares a cue", () => {
+    expect(lint(BASE, [WHOLE])).toContainEqual(expect.stringMatching(/clue c1.*cue/i));
+    expect(lint(BASE, [beat("[1,18]", ',"cue":"twin"')])).not.toContainEqual(
+      expect.stringMatching(/clue/i),
+    );
+    // a cue beat elsewhere does not cover it
+    expect(lint(BASE, [beat("[1,2]"), beat("[4,18]", ',"cue":"split"')])).toContainEqual(
+      expect.stringMatching(/clue c1.*cue/i),
+    );
+  });
+
+  it("flags a beat that is dark everywhere while an alarm can sound in it", () => {
+    const flips = (zone: string) =>
+      `,"flips":[{"kind":"dark","zone":${zone}},{"kind":"alarm","trigger":"p1","durationS":8}]`;
+    const plain = BASE.map((r) => r.replace("c", "."));
+    const beats = [beat("[8,10]"), beat("[11,18]")];
+    expect(lint(plain, beats, {}, flips("[8,1,10,4]"))).toContainEqual(
+      expect.stringMatching(/dark.*alarm/i),
+    );
+    // dark but no alarm in the beat (the trigger plate is in the other beat): fine
+    expect(lint(plain, [beat("[1,7]"), beat("[8,18]")], {}, flips("[1,1,7,4]"))).not.toContainEqual(
+      expect.stringMatching(/dark.*alarm/i),
+    );
+    // alarmed but only partly dark: fine
+    expect(lint(plain, beats, {}, flips("[8,1,10,2]"))).not.toContainEqual(
+      expect.stringMatching(/dark.*alarm/i),
+    );
+  });
+
+  it("flags sequence plates closer than 3 tiles, so one body cannot hold two", () => {
+    const grid = [
+      "####################",
+      "#1.p.p.p.....D...E.#",
+      "#2...S.......D.....#",
+      "#3...........D.....#",
+      "####################",
+    ];
+    const seq = {
+      D1: { mode: "sequence", opensWhen: ["p1", "p2", "p3"] },
+      S1: { shows: ["p1", "p2", "p3"] },
+    };
+    expect(lint(grid, [WHOLE], seq)).toContainEqual(expect.stringMatching(/plates.*3 tiles/i));
+    const spread = grid.map((r, y) => (y === 1 ? "#1.p...p...p.D...E.#".slice(0, 20) : r));
+    expect(lint(spread, [WHOLE], seq)).not.toContainEqual(expect.stringMatching(/3 tiles/i));
+  });
+
+  it("requires every role to lead a beat in a room that says leads: true", () => {
+    const plain = BASE.map((r) => r.replace("c", "."));
+    const led = (...roles: string[]) =>
+      roles.map((r, i) => beat(`[${1 + i * 6},${6 + i * 6}]`, `,"lead":"${r}"`));
+    const extra = `,"leads":true`;
+    expect(lint(plain, led("blind", "deaf"), {}, extra)).toContainEqual(
+      expect.stringMatching(/mute as its lead/i),
+    );
+    expect(lint(plain, led("blind", "deaf", "mute"), {}, extra)).not.toContainEqual(
+      expect.stringMatching(/as its lead/i),
+    );
+    // without the flag, no lead is required
+    expect(lint(plain, [WHOLE])).not.toContainEqual(expect.stringMatching(/as its lead/i));
+  });
+});
+
+describe("lintRoom: glass and vents are walls for walking", () => {
+  it("flags an exit behind a vent or glass wall as unreachable", () => {
+    for (const ch of ["%", "="]) {
+      const walled = [...GOOD];
+      walled[1] = `#1.#.........D${ch}..E.#`;
+      walled[2] = `#2.#....p....D${ch}....#`;
+      walled[3] = `#3.B....p....D${ch}....#`;
+      walled[4] = `#..#....p.....${ch}....#`;
+      expect(messages(room(walled))).toContainEqual(expect.stringMatching(/exit.*reach/i));
+    }
   });
 });

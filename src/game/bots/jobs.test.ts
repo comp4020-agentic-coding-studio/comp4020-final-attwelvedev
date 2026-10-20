@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { parseRoom, type Room } from "../rooms/format.ts";
-import { claimJobs, exitTile, hintsOf, isDone, isOpen, type Job, type Known } from "./jobs.ts";
+import {
+  claimJobs,
+  exitTile,
+  hintsOf,
+  isDone,
+  isOpen,
+  type Job,
+  type Known,
+  parseJob,
+} from "./jobs.ts";
 
 const GRID = [
   "####################",
@@ -63,6 +72,53 @@ describe("hintsOf", () => {
   });
 });
 
+describe("a clue job", () => {
+  // two beats; the clue sits in the first (x 1-8), which holds two plates
+  const GRID = [
+    "####################",
+    "#1.p.c...p...p...E.#",
+    "#2.......D.........#",
+    "#3.....p...........#",
+    "####################",
+  ];
+  const withClue = (n: number, goTo = "clue:c1", extra: Record<string, unknown> = {}) => {
+    const beat = (name: string, x: [number, number]) => ({
+      name,
+      x,
+      intent: { blind: "b", deaf: "d", mute: "m" },
+      ...extra,
+    });
+    return parseRoom(
+      `${JSON.stringify({
+        id: "t",
+        name: "T",
+        version: 1,
+        beats: [beat("one", [1, 8]), beat("two", [9, 18])],
+        objects: { D1: { opensWhen: ["p1"] }, c1: { n } },
+        hints: { jobs: [{ beat: 2, goTo }] },
+      })}\n---\n${GRID.join("\n")}\n`,
+    );
+  };
+  const target = (r: Room) => hintsOf(r)[0]?.target;
+
+  it("goes to the plate whose number is the clue's n, among the plates of the clue's beat", () => {
+    // ids follow reading order over the whole grid: p1 (3,1), p2 (9,1), p3 (13,1), p4 (7,3).
+    // The clue (5,1) is in beat one (x 1-8), whose plates are p1 and p4, so a clue of 2 means p4
+    expect(target(withClue(2))).toMatchObject({ kind: "plate", id: "p4" });
+    expect(target(withClue(1))).toMatchObject({ kind: "plate", id: "p1" });
+  });
+
+  it("is dropped when the clue is not in the room, or n is more than the beat has plates", () => {
+    expect(hintsOf(withClue(2, "clue:c9"))).toEqual([]);
+    expect(hintsOf(withClue(3))).toEqual([]);
+  });
+
+  it("says why, through parseJob", () => {
+    const r = withClue(2, "clue:c9");
+    expect(parseJob(r, { beat: 2, goTo: "clue:c9" }, 0)).toMatch(/clue c9/i);
+  });
+});
+
 describe("claimJobs", () => {
   it("gives every bot the job its role prefers", () => {
     const queues = claimJobs(room, hintsOf(room), seats());
@@ -121,6 +177,8 @@ describe("isDone / isOpen", () => {
     pressed: {},
     crates: { B1: { x: 4, y: 2 } },
     seq: {},
+    seenHazards: {},
+    clues: {},
     checkpoint: 0,
     ...over,
   });
@@ -159,6 +217,8 @@ describe("flag jobs", () => {
     pressed: {},
     crates: {},
     seq: {},
+    seenHazards: {},
+    clues: {},
     checkpoint,
   });
 
