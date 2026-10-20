@@ -286,11 +286,11 @@ Build to the spec §4.1 wireframes. Specifics the wireframes leave open:
 
 ## 6. Phase Definition of Done
 
-- [ ] Every task in §5 is complete and its tests pass
-- [ ] `pnpm test:unit` passes
-- [ ] `pnpm build && pnpm start` then `pnpm check` passes
-- [ ] Tasks 10–12 human reviews accepted
-- [ ] Tick this phase in overview §5 and commit
+- [x] Every task in §5 is complete and its tests pass
+- [x] `pnpm test:unit` passes
+- [x] `pnpm build && pnpm start` then `pnpm check` passes (user ticked 2026-10-20 with known timing flakes, §11)
+- [x] Tasks 10–12 human reviews accepted
+- [x] Tick this phase in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)
 
