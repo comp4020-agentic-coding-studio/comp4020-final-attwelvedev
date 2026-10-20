@@ -19,7 +19,7 @@
   line-gap-override: 0%;
 }
 
-/* Design tokens (spec §4.1, doc/prompts/DESIGN.md). Dark only. Code reads these
+/* Design tokens (spec §4.1; DESIGN.md names each one and its job). Dark only. Code reads these
    and never hard-codes a colour, size or duration. */
 :root {
   --bg: #0b1220;

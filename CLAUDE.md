@@ -55,6 +55,12 @@ cause, not just the instance: add a rule here, or a check in `spec/` or
 `pnpm check`, then log it in `PROCESS_LOG.md`. A repeated mistake is a missing
 sensor. A bug fix starts with a failing test that reproduces it.
 
+## Visual changes read DESIGN.md first
+
+Before changing the look, read `DESIGN.md`. A change to the look, a token, a
+component's job or the copy rules updates it in the same commit;
+`spec/design.test.ts` fails if it names a token or component that doesn't exist.
+
 ## Ideas mid-phase go to the backlog
 
 When a new feature idea or spec-level issue comes up partway through a phase,

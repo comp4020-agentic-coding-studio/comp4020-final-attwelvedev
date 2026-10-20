@@ -176,7 +176,7 @@ without `nowMs`).
 
 ## 5. Task breakdown
 
-### Task 17: A living DESIGN.md, and the rule that keeps it current
+### Task 17: A living DESIGN.md, and the rule that keeps it current [x]
 
 - **Description:** Write `DESIGN.md` at the repo root as the current design
   reference (overview A5), from `specs/2026-10-19-play-overhaul.md` §4.1, the
@@ -342,3 +342,9 @@ without `nowMs`).
 ## 8. Risks / open questions
 
 None.
+
+## 9. Corrections log
+
+One line per redirect after the user has seen a result: expected, wanted, why the first attempt missed.
+
+_(none yet)_

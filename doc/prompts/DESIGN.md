@@ -1,3 +1,5 @@
+> **Superseded** by [`DESIGN.md`](../../DESIGN.md) at the repo root, the living design reference. Kept as the original prompt draft.
+
 # DESIGN.md (draft v0)
 
 Status: a proposal to react to, not a decision. Items tagged **[decide]** are open.
