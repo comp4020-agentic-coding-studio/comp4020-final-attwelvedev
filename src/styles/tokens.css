@@ -80,6 +80,26 @@
   --w-watch: #e9a400;
   --w-exit: #bdefd8;
   --w-exit-flag: #2fa678;
+  /* stations, gear and signals (escape-room phase 02): code colours always outlined in --w-line
+     and carry a fixed pattern (red plain, blue stripe, yellow bands, green dots, white hatch,
+     black chevrons); the UV pool is the one bold effect */
+  --w-code-red: #d7263d;
+  --w-code-blue: #2b6cd4;
+  --w-code-yellow: #f2c230;
+  --w-code-green: #2e9e5b;
+  --w-code-white: #fbfaf6;
+  --w-code-black: #1f1c2c;
+  --w-steel: #b8c0cc;
+  --w-steel-front: #8a93a3;
+  --w-brass: #c9a14a;
+  --w-lamp: #ffd75e;
+  --w-uv: #6a4cff;
+  --w-uv-ink: #c8ff3d;
+  --w-nv: #7f9a84;
+  --w-card: #fffaf0;
+  --w-dye-pink: #ff9ec7;
+  --w-dye-mint: #8fe3c0;
+  --w-dye-sky: #9cc9ff;
   /* the alarm's dusk set: the world blends toward these over 600 ms */
   --dusk-sky-hi: #3a2e44;
   --dusk-sky-lo: #5a2236;
@@ -169,6 +189,23 @@
   --w-watch: #ffff00;
   --w-exit: #00ff88;
   --w-exit-flag: #ffffff;
+  --w-code-red: #ff3b3b;
+  --w-code-blue: #4d9bff;
+  --w-code-yellow: #ffe100;
+  --w-code-green: #2bff7a;
+  --w-code-white: #ffffff;
+  --w-code-black: #000000;
+  --w-steel: #d9d9d9;
+  --w-steel-front: #8c8c8c;
+  --w-brass: #ffcc33;
+  --w-lamp: #ffff66;
+  --w-uv: #000000;
+  --w-uv-ink: #ffff00;
+  --w-nv: #000000;
+  --w-card: #000000;
+  --w-dye-pink: #ff66cc;
+  --w-dye-mint: #33ffcc;
+  --w-dye-sky: #66ccff;
   --glass: rgb(0 0 0 / 92%);
   --scrim: rgb(0 0 0 / 70%);
   --hatch: repeating-linear-gradient(45deg, rgb(255 255 255 / 55%) 0 2px, transparent 2px 6px);

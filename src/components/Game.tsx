@@ -16,8 +16,8 @@ import {
   heardCues,
   lerpEntities,
 } from "../client/hud.ts";
-import { createInput } from "../client/input.ts";
-import { type Label, labelsFor } from "../client/labels.ts";
+import { createInput, inputKey } from "../client/input.ts";
+import { ESCAPE_KINDS, type Label, labelsFor } from "../client/labels.ts";
 import { createPredictor, type Predictor } from "../client/predict.ts";
 import { inSight, seenOf } from "../client/render/sight.ts";
 import {
@@ -38,18 +38,24 @@ import { quickSlot } from "../client/wheel.ts";
 import { FACE_POP_MS, type Stamp } from "../game/channels.ts";
 import { botRef } from "../game/crew.ts";
 import type { BriefingCue } from "../game/cues.ts";
+import type { GearItem } from "../game/sim/world.ts";
 import { ROLE_LABEL, type Role, type Seat, type Vec } from "../game/types.ts";
 import type { CrewMember, LobbyState, RealLife, RoleView } from "../net/protocol.ts";
+import { ActHint } from "./ActHint.tsx";
 import { type CaptionLine, Captions } from "./Captions.tsx";
 import { type CommsApi, CommsWheel } from "./CommsWheel.tsx";
 import { Connection } from "./Connection.tsx";
 import { Disconnect } from "./Disconnect.tsx";
+import { GEAR_NAME, GearGlyph } from "./GearGlyph.tsx";
+import { GearSlot } from "./GearSlot.tsx";
 import { HeistComplete } from "./HeistComplete.tsx";
 import { HudMenu } from "./HudMenu.tsx";
+import { LampLight } from "./LampLight.tsx";
 import { RoleReveal } from "./RoleReveal.tsx";
 import { RoleShape } from "./RoleShape.tsx";
 import { RoomCleared } from "./RoomCleared.tsx";
 import { Settings } from "./Settings.tsx";
+import { SideJob } from "./SideJob.tsx";
 import { TalkBar } from "./TalkBar.tsx";
 import { TouchControls } from "./TouchControls.tsx";
 import { useGone } from "./useGone.ts";
@@ -94,7 +100,11 @@ interface Runtime {
   // cross-fade of reduced motion. Null until the game starts; a page that loads mid-game never rises.
   rise: { at: number; reduced: boolean } | null;
   cam: { scale: number; ox: number; oy: number } | null; // the last frame's map camera, to turn a tap into a tile
-  labelsOn: boolean; // the first room's labels: the Labels setting, in room one only
+  lampTick: number; // the tick of the last lamp flash shown, and until when it shows, from whom
+  lampUntil: number;
+  lampFrom: Role | null;
+  labelsOn: boolean; // the Labels setting
+  labelsAll: boolean; // room one labels everything; later rooms only the escape-room objects
   labels: Label[]; // the chips on show this frame: one per kind in sight
 }
 
@@ -102,6 +112,7 @@ const RISE_MS = 900; // the world rises out of the reveal
 const FADE_MS = 300; // reduced motion: a cross-fade instead
 const CAPTION_MS = 5000;
 const PILL_MS = 4000; // an edge pill outlasts the face on it (FACE_POP_MS) by a few seconds
+const LAMP_MS = 1000; // the lamp's light shows this long in a sighted HUD (spec §4.1)
 const fadeOut = (leftMs: number) => Math.min(1, leftMs / 300);
 const SPAWN_FACING: Vec = { x: 1, y: 0 }; // everyone starts a room facing east (src/game/sim/world.ts)
 const EASE = 0.5; // share of the gap to the predicted position closed each frame
@@ -173,7 +184,14 @@ function useDraw(
       let labels: Scene["labels"];
       if (!flat && rt.labelsOn && role !== "blind" && rt.tiles && rt.self) {
         const seenNow = view.seen ? seenOf(view.seen) : null;
-        rt.labels = labelsFor(view.entities, rt.tiles, rt.self, true, (at) => inSight(seenNow, at));
+        rt.labels = labelsFor(
+          view.entities,
+          rt.tiles,
+          rt.self,
+          true,
+          (at) => inSight(seenNow, at),
+          rt.labelsAll ? undefined : ESCAPE_KINDS,
+        );
         labels = rt.labels;
       }
       const scene: Scene = {
@@ -329,6 +347,10 @@ export function Game({
     rise: null,
     cam: null,
     labelsOn: false,
+    labelsAll: false,
+    lampTick: -1,
+    lampUntil: 0,
+    lampFrom: null,
     labels: [],
   });
   const audio = useRef<GameAudio | null>(null);
@@ -544,6 +566,13 @@ function Hud({
   const root = useRef<HTMLDivElement>(null);
   const [clock, setClock] = useState("0:00");
   const [loot, setLoot] = useState(0);
+  // from the view, polled with the clock: what Act would do, your own gear, the lamp, your side job,
+  // and what each teammate in sight carries (the crew row's glyphs)
+  const [act, setAct] = useState<string | undefined>(undefined);
+  const [gear, setGear] = useState<GearItem | null>(null);
+  const [lamp, setLamp] = useState<Role | null>(null);
+  const [sideJob, setSideJob] = useState<RoleView["sideJob"]>(undefined);
+  const [carried, setCarried] = useState<Partial<Record<Seat, GearItem>>>({});
   const [watchOpen, setWatchOpen] = useState(false);
   const [cleared, setCleared] = useState(false);
   const [summary, setSummary] = useState<{ ms: number; loot: number; lootTotal: number } | null>(
@@ -579,7 +608,8 @@ function Hud({
   const live = useRef({ settings, lineId: 0, forceCaptions });
   live.current.settings = settings;
   live.current.forceCaptions = forceCaptions;
-  rt.labelsOn = settings.labels && reveal.index === 0;
+  rt.labelsOn = settings.labels;
+  rt.labelsAll = reveal.index === 0;
   rt.soundOn = settings.sound && !forceCaptions;
 
   // The tile centre under a client point, for placing a mark; `open` is false
@@ -774,6 +804,24 @@ function Hud({
       if (!view) return;
       setClock(formatTime(view.elapsedMs));
       setLoot(view.loot);
+      setAct(view.act);
+      setGear(view.gear ?? null);
+      setSideJob((old) =>
+        old?.id === view.sideJob?.id && old?.done === view.sideJob?.done ? old : view.sideJob,
+      );
+      // the lamp shows for a second after its flash, from the puller's role (at most 2 a second:
+      // the server rate-limits the switch)
+      if (view.lamp && view.lamp.tick !== rt.lampTick) {
+        rt.lampTick = view.lamp.tick;
+        rt.lampUntil = performance.now() + LAMP_MS;
+        rt.lampFrom = reveal.crew.find((c) => c.seat === view.lamp?.seat)?.role ?? null;
+      }
+      setLamp(performance.now() < rt.lampUntil ? rt.lampFrom : null);
+      const held: Partial<Record<Seat, GearItem>> = {};
+      for (const e of view.entities)
+        if (e.kind === "player" && e.seat !== undefined && e.item) held[e.seat] = e.item;
+      if (view.gear) held[view.you.seat] = view.gear;
+      setCarried((old) => (JSON.stringify(old) === JSON.stringify(held) ? old : held));
       setCleared(view.status === "cleared");
       const now = performance.now();
       rt.pops = rt.pops.filter((p) => now - p.at < PILL_MS);
@@ -805,7 +853,7 @@ function Hud({
       const moving = input.move.x !== 0 || input.move.y !== 0;
       if (moving) rt.facing = input.move;
       else rt.walking = { moving: false, blocked: false };
-      const sig = `${input.move.x},${input.move.y},${input.act}`;
+      const sig = inputKey(input);
       if (!moving && sig === lastSent.current) return;
       lastSent.current = sig;
       socket.send({ t: "input", ...input });
@@ -849,6 +897,14 @@ function Hud({
                 {c.nickname}
                 {presence[c.seat] ? ` (${presence[c.seat]})` : ""}
               </span>
+              {carried[c.seat] && (
+                <span class="hud-gear" title={GEAR_NAME[carried[c.seat] as GearItem]}>
+                  <GearGlyph item={carried[c.seat] as GearItem} size={16} />
+                  <span class="sr-only">
+                    , carries the {GEAR_NAME[carried[c.seat] as GearItem]}
+                  </span>
+                </span>
+              )}
               {c.seat === rt.view?.you.seat && <span class="hud-tag">you</span>}
               {c.bot && <span class="hud-tag">bot</span>}
               {voice.speaking.has(c.seat) && <span class="talking hud-tag">talking</span>}
@@ -856,6 +912,7 @@ function Hud({
             </li>
           ))}
         </ul>
+        {role !== "blind" && <LampLight from={lamp} />}
         <span class="hud-clock" role="timer" aria-label="Time">
           {clock}
         </span>
@@ -956,7 +1013,14 @@ function Hud({
           role="img"
           aria-label={role === "blind" ? "No map. Listen to the room." : "Map of the room"}
         />
+        <SideJob job={sideJob} />
         <Captions lines={lines} cues={cues} />
+        {!cleared && (
+          <div class="hud-dock">
+            <GearSlot gear={gear} touch={touch} />
+            {!touch && <ActHint act={act} />}
+          </div>
+        )}
         <CommsWheel
           role={role}
           me={me}
@@ -1067,6 +1131,7 @@ function Hud({
           disabled={cleared}
           comms={comms}
           quickLabel={quickSlot(role, settings.quick).name}
+          act={act}
         />
       ) : (
         <p class={cleared ? "keys is-off" : "keys"}>WASD or arrows move · Space acts</p>

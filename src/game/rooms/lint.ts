@@ -307,6 +307,11 @@ function controls(o: RoomObject): Vec[] {
   return p.type === "dial" || p.type === "vault" ? [at(o), ...parts] : parts;
 }
 
+// The station's state in sight: the entity, and not just its furniture (Task 8 of the escape-room
+// client phase sends a station's parts from anywhere they are in sight, with nothing of its state).
+const readout = (view: RoleView, id: string) =>
+  view.entities.some((e) => e.id === id && !e.station?.furniture);
+
 // What the station's clue is, and whether the view (and the sounds heard over the cycle) has it.
 function hasClue(room: Room, o: RoomObject, view: RoleView, heard: Set<string>): boolean {
   const p = o.params ?? {};
@@ -323,12 +328,12 @@ function hasClue(room: Room, o: RoomObject, view: RoleView, heard: Set<string>):
       return clue?.kind === "gear" ? heard.has("earpiece") : heard.has("clue");
     }
     case "switches":
-      return view.entities.some((e) => e.id === o.id); // the lamps: the pattern to match
+      return readout(view, o.id); // the lamps: the pattern to match
     case "bells":
-      return heard.has("bellnote") && view.entities.some((e) => e.id === o.id);
+      return heard.has("bellnote") && readout(view, o.id);
     case "vault": {
       const from = Array.isArray(p.from) ? p.from : [];
-      return from.length > 0 && from.every((id) => view.entities.some((e) => e.id === id));
+      return from.length > 0 && from.every((id) => readout(view, id));
     }
     default:
       return false; // radio and sync carry no clue: their rule is below
@@ -338,7 +343,7 @@ function hasClue(room: Room, o: RoomObject, view: RoleView, heard: Set<string>):
 // What tells the team a station took the input: its readout in sight, or its sound.
 function hasFeedback(o: RoomObject, view: RoleView, heard: Set<string>): boolean {
   const kinds = STATION_SOUNDS[String(o.params?.type)] ?? [];
-  return view.entities.some((e) => e.id === o.id) || kinds.some((k) => heard.has(k));
+  return readout(view, o.id) || kinds.some((k) => heard.has(k));
 }
 
 // One loadout on one tile, over a cycle: steps the world and turns the station once (a sighted

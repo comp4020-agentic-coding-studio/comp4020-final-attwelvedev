@@ -80,7 +80,9 @@ export type StationType = "dial" | "wires" | "keypad" | "radio" | "switches" | "
 export type GearItem = "earpiece" | "goggles" | "stethoscope" | "uv";
 // EntityView kinds added: "station" | "gear" | "hatch" | "bell" | "lamp" | "ink" | "sidejob" | "uv"
 // EntityView fields added:
-station?: { type: StationType; shows: number[]; solved: boolean };
+station?: { type: StationType; shows: number[]; solved: boolean;
+            parts: { key: StationPartKey; at: Vec[] }[]; furniture?: true }; // parts, furniture added in Task 8 (ruled 2026-10-28; furniture = parts in sight, state not)
+// StationPartKey = "anchor" | "pads" | "back" | "wires" | "keys" | "buttons" | "lamps" | "bells" | "tune" | "sockets"
 item?: GearItem; heldBy?: Seat; text?: string; dyed?: boolean; holding?: Seat;
 // RoleView fields added:
 gear: GearItem | null; sideJob?: { id: string; text: string; done: boolean };
@@ -145,7 +147,10 @@ tone = steady sine; pip = 880 Hz blip; clunk = low square; bellnote `n` = sine
   spec §4.1, including reduced-motion and high-contrast variants.
 - **Files touched:** new `src/client/render/stations.ts`, `gear.ts`,
   `signals.ts`, `dye.ts`; `src/client/render/index.ts` (call them; `Scene`
-  gains nothing new: everything is in `entities`); `render/figures.ts` (gear on
+  gains nothing new: everything is in `entities`); `src/game/perception.ts` +
+  `perception.test.ts` (the station entity carries its `parts` tiles, furniture
+  only; for the sighted it is sent when any part or display tile is in sight,
+  with `shows` empty unless a display tile is in sight; ruled 2026-10-28); `render/figures.ts` (gear on
   figure, shoulder badge on phone scale, dye blotches, eyes toward leader);
   `render/sight.ts` (UV pool polygon reuse, goggles tint); `src/client/fx.ts`
   (`detectFx`: station solved ring, gear hand-over arc, bell swing);
@@ -158,7 +163,9 @@ tone = steady sine; pip = 880 Hz blip; clunk = low square; bellnote `n` = sine
   (`caught` gains optional `station?: StationType`, team-wide) and
   `caughtText` in `src/client/hud.ts` for the per-type dye banner copy
   (ruled 2026-10-28).
-- **Tests first (red):** `render.test.ts`: each new entity kind draws without
+- **Tests first (red):** `perception.test.ts`: a sighted viewer at the switch
+  buttons with the lamps out of sight gets the station with its parts and empty
+  `shows`; Can't see gets no station; `render.test.ts`: each new entity kind draws without
   throwing at both scales and under reduced motion and high contrast; ink is
   clipped to the pool polygon (asserted on the recorder: every ink fill sits
   inside a `save`→`clip` on the pool ∩ sight path; ruled 2026-10-28);
@@ -168,12 +175,18 @@ tone = steady sine; pip = 880 Hz blip; clunk = low square; bellnote `n` = sine
   `spec/design.test.ts` passes with the new names.
 - **Implementation (green):** as described.
 - **Acceptance criteria:** tests green; no colour-only state (each code colour
-  carries its pattern; lamps lit vs hollow; keys numbered).
+  carries its pattern; lamps lit vs hollow; keys numbered); each station carries
+  a brass name plate on the object (its kind in words: "Safe", "Radio", "Wires",
+  "Keypad", "Switches", "Lamps", "Music box", "Vault", "Keys") and readouts large
+  enough to read at phone scale (ruled 2026-10-28 after the first review: nothing
+  said what an object was).
 - **Human review:** on a local build with `00-stations-draft` as the only room
   (`ROOMS_DIR=spec/fixtures/drafts` or equivalent), three tabs, desktop 1280
   and phone 375: the stations read as gallery furniture and look natural in the
   world; the UV pool is striking but legible; goggles read as night vision;
-  the dye pack is funny, not alarming. Pass = the user says so.
+  the dye pack is funny, not alarming. Pass = the user says so. **Held jointly
+  with Task 10's review, after Task 10 lands** (ruled 2026-10-28): the drawing
+  cannot be judged before the labels and Act hint say what each thing is.
 - **Depends on:** Tasks 3, 7.
 
 ### Task 9: Synthesised sounds and captions for every new cue
@@ -207,7 +220,8 @@ tone = steady sine; pip = 880 Hz blip; clunk = low square; bellnote `n` = sine
   `gear` (via a `[data-gear]` handler in `src/client/input.ts`, like `[data-act]`), Act button label = `view.act`); `src/styles/game.css`;
   `src/client/labels.ts` (+ test: `LABEL_COPY` rows from spec §4.1 for
   station types, gear, hatch, bell, lamp, ink, hold hands; `KIND_OF` maps the
-  new kinds); `DESIGN.md` Components; `spec/layout/hud.test.ts` (gear slot,
+  new kinds); `DESIGN.md` Components; `spec/layout/escape-hud.test.ts` (its own app
+  on the drafts: the shared server's rooms have no gear; CLAUDE.md: one slow file per area) (gear slot,
   Act hint, lamp: visible, ≥48 px on phone, no overlap with the joystick or
   Act, axe clean, at both viewports and every role).
 - **Tests first (red):** `labels.test.ts`: a `station` entity of type `dial`
@@ -258,3 +272,26 @@ None.
   app at both widths, so `project.ts` is unchanged. Both tests were green on
   first run: nothing to fix, verified by probing the workload and mutating the
   clamp. Full check baseline: 228 s.
+- 2026-10-28, Task 8 start: the station entity had no part tiles (the grid
+  blanks `Q`, and the entity is sent only while a display tile is in sight), so
+  no wire, key, pad or button could be placed. The user ruled to add `parts` to
+  the station entity (furniture only, `shows` gated on display sight). The
+  Phase 1 review checked field names against the code but not whether the
+  fields could draw the spec's mockups.
+- 2026-10-28, Task 8 review: expected a verdict on the look; the user said nothing
+  was clear: what each object is or what to do with it. Missed because the plan
+  reviews the drawing (Task 8) before the labels and Act hint that explain it
+  (Task 10), and nothing on screen named the new objects or showed `view.act`.
+- 2026-10-28, Task 10: tried one chip on a phone to stop chips piling up; it broke
+  DESIGN.md 4.6's promise (a chip for every kind in sight, `spec/layout/hud.test.ts`).
+  Removed it: the new nearest-free-spot placement already keeps chips apart.
+- 2026-10-28, joint review of Tasks 8-10 (stopped): the user could not solve any
+  station: the safe's clicks sound alike, the music box gives no bell-to-note link,
+  and nothing says which wire, code or switches. Traced: several clues never reach
+  a human (plaque text never drawn; no switches target; vault answer random, not fed
+  by the wings; radio `yields` a keypad whose clue is a chime). Bots clear the
+  draft by reading answers from the sim, which hid it. The user also judged one room
+  with every station type too much to learn at once. Handed back to
+  brainstorm-feature: the clue chain (what tells a human each answer, how stations
+  link) and pacing (fewer types per room). Work kept on branch
+  `wip/escape-room-02-client`, uncommitted to main.

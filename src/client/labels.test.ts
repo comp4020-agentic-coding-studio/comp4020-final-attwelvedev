@@ -56,3 +56,100 @@ describe("labelsFor", () => {
     expect(labelsFor([], undefined, me, true)).toEqual([]);
   });
 });
+
+// Escape-room objects (phase 02 Task 10): each new thing names itself and what to do with it.
+describe("labelsFor: stations, gear and signals", () => {
+  const st = (id: string, type: NonNullable<EntityView["station"]>["type"]): EntityView => ({
+    id,
+    kind: "station",
+    pos: { x: 4.5, y: 4.5 },
+    station: { type, shows: [], solved: false, parts: [{ key: "anchor", at: [{ x: 4, y: 4 }] }] },
+  });
+
+  it("labels a dial station as the safe, with what to do", () => {
+    const [l] = labelsFor([st("Q1", "dial")], undefined, me, true);
+    expect(l?.text).toBe("Safe: stand on an arrow and press Act to turn the dial");
+  });
+
+  it("has the spec's line for every station type, gear, the hatch, bell, lamp and ink", () => {
+    const types = [
+      "dial",
+      "wires",
+      "keypad",
+      "radio",
+      "switches",
+      "bells",
+      "vault",
+      "sync",
+    ] as const;
+    const texts = labelsFor(
+      [
+        ...types.map((t, i) => ({ ...st(`Q${i}`, t), pos: { x: 3 + i, y: 4.5 } })),
+        { id: "g1", kind: "gear", pos: { x: 3.5, y: 5.5 }, item: "uv" },
+        { id: "H1", kind: "hatch", pos: { x: 4.5, y: 5.5 } },
+        { id: "b1", kind: "bell", pos: { x: 5.5, y: 5.5 } },
+        { id: "l1", kind: "lamp", pos: { x: 6.5, y: 5.5 } },
+        { id: "u1", kind: "ink", pos: { x: 7.5, y: 5.5 }, text: "7 3" },
+      ] as EntityView[],
+      undefined,
+      me,
+      true,
+    ).map((l) => l.text);
+    for (const line of [
+      "Safe: stand on an arrow and press Act to turn the dial",
+      "Wires: stand under one and press Act to cut it",
+      "Keypad: each key has its own note and light",
+      "Radio: turn until the static clears, then count the pips",
+      "Switches: each one flips lamps in another room",
+      "Music box: strike the bells in the tune's order",
+      "Vault: one symbol from each wing",
+      "Keys: two of you turn them at the same moment",
+      "Gear: walk over it and press Act to pick it up",
+      "Hatch: gear and crates go through, people don't",
+      "Bell: pull the rope; everyone who can hear, hears it",
+      "Lamp: flips a light on every sighted teammate's screen",
+      "Plaque: a rule for another room. Some are only in UV ink",
+    ])
+      expect(texts).toContain(line);
+  });
+
+  it("labels holding hands on a figure who is holding a hand", () => {
+    const leader: EntityView = {
+      id: "P0",
+      kind: "player",
+      seat: 0,
+      pos: { x: 3.5, y: 4.5 },
+      holding: 1,
+    };
+    const texts = labelsFor([leader], undefined, me, true).map((l) => l.text);
+    expect(texts).toContain("Hold hands: press Act next to a teammate");
+  });
+});
+
+describe("labelsFor: where a station's chip points", () => {
+  it("points at the station's own parts, not at an anchor out of sight (the music box's bells)", () => {
+    const box: EntityView = {
+      id: "Q7",
+      kind: "station",
+      pos: { x: 13.5, y: 11.5 }, // the tune box, behind glass
+      station: {
+        type: "bells",
+        shows: [],
+        solved: false,
+        parts: [
+          { key: "anchor", at: [{ x: 13, y: 11 }] },
+          {
+            key: "bells",
+            at: [
+              { x: 7, y: 10 },
+              { x: 9, y: 10 },
+            ],
+          },
+          { key: "tune", at: [{ x: 13, y: 11 }] },
+        ],
+      },
+    };
+    const [l] = labelsFor([box], undefined, { x: 8, y: 8 }, true);
+    expect(l?.at).toEqual({ x: 8.5, y: 10.5 });
+  });
+});

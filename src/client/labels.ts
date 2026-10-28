@@ -1,5 +1,6 @@
 import type { EntityView } from "../game/perception.ts";
 import type { Vec } from "../game/types.ts";
+import { plateAt } from "./render/stations.ts";
 
 // In-world labels for the first room (FR15): the first time a kind of object is in sight, a small
 // chip says what it is for. Pure: the renderer draws what this returns.
@@ -21,6 +22,50 @@ export const LABEL_COPY: Record<string, string> = {
   guard: "Guard: keep out of its sight",
   exit: "Exit: everyone on it ends the room",
   dark: "Dark: you can't see here, but you can hear",
+  // stations, gear and signals (spec §4.1 labels; the keys' line is ours: the spec named none)
+  safe: "Safe: stand on an arrow and press Act to turn the dial",
+  wires: "Wires: stand under one and press Act to cut it",
+  plaque: "Plaque: a rule for another room. Some are only in UV ink",
+  keypad: "Keypad: each key has its own note and light",
+  radio: "Radio: turn until the static clears, then count the pips",
+  switches: "Switches: each one flips lamps in another room",
+  musicbox: "Music box: strike the bells in the tune's order",
+  vault: "Vault: one symbol from each wing",
+  keys: "Keys: two of you turn them at the same moment",
+  hatch: "Hatch: gear and crates go through, people don't",
+  bell: "Bell: pull the rope; everyone who can hear, hears it",
+  lamp: "Lamp: flips a light on every sighted teammate's screen",
+  gear: "Gear: walk over it and press Act to pick it up",
+  hands: "Hold hands: press Act next to a teammate",
+};
+
+// The kinds that are new with the escape-room rooms: labelled in whichever room they first appear,
+// not only the first room (they first appear in room 2).
+export const ESCAPE_KINDS = new Set([
+  "safe",
+  "wires",
+  "plaque",
+  "keypad",
+  "radio",
+  "switches",
+  "musicbox",
+  "vault",
+  "keys",
+  "hatch",
+  "bell",
+  "lamp",
+  "gear",
+  "hands",
+]);
+const STATION_KIND: Record<NonNullable<EntityView["station"]>["type"], string> = {
+  dial: "safe",
+  wires: "wires",
+  keypad: "keypad",
+  radio: "radio",
+  switches: "switches",
+  bells: "musicbox",
+  vault: "vault",
+  sync: "keys",
 };
 
 const TILE_RADIUS = 7; // glass and vents are labelled when one is this close to the seat
@@ -33,7 +78,22 @@ const KIND_OF: Partial<Record<EntityView["kind"], string>> = {
   laser: "laser",
   guard: "guard",
   exit: "exit",
+  gear: "gear",
+  hatch: "hatch",
+  bell: "bell",
+  lamp: "lamp",
+  ink: "plaque",
 };
+
+// What a thing is, for its label: most by their kind, a station by its type, a sign that carries a
+// rule as a plaque, and a figure holding a hand as the hold-hands chip.
+function kindOf(e: EntityView): string | undefined {
+  if (e.kind === "station" && e.station) return STATION_KIND[e.station.type];
+  if (e.kind === "sign" && e.text) return "plaque";
+  if (e.kind === "player")
+    return e.holding !== undefined || e.heldBy !== undefined ? "hands" : undefined;
+  return KIND_OF[e.kind];
+}
 
 // The chips for what is in sight right now: one per kind, on the nearest one to `near`. A kind
 // whose every instance is out of sight has none; it comes back when one is in sight again.
@@ -43,6 +103,7 @@ export function labelsFor(
   near: Vec,
   enabled = true,
   visible: (at: Vec) => boolean = () => true,
+  only?: ReadonlySet<string>, // label just these kinds (past the first room: the new objects)
 ): Label[] {
   if (!enabled) return [];
   const nearest = new Map<string, { at: Vec; d: number }>();
@@ -55,10 +116,15 @@ export function labelsFor(
   // tiles in sight, so it names the object rather than whichever tile is nearest.
   const groups = new Map<string, { kind: string; tiles: Vec[] }>();
   for (const e of entities) {
-    const kind = KIND_OF[e.kind];
-    if (!kind || !visible(e.pos)) continue;
+    const kind = kindOf(e);
+    if (!kind) continue;
+    // a station points where its plate stands (its main piece), which may not be its anchor
+    const st = e.station;
+    const anchor = st?.parts.find((p) => p.key === "anchor")?.at[0];
+    const pos = st && anchor ? (plateAt(st, anchor)[0]?.at ?? e.pos) : e.pos;
+    if (!visible(pos)) continue;
     const group = groups.get(e.id) ?? { kind, tiles: [] };
-    group.tiles.push(e.pos);
+    group.tiles.push(pos);
     groups.set(e.id, group);
   }
   for (const { kind, tiles: spots } of groups.values()) {
@@ -82,5 +148,7 @@ export function labelsFor(
       }
     }
   }
-  return [...nearest].map(([kind, { at }]) => ({ kind, text: LABEL_COPY[kind] ?? kind, at }));
+  return [...nearest]
+    .filter(([kind]) => !only || only.has(kind))
+    .map(([kind, { at }]) => ({ kind, text: LABEL_COPY[kind] ?? kind, at }));
 }

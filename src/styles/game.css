@@ -1415,3 +1415,131 @@ fieldset.settings {
 .watch-chat .talk-mic {
   justify-self: start;
 }
+
+/* escape-room HUD (DESIGN.md Components: GearSlot, ActHint, LampLight, SideJob, GearGlyph). Glass over
+   the world, condensed 700 like the other chips; out of the way of the world's middle. */
+.hud-gear {
+  display: inline-flex;
+  align-items: center;
+}
+.lamp-light {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--ui);
+}
+/* desktop: gear bottom-left and the Act hint beside it, above the captions */
+.hud-dock {
+  position: absolute;
+  bottom: calc(var(--s-2) + 2.4em);
+  left: var(--s-2);
+  z-index: 3;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s-3);
+  pointer-events: none;
+}
+.hud-dock .gear-btn {
+  pointer-events: auto; /* the phone's slot is a button over the world */
+}
+.gear-slot {
+  display: grid;
+  gap: 2px;
+  padding: var(--s-1) var(--s-2);
+  background: var(--glass);
+  border-radius: var(--r);
+  color: var(--ui);
+  font-stretch: 75%;
+  font-weight: 700;
+}
+.gear-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+.gear-key {
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+}
+.gear-empty {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px dashed var(--ui-muted);
+  border-radius: 50%;
+}
+.act-hint {
+  margin: 0;
+  padding: var(--s-1) var(--s-3);
+  background: var(--glass);
+  border-radius: var(--r);
+  color: var(--ui);
+  font-stretch: 75%;
+  font-weight: 700;
+  font-size: var(--t-18);
+}
+.act-hint kbd {
+  margin-right: var(--s-1);
+  padding: 0 var(--s-1);
+  border: 1px solid var(--ui-muted);
+  border-radius: var(--r);
+  font: inherit;
+  font-size: var(--t-14);
+}
+/* the side job: a chip at the frame's top-left, past the notch; tap for the whole line */
+.side-job {
+  position: absolute;
+  top: var(--s-2);
+  left: calc(var(--s-2) + 32px);
+  z-index: 3;
+  display: grid;
+  max-width: min(22rem, 70%);
+  min-height: var(--target);
+  padding: var(--s-1) var(--s-2);
+  background: var(--glass);
+  border: 0;
+  border-radius: var(--r);
+  color: var(--ui);
+  font: inherit;
+  font-stretch: 75%;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.side-job-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 400;
+}
+.side-job-text.is-open {
+  white-space: normal;
+}
+@media (max-width: 719px) {
+  .side-job-text:not(.is-open) {
+    display: none;
+  }
+}
+/* phone: the gear slot is a 48 px button at the world's bottom-left, clear of the touch controls */
+.gear-btn {
+  display: grid;
+  place-items: center;
+  width: var(--target);
+  height: var(--target);
+  padding: 0;
+  border: 2px solid var(--ui-muted);
+  background: var(--panel);
+  touch-action: none;
+  cursor: pointer;
+}
+.gear-btn:disabled {
+  opacity: 0.6;
+}
+/* the Act button says what it will do: smaller type so a short line fits the circle */
+.act.has-hint {
+  padding: 0 var(--s-1);
+  font-size: var(--t-14);
+  font-stretch: 75%;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}

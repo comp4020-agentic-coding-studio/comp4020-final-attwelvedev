@@ -91,6 +91,13 @@ by room (never lilac); the room's `hue` meta picks it, defaulting to rose.
 | `--w-laser` | Lasers | built |
 | `--w-watch` | A camera or guard watching: the hatch | built |
 | `--w-exit`, `--w-exit-flag` | The exit's arch and flag | built |
+| `--w-code-red`, `--w-code-blue`, `--w-code-yellow`, `--w-code-green`, `--w-code-white`, `--w-code-black` | The six code colours (wires, bells, lamps, plaque swatches): each always outlined in `--w-line` and carrying its fixed pattern | built |
+| `--w-steel`, `--w-steel-front`, `--w-brass` | Station furniture: steel bodies, brass rails, plates and bells | built |
+| `--w-lamp` | A lit lamp, key or pip (always with rays or a number, never alone) | built |
+| `--w-uv`, `--w-uv-ink` | The UV pool's wash and rim, and the ink it shows | built |
+| `--w-nv` | Night vision: the goggles' tint and lenses | built |
+| `--w-card` | Card faces: the safe's dial, the radio's band, gear mats | built |
+| `--w-dye-pink`, `--w-dye-mint`, `--w-dye-sky` | The dye pack's splats | built |
 
 **The alarm's dusk set** (built, Task 18): `--dusk-sky-hi`, `--dusk-sky-lo`, `--dusk-water`, `--dusk-water-deep`, `--dusk-wall-top`, `--dusk-wall-front`, `--dusk-wall-shade`, `--dusk-floor`, `--dusk-floor-front` and `--dusk-seam` replace the day colours over about 600 ms while the alarm is on (instant under reduced motion or with no clock). Lasers, role colours and Show items do not change. **High contrast** (built): black sky and water, near-black floor, white walls, and the shell's own set; `setContrast` in `src/client/tokens.ts` swaps the canvas's copy, and dusk steps aside while it is on. The mist is half black. A 3 px outline on interactables is still to draw.
 
@@ -156,7 +163,7 @@ When everyone is ready the game starts underneath the reveal and **rises**: over
 
 ### 4.6 Labels (built, Task 22)
 
-Room 1 carries glass chips with a leader line that name what each thing is for
+Room 1 (and, for the escape-room objects, every room: a station, gear, the hatch, bell, lamp, ink and held hands) carries glass chips with a leader line that name what each thing is for
 (`src/client/labels.ts` picks them, `src/client/render/labels.ts` draws them). They are a
 reference, not a notification: while a kind of thing (plate, crate, door, glass, vent, camera,
 guard, exit, loot) is in your line of sight, one chip floats above the nearest of it on `--glass`
@@ -164,6 +171,19 @@ with a one-sentence job, in the HUD's font. Out of sight, the chip goes; back in
 Chips wrap, stay inside the frame, and lift above one another rather than overlap. They show in the
 first room only, and the **Labels** setting (in the menu's Settings, on by default) turns them off.
 Can't see has no map and gets none.
+
+### 4.8 Stations, gear and signals (built, escape-room phase 02)
+
+The object is the readout: nothing about a station shows anywhere else. They are gallery furniture
+in the same 3/4 world, steel and brass, as quiet as a plate; the UV pool is the one bold effect.
+
+- **One colour = one name = one pattern**: red plain, blue a stripe, yellow bands, green dots, white hatch, black chevrons. Every swatch is outlined in `--w-line`, so a pale fill on the cream floor (or a black one under high contrast) still has a 3:1 edge (`tokens.test.ts` checks it).
+- **Parts:** floor pads with an arrow (`turnPad`); numbered floor keys with 1 to 3 pitch bars; numbered buttons; wall wires as patterned swatches under a brass rail; bells in brass with a code band and a number, tilting when struck; lamps lit with rays or hollow, numbered; vault sockets with a drawn symbol (`symbolGlyph`), never a letter. The part you stand on is outlined in `--ui` and sinks 3 px.
+- **Where it shows:** a station's furniture is drawn wherever any of its parts is in sight; its state only where it shows it (the switches' lamps from the lamp room, never from the buttons).
+- **Solved:** a brass tick plate over the anchor, which stays, and a goal ring. **Wrong:** the dye pack: a pastel cloud puffs from the station, every figure gets three blotches until the reset (`splat`), and the banner reads "Wrong wire. Back to the flag." ("Wrong code.", "Wrong note."). Failure is a toy, not the alarm.
+- **Gear:** on the floor a card mat with a contact shadow and no bob, so it never reads as loot; on a hatch sill it sits at sill height. Carried, on the figure (goggles over the eyes, stethoscope round the neck, earpiece curl, torch at the hip), plus a shoulder badge at phone scale. A hand-over flies the glyph between the two over 250 ms (none under reduced motion).
+- **UV pool:** `--w-uv` at 30 % with a dashed rim, cast with the walls; ink in `--w-uv-ink` outlined, clipped to the pool so letters cut at its rim. **Goggles:** the wearer's whole view tinted `--w-nv` with 8 % grain at 12 fps (static under reduced motion). High contrast: no wash or tint (`OVERLAY` in `tokens.ts`), a 3 px dashed white rim and a 2 px green inner frame.
+- **Hatch:** a wall with a waist-high sill and a lintel on two posts, open between. **Bell:** brass on a bracket with its rope; it swings ±15° three times in 1.2 s when rung (a static tilt under reduced motion). **Lamp switch:** a steel post with a lever and a small bulb. **Holding hands:** a 2 px arc between the hands, a bead each end, an arrowhead toward the leader; the towed figure's eyes look at the leader.
 
 ### 4.7 The role frame (built)
 
@@ -194,8 +214,17 @@ Reuse these before drawing something new. The test checks each name exists.
 - `SpectatorChat`: the watchers' room (text and voice); players never see it.
 - `TouchControls`: the phone's joystick, comms buttons and Act.
 - `RoomCleared`: the room-end card: time, gems, and (Task 24) the comms map.
+- `GearGlyph`: a gear item drawn (goggles, stethoscope, earpiece, UV torch), the HUD's mirror of the canvas `gearGlyph`. In the crew row it shows what each teammate carries. Always with the item's name for screen readers.
+- `GearSlot`: your own gear. On a keyboard a glass chip at the world's bottom-left ("Goggles", "G give or drop"); on a phone a 48 px button at the same corner, held to give or drop (`data-gear`).
+- `ActHint`: what Space will do where you stand, in `view.act`'s words only ("Cut the blue wire"; "Cut wire 2" for Can't see). On a phone the Act button says it instead.
+- `LampLight`: the lamp's flash in a sighted HUD, four rays and the puller's role shape, for a second.
+- `SideJob`: your private side job, a glass chip at the world's top-left; on a phone the label alone, a tap shows the line.
 
 Glass chips (anything over the world) sit on `--glass`.
+
+**Canvas helpers** (not components; in `src/client/render/`): `codeSwatch` (a code colour with its
+pattern and outline), `turnPad` (a floor pad with its arrow), `symbolGlyph` (a vault symbol),
+`splat` (a dye blotch), and `gearGlyph` (a gear item, which the HUD's `GearGlyph` will mirror).
 
 ## 5. Motion
 

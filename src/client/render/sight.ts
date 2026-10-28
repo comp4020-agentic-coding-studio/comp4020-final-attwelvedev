@@ -255,7 +255,7 @@ export function drawMist(
     const row = tiles[y] ?? "";
     for (let x = win.x0; x <= win.x1; x++) {
       if (row[x] === " ") continue; // a dark zone is night, not mist
-      const block = row[x] === "#" || row[x] === "%" || row[x] === "=";
+      const block = row[x] === "#" || row[x] === "%" || row[x] === "=" || row[x] === "H";
       const lift = block ? LIVE.wall : 0;
       const top = toScreen(cam, x, y, lift);
       const box = { x: top.x, y: top.y, w: s, h: depth + lift * s };

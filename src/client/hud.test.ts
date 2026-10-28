@@ -151,6 +151,47 @@ describe("cueCaptions", () => {
     ]);
   });
 
+  it("names every station, gear and signal sound in a plain word, with no direction in it", () => {
+    expect({
+      tick: CUE_WORD.tick,
+      tumbler: CUE_WORD.tumbler,
+      key: CUE_WORD.key,
+      snap: CUE_WORD.snap,
+      static: CUE_WORD.static,
+      tone: CUE_WORD.tone,
+      pip: CUE_WORD.pip,
+      clunk: CUE_WORD.clunk,
+      bellnote: CUE_WORD.bellnote,
+      bell: CUE_WORD.bell,
+      dye: CUE_WORD.dye,
+      earpiece: CUE_WORD.earpiece,
+      gear: CUE_WORD.gear,
+      solved: CUE_WORD.solved,
+    }).toEqual({
+      tick: "Tick",
+      tumbler: "Tumbler",
+      key: "Key",
+      snap: "Snap",
+      static: "Static",
+      tone: "Tone",
+      pip: "Pip",
+      clunk: "Clunk",
+      bellnote: "Bell note",
+      bell: "Bell",
+      dye: "Dye pack",
+      earpiece: "Earpiece",
+      gear: "Gear",
+      solved: "Solved",
+    });
+    // a key, a note and a pip carry which one: the caption says it, as data (not a direction)
+    const said = cueCaptions([
+      { kind: "key", n: 4, pan: 0, gain: 1 },
+      { kind: "bellnote", n: 2, pan: 0, gain: 1 },
+      { kind: "pip", n: 3, pan: 0, gain: 1 },
+    ]).map((c) => c.text);
+    expect(said).toEqual(["Key 5", "Bell note 3", "Pip ×3"]);
+  });
+
   it("never writes left, right or ahead", () => {
     const kinds = Object.keys(CUE_WORD) as SoundCue["kind"][];
     for (const kind of kinds) {
@@ -251,6 +292,19 @@ describe("caughtText", () => {
     expect(caughtText({ hazard: "station", seat: 2, checkpoint: 1 }, crew, 0)).toBe(
       "Wrong answer. Back to checkpoint 1.",
     );
+  });
+
+  it("says what was wrong, by the station's type: a wire, a code, a note (the dye-pack banner)", () => {
+    const say = (station: Parameters<typeof caughtText>[0]["station"]) =>
+      caughtText({ hazard: "station", seat: 2, checkpoint: 0, station }, crew, 0);
+    expect(say("wires")).toBe("Wrong wire. Back to the flag.");
+    expect(say("keypad")).toBe("Wrong code. Back to the flag.");
+    expect(say("dial")).toBe("Wrong code. Back to the flag.");
+    expect(say("vault")).toBe("Wrong code. Back to the flag.");
+    expect(say("bells")).toBe("Wrong note. Back to the flag.");
+    expect(
+      caughtText({ hazard: "station", seat: 2, checkpoint: 2, station: "wires" }, crew, 0),
+    ).toBe("Wrong wire. Back to the flag.");
   });
 });
 

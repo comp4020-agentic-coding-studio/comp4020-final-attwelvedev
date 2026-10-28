@@ -13,6 +13,7 @@ import {
 import type { BriefingCue } from "../game/cues.ts";
 import type { EntityView, RoleView, SoundCue } from "../game/perception.ts";
 import { parseSetup, type Setup } from "../game/setup.ts";
+import type { StationType } from "../game/sim/world.ts";
 import type { Method, PlayerInput, Role, Seat, Vec } from "../game/types.ts";
 import type { CrewMember, SendRequest, VoteKind } from "./game.ts";
 import type { ErrorCode, LobbyState, LobbySummary, Person } from "./lobbies.ts";
@@ -111,6 +112,9 @@ export type ServerMsg =
       hazard: "guard" | "camera" | "laser" | "station";
       seat: Seat;
       checkpoint: number;
+      // a wrong answer: which kind of station, so the dye banner can say "Wrong wire." The whole team
+      // is splattered and sees (or is told by the Act hint) what the station is: nothing new
+      station?: StationType;
     } // the team was sent back
   | {
       t: "vote"; // a restart is being voted on: sent to every player when it opens and each time it changes

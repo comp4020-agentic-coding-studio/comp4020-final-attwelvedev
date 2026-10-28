@@ -58,6 +58,42 @@ describe("detectFx: small effects for what just changed between two views", () =
     expect(done).toMatchObject([{ tone: "goal" }]);
   });
 
+  // escape-room objects (phase 02 Task 8)
+  const parts = [{ key: "anchor" as const, at: [{ x: 5, y: 2 }] }];
+  const safe = (solved: boolean) =>
+    e({ id: "Q1", kind: "station", station: { type: "dial", shows: [3], solved, parts } });
+
+  it("rings a station goal the moment it is solved, and not again", () => {
+    expect(detectFx([safe(false)], [safe(true)])).toMatchObject([
+      { kind: "ring", tone: "goal", big: true, pos: { x: 5.5, y: 2.5 } },
+    ]);
+    expect(detectFx([safe(true)], [safe(true)])).toEqual([]);
+  });
+
+  it("arcs gear from one figure to another when it is handed over", () => {
+    const a = e({ id: "P0", kind: "player", seat: 0, pos: { x: 2.5, y: 2.5 }, item: "uv" });
+    const b = e({ id: "P1", kind: "player", seat: 1, pos: { x: 3.5, y: 2.5 } });
+    const [arc] = detectFx(
+      [a, b],
+      [
+        { ...a, item: undefined },
+        { ...b, item: "uv" },
+      ],
+    );
+    expect(arc).toMatchObject({ kind: "arc", tone: "ui", pos: a.pos, to: b.pos, item: "uv" });
+  });
+
+  it("swings a bell the tick it is rung", () => {
+    const bell = e({ id: "b1", kind: "bell" });
+    expect(detectFx([bell], [{ ...bell, state: "on" }])).toMatchObject([{ kind: "swing" }]);
+  });
+
+  it("puffs a dye cloud from the station when the team is splattered", () => {
+    const p = e({ id: "P0", kind: "player", seat: 0, pos: { x: 2.5, y: 2.5 } });
+    const [cloud] = detectFx([p, safe(false)], [{ ...p, dyed: true }, safe(false)]);
+    expect(cloud).toMatchObject({ kind: "cloud", tone: "muted", pos: { x: 5.5, y: 2.5 } });
+  });
+
   it("lasts well under a second, so effects never pile into flashing", () => {
     expect(FX_MS).toBeLessThan(800);
   });

@@ -1,6 +1,8 @@
 import type { Vec } from "../../game/types.ts";
 import type { EntityView } from "../../net/protocol.ts";
 import { COLOR, MAP, ROLE_COLOR, ROLE_SHAPE, WORLD } from "../tokens.ts";
+import { drawBlotches } from "./dye.ts";
+import { drawCarried } from "./gear.ts";
 import type { Motion, Scene } from "./index.ts";
 import { type Camera, LIVE, toScreen } from "./project.ts";
 import { floorRing, shapePath } from "./shared.ts";
@@ -15,6 +17,7 @@ const DUST_MS = 250; // a puff every quarter second
 const SQUASH = 0.9; // blocked: 10 % shorter along the facing
 const LEAN_DEG = 8; // pushing a crate
 const PUSH_REACH = 1.3; // tiles: a crate this far ahead, in line, is the one being pushed
+const PHONE_TILE_PX = 60; // under this a tile is phone-sized (7 across): carried gear gets a badge
 
 // What a figure is doing. Facing alone survives reduced motion; the rest needs a clock too, so a
 // paused frame (the home feeds pass none) is byte-stable.
@@ -68,6 +71,7 @@ function figure(
   who: { role: "blind" | "deaf" | "mute"; isSelf: boolean; bot: boolean },
   pose: Pose,
   outlineOnly = false,
+  extra: { item?: EntityView["item"]; dyed?: boolean; seat?: number; look?: Vec } = {},
 ) {
   const color = ROLE_COLOR[who.role];
   const moving = animated(scene) && pose.moving;
@@ -113,7 +117,9 @@ function figure(
   ctx.arc(at.x, faceY, s * 0.17, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = WORLD.line;
-  const [lookX, lookY] = [pose.facing.x * s * 0.05, pose.facing.y * s * 0.03];
+  // towed: the eyes look toward the leader's hand, not the way they walk
+  const look = extra.look ?? pose.facing;
+  const [lookX, lookY] = [look.x * s * 0.05, look.y * s * 0.03];
   for (const dx of [-0.06, 0.06]) {
     ctx.beginPath();
     ctx.arc(at.x + s * dx + lookX, faceY + lookY, s * 0.026, 0, Math.PI * 2);
@@ -123,6 +129,8 @@ function figure(
   hat(ctx, at, s, ROLE_SHAPE[who.role]);
   ctx.fill();
   ctx.stroke();
+  if (extra.dyed) drawBlotches(ctx, at, s, extra.seat ?? 0);
+  if (extra.item) drawCarried(ctx, extra.item, at, s, faceY, s < PHONE_TILE_PX);
   if (who.bot) {
     // a bot's antenna: a stalk and a bead on the crown
     const top = at.y - s * (BODY_H + 0.34);
@@ -266,7 +274,18 @@ export function drawPlayer(
     return;
   }
   if (animated(scene) && moving && !blocked) dust(ctx, foot, s, facing, scene.nowMs);
-  figure(ctx, foot, s, scene, { role, isSelf, bot }, pose);
+  const leader = scene.entities.find((o) => o.kind === "player" && o.seat === e.heldBy);
+  const d = leader ? Math.hypot(leader.pos.x - e.pos.x, leader.pos.y - e.pos.y) : 0;
+  const look =
+    leader && d > 0.01
+      ? { x: (leader.pos.x - e.pos.x) / d, y: (leader.pos.y - e.pos.y) / d }
+      : undefined;
+  figure(ctx, foot, s, scene, { role, isSelf, bot }, pose, false, {
+    item: e.item,
+    dyed: e.dyed,
+    seat: e.seat,
+    look,
+  });
 }
 
 // Can't see's own screen: black, and in the middle of it their figure, dimmed, facing the way they

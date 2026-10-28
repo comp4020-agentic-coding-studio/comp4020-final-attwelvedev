@@ -90,6 +90,44 @@ describe("setContrast(true)", () => {
   });
 });
 
+// WCAG 1.4.11: a code colour is told by its pattern, and found by its edge. Every code swatch is
+// drawn outlined in --w-line, so the fill or that outline has to stand 3:1 off the floor, in both
+// themes (a white wire on the cream floor carries its edge; a black one under high contrast too).
+const luminance = (hex: string) => {
+  const c = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16) / 255);
+  const [r, g, b] = c.map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)) as [
+    number,
+    number,
+    number,
+  ];
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+const ratio = (a: string, b: string) => {
+  const [x, y] = [luminance(a), luminance(b)];
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+};
+const CODES = ["codeRed", "codeBlue", "codeYellow", "codeGreen", "codeWhite", "codeBlack"] as const;
+
+describe("code colours", () => {
+  it.each([false, true])(
+    "stand 3:1 off the floor by fill or outline (high contrast %s)",
+    (high) => {
+      setContrast(high);
+      for (const k of CODES) {
+        const best = Math.max(ratio(WORLD[k], WORLD.floor), ratio(WORLD.line, WORLD.floor));
+        expect(best, k).toBeGreaterThanOrEqual(3);
+      }
+    },
+  );
+
+  it("are six different colours in each theme", () => {
+    for (const high of [false, true]) {
+      setContrast(high);
+      expect(new Set(CODES.map((k) => WORLD[k])).size).toBe(6);
+    }
+  });
+});
+
 describe("setDusk", () => {
   it("blends the world toward the dusk set over 600 ms, and back", () => {
     const day = { ...WORLD };

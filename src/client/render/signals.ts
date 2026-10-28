@@ -1,0 +1,105 @@
+import type { EntityView } from "../../net/protocol.ts";
+import { COLOR, WORLD } from "../tokens.ts";
+import { block } from "./blocks.ts";
+import type { Scene } from "./index.ts";
+import { type Camera, LIVE, toScreen } from "./project.ts";
+
+// The bell rope, the lamp switch and the hatch (spec §4.1). The bell swings ±15° three times in
+// 1.2 s when rung (a static tilt under reduced motion); the lamp's light is in the HUD, not here.
+
+const SWING_DEG = 15;
+const SWING_MS = 1200;
+
+// A hatch: a wall tile with a waist-high sill and a lintel, open between. Sight passes the gap;
+// bodies and sound do not (the server's rules, ADR 0012).
+export function drawHatch(ctx: CanvasRenderingContext2D, x: number, y: number, cam: Camera) {
+  const s = cam.scale;
+  const sill = LIVE.wall * 0.4;
+  block(ctx, cam, { x, y, w: 1, d: 1, h: sill }, WORLD.wallTop, WORLD.wallFront);
+  // the lintel: a beam across the top, standing on two posts
+  const top = toScreen(cam, x, y, LIVE.wall);
+  const post = Math.max(3, s * 0.1);
+  const lintel = toScreen(cam, x, y + 1, LIVE.wall);
+  ctx.fillStyle = WORLD.wallFront;
+  ctx.fillRect(lintel.x, lintel.y, post, (LIVE.wall - sill) * s);
+  ctx.fillRect(lintel.x + s - post, lintel.y, post, (LIVE.wall - sill) * s);
+  ctx.fillStyle = WORLD.wallTop;
+  ctx.fillRect(top.x, top.y, s + 0.5, s * LIVE.depth * 0.35);
+  ctx.fillStyle = WORLD.wallFront;
+  ctx.fillRect(lintel.x, lintel.y, s + 0.5, s * 0.16);
+  ctx.strokeStyle = WORLD.line;
+  ctx.lineWidth = 2;
+  const sillFront = toScreen(cam, x, y + 1, sill);
+  ctx.beginPath();
+  ctx.moveTo(sillFront.x, sillFront.y);
+  ctx.lineTo(sillFront.x + s, sillFront.y);
+  ctx.stroke();
+}
+
+// The bell: a brass bell on a bracket with its rope, swinging while it rings.
+export function drawBell(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera, scene: Scene) {
+  const s = cam.scale;
+  const hang = toScreen(cam, e.pos.x, e.pos.y, LIVE.wall * 0.95);
+  const rung = e.state === "on";
+  const still = scene.reducedMotion || scene.nowMs === undefined;
+  const t = ((scene.nowMs ?? 0) % SWING_MS) / SWING_MS;
+  const deg = !rung ? 0 : still ? SWING_DEG : SWING_DEG * Math.sin(t * Math.PI * 2 * 3) * (1 - t);
+  // the bracket
+  ctx.strokeStyle = WORLD.line;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(hang.x - s * 0.25, hang.y);
+  ctx.lineTo(hang.x + s * 0.05, hang.y);
+  ctx.stroke();
+  ctx.save();
+  ctx.translate(hang.x, hang.y);
+  ctx.rotate((deg * Math.PI) / 180);
+  ctx.fillStyle = WORLD.brass;
+  ctx.beginPath();
+  ctx.moveTo(-s * 0.18, s * 0.34);
+  ctx.quadraticCurveTo(-s * 0.16, s * 0.02, 0, s * 0.02);
+  ctx.quadraticCurveTo(s * 0.16, s * 0.02, s * 0.18, s * 0.34);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // the rope, down to hand height
+  ctx.beginPath();
+  ctx.moveTo(0, s * 0.34);
+  ctx.lineTo(0, s * (LIVE.wall * 0.95 - 0.35));
+  ctx.stroke();
+  ctx.restore();
+  // the pull: a knot you stand on, on the floor
+  const f = toScreen(cam, e.pos.x, e.pos.y, 0.35);
+  ctx.fillStyle = WORLD.brass;
+  ctx.beginPath();
+  ctx.arc(f.x, f.y, s * 0.07, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+}
+
+// The lamp switch: a small steel post with a lever; its light shows in every sighted HUD.
+export function drawLampSwitch(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera) {
+  const s = cam.scale;
+  block(
+    ctx,
+    cam,
+    { x: e.pos.x - 0.15, y: e.pos.y - 0.15, w: 0.3, d: 0.3, h: LIVE.block * 0.8 },
+    WORLD.steel,
+    WORLD.steelFront,
+  );
+  const top = toScreen(cam, e.pos.x, e.pos.y - 0.15, LIVE.block * 0.8);
+  const on = e.state === "on";
+  ctx.strokeStyle = WORLD.line;
+  ctx.lineWidth = Math.max(2, s * 0.05);
+  ctx.beginPath();
+  ctx.moveTo(top.x, top.y);
+  ctx.lineTo(top.x + (on ? s * 0.14 : -s * 0.14), top.y - s * 0.22);
+  ctx.stroke();
+  // a little bulb on the post: lit (with rays) while the lamp flashes, hollow otherwise
+  ctx.fillStyle = on ? WORLD.lamp : COLOR.ui;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(top.x, top.y - s * 0.32, s * 0.08, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+}

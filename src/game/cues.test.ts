@@ -25,4 +25,12 @@ describe("cuesIn", () => {
       expect(new Set(cues).size).toBe(cues.length);
     }
   });
+
+  it("briefs the station sounds Can't see must learn: a dial's tick and tumbler, a radio's static, the bell", () => {
+    const [draft] = loadRooms("./spec/fixtures/drafts");
+    if (!draft) throw new Error("no draft");
+    const cues = cuesIn(draft);
+    expect(cues).toEqual(expect.arrayContaining(["tick", "tumbler", "static", "bell"]));
+    expect(cues.indexOf("tick")).toBeLessThan(cues.indexOf("tumbler"));
+  });
 });

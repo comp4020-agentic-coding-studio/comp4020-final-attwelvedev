@@ -396,6 +396,41 @@ export function displayTiles(o: RoomObject): Vec[] {
 // What a station shows someone who can see it: dial and radio, the setting (and, on a radio's
 // pip, the digit after it); wires, their colours; switches, the lamps; vault, the sockets; keypad,
 // bells and sync, what has been entered (a music box first: 1 while a note of its tune plays).
+// Where each part of a station stands, by its metadata key, for drawing: furniture, never state.
+// The anchor first, then the parts in the order the type names them.
+export type StationPartKey =
+  | "anchor"
+  | "pads"
+  | "back"
+  | "wires"
+  | "keys"
+  | "buttons"
+  | "lamps"
+  | "bells"
+  | "tune"
+  | "sockets";
+const DRAWN: Record<StationType, StationPartKey[]> = {
+  dial: ["pads", "back"],
+  radio: ["pads"],
+  wires: ["wires"],
+  keypad: ["keys"],
+  bells: ["bells", "tune"],
+  switches: ["buttons", "lamps"],
+  vault: ["sockets"],
+  sync: ["keys"],
+};
+export function stationParts(o: RoomObject): { key: StationPartKey; at: Vec[] }[] {
+  const p = o.params ?? {};
+  const parts: { key: StationPartKey; at: Vec[] }[] = [{ key: "anchor", at: [o.tiles[0] as Vec] }];
+  for (const key of DRAWN[p.type as StationType] ?? []) {
+    const raw = p[key];
+    // a single tile (back, tune) is written [x, y]; a list is [[x, y], ...]
+    const at = tilesOf(Array.isArray(raw) && typeof raw[0] === "number" ? [raw] : raw);
+    if (at.length > 0) parts.push({ key, at });
+  }
+  return parts;
+}
+
 export function stationShows(world: World, s: StationState): number[] {
   if (s.type === "wires") return s.answer.slice(2);
   if (s.type === "radio") {

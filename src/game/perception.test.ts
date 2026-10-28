@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { spectatorView, viewFor } from "./perception.ts";
+import type { RoomObject } from "./rooms/format.ts";
 import { loadRooms } from "./rooms/load.ts";
 import { caughtBy } from "./sim/hazards.ts";
+import { stationParts } from "./sim/stations.ts";
 import { step } from "./sim/step.ts";
 import { gather, place, tap, worldFrom, worldWith } from "./sim/testing.ts";
 import { decodeSeen } from "./sim/visibility.ts";
@@ -996,7 +998,8 @@ describe("viewFor: stations, gear and signals", () => {
     const colours = w.stations.Q1?.answer.slice(2);
     const q = viewFor(w, 1, "deaf", false).entities.find((e) => e.id === "Q1");
     expect(q?.kind).toBe("station");
-    expect(q?.station).toEqual({ type: "wires", shows: colours, solved: false });
+    const parts = stationParts(w.room.objects.find((o) => o.id === "Q1") as RoomObject);
+    expect(q?.station).toEqual({ type: "wires", shows: colours, solved: false, parts });
     const blind = viewFor(w, 0, "blind", false);
     expect(blind.entities).toEqual([]);
     expect(JSON.stringify(blind)).not.toContain("shows");
@@ -1159,11 +1162,70 @@ describe("viewFor: a station is seen where it shows its state", () => {
         cols: 3,
       },
     });
-    place(w, 1, { x: 3, y: 2 }); // on a button, the panel right beside
-    expect(viewFor(w, 1, "deaf", false).entities.some((e) => e.id === "Q1")).toBe(false);
+    // on a button, the panel right beside: the buttons are furniture and drawn, the lamps' state
+    // is not told (Task 8 of phase 02: parts on the station entity, `shows` only where it shows)
+    w.stations.Q1?.input.splice(0, 3, 1, 0, 1);
+    place(w, 1, { x: 3, y: 2 });
+    const atButtons = viewFor(w, 1, "deaf", false).entities.find((e) => e.id === "Q1");
+    expect(atButtons?.station?.shows).toEqual([]);
+    expect(atButtons?.station?.furniture).toBe(true);
+    expect(atButtons?.station?.parts).toContainEqual({
+      key: "buttons",
+      at: [
+        { x: 2, y: 2 },
+        { x: 3, y: 2 },
+        { x: 4, y: 2 },
+      ],
+    });
     place(w, 1, { x: 8, y: 1 }); // in the lamp room
     expect(
       viewFor(w, 1, "deaf", false).entities.find((e) => e.id === "Q1")?.station?.shows,
-    ).toEqual([0, 0, 0]);
+    ).toEqual([1, 0, 1]);
+  });
+
+  it("is never sent to Can't see, parts or not", () => {
+    const grid = ["############", "#1..Q.#....#", "#2....#....#", "#3....#....#", "############"];
+    const w = worldWith(grid, {
+      Q1: {
+        type: "wires",
+        wires: [
+          [2, 2],
+          [3, 2],
+          [4, 2],
+          [5, 2],
+        ],
+      },
+    });
+    place(w, 0, { x: 3, y: 2 });
+    expect(JSON.stringify(viewFor(w, 0, "blind", true))).not.toContain("parts");
+  });
+
+  it("names every part of the station by its key: a dial's pads, anchor and back", () => {
+    const grid = ["############", "#1..Q.#....#", "#2....#....#", "#3....#....#", "############"];
+    const w = worldWith(grid, {
+      Q1: {
+        type: "dial",
+        pads: [
+          [3, 2],
+          [5, 2],
+        ],
+        back: [4, 3],
+        digits: 2,
+        range: 10,
+      },
+    });
+    place(w, 1, { x: 4, y: 2 });
+    const parts = viewFor(w, 1, "deaf", false).entities.find((e) => e.id === "Q1")?.station?.parts;
+    expect(parts).toEqual([
+      { key: "anchor", at: [{ x: 4, y: 1 }] },
+      {
+        key: "pads",
+        at: [
+          { x: 3, y: 2 },
+          { x: 5, y: 2 },
+        ],
+      },
+      { key: "back", at: [{ x: 4, y: 3 }] },
+    ]);
   });
 });

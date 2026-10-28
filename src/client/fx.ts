@@ -11,10 +11,13 @@ export const FX_MAX = 24; // however busy the room, never more than this at once
 
 export type FxTone = "goal" | "danger" | "ui" | "muted";
 export interface Fx {
-  kind: "ring" | "dust" | "spark";
+  // swing: a bell rung; arc: gear handed from `pos` to `to`; cloud: the dye pack's paint puff
+  kind: "ring" | "dust" | "spark" | "swing" | "arc" | "cloud";
   pos: Vec;
   tone: FxTone;
   big?: boolean;
+  to?: Vec;
+  item?: EntityView["item"];
 }
 
 const key = (e: EntityView): string => `${e.id}@${e.pos.x},${e.pos.y}`;
@@ -40,12 +43,42 @@ export function detectFx(prev: EntityView[], next: EntityView[]): Fx[] {
       const now = e.progress ?? 0;
       if (now > was) out.push({ kind: "ring", pos: e.pos, tone: "goal" });
       else if (now < was) out.push({ kind: "ring", pos: e.pos, tone: "danger" });
+    } else if (e.kind === "station" && e.station?.solved && !wasById.get(e.id)?.station?.solved) {
+      // solved: the goal ring under it (the tick plate stays, drawn with the station)
+      const anchor = e.station.parts.find((p) => p.key === "anchor")?.at[0];
+      out.push({
+        kind: "ring",
+        tone: "goal",
+        big: true,
+        pos: anchor ? { x: anchor.x + 0.5, y: anchor.y + 0.5 } : e.pos,
+      });
+    } else if (e.kind === "bell" && e.state === "on" && wasById.get(e.id)?.state !== "on") {
+      out.push({ kind: "swing", pos: e.pos, tone: "ui" });
+    } else if (e.kind === "player" && e.item && wasById.has(e.id) && !wasById.get(e.id)?.item) {
+      // gear in a hand that was empty: it came from whoever just let go of the same item
+      const from = prev.find(
+        (o) => o.kind === "player" && o.item === e.item && !nowById.get(o.id)?.item,
+      );
+      if (from) out.push({ kind: "arc", pos: from.pos, to: e.pos, tone: "ui", item: e.item });
     } else if (e.kind === "crate") {
       const old = wasById.get(e.id);
       if (old && Math.hypot(old.pos.x - e.pos.x, old.pos.y - e.pos.y) >= 0.4) {
         out.push({ kind: "dust", pos: old.pos, tone: "muted" });
       }
     }
+  }
+  // the team just splattered: the dye pack's cloud, from the station nearest the figures in view
+  const dyedNow = next.some((e) => e.kind === "player" && e.dyed);
+  const dyedBefore = prev.some((e) => e.kind === "player" && e.dyed);
+  if (dyedNow && !dyedBefore) {
+    const me = next.find((e) => e.kind === "player" && e.dyed)?.pos ?? { x: 0, y: 0 };
+    const near = next
+      .filter((e) => e.kind === "station")
+      .sort(
+        (a, b) =>
+          Math.hypot(a.pos.x - me.x, a.pos.y - me.y) - Math.hypot(b.pos.x - me.x, b.pos.y - me.y),
+      )[0];
+    out.push({ kind: "cloud", pos: near?.pos ?? me, tone: "muted" });
   }
   // loot that is no longer there was picked up
   for (const e of prev) {

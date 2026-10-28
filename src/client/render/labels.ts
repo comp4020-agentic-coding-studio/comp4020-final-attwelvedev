@@ -37,8 +37,8 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, maxW: number): string
   return lines;
 }
 
-// The first-room labels (FR15): a glass chip with a leader line down to the thing it names. A chip
-// that would sit on another is lifted above it, so each stays readable.
+// The labels (FR15): a glass chip with a leader line down to the thing it names. A chip that would
+// sit on another moves to the nearest free place, so each stays readable; none is drawn over another.
 export function drawLabels(ctx: CanvasRenderingContext2D, scene: Scene, cam: Camera) {
   const placed: Rect[] = [];
   for (const label of scene.labels ?? []) {
@@ -49,11 +49,19 @@ export function drawLabels(ctx: CanvasRenderingContext2D, scene: Scene, cam: Cam
     const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + PAD * 2;
     const h = lines.length * LINE_PX + PAD;
     const x = Math.max(MARGIN, Math.min(scene.w - MARGIN - w, target.x - w / 2));
-    let y = Math.max(MARGIN, target.y - LIFT_PX - h);
-    const box = (): Rect => ({ x, y, w, h });
-    for (const other of placed) if (overlaps(box(), other)) y = other.y - h - GAP_PX;
-    y = Math.max(MARGIN, y);
-    placed.push(box());
+    // the first free place: from just above the thing, up a chip at a time, then down; a chip with
+    // no free place in the frame is not drawn (the nearest ones come first, so they keep theirs)
+    const want = Math.max(MARGIN, target.y - LIFT_PX - h);
+    const free = (top: number) => !placed.some((o) => overlaps({ x, y: top, w, h }, o));
+    const step = h + GAP_PX;
+    const tries = [want];
+    for (let k = 1; k * step < scene.h; k++) tries.push(want - k * step, want + k * step);
+    const y = tries.find((t) => t >= MARGIN && t + h <= scene.h - MARGIN && free(t));
+    if (y === undefined) {
+      ctx.restore();
+      continue;
+    }
+    placed.push({ x, y, w, h });
     const lineX = Math.max(x + 10, Math.min(x + w - 10, target.x));
     ctx.strokeStyle = WORLD.line;
     ctx.lineWidth = 1.5;

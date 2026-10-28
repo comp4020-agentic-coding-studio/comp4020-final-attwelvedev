@@ -455,6 +455,21 @@ describe("being caught", () => {
     expect(caught).toEqual([{ hazard: "laser", seat: 1, checkpoint: 1 }]);
     expect(tickGame(game).caught).toEqual([]);
   });
+
+  it("names the station type for a wrong answer, so the banner can say what was wrong", () => {
+    const [draft] = loadRooms("./spec/fixtures/drafts");
+    const game = startGame(lobby("a", "b", "c"), [draft as (typeof rooms)[0]]);
+    game.ready.add(0);
+    const wires = game.world.stations.Q4;
+    if (!wires) throw new Error("no Q4");
+    const wrong = [0, 1, 2, 3].find((i) => i !== wires.answer[0]) as number;
+    const tile = draft?.objects.find((o) => o.id === "Q4")?.params?.wires as number[][];
+    const [x, y] = tile[wrong] as [number, number];
+    game.world.players[1].pos = { x: x + 0.5, y: y + 0.5 };
+    game.inputs[1] = { seq: 1, move: { x: 0, y: 0 }, act: true };
+    const caught = tickGame(game).caught;
+    expect(caught).toEqual([{ hazard: "station", seat: 1, checkpoint: 0, station: "wires" }]);
+  });
 });
 
 describe("coming back to a seat a bot took", () => {

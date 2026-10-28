@@ -1,4 +1,5 @@
 import { type Callout, CLIPS, type Stamp } from "../game/channels.ts";
+import type { StationType } from "../game/sim/world.ts";
 import type { Role } from "../game/types.ts";
 import type { ChannelMessage, EntityView, SoundCue } from "../net/protocol.ts";
 
@@ -92,7 +93,7 @@ export const CUE_WORD: Record<SoundCue["kind"], string> = {
   hide: "rustle",
   clue: "chime",
   cleared: "room cleared",
-  // stations, gear and signals: Task 9 of the escape-room plan gives them their sounds
+  // stations, gear and signals (escape-room phase 02, Task 9)
   tick: "Tick",
   tumbler: "Tumbler",
   key: "Key",
@@ -125,6 +126,11 @@ function word(s: SoundCue): string {
   if (s.kind === "flag" || s.kind === "exit") return `${CUE_WORD[s.kind]} ${s.n ?? 0}/3`;
   if (s.kind === "seq-ok") return `${CUE_WORD[s.kind]}: ${s.n ?? 0} done`;
   if (s.kind === "clue") return `${CUE_WORD[s.kind]} ×${s.n ?? 1}`;
+  // a key or a bell says which (it is on the object for all to see); a pip says how many. The
+  // earpiece's note is the puzzle itself, heard and never written
+  if ((s.kind === "key" || s.kind === "bellnote") && s.n !== undefined)
+    return `${CUE_WORD[s.kind]} ${s.n + 1}`;
+  if (s.kind === "pip") return `${CUE_WORD[s.kind]} ×${s.n ?? 1}`;
   return CUE_WORD[s.kind];
 }
 
@@ -206,11 +212,29 @@ export function lerpEntities(prev: EntityView[], next: EntityView[], t: number):
 // The words for the team being sent back: what got whom, and where they restart. The same
 // line is shown to everyone and spoken to Can't see, so nobody has to work it out from a
 // sound, least of all in the dark where the hazards cannot be seen.
+// The dye pack's banner (spec §4.1): what was wrong, by the kind of station, then the flag.
+const WRONG: Record<StationType, string> = {
+  wires: "Wrong wire.",
+  bells: "Wrong note.",
+  dial: "Wrong code.",
+  keypad: "Wrong code.",
+  vault: "Wrong code.",
+  radio: "Wrong code.",
+  switches: "Wrong code.",
+  sync: "Wrong code.",
+};
+
 export function caughtText(
-  c: { hazard: "guard" | "camera" | "laser" | "station"; seat: number; checkpoint: number },
+  c: {
+    hazard: "guard" | "camera" | "laser" | "station";
+    seat: number;
+    checkpoint: number;
+    station?: StationType;
+  },
   crew: readonly { nickname: string }[],
   mySeat: number,
 ): string {
+  if (c.hazard === "station" && c.station) return `${WRONG[c.station]} Back to the flag.`;
   const you = c.seat === mySeat;
   const who = you ? "you" : (crew[c.seat]?.nickname ?? "someone");
   const subject = you ? "You" : who;

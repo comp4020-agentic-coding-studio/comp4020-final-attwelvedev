@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import type { EntityView } from "../net/protocol.ts";
 import { figureCover, wallAlpha } from "./render/occlusion.ts";
 import { easeCamera, setRise, TILT, toScreen } from "./render/project.ts";
 import { decodeSeen } from "./render/sight.ts";
 import { camera, draw, type Scene } from "./render.ts";
-import { COLOR, MAP, MIST, ROLE_COLOR, WORLD } from "./tokens.ts";
+import { COLOR, MAP, MIST, ROLE_COLOR, setContrast, WORLD } from "./tokens.ts";
 
 const ROOM = [
   "#".repeat(48),
@@ -1198,5 +1199,255 @@ describe("the ring that marks you", () => {
 
   it("rings nobody when a watcher takes in the whole room", () => {
     expect(rings({ spectator: true, seat: 0, noSelf: true })).toBe(0);
+  });
+});
+
+// Escape-room objects (phase 02 Task 8). A room with every new kind in it, drawn the ways a player
+// can see it: phone and desktop scale, reduced motion, high contrast.
+describe("stations, gear and signals", () => {
+  const ROOM2 = [
+    "############",
+    "#..........#",
+    "#.....H....#",
+    "#..........#",
+    "#..........#",
+    "############",
+  ];
+  const at = (x: number, y: number) => ({ x, y });
+  const station = (
+    id: string,
+    type: NonNullable<EntityView["station"]>["type"],
+    pos: { x: number; y: number },
+    shows: number[],
+    parts: NonNullable<EntityView["station"]>["parts"],
+    solved = false,
+  ): EntityView => ({ id, kind: "station", pos, station: { type, shows, solved, parts } });
+  const everything: EntityView[] = [
+    station(
+      "Q1",
+      "dial",
+      at(2.5, 1.5),
+      [7],
+      [
+        { key: "anchor", at: [at(2, 1)] },
+        { key: "pads", at: [at(1, 2), at(3, 2)] },
+        { key: "back", at: [at(2, 3)] },
+      ],
+    ),
+    station(
+      "Q2",
+      "wires",
+      at(5.5, 1.5),
+      [0, 1, 2, 3, 4, 5],
+      [
+        { key: "anchor", at: [at(5, 1)] },
+        { key: "wires", at: [at(4, 1), at(5, 1), at(6, 1), at(7, 1), at(8, 1), at(9, 1)] },
+      ],
+    ),
+    station(
+      "Q3",
+      "keypad",
+      at(8.5, 3.5),
+      [4, 2],
+      [
+        { key: "anchor", at: [at(8, 3)] },
+        { key: "keys", at: [at(8, 3), at(9, 3), at(10, 3), at(8, 4), at(9, 4), at(10, 4)] },
+      ],
+    ),
+    station(
+      "Q4",
+      "radio",
+      at(1.5, 4.5),
+      [3, 2],
+      [
+        { key: "anchor", at: [at(1, 4)] },
+        { key: "pads", at: [at(2, 4), at(3, 4)] },
+      ],
+    ),
+    station(
+      "Q5",
+      "switches",
+      at(4.5, 4.5),
+      [1, 0, 1],
+      [
+        { key: "anchor", at: [at(4, 4)] },
+        { key: "buttons", at: [at(4, 4), at(5, 4), at(6, 4)] },
+        { key: "lamps", at: [at(4, 3), at(5, 3), at(6, 3)] },
+      ],
+    ),
+    station(
+      "Q6",
+      "bells",
+      at(7.5, 2.5),
+      [1, 0, 2],
+      [
+        { key: "anchor", at: [at(7, 2)] },
+        { key: "bells", at: [at(7, 2), at(8, 2), at(9, 2), at(10, 2)] },
+        { key: "tune", at: [at(10, 1)] },
+      ],
+    ),
+    station(
+      "Q7",
+      "vault",
+      at(3.5, 3.5),
+      [],
+      [
+        { key: "anchor", at: [at(3, 3)] },
+        { key: "sockets", at: [at(2, 3), at(4, 3)] },
+      ],
+      true,
+    ),
+    station(
+      "Q8",
+      "sync",
+      at(9.5, 4.5),
+      [],
+      [
+        { key: "anchor", at: [at(9, 4)] },
+        { key: "keys", at: [at(9, 4), at(10, 4)] },
+      ],
+    ),
+    { id: "g1", kind: "gear", pos: at(6.5, 2.5), item: "goggles" },
+    { id: "g2", kind: "gear", pos: at(6.5, 2.5), item: "stethoscope" },
+    { id: "H1", kind: "hatch", pos: at(6.5, 2.5) },
+    { id: "b1", kind: "bell", pos: at(1.5, 1.5), state: "on" },
+    { id: "l1", kind: "lamp", pos: at(10.5, 1.5) },
+    { id: "u1", kind: "ink", pos: at(5.5, 3.5), text: "7 3" },
+    { id: "uv0", kind: "uv", pos: at(5.5, 3.5), polys: [[at(4, 2), at(7, 2), at(7, 5), at(4, 5)]] },
+    { ...player(0, 2.5, 3.5), item: "earpiece", heldBy: 1, dyed: true },
+    { ...player(1, 3.5, 3.5), item: "uv", holding: 0, dyed: true },
+    { ...player(2, 5.5, 2.5), item: "goggles", dyed: true },
+  ];
+  const room = (over: Partial<Scene> = {}) =>
+    scene({ tiles: ROOM2, entities: everything, self: { x: 3.5, y: 3.5 }, nowMs: 1234, ...over });
+
+  it.each([
+    ["phone", { w: 343, h: 500 }],
+    ["desktop", { w: 1280, h: 600 }],
+    ["reduced motion", { reducedMotion: true }],
+    ["high contrast", {}],
+    ["no clock", { nowMs: undefined }],
+  ] as const)("draws every new kind without throwing (%s)", (name, over) => {
+    if (name === "high contrast") setContrast(true);
+    const { ctx, ops } = recorder();
+    expect(() => draw(ctx, room(over))).not.toThrow();
+    // each station and each new kind left a mark of its own
+    expect(ops.some((o) => o.fillStyle === WORLD.steel || o.fillStyle === WORLD.brass)).toBe(true);
+    setContrast(false);
+  });
+
+  it("gives every code colour its pattern: wires 1-6 are six different patterned swatches", () => {
+    const { ctx, ops } = recorder();
+    draw(ctx, room({ w: 1280, h: 600 }));
+    for (const k of [
+      "codeRed",
+      "codeBlue",
+      "codeYellow",
+      "codeGreen",
+      "codeWhite",
+      "codeBlack",
+    ] as const)
+      expect(
+        ops.some((o) => o.name === "fill" && o.fillStyle === WORLD[k]),
+        k,
+      ).toBe(true);
+    // the five patterns over the swatches are strokes in the line colour, never another fill colour
+    expect(
+      ops.filter((o) => o.name === "stroke" && o.strokeStyle === WORLD.line).length,
+    ).toBeGreaterThan(20);
+  });
+
+  it("draws ink only inside a clip on the pool: its text is never filled outside one", () => {
+    const { ctx, ops } = recorder();
+    draw(ctx, room({ w: 1280, h: 600 }));
+    let depth = 0;
+    let clipped = 0; // the save depth at which the current clip was set; 0 = none
+    const clips: number[] = [];
+    for (const o of ops) {
+      if (o.name === "save") depth++;
+      if (o.name === "restore") {
+        if (clips.at(-1) === depth) clips.pop();
+        depth--;
+      }
+      if (o.name === "clip") clips.push(depth);
+      clipped = clips.length;
+      if (o.name === "fillText" && o.args[0] === "7 3") expect(clipped).toBeGreaterThan(0);
+    }
+    expect(ops.some((o) => o.name === "fillText" && o.args[0] === "7 3")).toBe(true);
+  });
+
+  it("draws no ink without a pool: an ink entity alone is not drawn", () => {
+    const { ctx, ops } = recorder();
+    draw(ctx, room({ entities: everything.filter((e) => e.kind !== "uv") }));
+    expect(ops.some((o) => o.name === "fillText" && o.args[0] === "7 3")).toBe(false);
+  });
+
+  it("splatters a dyed figure with blotches, in dye colours", () => {
+    const { ctx, ops } = recorder();
+    draw(ctx, room({ w: 1280, h: 600 }));
+    const dye = [WORLD.dyePink, WORLD.dyeMint, WORLD.dyeSky];
+    expect(
+      ops.filter((o) => o.name === "fill" && dye.includes(o.fillStyle as string)).length,
+    ).toBeGreaterThanOrEqual(3);
+  });
+
+  it("names every station on the object itself, in words, even as furniture", () => {
+    const { ctx, ops } = recorder();
+    draw(ctx, room({ w: 1280, h: 600 }));
+    const words = ops.filter((o) => o.name === "fillText").map((o) => o.args[0]);
+    for (const name of [
+      "Safe",
+      "Wires",
+      "Keypad",
+      "Radio",
+      "Switches",
+      "Lamps",
+      "Music box",
+      "Vault",
+      "Keys",
+    ])
+      expect(words, name).toContain(name);
+  });
+
+  it("draws a station's furniture without its state when only its parts are in sight", () => {
+    const { ctx, ops } = recorder();
+    const furniture = station(
+      "Q5",
+      "switches",
+      at(4.5, 4.5),
+      [],
+      [
+        { key: "anchor", at: [at(4, 4)] },
+        { key: "buttons", at: [at(4, 4), at(5, 4), at(6, 4)] },
+        { key: "lamps", at: [at(4, 3), at(5, 3), at(6, 3)] },
+      ],
+    );
+    if (furniture.station) furniture.station.furniture = true;
+    draw(ctx, room({ entities: [furniture, player(1, 3.5, 3.5)] }));
+    expect(ops.some((o) => o.fillStyle === WORLD.steel)).toBe(true); // the buttons
+    expect(ops.some((o) => o.fillStyle === WORLD.lamp)).toBe(false); // no lamp lit
+  });
+});
+
+// Label chips (DESIGN.md 4.6): each stays readable, never under another, however many crowd one edge.
+describe("label chips", () => {
+  it("never draw one chip over another, even five crowded at the screen's right edge", () => {
+    const { ctx, ops } = recorder();
+    const labels = Array.from({ length: 5 }, (_, i) => ({
+      text: `Thing ${i}: a sentence long enough to wrap onto two lines in its chip`,
+      at: { x: 46.5, y: 1.5 + i * 0.2 },
+    }));
+    draw(ctx, scene({ w: 1280, h: 600, labels, self: { x: 44.5, y: 3.5 } }));
+    const chips = ops
+      .filter((o) => o.name === "roundRect" && (o.args[4] as number) === 8)
+      .map((o) => o.args as number[]);
+    expect(chips.length).toBeGreaterThan(0);
+    for (const [i, a] of chips.entries())
+      for (const b of chips.slice(i + 1)) {
+        const [ax, ay, aw, ah] = a as [number, number, number, number];
+        const [bx, by, bw, bh] = b as [number, number, number, number];
+        const apart = ax + aw <= bx || bx + bw <= ax || ay + ah <= by || by + bh <= ay;
+        expect(apart, `${a} vs ${b}`).toBe(true);
+      }
   });
 });

@@ -73,6 +73,24 @@ export interface WorldTokens {
   watch: string;
   exit: string;
   exitFlag: string;
+  // stations, gear and signals: a code colour is never alone (outlined in `line`, with its pattern)
+  codeRed: string;
+  codeBlue: string;
+  codeYellow: string;
+  codeGreen: string;
+  codeWhite: string;
+  codeBlack: string;
+  steel: string;
+  steelFront: string;
+  brass: string;
+  lamp: string;
+  uv: string;
+  uvInk: string;
+  nv: string;
+  card: string;
+  dyePink: string;
+  dyeMint: string;
+  dyeSky: string;
 }
 
 const WORLD_NORMAL: WorldTokens = {
@@ -110,6 +128,23 @@ const WORLD_NORMAL: WorldTokens = {
   watch: "#e9a400",
   exit: "#bdefd8",
   exitFlag: "#2fa678",
+  codeRed: "#d7263d",
+  codeBlue: "#2b6cd4",
+  codeYellow: "#f2c230",
+  codeGreen: "#2e9e5b",
+  codeWhite: "#fbfaf6",
+  codeBlack: "#1f1c2c",
+  steel: "#b8c0cc",
+  steelFront: "#8a93a3",
+  brass: "#c9a14a",
+  lamp: "#ffd75e",
+  uv: "#6a4cff",
+  uvInk: "#c8ff3d",
+  nv: "#7f9a84",
+  card: "#fffaf0",
+  dyePink: "#ff9ec7",
+  dyeMint: "#8fe3c0",
+  dyeSky: "#9cc9ff",
 };
 const WORLD_HIGH: WorldTokens = {
   skyHi: "#000000",
@@ -146,6 +181,23 @@ const WORLD_HIGH: WorldTokens = {
   watch: "#ffff00",
   exit: "#00ff88",
   exitFlag: "#ffffff",
+  codeRed: "#ff3b3b",
+  codeBlue: "#4d9bff",
+  codeYellow: "#ffe100",
+  codeGreen: "#2bff7a",
+  codeWhite: "#ffffff",
+  codeBlack: "#000000",
+  steel: "#d9d9d9",
+  steelFront: "#8c8c8c",
+  brass: "#ffcc33",
+  lamp: "#ffff66",
+  uv: "#000000",
+  uvInk: "#ffff00",
+  nv: "#000000",
+  card: "#000000",
+  dyePink: "#ff66cc",
+  dyeMint: "#33ffcc",
+  dyeSky: "#66ccff",
 };
 // The alarm's dusk set (--dusk-*): only what is listed changes; lasers, roles and Show items do not.
 export const DUSK: Partial<WorldTokens> = {
@@ -165,6 +217,9 @@ export const WORLD: WorldTokens = { ...WORLD_NORMAL };
 
 // How much of the veil shows over tiles out of sight: 60 % mist, or half black under high contrast.
 export const MIST = { alpha: 0.6 };
+// How the UV pool and the goggles are drawn: a wash and a tint, or (high contrast) a 3 px dashed
+// rim and a 2 px inner frame with no wash or tint, so the light never muddies the black floor.
+export const OVERLAY = { wash: true };
 
 const DUSK_MS = 600;
 let high = false;
@@ -223,6 +278,7 @@ export function setContrast(on: boolean): void {
   Object.assign(ROLE_COLOR, on ? ROLE_HIGH_CONTRAST : ROLE_NORMAL);
   high = on;
   MIST.alpha = on ? 0.5 : 0.6;
+  OVERLAY.wash = !on;
   shown = -1;
   paintWorld();
 }

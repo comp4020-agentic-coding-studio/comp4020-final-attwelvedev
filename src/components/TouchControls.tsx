@@ -12,10 +12,12 @@ export function TouchControls({
   disabled = false,
   comms,
   quickLabel,
+  act,
 }: {
   disabled?: boolean;
   comms?: { current: CommsApi | null };
   quickLabel?: string; // what the quick slot sends, for its label
+  act?: string; // what Act would do here (the view's words): the button says it
 }) {
   return (
     <div class={disabled ? "touch-zone is-off" : "touch-zone"}>
@@ -57,8 +59,15 @@ export function TouchControls({
           </button>
         </div>
       )}
-      <button type="button" class="act" data-act disabled={disabled} onContextMenu={noMenu}>
-        Act
+      <button
+        type="button"
+        class={act ? "act has-hint" : "act"}
+        data-act
+        disabled={disabled}
+        aria-label={act ? `Act: ${act}` : "Act"}
+        onContextMenu={noMenu}
+      >
+        {act ?? "Act"}
       </button>
     </div>
   );

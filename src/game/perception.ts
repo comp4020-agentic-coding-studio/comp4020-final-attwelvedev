@@ -21,6 +21,8 @@ import {
   PIP_TICKS,
   partAt,
   plaqueText,
+  type StationPartKey,
+  stationParts,
   stationShows,
   tuneNote,
   WIRE_COLOURS,
@@ -94,7 +96,15 @@ export interface EntityView {
   facing?: Vec;
   moving?: boolean; // a player: walked this tick
   blocked?: boolean; // a player: holding a direction against a wall, door or crate
-  station?: { type: StationType; shows: number[]; solved: boolean }; // what a sighted viewer sees of it (stations.ts: stationShows)
+  // what a sighted viewer sees of it (stations.ts: stationShows), and where its parts stand: the
+  // furniture is drawn from any of them, the state only where the station shows it
+  station?: {
+    type: StationType;
+    shows: number[];
+    solved: boolean;
+    parts: { key: StationPartKey; at: Vec[] }[];
+    furniture?: true; // only its parts are in sight, not where it shows its state: `shows` is empty
+  };
   item?: GearItem; // gear, or what a player carries
   heldBy?: Seat; // a player being towed: whose hand they hold
   holding?: Seat; // a player leading: whose hand they hold
@@ -342,7 +352,12 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
         id: o.id,
         kind: "station",
         pos: centre(o.tiles[0] as Vec),
-        station: { type: s.type, shows: stationShows(world, s), solved: s.solved },
+        station: {
+          type: s.type,
+          shows: stationShows(world, s),
+          solved: s.solved,
+          parts: stationParts(o),
+        },
       });
     } else if (o.kind === "gear") {
       const g = world.gear.find((x) => x.id === o.id);
@@ -654,11 +669,16 @@ function inSight(world: World, entities: EntityView[], seat: Seat, seen: Visible
     if (e.kind === "stamp" || e.kind === "sight" || (e.kind === "player" && e.seat === seat)) {
       out.push(e);
     } else if (e.kind === "station") {
-      // a station is seen where it shows its state: its face, wires, keys or lamps (switches: the
-      // lamps alone, never the panel by the buttons, so the pattern is told across the glass)
+      // a station's state is seen where it shows it: its face, wires, keys or lamps (switches: the
+      // lamps alone, never the panel by the buttons, so the pattern is told across the glass). Its
+      // furniture is drawn from any part in sight, with nothing of its state.
       const o = world.room.objects.find((x) => x.id === e.id);
-      const tiles = o ? displayTiles(o) : [];
-      if (tiles.some((t) => seen.has(t.x, t.y))) out.push(e);
+      const shown = (o ? displayTiles(o) : []).some((t) => seen.has(t.x, t.y));
+      const parts = e.station?.parts ?? [];
+      const furniture = parts.some((p) => p.at.some((t) => seen.has(t.x, t.y)));
+      if (shown) out.push(e);
+      else if (furniture && e.station)
+        out.push({ ...e, station: { ...e.station, shows: [], furniture: true } });
     } else if (e.beam) {
       const beam = e.beam.filter((t) => seen.has(Math.floor(t.x), Math.floor(t.y)));
       if (seen.has(Math.floor(e.pos.x), Math.floor(e.pos.y)) || beam.length > 0) {

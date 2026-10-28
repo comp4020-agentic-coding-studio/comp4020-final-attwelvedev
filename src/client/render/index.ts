@@ -6,13 +6,22 @@ import { COLOR, MAP, ROLE_COLOR, setDusk, WORLD } from "../tokens.ts";
 import { drawAlarm } from "./alarm.ts";
 import { drawBackdrop } from "./backdrop.ts";
 import { block, drawFlat, drawStanding, floorTop, glass, vent, wall } from "./blocks.ts";
+import { drawCloud } from "./dye.ts";
 import { drawHidden, drawOwnBlind, drawPlayer } from "./figures.ts";
+import { drawGear, drawGoggles, drawHold, drawUv, gearGlyph } from "./gear.ts";
 import { drawHazard, drawSight } from "./hazards.ts";
 import { drawLabels } from "./labels.ts";
 import { figureCover, wallAlpha } from "./occlusion.ts";
 import { drawEdgePills, drawPops } from "./pops.ts";
 import { type Camera, camera, LIVE, setRise, tileWindow, toScreen } from "./project.ts";
 import { drawMist, inSight, lightPolygon, nightTile, seenOf } from "./sight.ts";
+import { drawBell, drawHatch, drawLampSwitch } from "./signals.ts";
+import {
+  drawStationFloor,
+  drawStationPlates,
+  drawStationStanding,
+  stationRows,
+} from "./stations.ts";
 
 export { type Camera, camera, easeCamera, fromScreen, LIVE, TILT, toScreen } from "./project.ts";
 
@@ -74,7 +83,7 @@ export interface FacePop {
 }
 
 const FAINT_MARK = 0.35; // a mark in a tile you cannot see
-const isBlock = (ch: string | undefined) => ch === "#" || ch === "%" || ch === "=";
+const isBlock = (ch: string | undefined) => ch === "#" || ch === "%" || ch === "=" || ch === "H";
 
 // Entities drawn flat on the floor, under everything standing up in their row.
 const FLAT: EntityView["kind"][] = ["plate", "exit", "hide", "sign", "door"];
@@ -87,6 +96,9 @@ const STANDING: EntityView["kind"][] = [
   "camera",
   "laser",
   "guard",
+  "gear",
+  "bell",
+  "lamp",
   "player",
   "stamp",
 ];
@@ -142,13 +154,23 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
       const ch = row[x];
       if (ch === " ") nightTile(ctx, cam, tiles, x, y);
       else if (!isBlock(ch)) floorTop(ctx, cam, x, y, WORLD.floor);
-      else if (ch === "=") floorTop(ctx, cam, x, y, WORLD.floor); // glass stands on the floor
+      else if (ch === "=" || ch === "H") floorTop(ctx, cam, x, y, WORLD.floor); // glass and hatches stand on the floor
     }
   }
   for (const e of scene.entities)
     if (FLAT.includes(e.kind) && !(e.kind === "door" && e.state !== "open"))
       drawFlat(ctx, e, cam, scene);
   for (const e of scene.entities) if (e.kind === "sight") drawSight(ctx, e, cam);
+  for (const e of scene.entities) if (e.kind === "station") drawStationFloor(ctx, e, cam, scene);
+  // a station stands in each row it has a standing part in (the safe, the panel, the lamps...)
+  const stationsByRow = new Map<number, EntityView[]>();
+  for (const e of scene.entities)
+    for (const r of stationRows(e)) stationsByRow.set(r, [...(stationsByRow.get(r) ?? []), e]);
+  const hatches = new Set(
+    scene.entities
+      .filter((e) => e.kind === "hatch")
+      .map((e) => `${Math.floor(e.pos.x)},${Math.floor(e.pos.y)}`),
+  );
 
   const seenNow = scene.seen ? seenOf(scene.seen) : null;
   // north to south: blocks of the row, then what stands in it
@@ -161,10 +183,12 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
       ctx.save();
       ctx.globalAlpha = wallAlpha(cam, x, y, behindWalls);
       if (ch === "#") wall(ctx, cam, x, y, !isBlock((tiles[y + 1] ?? "")[x]));
+      else if (ch === "H") drawHatch(ctx, x, y, cam);
       else if (ch === "%") vent(ctx, cam, x, y);
       else glass(ctx, cam, x, y);
       ctx.restore();
     }
+    for (const e of stationsByRow.get(y) ?? []) drawStationStanding(ctx, e, cam, scene, y);
     for (const kind of STANDING) {
       for (const e of byRow.get(y) ?? []) {
         if (e.kind !== kind) continue;
@@ -173,6 +197,10 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
         if (kind === "camera" || kind === "laser" || kind === "guard")
           drawHazard(ctx, e, cam, scene);
         else if (kind === "player") drawPlayer(ctx, e, cam, scene);
+        else if (kind === "gear")
+          drawGear(ctx, e, cam, hatches.has(`${Math.floor(e.pos.x)},${Math.floor(e.pos.y)}`));
+        else if (kind === "bell") drawBell(ctx, e, cam, scene);
+        else if (kind === "lamp") drawLampSwitch(ctx, e, cam);
         else drawStanding(ctx, e, cam, scene);
       }
     }
@@ -197,13 +225,27 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
     drawStanding(ctx, e, cam, scene);
     ctx.restore();
   }
+  // each station's name plate, over everything standing so no figure or wall hides the name
+  // a chip's text starts with the thing's name ("Safe: ..."), which is the plate under it
+  const chipped = new Set((scene.labels ?? []).map((l) => l.text.split(":")[0] ?? ""));
+  for (const e of scene.entities) if (e.kind === "station") drawStationPlates(ctx, e, cam, chipped);
+  // the UV pool and its ink: the one bold effect, over the mist (it is only sent where it is seen)
+  drawUv(ctx, scene, cam);
   // the outline of a figure a wall hides: the figure itself, outline only, over the wall
   for (const f of figures) drawHidden(ctx, f, cam, scene, figureCover(cam, f.pos, tiles));
+  // held hands: an arc from each towed figure to its leader
+  for (const f of figures) {
+    const leader = figures.find((g) => g.seat === f.heldBy);
+    if (f.heldBy !== undefined && leader) drawHold(ctx, cam, f.pos, leader.pos);
+  }
   void block;
   drawFx(ctx, scene, cam);
   drawLabels(ctx, scene, cam);
   drawPops(ctx, scene, cam);
   drawEdgePills(ctx, scene, cam);
+  // your own goggles tint everything you see (the gear you carry is on your own figure)
+  const mine = scene.entities.find((e) => e.kind === "player" && e.seat === scene.seat);
+  if (!scene.spectator && !scene.noSelf && mine?.item === "goggles") drawGoggles(ctx, scene);
   if (scene.alarm) drawAlarm(ctx, scene);
 }
 
@@ -224,6 +266,48 @@ function drawFx(ctx: CanvasRenderingContext2D, scene: Scene, cam: Camera) {
     ctx.strokeStyle = fxColor(f.tone);
     ctx.fillStyle = fxColor(f.tone);
     ctx.lineWidth = 3;
+    if (f.kind === "cloud") {
+      ctx.restore(); // the cloud fades itself
+      drawCloud(ctx, toScreen(cam, f.pos.x, f.pos.y, 0.5), cam.scale, f.age, !!scene.reducedMotion);
+      continue;
+    }
+    if (f.kind === "arc" && f.to && f.item) {
+      // the gear's glyph flies from the giver to the taker over its life (reduced motion: it is
+      // simply there, so nothing is drawn in flight)
+      if (!scene.reducedMotion) {
+        const t = Math.min(1, f.age / 0.4); // 250 ms of the 600 ms life
+        const a = toScreen(cam, f.pos.x, f.pos.y, 0.8);
+        const b = toScreen(cam, f.to.x, f.to.y, 0.8);
+        const lift = Math.sin(t * Math.PI) * cam.scale * 0.5;
+        ctx.globalAlpha = t < 1 ? 1 : 0;
+        gearGlyph(
+          ctx,
+          f.item,
+          a.x + (b.x - a.x) * t,
+          a.y + (b.y - a.y) * t - lift,
+          cam.scale * 0.18,
+        );
+      }
+      ctx.restore();
+      continue;
+    }
+    if (f.kind === "swing") {
+      // sound lines either side of the bell: the swing itself is the bell's own drawing
+      const c = toScreen(cam, f.pos.x, f.pos.y, LIVE.wall);
+      for (const side of [-1, 1]) {
+        ctx.beginPath();
+        ctx.arc(
+          c.x,
+          c.y,
+          cam.scale * 0.45 * grow,
+          side < 0 ? Math.PI * 0.8 : -Math.PI * 0.2,
+          side < 0 ? Math.PI * 1.2 : Math.PI * 0.2,
+        );
+        ctx.stroke();
+      }
+      ctx.restore();
+      continue;
+    }
     if (f.kind === "ring") {
       ctx.beginPath();
       const r = cam.scale * (f.big ? 1.6 : 0.9) * grow;

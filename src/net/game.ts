@@ -478,7 +478,16 @@ export function tickGame(
   // who was caught, by what, and where the team went back to: told to everyone
   const caught = game.world.events.flatMap((e) =>
     e.kind === "caught"
-      ? [{ hazard: e.hazard, seat: e.seat, checkpoint: game.world.checkpoint }]
+      ? [
+          {
+            hazard: e.hazard,
+            seat: e.seat,
+            checkpoint: game.world.checkpoint,
+            ...(e.hazard === "station" && game.world.stations[e.by]
+              ? { station: game.world.stations[e.by]?.type }
+              : {}),
+          },
+        ]
       : [],
   );
   return { views, cleared: game.world.status === "cleared", sent: acted.sent, caught };
