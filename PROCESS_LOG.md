@@ -806,3 +806,26 @@ fixture's own music box too, whose tune stood beside the bells; the tune moved
 behind glass. Bots still clear the fixture in every rotation, reading answers
 from the sim (FR3), so the bot test proves a room can be cleared and the
 linter proves no role is a passenger.
+
+## 2026-10-28 — A check that could pass against the wrong build
+
+resolved by 13b873c
+
+Starting phase 02, the agent found a `pnpm start:check` server left over from
+an earlier session still holding :8080. CLAUDE.md says to restart the server
+between check runs, but the agent wasn't allowed to: auto mode refused to kill
+the process. So `pnpm check` ran against the previous commit's build. That was
+harmless for Task 7, which changed no server or client code, but Tasks 8–10
+change the client, and a green check against stale code would be a false pass.
+
+The agent stopped and said so instead of reporting green. The obvious fix was
+to restart the server by hand each time. I chose to put it in the harness, so
+the rule CLAUDE.md states can actually be followed: the project allow list now
+covers `pkill -f "node server.ts"`, `pnpm build` and `pnpm start:check`. Auto
+mode also judges actions with its own check, separate from the allow list,
+which still refused. It also refused to let the agent edit auto mode's own
+rules, which is correct, so I added the allow rule to my user settings myself.
+
+How I knew it held: with both in place, the agent stopped the stale servers,
+the ports came free, and a fresh `start:check` answered 200 on :8080 on the
+current build.
