@@ -303,7 +303,7 @@ describe("cleanNickname", () => {
 });
 
 describe("startLobby", () => {
-  it("seats the first people, fills every other seat with a connected bot named for its shape, and starts", () => {
+  it("seats the first people, fills every other seat with a connected bot named for its seat (Ace, Jinx, Moss), and starts", () => {
     const reg = createRegistry();
     const lobby = createLobby(reg, dev(1), "Ana");
     startLobby(reg, dev(1));
@@ -311,14 +311,14 @@ describe("startLobby", () => {
     expect(lobby.seats[0]).toMatchObject({ who: dev(1), nickname: "Ana", bot: false, person: 0 });
     expect(lobby.seats[1]).toEqual({
       who: null,
-      nickname: "Bot square",
+      nickname: "Bot Jinx",
       connected: true,
       bot: true,
       person: null,
     });
     expect(lobby.seats[2]).toEqual({
       who: null,
-      nickname: "Bot triangle",
+      nickname: "Bot Moss",
       connected: true,
       bot: true,
       person: null,
@@ -332,7 +332,7 @@ describe("startLobby", () => {
     startLobby(reg, dev(1));
     expect(lobby.seats.map((s) => s.bot)).toEqual([false, false, true]);
     expect(lobby.seats.map((s) => s.person)).toEqual([0, 1, null]);
-    expect(lobby.seats[2]?.nickname).toBe("Bot triangle");
+    expect(lobby.seats[2]?.nickname).toBe("Bot Moss");
   });
 
   it("starts with no bots when three people are seated", () => {

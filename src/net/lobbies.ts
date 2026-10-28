@@ -264,8 +264,9 @@ export function setSetup(reg: Registry, who: string, setup: Setup): LobbyState {
   return lobby;
 }
 
-// Seat shapes name the seat, not the role (roles rotate between rooms).
-export const SEAT_SHAPE = ["circle", "square", "triangle"] as const;
+// Bot names go with the seat, not the role (roles rotate between rooms), and are plain names so
+// none reads like a role or a shape.
+export const BOT_NAME = ["Ace", "Jinx", "Moss"] as const;
 
 // Writes a room's crew into the seats: the people it names sit, a bot fills any seat it leaves
 // to nobody, and everyone else sits out and watches.
@@ -281,7 +282,7 @@ export function seatCrew(lobby: LobbyState, pick: CrewPick): void {
           bot: false,
           person: at ?? null,
         }
-      : { who: null, nickname: `Bot ${SEAT_SHAPE[i]}`, connected: true, bot: true, person: null };
+      : { who: null, nickname: `Bot ${BOT_NAME[i]}`, connected: true, bot: true, person: null };
   }) as LobbyState["seats"];
   const seated = new Set(lobby.seats.map((s) => s.who));
   lobby.sittingOut = lobby.people.filter((p) => !seated.has(p.who)).map((p) => p.who);

@@ -47,9 +47,9 @@ const seat = (n: string | null, person: number | null = n === null ? null : 0) =
   person,
 });
 // A seat that is a bot: what startLobby leaves in an empty seat
-const bot = (shape: string) => ({
+const bot = (name: string) => ({
   who: null,
-  nickname: `Bot ${shape}`,
+  nickname: `Bot ${name}`,
   connected: true,
   bot: true,
   person: null,
@@ -70,7 +70,7 @@ const lobby = (...who: (string | null)[]): LobbyState => ({
 });
 const withBots = (human: string, ...bots: number[]): LobbyState => {
   const l = lobby(human);
-  for (const i of bots) l.seats[i] = bot(["circle", "square", "triangle"][i] as string);
+  for (const i of bots) l.seats[i] = bot(["Ace", "Jinx", "Moss"][i] as string);
   return l;
 };
 
@@ -81,8 +81,8 @@ describe("startGame", () => {
     expect([...game.ready].sort()).toEqual([1, 2]); // a bot is always ready
     expect(crewOf(withBots("a", 1, 2), game)).toEqual([
       { seat: 0, nickname: "A", role: "blind", bot: false },
-      { seat: 1, nickname: "Bot square", role: "deaf", bot: true },
-      { seat: 2, nickname: "Bot triangle", role: "mute", bot: true },
+      { seat: 1, nickname: "Bot Jinx", role: "deaf", bot: true },
+      { seat: 2, nickname: "Bot Moss", role: "mute", bot: true },
     ]);
   });
 
@@ -409,7 +409,7 @@ describe("pausing for a dropped seat", () => {
       who: null,
       bot: true,
       connected: true,
-      nickname: "Bot square",
+      nickname: "Bot Jinx",
     });
     expect(game.bots[1]?.memory.seat).toBe(1);
     expect(game.ready.has(1)).toBe(true);
@@ -626,7 +626,7 @@ describe("a lobby of five", () => {
 });
 
 function withSeatsOf(l: LobbyState): LobbyState {
-  l.seats = [seat(l.people[0]?.who ?? null, 0), seat(l.people[1]?.who ?? null, 1), bot("triangle")];
+  l.seats = [seat(l.people[0]?.who ?? null, 0), seat(l.people[1]?.who ?? null, 1), bot("Moss")];
   return l;
 }
 
@@ -700,7 +700,7 @@ describe("a restart vote", () => {
     const { l, game } = three();
     proposeVote(game, l, 0, "room", 0);
     castVote(game, l, 1, true, 1);
-    l.seats[2] = bot("triangle");
+    l.seats[2] = bot("Moss");
     expect(settleVote(game, l)).toBe("passed");
   });
 
@@ -847,7 +847,7 @@ describe("takeOverWithPerson", () => {
 
   it("starts the bots afresh: who is a person has changed", () => {
     const l = lobby("a", "b", "c", "d", "e");
-    l.seats = [seat("a", 0), bot("square"), seat("c", 2)];
+    l.seats = [seat("a", 0), bot("Jinx"), seat("c", 2)];
     l.sittingOut = ["d", "e"];
     const game = startGame(l, rooms);
     const before = game.bots[1]?.memory;

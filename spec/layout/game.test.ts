@@ -265,7 +265,7 @@ describe("the game screen", () => {
 
     // leaving on purpose puts a bot in the seat, and the others are told
     await leaveGameAndClose(mute, baseUrl);
-    await expect.poll(() => crew(host), { timeout: 3000 }).toMatch(/Bot triangle/);
+    await expect.poll(() => crew(host), { timeout: 3000 }).toMatch(/Bot Moss/);
     await expect(
       host
         .getByRole("status")

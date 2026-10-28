@@ -21,7 +21,7 @@ import {
   type Seat,
   type Vec,
 } from "../game/types.ts";
-import { type LobbyState, MAX_PEOPLE, newPerson, SEAT_SHAPE, seatCrew } from "./lobbies.ts";
+import { BOT_NAME, type LobbyState, MAX_PEOPLE, newPerson, seatCrew } from "./lobbies.ts";
 
 export interface CrewMember {
   seat: Seat;
@@ -202,7 +202,7 @@ export function markPlayed(game: Game, lobby: LobbyState): boolean {
       person.played.push(role);
       game.heistPeople.set(person.who, { nickname: person.nickname, bot: false });
     } else {
-      const nickname = `Bot ${SEAT_SHAPE[seat]}`;
+      const nickname = `Bot ${BOT_NAME[seat]}`;
       game.heistPeople.set(`bot:${seat}`, { nickname, bot: true });
     }
   }
@@ -401,10 +401,10 @@ export function takeOverWithBot(
   former: string | null = null,
 ): void {
   if (former) game.vacated[seat] = former;
-  game.heistPeople.set(`bot:${seat}`, { nickname: `Bot ${SEAT_SHAPE[seat]}`, bot: true });
+  game.heistPeople.set(`bot:${seat}`, { nickname: `Bot ${BOT_NAME[seat]}`, bot: true });
   lobby.seats[seat] = {
     who: null,
-    nickname: `Bot ${SEAT_SHAPE[seat]}`,
+    nickname: `Bot ${BOT_NAME[seat]}`,
     connected: true,
     bot: true,
     person: null,

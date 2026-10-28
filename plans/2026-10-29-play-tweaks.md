@@ -100,7 +100,7 @@ cleared panel. Restyling the `/leaderboard` page.
       with company, `maskDefault` is true.
   - **Also in `settings.test.ts`:** a saved `maskNoiseOn: true` from before loads as `null`.
   - **Verify:** demo 3–4.
-- [ ] **Task 2: Bot names.**
+- [x] **Task 2: Bot names.**
   - **Change:** add `BOT_NAME = ["Ace", "Jinx", "Moss"] as const` in `src/net/lobbies.ts`. Every bot
     nickname becomes `Bot ${BOT_NAME[seat]}`.
   - **Tests:** update the named tests' expected names. This is the requirement changing, not a

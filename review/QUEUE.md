@@ -47,3 +47,12 @@
   13-tile corridor (First Job's old crate bay, kept so the proven camera/guard layout is unchanged);
   room 1 ends at a three-plate door because the FR10 lint rule asks every station-free room for
   one (overnight decisions file). Not playtested by a person: that is this review.
+
+## Play tweaks, Task 2: bot names (demo 2)
+
+- **Look at:** the reveal's crew column with bots in seats 1 and 2. Bots are "Bot Ace" / "Bot Jinx"
+  / "Bot Moss" by seat (0/1/2), and keep their name after roles rotate.
+- **Start locally:** `pkill -f "node server.ts"; pnpm build && pnpm start`, open
+  `http://localhost:8080`, Start a new team, Start alone.
+- **Screenshots:** `review/play-tweaks-task2-bots-{1280,375}.png` (crew panel).
+- **Judged:** names read as names, nothing like a role or a shape; fits at both widths.
