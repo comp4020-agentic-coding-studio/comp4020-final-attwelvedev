@@ -767,3 +767,15 @@ rather than the bots being widened to know what their role can't. The load
 problem went to the backlog instead of being fixed mid-task. Checked by
 typecheck, biome, `lint:rooms` and 1054 unit tests green, and every spec file
 green alone, at two workers, or on a fresh database.
+
+## 2026-10-28 — A spec that read my own play: fixed the spec and the way the check server starts
+
+32b609c
+
+The leaderboard's empty-state spec failed only because the shared check server
+ran on my real `./.data/app.db`, which holds a heist I played. Rather than
+delete my data or skip the spec, the spec now checks the empty board on its own
+empty-database app (as its sibling already did), and `pnpm start:check` runs
+the server on a throwaway database, written into CLAUDE.md so the next local
+check doesn't fill the real one with test runs. Checked: the moved spec passes
+against a server on the real database, the case that failed before.
