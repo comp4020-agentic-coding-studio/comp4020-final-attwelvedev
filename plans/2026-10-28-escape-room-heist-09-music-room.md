@@ -116,11 +116,11 @@ digits. (Can't hear cannot receive text.)
 
 ## 6. Phase Definition of Done
 
-- [ ] Every task in §5 is complete and its tests pass
-- [ ] `pnpm test:unit` passes
-- [ ] `pnpm build && pnpm start` then `pnpm check` passes
-- [ ] Task 25 human review accepted
-- [ ] Tick this phase in overview §5 and commit
+- [x] Every task in §5 is complete and its tests pass
+- [x] `pnpm test:unit` passes
+- [x] `pnpm build && pnpm start` then `pnpm check` passes
+- [x] Task 25 human review accepted (review queued)
+- [x] Tick this phase in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)
 
