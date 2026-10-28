@@ -171,6 +171,17 @@ describe("restartGame", () => {
     // a seq lower than the old one is accepted again
     expect(applyInput(game, 1, { seq: 1, move: { x: 0, y: 0 }, act: false })).toBe(true);
   });
+
+  it("seeds each new world afresh, so a restart draws new station answers (FR5)", () => {
+    const game = startGame(lobby("a", "b", "c"), rooms);
+    const seeds = new Set([game.world.seed]);
+    for (let i = 0; i < 5; i++) {
+      restartGame(game);
+      seeds.add(game.world.seed);
+    }
+    expect(seeds.size).toBe(6);
+    for (const s of seeds) expect(Number.isInteger(s) && s >= 0).toBe(true);
+  });
 });
 
 describe("advanceRoom", () => {

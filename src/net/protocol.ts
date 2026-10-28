@@ -106,7 +106,12 @@ export type ServerMsg =
       forReady?: boolean; // someone was pulled in and the game waits for their Ready, not a connection
       gone?: boolean; // the person pressed Leave: nothing to wait for, so the host chooses at once
     }
-  | { t: "caught"; hazard: "guard" | "camera" | "laser"; seat: Seat; checkpoint: number } // the team was sent back
+  | {
+      t: "caught";
+      hazard: "guard" | "camera" | "laser" | "station";
+      seat: Seat;
+      checkpoint: number;
+    } // the team was sent back
   | {
       t: "vote"; // a restart is being voted on: sent to every player when it opens and each time it changes
       kind: VoteKind;

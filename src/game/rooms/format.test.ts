@@ -182,3 +182,34 @@ describe("parseRoom: glass and vents", () => {
     expect(room.grid[4]?.[8]).toBe("%");
   });
 });
+
+describe("parseRoom: stations", () => {
+  const grid = ["#######", "#1.Q..#", "#2....#", "#3....#", "#######"];
+  const withQ = (q: unknown) => header(`,"Q1":${JSON.stringify(q)}`);
+
+  it("parses Q as a station with its metadata as params", () => {
+    const room = parseRoom(
+      text(
+        grid,
+        withQ({
+          type: "dial",
+          pads: [
+            [2, 2],
+            [4, 2],
+          ],
+          back: [3, 0],
+        }),
+      ),
+    );
+    const q = room.objects.find((o) => o.id === "Q1");
+    expect(q?.kind).toBe("station");
+    expect(q?.tiles).toEqual([{ x: 3, y: 1 }]);
+    expect(q?.params?.type).toBe("dial");
+    expect(room.grid[1]?.[3]).toBe(".");
+  });
+
+  it("fails a station with an unknown type", () => {
+    expect(() => parseRoom(text(grid, withQ({ type: "toaster" })))).toThrow(RoomFormatError);
+    expect(() => parseRoom(text(grid, withQ({})))).toThrow(/station Q1/);
+  });
+});

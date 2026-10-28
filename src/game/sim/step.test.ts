@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Seat } from "../types.ts";
 import { step } from "./step.ts";
-import { hold, input, place, worldFrom, worldWith } from "./testing.ts";
+import { hold, input, place, stationWorld, worldFrom, worldWith } from "./testing.ts";
 import { createWorld, RADIUS, TICK_MS, type World } from "./world.ts";
 
 const OPEN = [
@@ -406,5 +406,34 @@ describe("blocked: pushing at something and not getting anywhere", () => {
     place(w, 0, at(3, 1)); // the crate is at (4, 1)
     hold(w, { 0: input(1, 0) }, 2);
     expect(w.players[0].blocked).toBe(true);
+  });
+});
+
+describe("determinism", () => {
+  it("gives the same events twice for the same room, seed and inputs, stations included", () => {
+    const run = () => {
+      const w = stationWorld(
+        {
+          Q1: {
+            type: "dial",
+            pads: [
+              [6, 4],
+              [8, 4],
+            ],
+            back: [7, 5],
+            digits: 2,
+          },
+        },
+        1234,
+      );
+      const events: unknown[] = [];
+      for (let t = 0; t < 60; t++) {
+        const act = t % 4 === 0;
+        step(w, { 0: input(t < 30 ? 1 : 0, 0.2, act), 1: input(0, 0, t % 7 === 0) });
+        events.push(...w.events);
+      }
+      return { events, stations: w.stations, players: w.players.map((p) => p.pos) };
+    };
+    expect(run()).toEqual(run());
   });
 });

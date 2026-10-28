@@ -16,7 +16,8 @@ export type Tile =
   | "h"
   | "K"
   | "$"
-  | "S";
+  | "S"
+  | "Q";
 
 export interface RoomObject {
   id: string; // "p1", "D1", "B2", "E1"
@@ -33,7 +34,8 @@ export interface RoomObject {
     | "checkpoint"
     | "loot"
     | "sign"
-    | "clue"; // a chime with no picture (A2): `n` of 1 to 3 every `everyS` seconds
+    | "clue" // a chime with no picture (A2): `n` of 1 to 3 every `everyS` seconds
+    | "station"; // a puzzle's anchor: `params.type` and the tiles of its parts (src/game/sim/stations.ts)
   tiles: Vec[]; // integer tile coordinates
   visibleTo: Role[];
   audibleTo: Role[];
@@ -122,6 +124,7 @@ const TILES = new Set([
   "=", // glass: sight passes, sound and bodies don't
   "%", // vent: sound passes, sight and bodies don't
   "c", // a clue: a chime nobody can see
+  "Q", // a station's anchor
 ]);
 
 // Single-tile objects numbered in reading order: letter -> [kind, id prefix].
@@ -134,6 +137,7 @@ const NUMBERED: Record<string, [RoomObject["kind"], string]> = {
   $: ["loot", "$"],
   S: ["sign", "S"],
   c: ["clue", "c"],
+  Q: ["station", "Q"],
 };
 // Kinds whose metadata is kept whole as `params`.
 const PARAMS: Record<string, true> = {
@@ -145,7 +149,18 @@ const PARAMS: Record<string, true> = {
   loot: true,
   sign: true,
   clue: true,
+  station: true,
 };
+export const STATION_TYPES = [
+  "dial",
+  "wires",
+  "keypad",
+  "radio",
+  "switches",
+  "bells",
+  "vault",
+  "sync",
+] as const;
 const DEFAULT_VISIBLE_TO: Role[] = ["deaf", "mute"];
 const ROLE_SET = new Set<string>(["blind", "deaf", "mute"]);
 
@@ -277,6 +292,12 @@ export function parseRoom(text: string): Room {
       object.mode = ov.mode === "sequence" ? "sequence" : "all";
     }
     if (kind in PARAMS) object.params = { ...ov };
+    if (kind === "station" && !(STATION_TYPES as readonly unknown[]).includes(ov.type)) {
+      throw new RoomFormatError(
+        `station ${id} needs a type, one of ${STATION_TYPES.join(", ")} (got ${JSON.stringify(ov.type)})`,
+        1,
+      );
+    }
     objects.push(object);
   };
 

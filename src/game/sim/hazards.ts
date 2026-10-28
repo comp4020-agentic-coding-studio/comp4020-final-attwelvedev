@@ -98,11 +98,16 @@ export function laserBeam(room: Room, o: RoomObject): Vec[] {
 
 export const tileOf = (pos: Vec): Vec => ({ x: Math.floor(pos.x), y: Math.floor(pos.y) });
 
-export type HazardKind = "guard" | "camera" | "laser";
+export type HazardKind = "guard" | "camera" | "laser" | "station"; // "station": a wrong answer (FR15)
+export interface Catch {
+  by: string;
+  hazard: HazardKind;
+  seat: Seat;
+}
 
 // First hazard that has a player, and which player: what the team is told. Guards and
 // cameras cannot see a player standing on a hide spot; a laser still catches one.
-export function findCatch(world: World): { by: string; hazard: HazardKind; seat: Seat } | null {
+export function findCatch(world: World): Catch | null {
   const objects = world.room.objects;
   const hides = objects.filter((o) => o.kind === "hide").flatMap((o) => o.tiles);
   const hidden = (pos: Vec) => {

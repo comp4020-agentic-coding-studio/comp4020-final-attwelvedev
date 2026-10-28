@@ -1,7 +1,8 @@
 import { flipsOf } from "../rooms/format.ts";
 import type { PlayerInput, Seat, Vec } from "../types.ts";
 import { blockedAt, circleHitsTile, crateAt, crateTouching, indexOf, tileKey } from "./collide.ts";
-import { alarmOn, findCatch, guardParams, tileOf } from "./hazards.ts";
+import { alarmOn, type Catch, findCatch, guardParams, tileOf } from "./hazards.ts";
+import { DYE_MS, drawStations, solved, updateStations } from "./stations.ts";
 import {
   ALARM_GUARD_SPEEDUP,
   CHECKPOINT_RADIUS,
@@ -159,10 +160,11 @@ function updateSequences(world: World) {
 function updateDoors(world: World) {
   for (const door of world.room.objects.filter((o) => o.kind === "door")) {
     const needs = door.opensWhen ?? [];
+    // a door may name a station as well as plates: it opens once that station is solved (FR6)
     const held =
       door.mode === "sequence"
         ? needs.length > 0 && (world.seqProgress[door.id]?.next ?? 0) >= needs.length
-        : needs.length > 0 && needs.every((id) => world.pressed[id]);
+        : needs.length > 0 && needs.every((id) => world.pressed[id] || solved(world, id));
     // latched: once opened a door stays open, so nobody can be stranded behind it
     const open = held || world.doorOpen[door.id] === true;
     if (open !== world.doorOpen[door.id]) {
@@ -301,6 +303,8 @@ function updateCheckpoints(world: World) {
       players: spots.slice(0, 3).map((t) => tileCentre(t)),
       crates: world.crates.map((c) => ({ id: c.id, tile: { ...c.tile } })),
       lootTaken: [...world.lootTaken],
+      gear: world.gear.map((g) => ({ ...g, at: g.at && { ...g.at } })),
+      sideJobsDone: [...world.sideJobsDone],
     };
     world.events.push({ kind: "checkpoint", index });
   }
@@ -318,8 +322,8 @@ function updateLoot(world: World) {
 }
 
 // The whole team goes back to the last checkpoint: players, crates and loot as
-// they were when it was reached.
-function sendBack(world: World, caught: NonNullable<ReturnType<typeof findCatch>>) {
+// they were when it was reached. Unsolved stations get new answers (FR5).
+function sendBack(world: World, caught: Catch) {
   const { snapshot } = world;
   world.players.forEach((p, i) => {
     const to = snapshot.players[i];
@@ -337,6 +341,19 @@ function sendBack(world: World, caught: NonNullable<ReturnType<typeof findCatch>
   world.seqFlash = {};
   world.events.push({ kind: "caught", ...caught });
   world.alarmUntil = 0; // a retry starts clean: the alarm belongs to the attempt that set it off
+  world.attempt++;
+  drawStations(world);
+}
+
+// Act is an edge: the seats that pressed it this tick, in seat order.
+function actEdges(world: World, inputs: Partial<Record<Seat, PlayerInput>>): Seat[] {
+  const out: Seat[] = [];
+  for (const p of world.players) {
+    const held = inputs[p.seat]?.act === true;
+    if (held && !p.actHeld) out.push(p.seat);
+    p.actHeld = held;
+  }
+  return out;
 }
 
 function updateExit(world: World) {
@@ -372,6 +389,7 @@ export function step(
   for (const e of world.events) {
     if (e.kind === "plate" && e.pressed) triggerAlarm(world, (t) => t === e.id);
   }
+  const wrong = updateStations(world, actEdges(world, inputs));
   updateDoors(world);
   moveGuards(world, dtMs);
   updateHide(world);
@@ -380,7 +398,14 @@ export function step(
   updateLoot(world);
   updateClues(world);
   updateExitCount(world);
-  const caught = findCatch(world);
+  // a wrong answer splatters the team with dye, then counts as caught (FR15, FR29)
+  if (wrong) {
+    world.events.push({ kind: "dye", station: wrong.id });
+    world.dyedUntil = world.tick + Math.round(DYE_MS / TICK_MS);
+  }
+  const caught: Catch | null = wrong
+    ? { by: wrong.id, hazard: "station", seat: wrong.seat }
+    : findCatch(world);
   if (caught !== null) sendBack(world, caught);
   else updateExit(world);
   ageStamps(world, dtMs);

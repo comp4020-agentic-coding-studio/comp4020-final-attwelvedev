@@ -65,3 +65,21 @@ export function tap(world: World, seat: Seat, tile: Vec, park: Vec): void {
   place(world, seat, park);
   step(world, {}, TICK_MS);
 }
+
+// A room for station tests: spawns at x = 1, Q1's anchor at (7, 4), more station anchors (Q2,
+// Q3...) after it in reading order on the bottom row from x = 14, a sign S1 at (16, 1), and open
+// floor between. `objects` is the metadata (Q1's type and parts, a door's opensWhen...).
+export function stationWorld(objects: Record<string, unknown>, seed = 1): World {
+  const extra = Object.keys(objects).filter((id) => /^Q[2-9]$/.test(id)).length;
+  const row = (y: number) => {
+    const cells = "#................#".split("");
+    if (y <= 3) cells[1] = String(y);
+    if (y === 4) cells[7] = "Q";
+    if (y === 5) for (let i = 0; i < extra; i++) cells[14 + i] = "Q";
+    if (y === 1) cells[16] = "S";
+    return cells.join("");
+  };
+  const grid = ["#".repeat(18), ...[1, 2, 3, 4, 5].map(row), "#".repeat(18)];
+  if (objects.D1) grid[2] = `${(grid[2] as string).slice(0, 16)}D#`;
+  return createWorld(roomWith(grid, objects), seed);
+}

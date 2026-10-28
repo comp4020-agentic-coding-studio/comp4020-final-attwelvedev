@@ -209,6 +209,12 @@ to a station elsewhere via `yields`; sync: keys ≥3 tiles apart).
 
 ### Task 2: Stations, seeded answers and the dye-pack reset in the simulation
 
+- **Status:** done (2026-10-28). Beyond the file list: `hazard` widened to `"station"` in
+  `net/protocol.ts`, `net/game.ts`, `client/hud.ts` (`caughtText`: "Wrong answer.", tested) because
+  the typecheck needs it; `src/net/game.ts` seeds each world (`freshWorld`). `World` gains one field
+  beyond overview §4.2: `syncAt` (sync key ticks). Wires keep `[cut, rule, ...colours]` in `answer`;
+  plaque text is `plaqueText(world, id)`.
+
 - **Description:** Add the `station` kind and `Q` tile, `StationState`, the
   RNG, Act edge handling for stations, the eight station types, wrong answer
   = dye + `sendBack`, solved stations surviving resets, unsolved re-drawn.

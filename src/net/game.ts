@@ -47,7 +47,7 @@ export interface Paused {
 // The team was caught: by a guard, camera or laser, who it saw, and the checkpoint (0 = the
 // start) the team is back at.
 export interface Caught {
-  hazard: "guard" | "camera" | "laser";
+  hazard: "guard" | "camera" | "laser" | "station"; // station: a wrong answer (FR15)
   seat: Seat;
   checkpoint: number;
 }
@@ -97,6 +97,12 @@ const botSeatsOf = (game: Game): Seat[] => ([0, 1, 2] as const).filter((s) => ga
 const botSeatsIn = (lobby: LobbyState): Seat[] =>
   ([0, 1, 2] as const).filter((s) => lobby.seats[s]?.bot);
 
+// Every new world gets its own seed for its station answers (FR5): the clock, plus a counter so two
+// worlds made in the same millisecond still differ. The simulation itself never reads the clock.
+let worlds = 0;
+const freshWorld = (room: Room): World =>
+  createWorld(room, ((Date.now() % 1_000_000) * 1000 + (worlds++ % 1000)) >>> 0);
+
 // The caller has already checked that the starter is the host, and startLobby has
 // filled the empty seats with bots.
 export function startGame(lobby: LobbyState, rooms: Room[]): Game {
@@ -107,7 +113,7 @@ export function startGame(lobby: LobbyState, rooms: Room[]): Game {
     roomIndex: 0,
     crew: crewFor(lobby, 0),
     roles: crewFor(lobby, 0).roles,
-    world: createWorld(room),
+    world: freshWorld(room),
     ready: new Set(),
     inputs: {},
     startedAt: Date.now(),
@@ -158,7 +164,7 @@ export function advanceRoom(game: Game, lobby: LobbyState, rooms: Room[]): "next
   if (!room) return "done";
   game.roomIndex++;
   setCrew(game, lobby, crewFor(lobby, game.roomIndex));
-  game.world = createWorld(room);
+  game.world = freshWorld(room);
   game.ready.clear();
   game.inputs = {};
   game.cooldowns = { until: {} };
@@ -276,7 +282,7 @@ export function finishVote(
   game.heistPeople = new Map();
   game.counted = -1;
   setCrew(game, lobby, crewFor(lobby, 0));
-  game.world = createWorld(first);
+  game.world = freshWorld(first);
   game.ready.clear();
   game.inputs = {};
   game.cooldowns = { until: {} };
@@ -288,7 +294,7 @@ export function finishVote(
 // A fresh world for the same room: everyone back at spawn, crates and doors
 // reset, held inputs dropped. Roles and who is ready stay as they are.
 export function restartGame(game: Game): void {
-  game.world = createWorld(game.world.room);
+  game.world = freshWorld(game.world.room);
   game.inputs = {};
   game.startedAt = Date.now();
   seatBots(game, botSeatsOf(game));

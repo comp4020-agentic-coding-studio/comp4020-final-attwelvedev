@@ -246,6 +246,12 @@ describe("caughtText", () => {
       "The guard saw you. Back to the start.",
     );
   });
+
+  it("says a wrong answer at a station sent the team back, naming nobody (FR15)", () => {
+    expect(caughtText({ hazard: "station", seat: 2, checkpoint: 1 }, crew, 0)).toBe(
+      "Wrong answer. Back to checkpoint 1.",
+    );
+  });
 });
 
 describe("hostChangeText", () => {
