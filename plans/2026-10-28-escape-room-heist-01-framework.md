@@ -182,6 +182,8 @@ to a station elsewhere via `yields`; sync: keys ≥3 tiles apart).
 
 ### Task 1: Land the overhaul phase 06 work in progress
 
+- **Status:** done, c326813 (2026-10-28).
+
 - **Description:** Get `pnpm check` green on the current working tree and
   commit it as the end of overhaul Tasks 22 and 28 (P1), with Task 28's open
   seed sweep left as logged. Fix `scripts/solve-rooms.ts`'s stale
