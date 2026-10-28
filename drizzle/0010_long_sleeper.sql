@@ -1,0 +1,1 @@
+ALTER TABLE `runs` ADD `edition` integer DEFAULT 1 NOT NULL;

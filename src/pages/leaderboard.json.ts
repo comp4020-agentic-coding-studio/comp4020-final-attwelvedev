@@ -2,12 +2,13 @@ import type { APIRoute } from "astro";
 import { loadRooms } from "../game/rooms/load.ts";
 import { db } from "../lib/db.ts";
 import { json } from "../lib/http.ts";
-import { boardTabs } from "../lib/runs.ts";
+import { boardTabs, EDITION } from "../lib/runs.ts";
 
 // The `/leaderboard` page's boards, for the in-game panel. Public on purpose (FR32): team names,
-// nicknames, times and loot, never a run id or a device hash.
+// nicknames, times and loot, never a run id or a device hash. Always the current edition: the
+// earlier one is on the page, by its link.
 export const GET: APIRoute = () => {
-  const tabs = boardTabs(db, loadRooms()).map((t) => ({
+  const tabs = boardTabs(db, loadRooms(), EDITION).map((t) => ({
     id: t.id,
     label: t.label,
     rows: t.rows.map((r) => ({
@@ -19,7 +20,7 @@ export const GET: APIRoute = () => {
       lootTotal: r.lootTotal,
     })),
   }));
-  const res = json({ tabs });
+  const res = json({ edition: EDITION, tabs });
   res.headers.set("Cache-Control", "no-store");
   return res;
 };

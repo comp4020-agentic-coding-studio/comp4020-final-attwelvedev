@@ -130,6 +130,11 @@ results; the comms map counts deliveries per direction and method; `EDITION = 2`
 
 ### Task 30: A new leaderboard edition, the old one kept (was overhaul Task 25)
 
+- [x] **Done** on `auto/side-work` (overnight side session, 2026-10-29), ahead of Task 27: the room
+  tabs come from `rooms/` at runtime, not a fixed nine; `/leaderboard.json`, the in-game panel and
+  the room board on clear all read edition 2 through `topRuns`' default. Merge into
+  `auto/escape-room` is the user's.
+
 - **Description:** `edition` column and migration, `EDITION = 2`, filtering,
   the earlier-edition link and tabs; FR31.
 - **Files touched:** `src/lib/schema.ts`, `drizzle/NNNN_*.sql` + meta
