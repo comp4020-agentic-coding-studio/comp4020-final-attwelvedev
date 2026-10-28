@@ -291,7 +291,7 @@ matching `/^\d$/`, or `"stop"` as a callout for a dial; bots read only those two
 | 02 | `…-02-client.md` | 7–10 | 01 | every new object drawn, heard and labelled (label cap); HUD; reviewed on fixtures | [x] |
 | 03 | `…-03-clues.md` | 11–13 | 02 | clue paths and motifs in sim and view; clue-path linter; perception-only bot core, existing rooms still cleared | [x] |
 | 04 | `…-04-basics.md` | 14–15 | 03 | rooms 1 to 3 replace First Job; **human review** | [x] |
-| 05 | `…-05-safe.md` | 16–17 | 04 | safe decoder; room 4 The Safe; **human review** | [ ] |
+| 05 | `…-05-safe.md` | 16–17 | 04 | safe decoder; room 4 The Safe; **human review** | [x] |
 | 06 | `…-06-gallery.md` | 18–19 | 05 | wires and keypad decoders; room 5; **human review** | [ ] |
 | 07 | `…-07-lights-out.md` | 20–21 | 06 | radio and switches decoders; room 6; **human review** | [ ] |
 | 08 | `…-08-night-shift.md` | 22–23 | 07 | UV and goggles bot use; room 7; **human review** | [ ] |
