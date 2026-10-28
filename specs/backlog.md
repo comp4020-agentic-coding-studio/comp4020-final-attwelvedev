@@ -18,6 +18,11 @@ first.
 - 2026-10-09 — the masking noise is plain brown noise; pleasant alternatives (or a choice of a few) would be nicer for whoever has to listen to it for a whole heist. Needs a decision on whether a new sound asset is justified (CLAUDE.md: only bundled outside assets today are the bluemoji faces and Pixabay clips) or another synthesised option. Raised during Task 19's human review. Left out of the play overhaul (spec §2.3).
 - 2026-10-28 — `pnpm check` overloads this 12-core machine: the full run pushed the load average to 300–485, and 107 browser specs timed out at 30 s, while the same files pass when run alone on a fresh server (`game`, `perception`, `layout/hud`, `leave`: 54 of 54). Full runs took 648–704 s. Needs per-file timings (`vitest run --reporter=json`) and a decision on spec workers or file grouping before the check can be trusted here.
 
+- 2026-10-28 — a distraction side job: one player draws a guard away while the others work a station. Raised in the escape-room brainstorm; parked so the first rooms ship first.
+- 2026-10-28 — a periscope: a gear item that lets its holder see round one corner or over one wall. Raised in the escape-room brainstorm; four gear items are enough for the first rooms.
+- 2026-10-28 — a team codebook: a shared page where the team writes what the bell and the lamp mean. Raised in the escape-room brainstorm; today the team agrees by voice or text.
+- 2026-10-28 — spectators voicing the earpiece: a watcher hears the earpiece tune and tells the team. Raised in the escape-room brainstorm; needs a ruling on what a spectator may pass on.
+
 ## Decided
 
 <!-- - YYYY-MM-DD — idea → Tweak (commit abc1234) / Slice (plans/…) / Architecture (specs/…, ADR NNNN) / dropped (why) -->
@@ -33,3 +38,4 @@ Sorted on 2026-10-19 by the play overhaul brainstorm (`specs/2026-10-19-play-ove
 - 2026-10-10 — voice: a tap-to-toggle mode with a visible "mic is live" state → Slice inside the overhaul (`specs/2026-10-19-play-overhaul.md` FR27; `plans/2026-10-19-play-overhaul-01-comms.md` Task 3).
 - 2026-10-18 — bots that hesitate like people (a tolerant `guideBlind`) → Architecture (`specs/2026-10-19-play-overhaul.md` FR14 with amendment A3; the tolerant guide is `plans/2026-10-19-play-overhaul-06-rooms-results.md` Task 28 (moved there from `-04-line-of-sight.md` Task 16 on 2026-10-20, after phase 04 could not make it hold on the old rooms).
 - 2026-10-18 — Can't speak has little to do → Architecture (`specs/2026-10-19-play-overhaul.md` FR5–FR6, FR12, FR14; ADR 0012; sight becomes local, each room has a beat one role leads, and a spec fails a room without its lead's sends; `plans/2026-10-19-play-overhaul-04-line-of-sight.md`, `-06-rooms-results.md`).
+- 2026-10-28 — "Can't speak has little to do" → Architecture (`specs/2026-10-28-escape-room-heist.md`, ADR 0017): stations, gear and side jobs give every role work.

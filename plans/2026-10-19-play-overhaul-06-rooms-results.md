@@ -313,6 +313,8 @@ small map of the old ids: Loading Dock, Don't Blink, Lights Out, Sound Off).
 
 ### Task 23: Rooms 2–4, each led by one role
 
+- **Status:** cancelled (2026-10-28): superseded by the escape-room heist (`specs/2026-10-28-escape-room-heist.md`), which builds rooms 2 to 4 as station rooms.
+
 - **Description:** `02-blackout`, `03-alarm`, `04-chimes` per §4, with
   `leads: true`, lead beats, split and twin cues, budgets. (Tasks 28 and 23 are
   one unit of work, decided 2026-10-20: the old rooms and the unused solver
@@ -343,6 +345,8 @@ small map of the old ids: Loading Dock, Don't Blink, Lights Out, Sound Off).
 
 ### Task 24: The comms map at room end
 
+- **Status:** moved (2026-10-28) to Task 18 of `plans/2026-10-28-escape-room-heist-05-jobs-results.md`.
+
 - **Description:** Count deliveries per direction and method; send them with
   `cleared`; draw `CommsMap` in `RoomCleared` and `HeistComplete`.
 - **Files touched:** `src/net/attach.ts`, `src/net/game.ts` (+ test:
@@ -362,6 +366,8 @@ small map of the old ids: Loading Dock, Don't Blink, Lights Out, Sound Off).
 - **Depends on:** Task 12 (RoomCleared shape), Task 1.
 
 ### Task 25: A new leaderboard edition, the old one kept
+
+- **Status:** moved (2026-10-28) to Task 19 of `plans/2026-10-28-escape-room-heist-05-jobs-results.md`.
 
 - **Description:** `edition` column and migration, `EDITION = 2`, filtering,
   the earlier-edition link and tabs.
@@ -469,4 +475,8 @@ falls back to the room file.
   x = 14 to 20; both emitters only from x = 14 to 16).
   Pattern for the process log: a spec that checks the data a view carries is not a check of what the
   player sees; for anything drawn, look at the render across the state's whole cycle.
-
+- 2026-10-28, Tasks 23–25: expected rooms 2 to 4 built around a lead role and split cues. After two
+  playtests the user ruled that lead beats still leave passengers, and brainstormed the escape-room
+  heist instead (`specs/2026-10-28-escape-room-heist.md`, ADR 0017 proposed): Task 23 is cancelled,
+  Tasks 24 and 25 move to Tasks 18 and 19 of that plan. The first approach missed because one
+  lead per beat made the other two followers.
