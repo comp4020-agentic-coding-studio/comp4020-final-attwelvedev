@@ -7,22 +7,30 @@
   first, especially §3 (commands, human review on a local build) and §4.2
   (view fields this phase draws).
 - **Depends on phases:** 01.
+- **Re-planned 2026-10-28:** Tasks 8 to 10 were built and parked on branch
+  `wip/escape-room-02-client` (`c2e4142`) when the joint review stopped (see the
+  Corrections log). This phase resumes from that branch, adds the label cap
+  (clues FR12, Task 10), and reviews look, sound and HUD only: whether a station
+  can be *solved* is phase 03's clue work and every room's review, not this
+  phase's.
 
 ## 1. Summary
 
 Measures the camera and line-of-sight cost on a hub-shaped room, then draws,
 voices and labels everything phase 01 added: stations, gear, the UV pool and
 ink, goggles, hatch, held hands, bell, lamp, dye pack; and adds the HUD gear
-slot, Act hint, lamp light and the side-job chip slot (filled in phase 05).
-Ends with the `00-stations-draft` fixture playable in three tabs, looking and
-sounding like the agreed design.
+slot, Act hint, lamp light and the side-job chip slot (filled in phase 11).
+Ends with the `00-stations-draft` fixture in three tabs looking and sounding
+like the agreed design, with a capped set of labels and name plates saying what
+each thing is. The fixture is a test bench: its puzzles are not solvable until
+phase 03.
 
 ## 2. Requirements (this phase)
 
 ### 2.1 Functional
 
-Spec FR6–FR12, FR17–FR19, FR22–FR25, FR27, FR29 (client side: drawing,
-sound, labels, HUD).
+Spec FR6–FR12, FR17–FR19, FR22–FR25, FR29 (client side: drawing, sound,
+HUD); clues FR12 (labels, capped: replaces spec FR27).
 
 ### 2.2 Non-functional
 
@@ -31,7 +39,9 @@ files), perception (Act hint shows `view.act` only).
 
 ### 2.3 Out of scope for this phase
 
-Real rooms (phases 03, 04); side-job content and results (phase 05).
+Clue paths, motifs, plaque text, target card, the teaching lamp (phase 03,
+Task 11, which draws them with the fields it adds); real rooms (phases 04 to
+10); side-job content and results (phase 11).
 
 ### 2.4 Assumptions
 
@@ -185,8 +195,10 @@ tone = steady sine; pip = 880 Hz blip; clunk = low square; bellnote `n` = sine
   and phone 375: the stations read as gallery furniture and look natural in the
   world; the UV pool is striking but legible; goggles read as night vision;
   the dye pack is funny, not alarming. Pass = the user says so. **Held jointly
-  with Task 10's review, after Task 10 lands** (ruled 2026-10-28): the drawing
-  cannot be judged before the labels and Act hint say what each thing is.
+  with Tasks 9 and 10's reviews, after Task 10 lands** (ruled 2026-10-28): the
+  drawing cannot be judged before the labels and Act hint say what each thing
+  is. **Scope (re-plan):** look only; the fixture's puzzles are not solvable yet
+  and that is not part of this review (phase 03).
 - **Depends on:** Tasks 3, 7.
 
 ### Task 9: Synthesised sounds and captions for every new cue
@@ -215,7 +227,7 @@ tone = steady sine; pip = 880 Hz blip; clunk = low square; bellnote `n` = sine
   labels.
 - **Files touched:** new `src/components/GearSlot.tsx`, `ActHint.tsx`,
   `LampLight.tsx`, `SideJob.tsx` (renders `view.sideJob` when present; empty
-  until phase 05), `GearGlyph.tsx`; `src/components/Game.tsx` (crew row gear
+  until phase 11), `GearGlyph.tsx`; `src/components/Game.tsx` (crew row gear
   glyphs from entities' `item`/`heldBy`; phone: gear slot 48 px tap sends
   `gear` (via a `[data-gear]` handler in `src/client/input.ts`, like `[data-act]`), Act button label = `view.act`); `src/styles/game.css`;
   `src/client/labels.ts` (+ test: `LABEL_COPY` rows from spec §4.1 for
@@ -224,9 +236,19 @@ tone = steady sine; pip = 880 Hz blip; clunk = low square; bellnote `n` = sine
   on the drafts: the shared server's rooms have no gear; CLAUDE.md: one slow file per area) (gear slot,
   Act hint, lamp: visible, ≥48 px on phone, no overlap with the joystick or
   Act, axe clean, at both viewports and every role).
+  **Label cap (clues FR12, re-plan):** `labelsFor` returns at most three chips
+  on desktop and two on a phone (canvas narrower than 720 px, the camera's
+  phone split), the nearest first; labels for the escape-room kinds show in
+  every room, the rest in room one only; `DESIGN.md` 4.6 says so. Chips are
+  placed at the nearest free spot so none is drawn over another (already on the
+  branch). `spec/layout/hud.test.ts`'s room-one label spec changes from "a
+  plate chip" to "the nearest chips, at most three": a deliberate change to an
+  accepted promise, made by the user in the clues brainstorm.
 - **Tests first (red):** `labels.test.ts`: a `station` entity of type `dial`
-  yields the safe label; `spec/layout/hud.test.ts` as listed; a Can't see
-  page's Act hint never contains a colour word.
+  yields the safe label; with five kinds in sight, three chips on desktop and
+  two on a phone, the nearest; `render.test.ts`: five crowded chips never
+  overlap; `spec/layout/escape-hud.test.ts` as listed; a Can't see page's Act
+  hint never contains a colour word.
 - **Implementation (green):** as described.
 - **Acceptance criteria:** tests green.
 - **Human review:** the same local build at both viewports: the HUD stays out
@@ -239,7 +261,8 @@ tone = steady sine; pip = 880 Hz blip; clunk = low square; bellnote `n` = sine
 - [ ] Every task in §5 is complete and its tests pass
 - [ ] `pnpm test:unit` passes
 - [ ] `pnpm build && pnpm start` then `pnpm check` passes
-- [ ] Task 7's numbers recorded; Tasks 8–10 human reviews accepted
+- [ ] Task 7's numbers recorded; Tasks 8–10 human reviews accepted (look, sound, HUD; not solvability)
+- [ ] Branch `wip/escape-room-02-client` merged into `play-overhaul` (or its commits replayed), one commit per task
 - [ ] Tick this phase in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)
@@ -249,7 +272,7 @@ tone = steady sine; pip = 880 Hz blip; clunk = low square; bellnote `n` = sine
 | NFR performance | Task 7 |
 | FR6–FR12, FR17–FR19, FR22–FR25, FR29 (drawing) | Task 8 |
 | FR6–FR12, FR17, FR20, FR24, FR29 (sound) | Task 9 |
-| FR16 (phone gear tap), FR25 (lamp HUD), FR27, NFR Act hint | Task 10 |
+| FR16 (phone gear tap), FR25 (lamp HUD), clues FR12 (label cap), NFR Act hint | Task 10 |
 
 ## 8. Risks / open questions
 
@@ -295,3 +318,6 @@ None.
   brainstorm-feature: the clue chain (what tells a human each answer, how stations
   link) and pacing (fewer types per room). Work kept on branch
   `wip/escape-room-02-client`, uncommitted to main.
+- 2026-10-28, re-plan: phase resumes from `wip/escape-room-02-client`; Task 10 gains the label
+  cap (clues FR12); reviews judge look, sound and HUD only. The clue visuals moved to Task 11
+  (phase 03), which creates the fields they read.

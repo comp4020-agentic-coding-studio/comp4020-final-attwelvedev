@@ -1,34 +1,32 @@
-# Escape-room heist: Phase 05, side jobs, results and wrap-up
+# Escape-room heist: Phase 11, side jobs, credited results, comms map, wrap-up
 
 - **Date:** 2026-10-28
 - **Status:** Approved
 - **Requirements confirmed by user:** yes, 2026-10-28
-- **Part of:** `plans/2026-10-28-escape-room-heist-00-overview.md`. Read it
-  first, especially §3 and §4.2.
-- **Depends on phases:** 04.
+- **Part of:** `plans/2026-10-28-escape-room-heist-00-overview.md`. Read it first.
+- **Depends on phases:** 10.
+- **Re-plan:** was phase 05 (Tasks 17 to 20); same work, renumbered 28 to 31, side jobs in rooms
+  4 to 9, nine leaderboard room tabs, ADR 0018 alongside 0017.
 
 ## 1. Summary
 
-Adds private side jobs, credited results lines, the comms map and the new
-leaderboard edition (overhaul Tasks 24 and 25, moved here), then brings
-CLAUDE.md, DESIGN.md, the backlog and ADR 0017 up to date. Ends with the
-feature done.
+Adds side jobs (rooms 4 to 9) and credited results, the comms map at room end, a new leaderboard
+edition for the nine-room heist with the old one kept, and brings CLAUDE.md, DESIGN.md, the
+backlog and the ADRs in line with the code.
 
 ## 2. Requirements (this phase)
 
 ### 2.1 Functional
 
-Spec FR28, FR30, FR31; overhaul spec FR35 (comms map) and FR36 (versioning),
-taken over from overhaul Tasks 24/25.
+Spec FR28 (from room 4, clues FR11), FR30, FR31; overhaul FR35 (comms map).
 
 ### 2.2 Non-functional
 
-Perception (a side job is in its owner's view only); logging (side job done is
-a kind, never the item); records keep every row (ADR 0014).
+Logging: side-job events as kinds only, never the item text.
 
 ### 2.3 Out of scope for this phase
 
-Ambience and music (overhaul phase 07, after this plan).
+Ambience and music (overhaul phase 07).
 
 ### 2.4 Assumptions
 
@@ -55,6 +53,8 @@ See overview §2.4.
 
 ### Interfaces from earlier phases (exact)
 
+- Rooms `rooms/01-first-steps.room` to `09-the-vault.room` (phases 04 to 10); the old rooms are gone.
+
 - Room format letter `j` = `sidejob` with metadata `{"owner": 1|2|3, "text":
   string}` (overview §4.1); `World.sideJobsDone: string[]`, `Snapshot.sideJobsDone`
   (overview §4.2); `WorldEvent { kind: "sidejob"; id; seat }`;
@@ -80,14 +80,21 @@ string }[]` with `cleared`; lines are built from fixed templates ("cracked the
 safe", "side job: the music box (with Hanna)"), nicknames inserted client-side
 from the crew (never logged).
 
+## 4. Approach
+
+As the old phase 05 §4 (kept in git history at `plans/2026-10-28-escape-room-heist-05-jobs-results.md`
+before this re-plan): a side job is a `j` object owned by a spawn seat, placed where its owner can
+neither perceive nor reach it alone (linted like the presence rule), worth loot, credited in the
+results; the comms map counts deliveries per direction and method; `EDITION = 2`.
+
 ## 5. Task breakdown
 
-### Task 17: Side jobs and credited results
+### Task 28: Side jobs and credited results
 
 - **Description:** Per this file's §4.
 - **Files touched:** `src/game/rooms/format.ts` (`j`), `src/game/sim/step.ts`
   (pickup, snapshot), `src/game/perception.ts` (`sideJob` own only),
-  `src/game/rooms/lint.ts`, rooms 02–04 (add `j` objects), `src/net/game.ts`
+  `src/game/rooms/lint.ts`, rooms 04 to 09 (add `j` objects: side jobs from room 4, clues FR11), `src/net/game.ts`
   and `attach.ts` (credits), `src/net/protocol.ts` (`credits` on `cleared`),
   `src/components/RoomCleared.tsx`, `src/components/RoleReveal.tsx` (side job
   line), `src/lib/gameLog.ts` (`"sidejob"`), tests beside each;
@@ -100,9 +107,9 @@ from the crew (never logged).
 - **Acceptance criteria:** tests green; lint and rooms spec green.
 - **Human review:** three tabs: the side job is a fun aside, not a
   distraction; the credit lines read well. Pass = the user says so.
-- **Depends on:** Task 16.
+- **Depends on:** Task 27.
 
-### Task 18: The comms map at room end (was overhaul Task 24)
+### Task 29: The comms map at room end (was overhaul Task 24)
 
 - **Description:** Count deliveries per direction and method; send them with
   `cleared`; draw `CommsMap` in `RoomCleared` and `HeistComplete`.
@@ -119,9 +126,9 @@ from the crew (never logged).
   by count, per-edge method breakdown on hover/focus, one-line summary.
 - **Acceptance criteria:** tests green; never a message's content in the map or
   the log.
-- **Depends on:** Task 17.
+- **Depends on:** Task 28.
 
-### Task 19: A new leaderboard edition, the old one kept (was overhaul Task 25)
+### Task 30: A new leaderboard edition, the old one kept (was overhaul Task 25)
 
 - **Description:** `edition` column and migration, `EDITION = 2`, filtering,
   the earlier-edition link and tabs; FR31.
@@ -131,46 +138,47 @@ from the crew (never logged).
 - **Tests first (red):** a run saved now has edition 2; `topRuns` defaults to
   edition 2 and returns edition-1 rows only when asked; existing rows read as
   edition 1 after migrating; the board has a tab for the full heist and each of
-  the four rooms and links to the earlier board.
+  the nine rooms and links to the earlier board.
 - **Implementation (green):** as described.
 - **Acceptance criteria:** tests green; migration committed; no rows deleted.
-- **Depends on:** Task 16.
+- **Depends on:** Task 27.
 
-### Task 20: Wrap-up: CLAUDE.md, DESIGN.md, backlog, ADR 0017
+### Task 31: Wrap-up: CLAUDE.md, DESIGN.md, backlog, ADR 0017
 
 - **Description:** Bring the harness docs in line with the code.
 - **Files touched:** `CLAUDE.md`: the **Sensory parity** bullet gains the
   deliberate exceptions (earpiece and stethoscope sounds have no picture; UV
   ink and goggles sight have no sound) and "a new station sound goes in
   `parity.test.ts`"; the **Rooms** bullet says rooms are station puzzles
-  linted by `lintPresence` (no lead beats), and that a room must pass
+  linted by `lintPresence` and `lintClues`, introduce at most two new things (`pacing.test.ts`), and are cleared by perception-only bots (ADR 0018) (no lead beats), and that a room must pass
   `pnpm lint:rooms` and `spec/rooms.test.ts`; the **Shape of the app** bullet
   mentions stations and gear. `DESIGN.md` checked against the code;
-  `specs/backlog.md` Decided lines; `doc/adr/0017-…` status → `accepted`
-  **only after the user says so**; `PROCESS_LOG.md` entry for the phase's
+  `specs/backlog.md` Decided lines; `doc/adr/0017-…` and `0018-…` status → `accepted`
+  **only after the user says so**; DESIGN.md 4.6 and 4.8 checked (label cap, clue visuals); `PROCESS_LOG.md` entry for the phase's
   moments.
 - **Tests first (red):** `spec/design.test.ts` green; `pnpm check:evidence`.
 - **Implementation (green):** edits as listed.
 - **Acceptance criteria:** `pnpm check` green.
-- **Human review:** the user reads the CLAUDE.md diff and approves ADR 0017.
-- **Depends on:** Tasks 17, 18, 19.
+- **Human review:** the user reads the CLAUDE.md diff and approves ADRs 0017 and 0018.
+- **Depends on:** Tasks 28, 29, 30.
 
 ## 6. Phase Definition of Done
 
 - [ ] Every task in §5 is complete and its tests pass
 - [ ] `pnpm test:unit` passes
 - [ ] `pnpm build && pnpm start` then `pnpm check` passes
-- [ ] Tasks 17 and 20 human reviews accepted; ADR 0017 accepted
+- [ ] Tasks 28 and 31 human reviews accepted; ADRs 0017 and 0018 accepted by the user
+- [ ] The overview's feature-level Definition of Done holds
 - [ ] Tick this phase in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)
 
 | Requirement | Covered by |
 | --- | --- |
-| FR28, FR30 | Task 17 |
-| Overhaul FR35 | Task 18 |
-| FR31 / overhaul FR36 | Task 19 |
-| Docs, parity exceptions in CLAUDE.md, ADR | Task 20 |
+| Spec FR28 (from room 4), FR30; clues FR11 | Task 28 |
+| Overhaul FR35 | Task 29 |
+| Spec FR31 | Task 30 |
+| Housekeeping, ADRs | Task 31 |
 
 ## 8. Risks / open questions
 

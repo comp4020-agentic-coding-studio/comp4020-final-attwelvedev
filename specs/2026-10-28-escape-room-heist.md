@@ -3,6 +3,8 @@
 - **Date:** 2026-10-28
 - **Status:** Draft
 - **Approved by user:** yes, 2026-10-28
+- **Partly superseded by:** `specs/2026-10-28-escape-room-clues-and-pacing.md` (FR3, the clue
+  parts of FR6 to FR14, FR26, FR27, FR28's rooms), after the first stations playtest.
 - **Supersedes:** `specs/2026-10-19-play-overhaul.md` FR12 and FR14, and the
   proposal `plans/2026-10-21-room-ramp-proposal.md` (never accepted). ADR 0017
   (proposed) records the balance decision.
