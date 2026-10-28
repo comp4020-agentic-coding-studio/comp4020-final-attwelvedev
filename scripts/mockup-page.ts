@@ -136,7 +136,7 @@ function panel(here, seen) {
   const list = (items) => items.length ? "<ul>" + items.map((i) => "<li>" + i + "</li>").join("") + "</ul>" : "<span class=none>nothing</span>";
   if (!here) { $("at").innerHTML = "<span class=none>Click a floor tile.</span>"; $("sees").innerHTML = $("hears").innerHTML = $("hidden").innerHTML = ""; return; }
   const beat = M.beats.find((b) => at.x >= b.x[0] && at.x <= b.x[1]);
-  $("at").innerHTML = ROLE_NAME[role] + " at (" + at.x + ", " + at.y + ")" + (inDark(at.x, at.y) ? '<span class=tag>in the dark</span>' : "") + (beat ? "<br><span class=none>beat: " + beat.name + (beat.lead ? ", led by " + ROLE_NAME[beat.lead] : "") + "</span>" : "");
+  $("at").innerHTML = ROLE_NAME[role] + " at (" + at.x + ", " + at.y + ")" + (inDark(at.x, at.y) ? '<span class=tag>in the dark</span>' : "") + (beat ? "<br><span class=none>beat: " + beat.name + "</span>" : "");
   const byId = Object.fromEntries(M.objects.map((o) => [o.id, o]));
   const sees = role === "blind" ? [] : [...new Set(here.entities)].map((id) => { const o = byId[id]; return o ? o.kind + " " + id + (o.note ? " <span class=none>(" + o.note + ")</span>" : "") : id; });
   $("sees").innerHTML = role === "blind" ? "<span class=none>nothing: Can't see has no map</span>" : list(sees);
@@ -154,7 +154,7 @@ function compass(d) { const a = Math.atan2(d.y, d.x) * 180 / Math.PI; const name
 
 document.getElementById("title").textContent = M.name + " (" + M.id + ")";
 document.getElementById("sub").textContent = M.width + " × " + M.height + " tiles. Everything shown is what the game's own perception reports for that role and tile; hazards repeat every " + (M.cycleTicks / 20) + " s.";
-document.getElementById("beats").innerHTML = M.beats.map((b) => '<span class="beat">' + b.name + " · x " + b.x[0] + "–" + b.x[1] + (b.lead ? " · lead: " + ROLE_NAME[b.lead] : "") + (b.cue ? " · cue: " + b.cue : "") + "</span>").join("");
+document.getElementById("beats").innerHTML = M.beats.map((b) => '<span class="beat">' + b.name + " · x " + b.x[0] + "–" + b.x[1] + "</span>").join("");
 for (const b of document.querySelectorAll("[data-role]")) {
   b.addEventListener("click", () => { role = b.dataset.role; for (const o of document.querySelectorAll("[data-role]")) o.setAttribute("aria-pressed", String(o === b)); render(); });
   b.setAttribute("aria-pressed", String(b.dataset.role === role));

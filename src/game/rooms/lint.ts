@@ -1,8 +1,12 @@
 import { parseJob, rawJobs } from "../bots/jobs.ts";
+import { type RoleView, viewFor } from "../perception.ts";
 import { cameraParams, laserBeam, laserParams } from "../sim/hazards.ts";
-import { patrolOf } from "../sim/world.ts";
-import type { Role } from "../types.ts";
-import { flipsOf, type Room } from "./format.ts";
+import { NOTE_TICKS, PIP_TICKS, TUNE_TICKS, tilesOf } from "../sim/stations.ts";
+import { step } from "../sim/step.ts";
+import { type GearItem, patrolOf, TICK_MS } from "../sim/world.ts";
+import type { Role, Vec } from "../types.ts";
+import { flipsOf, GEAR_ITEMS, type Room, type RoomObject } from "./format.ts";
+import { worldAt } from "./mockup.ts";
 
 const SAFE_S = 2; // FR14: a cue-dependent safe window is at least this long
 
@@ -41,21 +45,29 @@ export function lintRoom(room: Room): LintIssue[] {
       continue;
     }
     for (const id of door.opensWhen) {
-      if (!plateIds.has(id)) issue(`door ${door.id} opensWhen names unknown plate ${id}`);
+      const isStation = room.objects.some((o) => o.id === id && o.kind === "station");
+      if (!plateIds.has(id) && !isStation) {
+        issue(`door ${door.id} opensWhen names unknown plate ${id}`);
+      }
     }
   }
 
-  // FR10: some beat has a door that needs three plates held at once
-  const threePlate = doors.some(
-    (d) =>
-      new Set(d.opensWhen ?? []).size >= 3 &&
-      room.beats.some((b) => d.tiles.some((t) => t.x >= b.x[0] && t.x <= b.x[1])),
-  );
+  // FR10: some beat has a door that needs three plates held at once. A station room carries "every
+  // role is needed" by the presence rule instead (lintPresence), so it needs no three-plate door.
+  const stationRoom = room.objects.some((o) => o.kind === "station");
+  const threePlate =
+    stationRoom ||
+    doors.some(
+      (d) =>
+        new Set(d.opensWhen ?? []).size >= 3 &&
+        room.beats.some((b) => d.tiles.some((t) => t.x >= b.x[0] && t.x <= b.x[1])),
+    );
   if (!threePlate) issue("no beat has a door that needs three plates (three-plate beat, FR10)");
 
   lintHazards(room, issue);
   lintSight(room, issue);
   lintHints(room, issue);
+  lintPresence(room, issue);
 
   // every exit tile must be reachable from every spawn, treating doors as open
   if (exits.length > 0 && spawns.length > 0) {
@@ -182,16 +194,14 @@ function lintHazards(room: Room, issue: (message: string) => void): void {
 const ROLES: readonly Role[] = ["blind", "deaf", "mute"];
 const HOLD_APART = 3; // tiles between a sequence door's plates, Chebyshev: one body holds one
 
-// Rules that come with line of sight (plan 04): clues, dark beats with an alarm, held
-// sequences, and the lead roles.
+// Rules that come with line of sight (plan 04): clues, dark beats with an alarm, and held
+// sequences.
 function lintSight(room: Room, issue: (message: string) => void): void {
-  const beatAt = (x: number) => room.beats.find((b) => x >= b.x[0] && x <= b.x[1]);
-
-  // A clue is a sound with no picture, so a room may use one only where a beat declares a cue.
+  // A clue is a sound with no picture, so a room may use one only as a keypad's code, where the
+  // presence rule (lintPresence) checks that whoever hears it is not the one at the keys.
   for (const clue of room.objects.filter((o) => o.kind === "clue")) {
-    const beat = beatAt(clue.tiles[0]?.x ?? -1);
-    if (!beat?.cue)
-      issue(`clue ${clue.id} is not inside a beat that declares a cue (twin or split)`);
+    const named = room.objects.some((o) => o.kind === "station" && o.params?.clue === clue.id);
+    if (!named) issue(`clue ${clue.id} is not a keypad's clue, so nothing checks who hears it`);
   }
 
   // No role may be left with nothing to perceive: a beat that is dark everywhere while an
@@ -239,62 +249,6 @@ function lintSight(room: Room, issue: (message: string) => void): void {
       }
     }
   }
-
-  lintLeadBeats(room, issue);
-
-  // A room that says `"leads": true` gives every role a beat of its own to lead.
-  if (room.meta.leads === true) {
-    for (const role of ROLES) {
-      if (!room.beats.some((b) => b.lead === role)) issue(`no beat has ${role} as its lead`);
-    }
-  }
-}
-
-// FR14 as ruled on 2026-10-21 ("c2"): a beat that names a lead must hold something its lead role
-// perceives and another cannot. Checked from the room's geometry, since the bots take nothing
-// from another role's messages and so cannot show the team failing without the lead.
-function lintLeadBeats(room: Room, issue: (message: string) => void): void {
-  const zones = flipsOf(room).flatMap((f) => (f.kind === "dark" ? [f.zone] : []));
-  const inDark = (t: { x: number; y: number }) =>
-    zones.some(([x0, y0, x1, y1]) => t.x >= x0 && t.x <= x1 && t.y >= y0 && t.y <= y1);
-  for (const beat of room.beats) {
-    if (!beat.lead) continue;
-    const inBeat = (t: { x: number }) => t.x >= beat.x[0] && t.x <= beat.x[1];
-    const objects = room.objects.filter((o) => o.tiles.some(inBeat));
-    if (beat.lead === "blind") {
-      // heard (a guard's steps, a laser's hum) and not seen: inside a dark zone
-      const hidden = objects.some(
-        (o) => (o.kind === "guard" || o.kind === "laser") && o.tiles.every(inDark),
-      );
-      const patrolInDark = objects.some(
-        (o) =>
-          o.kind === "guard" && patrolOf(o.params).length > 0 && patrolOf(o.params).every(inDark),
-      );
-      if (!hidden && !patrolInDark) {
-        issue(
-          `beat "${beat.name}" is led by blind but has no guard or laser in the dark for them to hear and the others not to see`,
-        );
-      }
-    } else if (beat.lead === "deaf") {
-      // seen and not heard: a camera, with glass in the beat to read it through
-      const camera = objects.some((o) => o.kind === "camera");
-      const glass = room.grid.some((row) => [...row].some((ch, x) => ch === "=" && inBeat({ x })));
-      if (!camera || !glass) {
-        issue(
-          `beat "${beat.name}" is led by deaf but has no camera seen through glass for them to read`,
-        );
-      }
-    } else if (beat.lead === "mute") {
-      // heard and seen together: the cue beat's clue and a sign to match it with
-      const clue = objects.some((o) => o.kind === "clue");
-      const sign = objects.some((o) => o.kind === "sign");
-      if (!beat.cue || !clue || !sign) {
-        issue(
-          `beat "${beat.name}" is led by mute but is not a cue beat holding both a clue and a sign`,
-        );
-      }
-    }
-  }
 }
 
 // The hints the bots follow (metadata key `hints`): every job names something in
@@ -315,4 +269,222 @@ function lintHints(room: Room, issue: (message: string) => void): void {
   room.beats.forEach((b, i) => {
     if (!beats.has(i + 1)) issue(`beat ${i + 1} ("${b.name}") has no job in the hints`);
   });
+}
+
+// --- Presence (spec FR1, FR2): every station needs more than one place, sense or person ------
+
+// What one loadout (a role, standing on one tile, holding one piece of gear or none) perceives of
+// a station over a short cycle, from the game's own `viewFor`: whether it has the clue, the
+// control and the feedback. The control is standing on one of the station's parts: that is where
+// it is worked, so the linter probes only those tiles (and stays fast on large rooms).
+interface Senses {
+  clue: boolean;
+  feedback: boolean;
+}
+
+const LOADOUTS: (GearItem | undefined)[] = [undefined, ...GEAR_ITEMS];
+const STATION_SOUNDS: Record<string, string[]> = {
+  dial: ["tick"],
+  radio: ["static", "tone", "pip"],
+  wires: ["snap"],
+  keypad: ["key"],
+  bells: ["bellnote"],
+  switches: ["clunk"],
+  vault: ["clunk"],
+  sync: ["clunk", "solved"],
+};
+const CYCLE_TICKS = Math.max(TUNE_TICKS, PIP_TICKS) + NOTE_TICKS; // long enough for a tune or a pip
+
+const at = (o: RoomObject): Vec => o.tiles[0] as Vec;
+
+// Each station's control tiles: its pads, wires, keys, bells, buttons or sockets, and its anchor
+// when Act on the anchor does something (a dial's confirm, a vault's handle).
+function controls(o: RoomObject): Vec[] {
+  const p = o.params ?? {};
+  const parts = ["pads", "wires", "keys", "bells", "buttons", "sockets"].flatMap((k) =>
+    tilesOf(p[k]),
+  );
+  return p.type === "dial" || p.type === "vault" ? [at(o), ...parts] : parts;
+}
+
+// What the station's clue is, and whether the view (and the sounds heard over the cycle) has it.
+function hasClue(room: Room, o: RoomObject, view: RoleView, heard: Set<string>): boolean {
+  const p = o.params ?? {};
+  switch (p.type) {
+    case "dial":
+      return heard.has("tumbler");
+    case "wires":
+      return (
+        view.entities.some((e) => e.id === p.plaque && e.text) ||
+        view.entities.some((e) => e.kind === "ink" && e.id === p.plaque)
+      );
+    case "keypad": {
+      const clue = room.objects.find((c) => c.id === p.clue);
+      return clue?.kind === "gear" ? heard.has("earpiece") : heard.has("clue");
+    }
+    case "switches":
+      return view.entities.some((e) => e.id === o.id); // the lamps: the pattern to match
+    case "bells":
+      return heard.has("bellnote") && view.entities.some((e) => e.id === o.id);
+    case "vault": {
+      const from = Array.isArray(p.from) ? p.from : [];
+      return from.length > 0 && from.every((id) => view.entities.some((e) => e.id === id));
+    }
+    default:
+      return false; // radio and sync carry no clue: their rule is below
+  }
+}
+
+// What tells the team a station took the input: its readout in sight, or its sound.
+function hasFeedback(o: RoomObject, view: RoleView, heard: Set<string>): boolean {
+  const kinds = STATION_SOUNDS[String(o.params?.type)] ?? [];
+  return view.entities.some((e) => e.id === o.id) || kinds.some((k) => heard.has(k));
+}
+
+// One loadout on one tile, over a cycle: steps the world and turns the station once (a sighted
+// readout is seen at once; a click, a tumbler or a tune needs a turn or a tick to sound).
+function probe(room: Room, o: RoomObject, tile: Vec, role: Role, gear?: GearItem): Senses {
+  const world = worldAt(room, tile.x, tile.y, gear);
+  const s = world.stations[o.id];
+  if (s && s.type === "dial") s.input[0] = ((s.answer[0] as number) + 9) % 10; // one notch short
+  const first = viewFor(world, 1, role, false);
+  const heard = new Set<string>();
+  let clue = hasClue(room, o, first, heard);
+  let feedback = hasFeedback(o, first, heard);
+  // a body on a dial's or radio's ▶ pad turns it a notch (never a wrong answer), so the tumbler
+  // and the tick sound; every other station's feedback is its readout, seen from the start
+  const pad = tilesOf(o.params?.pads)[1];
+  for (let t = 0; t < CYCLE_TICKS && !(clue && feedback); t++) {
+    const turn = t === 1 && pad !== undefined;
+    if (turn) world.players[2].pos = { x: pad.x + 0.5, y: pad.y + 0.5 };
+    step(world, turn ? { 2: { seq: t, move: { x: 0, y: 0 }, act: true } } : {}, TICK_MS);
+    world.players[1].pos = { x: tile.x + 0.5, y: tile.y + 0.5 };
+    if (turn) world.players[2].pos = { x: 1.5, y: 1.5 };
+    const view = viewFor(world, 1, role, false);
+    for (const sound of view.sounds) heard.add(sound.kind);
+    clue ||= hasClue(room, o, view, heard);
+    feedback ||= hasFeedback(o, view, heard);
+  }
+  return { clue, feedback };
+}
+
+const gearName = (g?: GearItem) =>
+  g ? `holding the ${g === "uv" ? "UV torch" : g}` : "with no gear";
+
+export function lintPresence(room: Room, issue: (message: string) => void): void {
+  const stations = room.objects.filter((o) => o.kind === "station");
+  if (stations.length === 0) return;
+  for (const o of stations) {
+    const type = String(o.params?.type);
+    if (type === "radio" || type === "sync") {
+      lintSearch(room, o, issue);
+      continue;
+    }
+    hit: for (const tile of controls(o)) {
+      if (room.grid[tile.y]?.[tile.x] !== ".") continue;
+      for (const role of ROLES) {
+        for (const gear of LOADOUTS) {
+          const sense = probe(room, o, tile, role, gear);
+          if (sense.clue && sense.feedback) {
+            issue(
+              `station ${o.id} (${type}): ${role} ${gearName(gear)} at (${tile.x},${tile.y}) perceives its clue, control and feedback alone`,
+            );
+            break hit;
+          }
+        }
+      }
+    }
+  }
+  lintOpenAtOnce(room, stations, issue);
+}
+
+// Radio and sync carry no secret clue. A radio's digit must not be heard where the station it
+// yields to is worked; a sync lock's keys must be at least SYNC_APART tiles apart, so one body
+// cannot turn two.
+const SYNC_APART = 3;
+function lintSearch(room: Room, o: RoomObject, issue: (message: string) => void): void {
+  const p = o.params ?? {};
+  if (p.type === "sync") {
+    const keys = tilesOf(p.keys);
+    for (let i = 0; i < keys.length; i++) {
+      for (let j = i + 1; j < keys.length; j++) {
+        const a = keys[i] as Vec;
+        const b = keys[j] as Vec;
+        if (Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y)) < SYNC_APART) {
+          issue(
+            `station ${o.id} (sync): keys ${i + 1} and ${j + 1} are under ${SYNC_APART} tiles apart, so one body could turn both`,
+          );
+        }
+      }
+    }
+    return;
+  }
+  const target = room.objects.find((t) => t.id === p.yields && t.kind === "station");
+  if (!target) return;
+  for (const tile of controls(target)) {
+    for (const role of ROLES) {
+      if (role === "deaf") continue;
+      const world = worldAt(room, tile.x, tile.y);
+      const s = world.stations[o.id];
+      if (s) s.solved = true;
+      world.tick = PIP_TICKS - 1;
+      step(world, {}, TICK_MS);
+      world.players[1].pos = { x: tile.x + 0.5, y: tile.y + 0.5 };
+      if (viewFor(world, 1, role, false).sounds.some((x) => x.kind === "pip")) {
+        issue(
+          `station ${o.id} (radio): ${role} at ${target.id}'s control (${tile.x},${tile.y}) hears the digit it yields alone`,
+        );
+        return;
+      }
+    }
+  }
+}
+
+// FR2: from the start, and from each checkpoint, at least two stations can be worked without
+// solving anything first: their controls are reachable with every plate-held door open and every
+// station-locked door shut.
+function lintOpenAtOnce(
+  room: Room,
+  stations: RoomObject[],
+  issue: (message: string) => void,
+): void {
+  const ids = new Set(stations.map((s) => s.id));
+  const locked = new Set(
+    room.objects
+      .filter((d) => d.kind === "door" && (d.opensWhen ?? []).some((id) => ids.has(id)))
+      .flatMap((d) => d.tiles.map((t) => `${t.x},${t.y}`)),
+  );
+  // the team starts together, so spawn 1 stands for the start; then each checkpoint
+  const spawn = room.objects.find((o) => o.id === "s1");
+  const starts = [
+    ...(spawn ? [at(spawn)] : []),
+    ...room.objects.filter((o) => o.kind === "checkpoint").map(at),
+  ];
+  for (const start of starts) {
+    const seen = new Set([`${start.x},${start.y}`]);
+    const queue = [start];
+    while (queue.length > 0) {
+      const t = queue.shift() as Vec;
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ] as const) {
+        const n = { x: t.x + dx, y: t.y + dy };
+        const key = `${n.x},${n.y}`;
+        const ch = room.grid[n.y]?.[n.x];
+        if (ch === undefined || ch === "#" || ch === "=" || ch === "%" || ch === "H") continue;
+        if (seen.has(key) || locked.has(key)) continue;
+        seen.add(key);
+        queue.push(n);
+      }
+    }
+    const open = stations.filter((s) => controls(s).some((t) => seen.has(`${t.x},${t.y}`)));
+    if (stations.length >= 2 && open.length < 2) {
+      issue(
+        `from (${start.x},${start.y}) only ${open.length} station${open.length === 1 ? "" : "s"} can be worked: two stations should be open at once (FR2)`,
+      );
+    }
+  }
 }

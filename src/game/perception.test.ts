@@ -1138,3 +1138,32 @@ describe("viewFor: stations, gear and signals", () => {
     expect(viewFor(w, 0, "blind", false).gear).toBeNull();
   });
 });
+
+describe("viewFor: a station is seen where it shows its state", () => {
+  it("switches: the lamps behind glass in another chamber are not shown from the buttons", () => {
+    // buttons and the switch panel in the west room; the lamps in the east room, out of sight
+    const grid = ["############", "#1..Q.#....#", "#2....#....#", "#3....#....#", "############"];
+    const w = worldWith(grid, {
+      Q1: {
+        type: "switches",
+        buttons: [
+          [2, 2],
+          [3, 2],
+          [4, 2],
+        ],
+        lamps: [
+          [8, 2],
+          [9, 2],
+          [10, 2],
+        ],
+        cols: 3,
+      },
+    });
+    place(w, 1, { x: 3, y: 2 }); // on a button, the panel right beside
+    expect(viewFor(w, 1, "deaf", false).entities.some((e) => e.id === "Q1")).toBe(false);
+    place(w, 1, { x: 8, y: 1 }); // in the lamp room
+    expect(
+      viewFor(w, 1, "deaf", false).entities.find((e) => e.id === "Q1")?.station?.shows,
+    ).toEqual([0, 0, 0]);
+  });
+});

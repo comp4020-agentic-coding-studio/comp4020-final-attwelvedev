@@ -58,8 +58,6 @@ export interface Beat {
   name: string;
   x: [number, number];
   intent: Record<Role, string>;
-  lead?: Role; // the role this beat needs: with its sending off, the beat cannot be cleared
-  cue?: "twin" | "split"; // the kind of clue sound this beat uses; a clue (c) is allowed only in one
 }
 
 export interface Room {
@@ -211,18 +209,17 @@ function parseBeats(raw: unknown): Beat[] {
         throw new RoomFormatError(`beat "${beat.name}" needs an intent for ${role}`, 1);
       }
     }
-    if (beat.lead !== undefined && !ROLE_SET.has(String(beat.lead))) {
-      throw new RoomFormatError(`beat "${beat.name}" has an unknown lead ${beat.lead}`, 1);
-    }
-    if (beat.cue !== undefined && beat.cue !== "twin" && beat.cue !== "split") {
-      throw new RoomFormatError(`beat "${beat.name}" has an unknown cue ${beat.cue}`, 1);
+    // the presence linter (lint.ts: lintPresence) carries "every role is needed" now (spec FR4)
+    if (beat.lead !== undefined || beat.cue !== undefined) {
+      throw new RoomFormatError(
+        `beat "${beat.name}" names a ${beat.lead !== undefined ? "lead" : "cue"}: lead beats were removed`,
+        1,
+      );
     }
     return {
       name: beat.name,
       x: [x[0] as number, x[1] as number],
       intent: intent as Record<Role, string>,
-      ...(beat.lead !== undefined ? { lead: beat.lead as Role } : {}),
-      ...(beat.cue !== undefined ? { cue: beat.cue as "twin" | "split" } : {}),
     };
   });
 }

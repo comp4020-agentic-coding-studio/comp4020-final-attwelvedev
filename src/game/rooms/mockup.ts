@@ -1,6 +1,6 @@
 import { viewFor } from "../perception.ts";
 import { step } from "../sim/step.ts";
-import { createWorld, TICK_MS } from "../sim/world.ts";
+import { createWorld, type GearItem, TICK_MS, type World } from "../sim/world.ts";
 import type { Role } from "../types.ts";
 import type { Room } from "./format.ts";
 
@@ -20,7 +20,7 @@ export interface Mockup {
   height: number;
   grid: string[];
   objects: { id: string; kind: string; tiles: { x: number; y: number }[]; note: string }[];
-  beats: { name: string; x: [number, number]; lead?: Role; cue?: string }[];
+  beats: { name: string; x: [number, number] }[];
   dark: [number, number, number, number][];
   cycleTicks: number; // how long the hazards take to repeat, which is how long sounds were collected
   roles: Record<Role, { cells: Record<string, MockCell> }>;
@@ -59,6 +59,22 @@ const note = (o: Room["objects"][number]): string => {
   return "";
 };
 
+// A world with seat 1 standing on (x, y) as `role`, the other two parked in the corner out of the
+// way, and seat 1 holding `gear` (taken from the room's first piece of that kind, or conjured if
+// the room has none). Shared by the mockup and the presence linter, so both see what the game sees.
+export function worldAt(room: Room, x: number, y: number, gear?: GearItem): World {
+  const world = createWorld(room);
+  world.players[0].pos = { x: 1.5, y: 1.5 };
+  world.players[2].pos = { x: 1.5, y: 1.5 };
+  world.players[1].pos = { x: x + 0.5, y: y + 0.5 };
+  if (gear) {
+    const g = world.gear.find((it) => it.item === gear);
+    if (g) Object.assign(g, { at: null, heldBy: 1, sill: null });
+    else world.gear.push({ id: "probe", item: gear, at: null, heldBy: 1, sill: null });
+  }
+  return world;
+}
+
 export function buildMockup(room: Room): Mockup {
   const cycleTicks = cycleOf(room);
   const roles = {} as Mockup["roles"];
@@ -67,11 +83,7 @@ export function buildMockup(room: Room): Mockup {
     for (let x = 0; x < room.width; x++) {
       if (room.grid[y]?.[x] !== ".") continue;
       for (const role of ROLES) {
-        // seat 1 stands here and the other two are parked in the corner, out of the way
-        const world = createWorld(room);
-        world.players[0].pos = { x: 1.5, y: 1.5 };
-        world.players[2].pos = { x: 1.5, y: 1.5 };
-        world.players[1].pos = { x: x + 0.5, y: y + 0.5 };
+        const world = worldAt(room, x, y);
         const first = viewFor(world, 1, role, false);
         const sounds = new Map<string, MockCell["sounds"][number]>();
         for (let t = 0; t < cycleTicks; t++) {
@@ -110,12 +122,7 @@ export function buildMockup(room: Room): Mockup {
     height: room.height,
     grid: room.grid,
     objects: room.objects.map((o) => ({ id: o.id, kind: o.kind, tiles: o.tiles, note: note(o) })),
-    beats: room.beats.map((b) => ({
-      name: b.name,
-      x: b.x,
-      ...(b.lead ? { lead: b.lead } : {}),
-      ...(b.cue ? { cue: b.cue } : {}),
-    })),
+    beats: room.beats.map((b) => ({ name: b.name, x: b.x })),
     dark,
     cycleTicks,
     roles,

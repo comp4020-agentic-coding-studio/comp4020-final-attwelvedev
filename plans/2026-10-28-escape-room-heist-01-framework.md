@@ -334,6 +334,16 @@ to a station elsewhere via `yields`; sync: keys ≥3 tiles apart).
 
 ### Task 5: The presence linter replaces lead beats
 
+- **Status:** done (2026-10-28). Control = standing on a station part, so the linter probes each
+  part tile × role × gear (or none) with `viewFor` over a tune-length cycle; 60×30 lints in 1.3 s.
+  Radio: its pips must not reach the controls of the station it `yields`; sync: keys ≥3 apart.
+  `Beat.cue` went with `lead`, so the cue-gated clue rule became "a clue must be a keypad's
+  `clue`". Doors may name a station in `opensWhen` (the lint now allows it). Bug fixed with a
+  failing test first: a station was shown when its anchor was in sight (switches leaked the lamps
+  to the button room); now only its display tiles count. The fixture's music-box tune moved
+  behind glass (the linter rightly flagged it). `spec/rooms.test.ts` lost the split-cue describe
+  with its draft; `brain.test.ts`'s clue-job fixture dropped its `cue` key.
+
 - **Description:** `lintPresence` (FR1 and FR2) per this file's §4; remove
   `Beat.lead`, `Beat.cue`, `lintLeadBeats` and `meta.leads`; drop the FR10
   three-plate rule for rooms with stations (keep it for room 1, which has

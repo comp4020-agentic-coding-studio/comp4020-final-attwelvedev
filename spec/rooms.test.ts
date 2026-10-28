@@ -1,8 +1,6 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { solveRoom } from "../src/game/bots/solve.ts";
 import { rolesFor } from "../src/game/crew.ts";
-import { parseRoom } from "../src/game/rooms/format.ts";
 import { loadRooms } from "../src/game/rooms/load.ts";
 
 // FR27: the bots are the room solver. Three bots, each seeing only what its role
@@ -56,17 +54,3 @@ function clearEveryRotation(title: string, set: typeof rooms, minimum: number) {
 clearEveryRotation("three bots clear every room", rooms, 3);
 clearEveryRotation("three bots clear every fixture room", loadRooms("./spec/fixtures/rooms"), 1);
 clearEveryRotation("three bots clear every draft room", loadRooms("./spec/fixtures/drafts"), 1);
-
-// A split cue has to bind (A2): the plate to hold is the one the chime names, so a team whose
-// chime names a plate another seat already holds does not get through. Without this the clue is
-// decoration, which is what the first draft of 02-blackout was.
-describe("the split cue in 02-blackout-draft decides the plate", () => {
-  const text = readFileSync("./spec/fixtures/drafts/02-blackout-draft.room", "utf8");
-  for (const n of [1, 3]) {
-    it(`does not clear when the chime names plate ${n}, which another seat holds`, () => {
-      const room = parseRoom(text.replace('"c1":{"n":2', `"c1":{"n":${n}`));
-      const result = solveRoom(room, rolesFor(0), 60);
-      expect(result.cleared).toBe(false);
-    });
-  }
-});

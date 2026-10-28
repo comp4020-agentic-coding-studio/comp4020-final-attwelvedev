@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseRoom } from "./format.ts";
+import { parseRoom, type Room } from "./format.ts";
 import { lintRoom } from "./lint.ts";
 import { loadRooms } from "./load.ts";
 
@@ -253,81 +253,6 @@ describe("lintRoom hints", () => {
   });
 });
 
-// FR14 as the user ruled it (2026-10-21, "c2"): a lead beat must hold something its lead role
-// perceives and another role cannot, so the lead has something nobody else has to say.
-describe("lead beats hold something only the lead perceives", () => {
-  const head = (lead: string, cue = "", objects = "{}", flips = "[]") =>
-    `{"id":"t-lead","name":"T","version":1,"leads":false,"beats":[{"name":"B","x":[4,17],"lead":"${lead}"${cue},"intent":{"blind":"b","deaf":"d","mute":"m"}}],"objects":${objects},"flips":${flips},"hints":{"jobs":[{"beat":1,"goTo":"E","all":true}]}}`;
-  const lint = (grid: string[], h: string) =>
-    lintRoom(parseRoom(`${h}\n---\n${grid.join("\n")}\n`)).map((i) => i.message);
-  const CORRIDOR = [
-    "####################",
-    "#1.K.............E.#",
-    "#2.#.............#.#",
-    "#3.#.G...........#.#",
-    "####################",
-  ];
-
-  it("blind: passes when a guard in the dark can be heard but not seen", () => {
-    const issues = lint(
-      CORRIDOR,
-      head("blind", "", `{"G1":{"patrol":[[6,3],[12,3]]}}`, `[{"kind":"dark","zone":[4,1,16,3]}]`),
-    );
-    expect(issues.filter((m) => /led by/i.test(m))).toEqual([]);
-  });
-
-  it("blind: flags a beat whose hazards are all in plain sight", () => {
-    const issues = lint(CORRIDOR, head("blind", "", `{"G1":{"patrol":[[6,3],[12,3]]}}`));
-    expect(issues).toContainEqual(expect.stringMatching(/led by blind.*(hear|dark)/i));
-  });
-
-  it("deaf: passes when a camera is seen through glass that sound cannot cross", () => {
-    const grid = [
-      "####################",
-      "#1.K......C......E.#",
-      "#2.#.....====....#.#",
-      "#3.#.............#.#",
-      "####################",
-    ];
-    const issues = lint(grid, head("deaf", "", `{"C1":{"facingDeg":90,"fovDeg":60,"range":6}}`));
-    expect(issues.filter((m) => /led by/i.test(m))).toEqual([]);
-  });
-
-  it("deaf: flags a beat with no camera or glass for the lead to read", () => {
-    expect(lint(CORRIDOR, head("deaf"))).toContainEqual(
-      expect.stringMatching(/led by deaf.*(glass|see)/i),
-    );
-  });
-
-  it("mute: passes when the cue beat holds both a clue and a sign", () => {
-    const grid = [
-      "####################",
-      "#1.K....c...S....E.#",
-      "#2.#.............#.#",
-      "#3.#.............#.#",
-      "####################",
-    ];
-    const issues = lint(
-      grid,
-      head("mute", `,"cue":"twin"`, `{"c1":{"n":2,"everyS":4},"S1":{"shows":["p1"]}}`),
-    );
-    expect(issues.filter((m) => /led by/i.test(m))).toEqual([]);
-  });
-
-  it("mute: flags a cue beat that has a clue but no sign to pair it with", () => {
-    const grid = [
-      "####################",
-      "#1.K....c........E.#",
-      "#2.#.............#.#",
-      "#3.#.............#.#",
-      "####################",
-    ];
-    expect(lint(grid, head("mute", `,"cue":"twin"`, `{"c1":{"n":2,"everyS":4}}`))).toContainEqual(
-      expect.stringMatching(/led by mute.*(clue|sign)/i),
-    );
-  });
-});
-
 describe("the fixture rooms", () => {
   // spec/fixtures/rooms is what ROOMS_DIR points the server at in specs that need a tiny room
   it("load and pass the linter", () => {
@@ -342,7 +267,7 @@ describe("the draft rooms", () => {
   // in rooms/. Kept apart from spec/fixtures/rooms, which the heist specs run a server on.
   it("load and pass the linter", () => {
     const rooms = loadRooms("./spec/fixtures/drafts");
-    expect(rooms.map((r) => r.id)).toEqual(["00-stations-draft", "02-blackout-draft"]);
+    expect(rooms.map((r) => r.id)).toEqual(["00-stations-draft"]);
     for (const r of rooms) expect(lintRoom(r)).toEqual([]);
   });
 });
@@ -377,15 +302,8 @@ describe("lintRoom: line-of-sight rules", () => {
   ];
   const WHOLE = beat("[1,18]");
 
-  it("allows a clue only inside a beat that declares a cue", () => {
-    expect(lint(BASE, [WHOLE])).toContainEqual(expect.stringMatching(/clue c1.*cue/i));
-    expect(lint(BASE, [beat("[1,18]", ',"cue":"twin"')])).not.toContainEqual(
-      expect.stringMatching(/clue/i),
-    );
-    // a cue beat elsewhere does not cover it
-    expect(lint(BASE, [beat("[1,2]"), beat("[4,18]", ',"cue":"split"')])).toContainEqual(
-      expect.stringMatching(/clue c1.*cue/i),
-    );
+  it("allows a clue only as a keypad's clue, where the presence rule checks it", () => {
+    expect(lint(BASE, [WHOLE])).toContainEqual(expect.stringMatching(/clue c1.*keypad/i));
   });
 
   it("flags a beat that is dark everywhere while an alarm can sound in it", () => {
@@ -422,21 +340,6 @@ describe("lintRoom: line-of-sight rules", () => {
     const spread = grid.map((r, y) => (y === 1 ? "#1.p...p...p.D...E.#".slice(0, 20) : r));
     expect(lint(spread, [WHOLE], seq)).not.toContainEqual(expect.stringMatching(/3 tiles/i));
   });
-
-  it("requires every role to lead a beat in a room that says leads: true", () => {
-    const plain = BASE.map((r) => r.replace("c", "."));
-    const led = (...roles: string[]) =>
-      roles.map((r, i) => beat(`[${1 + i * 6},${6 + i * 6}]`, `,"lead":"${r}"`));
-    const extra = `,"leads":true`;
-    expect(lint(plain, led("blind", "deaf"), {}, extra)).toContainEqual(
-      expect.stringMatching(/mute as its lead/i),
-    );
-    expect(lint(plain, led("blind", "deaf", "mute"), {}, extra)).not.toContainEqual(
-      expect.stringMatching(/as its lead/i),
-    );
-    // without the flag, no lead is required
-    expect(lint(plain, [WHOLE])).not.toContainEqual(expect.stringMatching(/as its lead/i));
-  });
 });
 
 describe("lintRoom: glass, vents and hatches are walls for walking", () => {
@@ -451,3 +354,194 @@ describe("lintRoom: glass, vents and hatches are walls for walking", () => {
     }
   });
 });
+
+// Spec FR1: no single role, on any one tile, holding any one piece of gear (or none), perceives a
+// station's clue, its control and its feedback at once. FR2: two stations can be worked at once.
+describe("lintRoom: presence (FR1, FR2)", () => {
+  const room = (grid: string[], objects: Record<string, unknown>) =>
+    parseRoom(
+      `${JSON.stringify({
+        id: "t-presence",
+        name: "T",
+        version: 1,
+        beats: [
+          { name: "B", x: [0, grid[0]?.length ?? 1], intent: { blind: "b", deaf: "d", mute: "m" } },
+        ],
+        objects: { D1: { opensWhen: ["p1", "p2", "p3"] }, ...objects },
+        hints: { jobs: [{ beat: 1, goTo: "E", all: true }] },
+      })}\n---\n${grid.join("\n")}\n`,
+    );
+  const presence = (r: ReturnType<typeof room>) =>
+    lintRoom(r)
+      .map((i) => i.message)
+      .filter((m) => /perceives|at once/.test(m));
+  const PADS = (y: number) => [
+    [4, y],
+    [6, y],
+  ];
+  const WIRES = (y: number) => [
+    [10, y],
+    [11, y],
+    [12, y],
+  ];
+
+  it("flags a dial whose back is audible from its pads, for a hearing role with the stethoscope", () => {
+    const grid = [
+      "#################",
+      "#1...Q..........#",
+      "#2..............#",
+      "#3...g..ppp.D.E.#",
+      "#################",
+    ];
+    const r = room(grid, {
+      Q1: { type: "dial", pads: PADS(1), back: [5, 2] },
+      Q2: {
+        type: "radio",
+        pads: [
+          [9, 1],
+          [11, 1],
+        ],
+      },
+      g1: { item: "stethoscope" },
+    });
+    expect(presence(r)).toContainEqual(expect.stringMatching(/Q1.*(blind|mute).*stethoscope/i));
+  });
+
+  it("flags wires whose plaque is in sight of the wire tiles, for the sighted", () => {
+    const grid = [
+      "#################",
+      "#1........Q.....#",
+      "#2..S...........#",
+      "#3......ppp.D.E.#",
+      "#################",
+    ];
+    const r = room(grid, {
+      Q1: { type: "wires", wires: WIRES(2), plaque: "S1" },
+      S1: {},
+    });
+    expect(presence(r)).toContainEqual(expect.stringMatching(/Q1.*(deaf|mute)/i));
+  });
+
+  it("flags a keypad whose earpiece can be worn at the keypad (spec probe #12)", () => {
+    const grid = [
+      "#################",
+      "#1.Q.g..........#",
+      "#2..............#",
+      "#3......ppp.D.E.#",
+      "#################",
+    ];
+    const keys = [0, 1, 2].flatMap((y) => [0, 1, 2].map((x) => [8 + x, 1 + y]));
+    const r = room(grid, {
+      Q1: { type: "keypad", keys, clue: "g1", length: 3 },
+      g1: { item: "earpiece" },
+    });
+    expect(presence(r)).toContainEqual(expect.stringMatching(/Q1.*mute.*earpiece/i));
+  });
+
+  it("flags switches whose lamps can be seen from the buttons", () => {
+    const grid = [
+      "#################",
+      "#1.Q............#",
+      "#2..............#",
+      "#3......ppp.D.E.#",
+      "#################",
+    ];
+    const r = room(grid, {
+      Q1: {
+        type: "switches",
+        buttons: [
+          [2, 2],
+          [3, 2],
+          [4, 2],
+        ],
+        lamps: [
+          [8, 1],
+          [9, 1],
+          [10, 1],
+        ],
+        cols: 3,
+      },
+    });
+    expect(presence(r)).toContainEqual(expect.stringMatching(/Q1.*(deaf|mute)/i));
+  });
+
+  it("flags a room where only one station can be worked from the start (FR2)", () => {
+    const grid = [
+      "#################",
+      "#1....#.Q.......#",
+      "#2....D.........#",
+      "#3.Q..#.ppp.D.E.#",
+      "#################",
+    ];
+    const r = parseRoom(
+      `${JSON.stringify({
+        id: "t-fr2",
+        name: "T",
+        version: 1,
+        beats: [{ name: "B", x: [0, 16], intent: { blind: "b", deaf: "d", mute: "m" } }],
+        objects: {
+          D1: { opensWhen: ["Q1"] },
+          D2: { opensWhen: ["p1", "p2", "p3"] },
+          Q1: {
+            type: "radio",
+            pads: [
+              [2, 2],
+              [4, 2],
+            ],
+          },
+          Q2: {
+            type: "radio",
+            pads: [
+              [8, 2],
+              [10, 2],
+            ],
+          },
+        },
+        hints: { jobs: [{ beat: 1, goTo: "E", all: true }] },
+      })}\n---\n${grid.join("\n")}\n`,
+    );
+    expect(presence(r)).toContainEqual(expect.stringMatching(/two stations.*at once/i));
+  });
+
+  it("passes 00-stations-draft", () => {
+    const [draft] = loadRooms("./spec/fixtures/drafts");
+    expect(draft?.id).toBe("00-stations-draft");
+    expect(lintRoom(draft as Room)).toEqual([]);
+  });
+
+  // a 60x30 room with eight stations: measured 1.3 s on the dev machine (2026-10-28)
+  it("lints a 60x30 room in under 10 s", () => {
+    const [draft] = loadRooms("./spec/fixtures/drafts");
+    const text = big(draft as Room);
+    const started = performance.now();
+    lintRoom(parseRoom(text));
+    expect(performance.now() - started).toBeLessThan(10_000);
+  });
+});
+
+// The fixture's eight stations, set in a 60x30 grid (the floor extended east and south).
+function big(r: Room): string {
+  const rows = Array.from({ length: 30 }, (_, y) =>
+    Array.from({ length: 60 }, (_, x) => {
+      const ch = r.grid[y]?.[x];
+      const o = r.objects.find((o) => o.tiles.some((t) => t.x === x && t.y === y));
+      if (o && o.kind !== "door" && o.kind !== "exit")
+        return LETTER[o.kind] ?? (o.id[0] === "s" ? o.id[1] : ".");
+      if (o?.kind === "exit") return "E";
+      if (ch !== undefined) return ch === "." ? "." : ch;
+      return x === 0 || y === 0 || x === 59 || y === 29 ? "#" : y > 12 ? "." : "#";
+    }).join(""),
+  );
+  return `${JSON.stringify(r.meta)}\n---\n${rows.join("\n")}\n`;
+}
+const LETTER: Record<string, string> = {
+  station: "Q",
+  gear: "g",
+  hatch: "H",
+  bell: "b",
+  lamp: "l",
+  ink: "u",
+  sign: "S",
+  clue: "c",
+  plate: "p",
+};

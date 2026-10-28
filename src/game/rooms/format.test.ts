@@ -151,25 +151,17 @@ describe("parseRoom: hazards, checkpoints, loot and signs", () => {
   });
 });
 
-describe("parseRoom: beats with a lead and a cue", () => {
+describe("parseRoom: lead beats were removed", () => {
   const withBeat = (extra: string) =>
     `{"id":"t-room","name":"Test room","version":1,"beats":[{"name":"Three hands","x":[8,19]${extra},"intent":{"blind":"b","deaf":"d","mute":"m"}}],"objects":{"D1":{"opensWhen":["p1","p2","p3"]}}}\n---\n${GRID.join("\n")}\n`;
 
-  it("keeps a beat's lead role and cue", () => {
-    const beat = parseRoom(withBeat(',"lead":"deaf","cue":"twin"')).beats[0];
-    expect(beat?.lead).toBe("deaf");
-    expect(beat?.cue).toBe("twin");
+  it("fails a beat that names a lead or a cue", () => {
+    expect(() => parseRoom(withBeat(',"lead":"deaf"'))).toThrow(/lead beats were removed/);
+    expect(() => parseRoom(withBeat(',"cue":"twin"'))).toThrow(/lead beats were removed/);
   });
 
-  it("leaves both unset when the beat declares neither", () => {
-    const beat = parseRoom(withBeat("")).beats[0];
-    expect(beat?.lead).toBeUndefined();
-    expect(beat?.cue).toBeUndefined();
-  });
-
-  it("fails an unknown lead or cue", () => {
-    expect(() => parseRoom(withBeat(',"lead":"seer"'))).toThrow(RoomFormatError);
-    expect(() => parseRoom(withBeat(',"cue":"echo"'))).toThrow(RoomFormatError);
+  it("parses a beat with neither", () => {
+    expect(parseRoom(withBeat("")).beats[0]?.name).toBe("Three hands");
   });
 });
 

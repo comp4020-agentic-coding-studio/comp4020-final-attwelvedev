@@ -654,9 +654,10 @@ function inSight(world: World, entities: EntityView[], seat: Seat, seen: Visible
     if (e.kind === "stamp" || e.kind === "sight" || (e.kind === "player" && e.seat === seat)) {
       out.push(e);
     } else if (e.kind === "station") {
-      // a station is seen where it shows its state: its face, wires, keys or lamps
+      // a station is seen where it shows its state: its face, wires, keys or lamps (switches: the
+      // lamps alone, never the panel by the buttons, so the pattern is told across the glass)
       const o = world.room.objects.find((x) => x.id === e.id);
-      const tiles = o ? [o.tiles[0] as Vec, ...displayTiles(o)] : [];
+      const tiles = o ? displayTiles(o) : [];
       if (tiles.some((t) => seen.has(t.x, t.y))) out.push(e);
     } else if (e.beam) {
       const beam = e.beam.filter((t) => seen.has(Math.floor(t.x), Math.floor(t.y)));
