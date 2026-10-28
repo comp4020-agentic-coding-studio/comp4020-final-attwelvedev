@@ -8,6 +8,8 @@ import { createWorld, TICK_MS } from "../sim/world.ts";
 import {
   beliefFrom,
   bellsStep,
+  COUNT_TICKS,
+  countStep,
   DECODERS,
   dialStep,
   earStep,
@@ -18,6 +20,8 @@ import {
   radioToTell,
   readNumber,
   type StationBelief,
+  syncGo,
+  vaultStep,
 } from "./decode.ts";
 
 // A bot's belief about one station (clues FR5): only what its own view shows and what teammates
@@ -102,7 +106,7 @@ describe("beliefFrom", () => {
 });
 
 describe("DECODERS", () => {
-  it("has the safe's from 05, the wires' and keypad's from 06, radio's and switches' from 07, the music box's from 09", () => {
+  it("has the safe's from 05, the wires' and keypad's from 06, radio's and switches' from 07, the music box's from 09, the vault's and sync lock's from 10", () => {
     expect(Object.keys(DECODERS)).toEqual([
       "dial",
       "wires",
@@ -110,6 +114,8 @@ describe("DECODERS", () => {
       "radio",
       "switches",
       "bells",
+      "vault",
+      "sync",
     ]);
   });
 });
@@ -744,5 +750,119 @@ describe("the music box decoder, with two boxes playing", () => {
       expect(b.Q1?.answer).toEqual(world.stations.Q1?.answer);
       expect(b.Q2?.answer).toEqual(world.stations.Q2?.answer);
     }
+  });
+});
+
+describe("the vault decoder", () => {
+  // two wings west of a wall (star at row 1, wave at row 3), each a wire panel that reveals a
+  // symbol once solved; the vault Q2 east, its sockets at (10,2) and (11,2), its order clue at (13,2)
+  const GRID = [
+    "###############",
+    "#1.Q....#.Q...#",
+    "#2......#.....#",
+    "#3.Q....#....Y#",
+    "###############",
+  ];
+  const wires = (y: number) => [3, 4, 5].map((x) => [x, y]);
+  const room = roomWith(GRID, {
+    Q1: { type: "wires", wires: wires(1), reveal: true, motif: "star" },
+    Q2: {
+      type: "vault",
+      sockets: [
+        [10, 2],
+        [11, 2],
+      ],
+      from: ["Q3", "Q1"],
+      symbols: "Y1",
+    },
+    Q3: { type: "wires", wires: wires(3), reveal: true, motif: "wave" },
+  });
+  const q = room.objects.find((x) => x.id === "Q2");
+  if (!q) throw new Error("no Q2");
+  // the wings solved with their symbols; the bot stands at each tile in turn for a few ticks
+  const visit = (tiles: { x: number; y: number }[]) => {
+    const world = createWorld(room, 5);
+    for (const [id, symbol] of [
+      ["Q1", 4],
+      ["Q3", 1],
+    ] as const) {
+      const s = world.stations[id];
+      if (!s) throw new Error(`no ${id}`);
+      s.solved = true;
+      s.reveal = symbol;
+    }
+    let b = emptyBelief();
+    for (const at of tiles) {
+      place(world, 1, at);
+      for (let t = 0; t < 3; t++) {
+        step(world, {}, TICK_MS);
+        const view = viewFor(world, 1, "deaf", false);
+        b = beliefFrom(view, [], q, b);
+        DECODERS.vault?.(view, [], b, q, view.tick);
+      }
+    }
+    return { world, b };
+  };
+
+  it("remembers each wing's symbol by its motif, reads the order, and turns each socket to it", () => {
+    const { world, b } = visit([
+      { x: 5, y: 2 },
+      { x: 11, y: 3 },
+    ]);
+    expect(b.answer).toEqual([1, 4]); // wave's symbol, then star's
+    expect(vaultStep(q, b)).toEqual({ x: 10, y: 2 }); // socket 1 shows 0, wants 1
+    const s = world.stations.Q2;
+    if (!s) throw new Error("no Q2");
+    s.input = [1, 0];
+    const turned = beliefFrom(viewFor(world, 1, "deaf", false), [], q, b);
+    expect(vaultStep(q, turned)).toEqual({ x: 11, y: 2 });
+    s.input = [1, 4];
+    const done = beliefFrom(viewFor(world, 1, "deaf", false), [], q, turned);
+    expect(vaultStep(q, done)).toEqual({ x: 10, y: 1 }); // the handle
+  });
+
+  it("with the wings never seen, it never turns a socket", () => {
+    const { b } = visit([{ x: 11, y: 3 }]);
+    expect(b.answer).toEqual([null, null]);
+    expect(vaultStep(q, b)).toBeNull();
+  });
+
+  it("with the order clue never seen, it never turns a socket", () => {
+    const { b } = visit([{ x: 5, y: 2 }]);
+    expect(b.answer).toEqual([]);
+    expect(vaultStep(q, b)).toBeNull();
+  });
+});
+
+describe("the sync lock", () => {
+  it("the counter says 3, 2, 1 a beat apart once every key is stood on, and not before", () => {
+    expect(countStep(null, false, 5)).toEqual({ say: null, count: null });
+    let c = countStep(null, true, 10);
+    expect(c.say).toBe(3);
+    const said: number[] = [];
+    for (let t = 11; t <= 10 + 3 * COUNT_TICKS; t++) {
+      c = countStep(c.count, true, t);
+      if (c.say !== null) said.push(c.say);
+    }
+    expect(said).toEqual([2, 1]);
+  });
+
+  it("a key holder turns on the count's 1, read as text, and not on any other digit", () => {
+    const b = emptyBelief();
+    const at = (tick: number, text: string) =>
+      DECODERS.sync?.({ ...view(false), tick }, [msg({ method: "text", text })], b, o, tick);
+    at(10, "3");
+    expect(syncGo(b, 10)).toBe(false);
+    at(20, "2");
+    expect(syncGo(b, 21)).toBe(false);
+    at(30, "1");
+    expect(syncGo(b, 31)).toBe(true);
+    expect(syncGo(b, 40)).toBe(false); // too late: that turn is gone
+  });
+
+  it("with no count received, it never turns a key", () => {
+    const b = emptyBelief();
+    for (let t = 0; t < 100; t++) DECODERS.sync?.({ ...view(false), tick: t }, [], b, o, t);
+    for (let t = 0; t < 100; t++) expect(syncGo(b, t)).toBe(false);
   });
 });

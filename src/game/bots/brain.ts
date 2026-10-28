@@ -11,6 +11,8 @@ import {
   beliefFrom,
   bellsStep,
   bellToMark,
+  type Count,
+  countStep,
   DECODERS,
   dialStep,
   type Ear,
@@ -22,7 +24,9 @@ import {
   radioToTell,
   type StationBelief,
   switchesLeft,
+  syncGo,
   TURN_WAIT_TICKS,
+  vaultStep,
 } from "./decode.ts";
 import { type AlarmWindow, forecastFor } from "./forecast.ts";
 import {
@@ -79,6 +83,7 @@ export interface BotMemory {
   lastMarkAt: number; // when it last sent a mark (game ms): marks have a cooldown
   ear: Ear; // Can't see holding the earpiece: the tune heard, and the code last told
   toTell: number[]; // digits of the earpiece's code still to text, one a turn
+  count: Count | null; // a sync lock's counter: the digit it last texted, and when
 }
 export interface BotTurn {
   input: PlayerInput;
@@ -207,6 +212,7 @@ export function createBotMemory(
     lastMarkAt: Number.NEGATIVE_INFINITY,
     ear: emptyEar(),
     toTell: [],
+    count: null,
   };
 }
 
@@ -774,7 +780,7 @@ function besideOf(
 // The next press a station needs, from the bot's belief (clues FR5): which tile to stand on. Only
 // a station type with a decoder (decode.ts: DECODERS) is worked; the decoder fills the belief's
 // answer, and the part to press is a tile a teammate marked, or the part its answer names next. A
-// sync lock is turned by every seat that has a key (one each): it has no secret.
+// sync lock is turned by every seat that has a key (one each): it has no secret, only a moment.
 interface Press {
   tile: Vec;
 }
@@ -784,6 +790,10 @@ function stationStep(room: Room, m: BotMemory, known: Known, id: string): Press 
   if (!b || !o || b.solved) return null;
   const p = o.params ?? {};
   const type = p.type as StationType;
+  if (type === "vault") {
+    const t = vaultStep(o, b);
+    return t ? { tile: t } : null;
+  }
   if (type === "sync") {
     const order = (m.roles ?? ["blind", "deaf", "mute"])
       .map((role, seat) => ({ role, seat }))
@@ -909,6 +919,8 @@ function workSend(
   known: Known,
   pos: Vec,
 ): Outgoing | null {
+  const count = syncCount(room, view, m, known, pos);
+  if (count !== null) return { method: "text", text: String(count) };
   if (canSend(view.role, "text")) {
     for (const o of room.objects) {
       const b = known.stations[o.id];
@@ -945,9 +957,40 @@ function workSend(
   return { method: "mark", id: "x", at: centreOf(at) };
 }
 
+// A sync lock's counter (a key holder who can text) counts the turn down, "3", "2", "1", once it
+// sees every key stood on (decode.ts: countStep). Returns the digit to text this tick.
+function syncCount(
+  room: Room,
+  view: RoleView,
+  m: BotMemory,
+  known: Known,
+  pos: Vec,
+): number | null {
+  const job = queuesOf(room, m, view.role)[m.seat][m.ptr[m.seat]];
+  const o =
+    job?.target.kind === "station"
+      ? room.objects.find((x) => x.id === (job.target as { id: string }).id)
+      : undefined;
+  if (o?.params?.type !== "sync" || !canSend(view.role, "text") || known.stations[o.id]?.solved) {
+    m.count = null;
+    return null;
+  }
+  const mine = stationStep(room, m, known, o.id)?.tile;
+  const tile = tileOf(pos);
+  const on = mine !== undefined && mine.x === tile.x && mine.y === tile.y;
+  const keys = tilesOf(o.params.keys);
+  const stood =
+    on &&
+    keys.every((k) =>
+      Object.values(m.bodies).some((b) => b && tileOf(b).x === k.x && tileOf(b).y === k.y),
+    );
+  const next = countStep(m.count, stood, view.tick);
+  m.count = next.count;
+  return next.say;
+}
+
 // Act or G, pressed once a seat stands where its station, gear or tow job wants it, and let go
-// the tick after (the simulation acts on the press). A sync key is turned only when every key
-// is stood on, and on a tick all the key holders agree on, so the turns land together.
+// the tick after (the simulation acts on the press). A sync key is turned on the count's "1".
 function press(
   room: Room,
   view: RoleView,
@@ -993,11 +1036,9 @@ function pressFor(
       return tick - b.changedAt < TURN_WAIT_TICKS ? "wait" : "act";
     }
     if (o?.params?.type !== "sync") return "act";
-    const keys = tilesOf(room.objects.find((x) => x.id === t.id)?.params?.keys);
-    const stood = keys.every((k) =>
-      Object.values(m.bodies).some((b) => b && tileOf(b).x === k.x && tileOf(b).y === k.y),
-    );
-    return stood && tick % 4 === 0 ? "act" : "wait";
+    // the counter turns on its own "1"; the others when they read it (decode.ts: syncGo)
+    const own = m.count?.n === 1 && tick - m.count.at <= 2;
+    return own || (b !== undefined && syncGo(b, tick)) ? "act" : "wait";
   }
   if (t.kind === "take" || t.kind === "give" || t.kind === "sill") {
     const g = known.gear?.[t.gear];

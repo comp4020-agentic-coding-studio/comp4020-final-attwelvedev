@@ -22,6 +22,8 @@ export interface StationBelief {
   card: number[] | null; // a switches station's target card, read where it stands
   fed: number | null; // a keypad slot's digit, from the radio with the same motif (as worked out)
   used: number; // how many of `marked` this bot has pressed (switches: one press a mark)
+  symbols: Partial<Record<string, number>>; // a vault: each solved wing's symbol, by its motif
+  order: string[] | null; // a vault's order clue, read: the wings' motifs in socket order
 }
 
 export type Decoder = (
@@ -46,6 +48,8 @@ export const emptyBelief = (): StationBelief => ({
   card: null,
   fed: null,
   used: 0,
+  symbols: {},
+  order: null,
 });
 
 // The only text a bot reads (P3): a single digit.
@@ -69,6 +73,7 @@ export function beliefFrom(
     marked: [...prior.marked],
     numbers: [...prior.numbers],
     heard: [...prior.heard],
+    symbols: { ...prior.symbols },
   };
   const e = view.entities.find((x) => x.id === o.id && x.kind === "station");
   if (e?.station) {
@@ -331,6 +336,72 @@ export function earStep(view: RoleView, ear: Ear): number[] {
   return tune.map((k) => k + 1);
 }
 
+// --- The vault -------------------------------------------------------------------------------
+// Each wing, once solved, shows a symbol beside its motif (`reveal`); the vault's order clue shows
+// the wings' motifs in socket order. A sighted bot remembers every revealed symbol it sees, by its
+// motif (never by which station it is), reads the order clue, and so knows each socket's symbol.
+const vault: Decoder = (view, _inbox, b, o) => {
+  for (const e of view.entities)
+    if (e.kind === "station" && e.station?.reveal !== undefined && e.station.motif)
+      b.symbols[e.station.motif] = e.station.reveal;
+  const clue = view.entities.find((e) => e.kind === "order" && e.id === o.params?.symbols);
+  if (clue?.motifs && clue.motifs.length > 0) b.order = [...clue.motifs];
+  b.answer = b.order ? b.order.map((m) => b.symbols[m] ?? null) : [];
+};
+
+// Where a vault's worker stands next: the first socket whose symbol (as seen) is not yet the one
+// worked out (each Act steps it on one), then the handle once every socket shows its symbol. Null
+// until every socket's symbol is known: it never turns a socket on a guess.
+export function vaultStep(o: RoomObject, b: StationBelief): Vec | null {
+  const sockets = tilesOf(o.params?.sockets);
+  if (b.answer.length !== sockets.length || b.answer.some((v) => v === null)) return null;
+  if (b.shows.length !== sockets.length) return sockets[0] ?? null; // go and look at them
+  const i = b.answer.findIndex((v, k) => b.shows[k] !== v);
+  return i < 0 ? (o.tiles[0] as Vec) : (sockets[i] ?? null);
+}
+
+// --- The sync lock ----------------------------------------------------------------------------
+// Its keys must be turned together, too far apart for one body. It has no secret: the key holders
+// agree on the moment. One who can text counts down ("3", "2", "1", COUNT_TICKS apart) once it sees
+// every key stood on, and turns on its "1"; the others turn when they read the "1". A miss starts
+// the count again after a pause.
+export const COUNT_TICKS = 10;
+const RECOUNT_TICKS = 60;
+export interface Count {
+  n: number; // the digit last said
+  at: number; // the tick it was said
+}
+
+// What the counter says this tick (a digit, or nothing) and its count after: a count starts only
+// once every key is stood on, and a stale one (the "1" said long ago, the lock still shut) restarts.
+export function countStep(
+  count: Count | null,
+  ready: boolean,
+  tick: number,
+): { say: number | null; count: Count | null } {
+  if (count && count.n === 1 && tick - count.at < RECOUNT_TICKS) return { say: null, count };
+  if (count && count.n > 1) {
+    if (tick - count.at < COUNT_TICKS) return { say: null, count };
+    return { say: count.n - 1, count: { n: count.n - 1, at: tick } };
+  }
+  return ready ? { say: 3, count: { n: 3, at: tick } } : { say: null, count: null };
+}
+
+// A key holder who reads the count: the digits texted to it, with when they came.
+const sync: Decoder = (view, inbox, b) => {
+  for (const m of inbox) {
+    const n = m.method === "text" ? readNumber(m.text) : null;
+    if (n !== null) b.heard.push({ tick: view.tick, n });
+  }
+  b.heard = b.heard.slice(-6);
+};
+
+// Whether a key holder who reads the count turns now: a "1" came in the last few ticks.
+export function syncGo(b: StationBelief, tick: number): boolean {
+  const last = b.heard.at(-1);
+  return last?.n === 1 && tick - last.tick <= 4;
+}
+
 // What a station learns from another object of the room (what the bot holds of the room's static
 // plan says which): a switches station's card, read where it stands; a keypad slot's digit, from
 // the radio drawn with the same motif.
@@ -363,4 +434,6 @@ export const DECODERS: Partial<Record<StationType, Decoder>> = {
   radio,
   switches,
   bells,
+  vault,
+  sync,
 };
