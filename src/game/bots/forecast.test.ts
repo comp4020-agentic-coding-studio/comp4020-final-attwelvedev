@@ -5,8 +5,13 @@ import { step } from "../sim/step.ts";
 import { createWorld, TICK_MS } from "../sim/world.ts";
 import { forecastFor } from "./forecast.ts";
 
-// First Job left the heist in escape-room phase 04; it stays a fixture for what it tests
-const rooms = [...loadRooms(), ...loadRooms("./spec/fixtures/first-job")];
+// First Job left the heist in escape-room phase 04, Don't Blink and the old vault in phase 10;
+// they stay fixtures for what they test
+const rooms = [
+  ...loadRooms(),
+  ...loadRooms("./spec/fixtures/first-job"),
+  ...loadRooms("./spec/fixtures/old-rooms"),
+];
 const room = (id: string) => {
   const found = rooms.find((r) => r.id === id);
   if (!found) throw new Error(`no room ${id}`);

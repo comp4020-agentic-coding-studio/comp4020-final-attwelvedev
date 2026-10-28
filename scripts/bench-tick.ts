@@ -11,7 +11,7 @@ const LOBBIES = 10;
 const TICKS = 200;
 const ROLES: Role[] = ["blind", "deaf", "mute"];
 
-const room = loadRooms().find((r) => r.id === "10-vault");
+const room = loadRooms("./spec/fixtures/old-rooms").find((r) => r.id === "10-vault");
 if (!room) throw new Error("room 10-vault not found");
 const worlds = Array.from({ length: LOBBIES }, () => createWorld(room));
 

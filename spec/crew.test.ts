@@ -44,7 +44,7 @@ describe("a lobby of five", () => {
     expect(reveals.map((r) => r.sittingOut)).toEqual(FIVE.map(() => ["Di", "Ed"]));
     expect(reveals[0]?.crew.map((c) => c.nickname)).toEqual(["Ana", "Bo", "Cy"]);
     expect(reveals.slice(0, 3).map((r) => r.role)).toEqual(["blind", "deaf", "mute"]);
-    expect(reveals[0]).toMatchObject({ index: 0, rooms: 10 });
+    expect(reveals[0]).toMatchObject({ index: 0, rooms: 9 });
 
     sendReady(table, [0, 1, 2]);
     for (const watcher of [3, 4]) {

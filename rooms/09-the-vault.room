@@ -1,0 +1,44 @@
+{"id":"09-the-vault","name":"The Vault","version":1,"hue":"amber","budgetS":240,
+ "beats":[
+  {"name":"Two wings","x":[0,13],"intent":{"blind":"hears the dials tick in the wings","deaf":"opens the little star safe in the north wing","mute":"opens the little wave safe in the south wing"}},
+  {"name":"The little vault","x":[0,13],"intent":{"blind":"hears the sockets clunk","deaf":"looks through the hatches at each wing's symbol, reads the order card, and turns the sockets to match","mute":"waits at a key of the sync lock"}},
+  {"name":"Two keys","x":[0,13],"intent":{"blind":"hears both keys clunk together","deaf":"stands at a key, texts 3, 2, 1 and turns on 1","mute":"stands at the other key and turns on the 1"}},
+  {"name":"Two more wings","x":[14,34],"intent":{"blind":"hears the code chime through the vent","deaf":"reads the plaque in the hall and cuts the wire it names","mute":"hears the code through the vent, then presses its keys"}},
+  {"name":"The vault","x":[14,34],"intent":{"blind":"hears the sockets clunk","deaf":"reads the order card, looks through both hatches and turns each socket to its wing's symbol","mute":"walks to the door"}},
+  {"name":"Out","x":[31,34],"intent":{"blind":"walks out","deaf":"walks out","mute":"walks out"}}
+ ],
+ "objects":{
+  "Q1":{"type":"dial","pads":[[4,1],[6,1]],"back":[8,2],"teach":true,"range":10,"reveal":true,"motif":"star"},
+  "Q2":{"type":"wires","wires":[[19,1],[20,1],[21,1],[22,1]],"plaque":"S1","reveal":true,"motif":"moon"},
+  "Q3":{"type":"sync","keys":[[3,4],[12,6]],"windowMs":500},
+  "Q4":{"type":"vault","sockets":[[9,5],[11,5]],"from":["Q6","Q1"],"symbols":"Y2","teach":true},
+  "Q5":{"type":"vault","sockets":[[24,4],[24,6]],"from":["Q2","Q7"],"symbols":"Y1"},
+  "Q6":{"type":"dial","pads":[[4,9],[6,9]],"back":[8,8],"teach":true,"range":10,"reveal":true,"motif":"wave"},
+  "Q7":{"type":"keypad","keys":[[20,8],[21,8],[22,8],[20,9],[21,9],[22,9],[20,10],[21,10],[22,10]],"clue":"c1","length":3,"reveal":true,"motif":"leaf"},
+  "c1":{},
+  "D1":{"opensWhen":["Q3","Q4"]},
+  "D2":{"opensWhen":["Q5"]}},
+ "hints":{"jobs":[
+  {"beat":1,"station":"Q1","prefer":"deaf"},
+  {"beat":1,"station":"Q6","prefer":"mute"},
+  {"beat":2,"station":"Q4","at":[5,5],"prefer":"deaf"},
+  {"beat":3,"station":"Q3","prefer":"deaf"},
+  {"beat":3,"station":"Q3","prefer":"mute"},
+  {"beat":4,"goTo":"K1","all":true},
+  {"beat":4,"station":"Q2","at":[16,6],"prefer":"deaf"},
+  {"beat":4,"station":"Q7","at":[28,4],"prefer":"mute"},
+  {"beat":5,"station":"Q5","at":[21,5],"prefer":"deaf"},
+  {"beat":6,"goTo":"E","all":true}]}}
+---
+###################################
+#....Q...########.Q.......#...#####
+#........########.........#.c.#####
+#.###H###########.###H######%######
+#1.....Q..Q..D........Y........D.E#
+#2...........D.K.........Q.....D.E#
+#3.....Y.....D.................D.E#
+#.###H##########S.###H#############
+#........########.........#########
+#....Q...########.Q.......#########
+#........########.........#########
+###################################

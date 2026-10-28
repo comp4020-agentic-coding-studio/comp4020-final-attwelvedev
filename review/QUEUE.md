@@ -228,3 +228,34 @@
   box under the glass, the gear, the dark nook to the east. On the phone the gear and glass labels
   sit close (the label cap's usual crowding at the start). Bots clear it in about 37 s in every
   rotation, never caught. The old rooms are now 09 and 10.
+
+## Phase 10, Task 27: room 9 The Vault (two teaching safes feed a little vault, a sync lock, then the real vault)
+
+- **Look at:** play room 9 in three tabs, each role at least once. Region A: a hall with a little
+  **vault** (two sockets and a handle), an **order card** showing two motifs (wave, star), and a
+  **sync lock** (two keys far apart). North and south of the hall are two little wing rooms behind
+  **hatches** (see-through, not walk-through), each with a teaching safe drawn with its motif; a
+  solved safe shows its symbol. Whoever stands in the hall sees each wing's symbol through its
+  hatch, reads the card, steps each socket to the symbol of the wing the card names, then Acts on
+  the handle. Then the two key holders turn together: the one who can text counts "3", "2", "1".
+  Past the flag, region B: a wire panel (moon; its plaque round the corner in the hall) and a keypad
+  (leaf; its code through a vent), in wings behind hatches, feed the real vault (card: moon, leaf).
+  Questions: is it clear, without being told, that the card's motifs mean "the symbol of the wing
+  with this motif" (clues FR3)? Is the sync count found without the bell (text only, see the
+  ruling)? Does anyone wait idle more than about 20 s? (Can't see has no station of their own here,
+  as in room 7.)
+- **Ruled overnight (decisions file, 10/26 and 10/27):** no bell or lamp (room 9 would bring four
+  new kinds; pacing allows two); the sync countdown is text, not the bell; the old rooms moved to
+  `spec/fixtures/old-rooms/` rather than `spec/fixtures/rooms/`; the stations draft's hints were
+  rewritten so perception-only bots can clear it.
+- **Start locally:** `lsof -ti tcp:8080 -sTCP:LISTEN | xargs kill; pnpm build && pnpm start`, open
+  `http://localhost:8080` in three tabs (one at 375 px wide), create a lobby, join from the other
+  two, Start, Ready: room 9 comes after rooms 1 to 8. Room 9 alone: `mkdir -p /tmp/r9 && cp
+  rooms/09-the-vault.room /tmp/r9/ && ROOMS_DIR=/tmp/r9 PORT=8098 node server.ts`, then
+  `http://localhost:8098`. Per-role perception: `playtests/mockups/09-the-vault.html`.
+- **Screenshots** (room start; 1280 = Can't speak, 375 = Can't hear on a phone):
+  `review/10-task27-the-vault-1280.png`, `review/10-task27-the-vault-375.png`.
+- **Judged:** renders clean at both widths: the order card's two motifs, the sync key numbered 1,
+  the vault's sockets and handle, both hatches with their labels. On the phone the keys and hatch
+  labels sit close at the start (the label cap's usual crowding). The wings are out of sight from
+  the spawn, as intended. Bots clear it in about 39 s in every rotation, never caught. Now 9 rooms.

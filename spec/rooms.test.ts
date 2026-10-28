@@ -14,15 +14,9 @@ const rooms = loadRooms();
 // before it ships (Task 28), so a draft is proved under the same rules.
 // Rooms the perception-only bots (overhaul Task 28) cannot clear yet, each with why and what ends
 // the skip. Ruled by the user on 2026-10-28; a room on this list does not ship as finished.
-const NOT_YET: Record<string, string> = {
-  "10-vault":
-    "caught in the dark corridor by perception-only bots (overhaul phase 04 finding); renumbered after rooms 1 to 3 in escape-room phase 04; phase 10 replaces it with room 9",
-  // a deliberate, dated scope change (escape-room phase 03 Task 13, 2026-10-29), not a weakened
-  // test: bots now solve only from what they perceive, and no station type has a decoder until
-  // phases 05 to 10 add one each; phase 10, Task 27 restores this room to the sweep
-  "00-stations-draft":
-    "perception-only bots have no station decoders until phases 05 to 10; phase 10 Task 27 restores it",
-};
+// Empty since escape-room phase 10 (Task 27): the old vault left the heist and the stations draft
+// is back in the draft sweep, with hints the perception-only bots can follow.
+const NOT_YET: Record<string, string> = {};
 
 function clearEveryRotation(title: string, set: typeof rooms, minimum: number) {
   describe(title, () => {

@@ -33,8 +33,10 @@ import { type LobbyState, newPerson } from "./lobbies.ts";
 const rooms = loadRooms();
 // room 1 until escape-room phase 04: a crate, and spawns in rows 4 to 6, which the restart test uses
 const firstJob = loadRooms("./spec/fixtures/first-job");
+// Don't Blink, a room until escape-room phase 10: lasers, which the caught test uses
+const oldRooms = loadRooms("./spec/fixtures/old-rooms");
 const roomById = (id: string) => {
-  const found = rooms.find((r) => r.id === id);
+  const found = [...rooms, ...oldRooms].find((r) => r.id === id);
   if (!found) throw new Error(`no room ${id}`);
   return found;
 };
@@ -208,8 +210,7 @@ describe("advanceRoom", () => {
       "06-lights-out",
       "07-night-shift",
       "08-music-room",
-      "09-cameras-lasers",
-      "10-vault",
+      "09-the-vault",
     ]);
   });
 

@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest";
 import { cuesIn } from "./cues.ts";
 import { loadRooms } from "./rooms/load.ts";
 
-// First Job left the heist in escape-room phase 04; it stays a fixture for what it tests
-const rooms = [...loadRooms("./rooms"), ...loadRooms("./spec/fixtures/first-job")];
+// First Job left the heist in escape-room phase 04, Don't Blink in phase 10; they stay fixtures
+const rooms = [
+  ...loadRooms("./rooms"),
+  ...loadRooms("./spec/fixtures/first-job"),
+  ...loadRooms("./spec/fixtures/old-rooms"),
+];
 const room = (id: string) => {
   const found = rooms.find((r) => r.id === id);
   if (!found) throw new Error(`no room ${id}`);
