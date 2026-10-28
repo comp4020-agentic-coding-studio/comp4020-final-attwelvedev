@@ -1,8 +1,10 @@
 import type { Browser, Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
-import { axeViolations, DESKTOP, horizontalOverflow, launch } from "../browser.ts";
+import { axeViolations, DESKTOP, horizontalOverflow, launch, PHONE } from "../browser.ts";
+import { clearRoomOne } from "../heistPlay.ts";
 import { joinAsWatcher, lobbyCodeOf } from "../lobbyUi.ts";
-import { playRoom, settledHash, type Table } from "../playUi.ts";
+import { closeAll as closeSockets, type Player, ready, startedGame } from "../play.ts";
+import { openAs, playRoom, settledHash, type Table } from "../playUi.ts";
 
 const baseUrl = inject("baseUrl");
 let browser: Browser;
@@ -275,4 +277,45 @@ describe("the HUD with the vote card open", () => {
     }
     await closeAll(table.pages);
   });
+});
+
+describe.each([
+  ["phone", PHONE],
+  ["desktop", DESKTOP],
+])("the comms map on the cleared card at %s width", (name, viewport) => {
+  it("shows the crew's triangle, its summary names the busiest direction, and it is axe clean", async () => {
+    const { players, code } = await startedGame(baseUrl);
+    ready(players);
+    const deaf = players.find((p) => p.role === "deaf") as Player;
+    const mute = players.find((p) => p.role === "mute") as Player;
+    const page = await openAs(browser, baseUrl, deaf, "Bo", code, viewport);
+    // Can't hear's callouts reach the other two: the busiest direction is theirs
+    for (const callout of ["wait", "go", "wait"] as const) {
+      deaf.socket.send({ t: "send", msg: { method: "callout", callout } });
+      await mute.socket.next("msg", 2000);
+    }
+    await clearRoomOne(players);
+    const map = page.locator(".comms-map");
+    await map.waitFor();
+    expect(await map.locator(".comms-edge").count()).toBe(6);
+    const nick = (p: Player) => ["Ana", "Bo", "Cy"][p.seat];
+    const busiest = map.locator(".comms-summary");
+    expect(await busiest.innerText()).toMatch(
+      new RegExp(`^Most messages went ${nick(deaf)} → (Ana|Cy)\\.`),
+    );
+    // an arrow's breakdown, from its button (a 48 px target) on focus
+    const chip = map.getByRole("button", { name: new RegExp(`^${nick(deaf)} to ${nick(mute)}:`) });
+    expect((await chip.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(48);
+    await chip.focus();
+    expect(await map.locator(".comms-detail").innerText()).toBe(
+      `${nick(deaf)} → ${nick(mute)}: callout 3`,
+    );
+    const box = await map.boundingBox();
+    expect(box?.width ?? 0).toBeGreaterThan(200);
+    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
+    expect(await axeViolations(page, ".overlay")).toEqual([]);
+    await page.screenshot({ path: `/tmp/comms-map-${name}.png`, fullPage: true });
+    await page.context().close();
+    await closeSockets(players);
+  }, 120_000);
 });

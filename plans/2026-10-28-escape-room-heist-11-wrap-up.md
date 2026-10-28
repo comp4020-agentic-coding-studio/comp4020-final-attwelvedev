@@ -111,6 +111,11 @@ results; the comms map counts deliveries per direction and method; `EDITION = 2`
 
 ### Task 29: The comms map at room end (was overhaul Task 24)
 
+- [x] **Done** on `auto/side-work` (overnight side session, 2026-10-29), ahead of Task 28: no
+  side-job credit yet; `RoomCleared.tsx` marks where Task 28's credit lines go, under the map. The
+  keyboard path is a 48 px chip per busy arrow (the SVG itself is a picture), and HeistComplete
+  shows the last room's map. Merge into `auto/escape-room` is the user's.
+
 - **Description:** Count deliveries per direction and method; send them with
   `cleared`; draw `CommsMap` in `RoomCleared` and `HeistComplete`.
 - **Files touched:** `src/net/attach.ts`, `src/net/game.ts` (+ test:

@@ -86,3 +86,52 @@
   now scrolls, centred when it fits) and the panel's headers broke mid-word at 375. Worth your eye:
   the card is busy on a phone (three buttons, then the board); the "You" line has no loot. On the
   fixture server the panel still lists five room tabs (it reads `./rooms`, as `/leaderboard` does).
+
+## Side work (branch `auto/side-work`): phase 11 Tasks 29 and 30, ahead of their dependencies
+
+**Merge needed:** `auto/side-work` was built in a parallel side session and must be merged into
+`auto/escape-room` by you (never merged overnight). Expect touch points with Task 28 (credits on
+`cleared`, `RoomCleared`) and with any room phase that edits `spec/layout/hud.test.ts`. Neither task
+has a `Human review:` line; these are for your eye only.
+
+### Task 29: the comms map on the cleared card
+
+- **Look at:** the Room cleared card's "Comms this room": the crew as a triangle (shape and name at
+  each corner), an arrow each way, thicker the more went that way, with its count; a dashed line
+  where nothing went. Under it, a 48 px chip per busy arrow ("Bo → Cy 3"); focus, hover or tap one
+  and its arrow turns green, with the line under it giving the breakdown by method. Then the
+  summary ("Most messages went Bo → Ana. Ana sent nothing."). Heist complete shows the last room's
+  map. Voice counts once per spurt (a gap of 1 s starts a new one). Does it read at a glance?
+- **Start locally:** `lsof -ti tcp:8080 -sTCP:LISTEN | xargs kill; pnpm build && pnpm start`,
+  three tabs at `http://localhost:8080` (one at 375 px), create, join, Start, Ready, send a few
+  callouts and texts, then clear room 1.
+- **Screenshots:** `review/11-task29-comms-map-{1280,375}.png` (Bo's tab, three callouts from Bo).
+- **Judged:** fixed what the first screenshots showed: the arrowheads didn't draw (an SVG marker
+  with `context-stroke`; now drawn polygons), and a focused arrow got a large box outline. Biome's
+  a11y rules then pushed the keyboard path from focusable SVG groups to real buttons, which
+  reads better anyway. Worth your eye: on a phone the cleared card is now long (map, chips,
+  summary, buttons, board) and scrolls inside the frame. The spot for Task 28's credit lines is
+  marked in `RoomCleared.tsx`, under the map.
+
+### Task 30: leaderboard edition 2
+
+- **Look at:** `/leaderboard`: a link "Earlier heist (edition 1)", room tabs for whatever `rooms/`
+  holds (5 today, 9 once the room phases land), wrapping on a phone. `?edition=1` shows the old
+  runs with their old rooms as tabs and "Back to the current heist". The in-game panel and the
+  cleared card's board show edition 2 only.
+- **Start locally:** as above, then open `http://localhost:8080/leaderboard`. Your own
+  `./.data/app.db` gains the column on first open (migration 0010, all existing rows read as
+  edition 1, none deleted), so your old runs move to the earlier board.
+- **Screenshots:** `review/11-task30-leaderboard-{1280,375}.png` (empty current board).
+- **Judged:** fine at both widths. The earlier board's room tabs are labelled "Room 1, Room 2…"
+  by the old room ids' order, not by name; the old phase plan's name map (Loading Dock, Don't
+  Blink…) was not added, since the old ids changed several times.
+
+### Flaky test found and fixed on the way
+
+`spec/layout/reveal.test.ts` "the person the host pulls in can still press I'm ready" failed in 1
+of 3 runs of that file alone (and once in a full check): it read Ana's alertdialog count once,
+right after Di's reveal arrived, but Ana's pause card closes on Ana's socket, which can be a
+moment later. It now polls for the card to go (same promise). 3 of 3 green after.
+The full check took 287 s against a 237 s baseline at the start of this run; two new browser
+tests and the parallel session's load account for it, not measured per file.

@@ -14,6 +14,7 @@ const ALLOWED = new Set([
   "room", // a room's id, e.g. loading-dock: a level, not a person
   "seat", // 0-2: a place in a crew, not a person
   "ms", // a duration, e.g. how long a room took
+  "sends", // how many messages a room's crew delivered (the comms map's total): a number, never content
   "bots", // how many seats bots filled
   "p50", // voice latency percentiles, ms: numbers about the network, never audio
   "p95",

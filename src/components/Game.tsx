@@ -41,6 +41,7 @@ import type { BriefingCue } from "../game/cues.ts";
 import type { GearItem } from "../game/sim/world.ts";
 import { ROLE_LABEL, type Role, type Seat, type Vec } from "../game/types.ts";
 import type {
+  CommsEdge,
   CrewMember,
   LobbyState,
   RealLife,
@@ -588,6 +589,7 @@ function Hud({
     loot: number;
     lootTotal: number;
     board: RoomBoardData;
+    comms: CommsEdge[];
   } | null>(null);
   const [boardOpen, setBoardOpen] = useState<string | null>(null); // the leaderboard panel's first tab
   const [heist, setHeist] = useState<{
@@ -704,7 +706,13 @@ function Hud({
   useEffect(
     () =>
       socket.on("cleared", (m) =>
-        setSummary({ ms: m.ms, loot: m.loot, lootTotal: m.lootTotal, board: m.board }),
+        setSummary({
+          ms: m.ms,
+          loot: m.loot,
+          lootTotal: m.lootTotal,
+          board: m.board,
+          comms: m.comms,
+        }),
       ),
     [socket],
   );
@@ -1072,6 +1080,8 @@ function Hud({
             lootTotal={heist.lootTotal}
             rank={heist.rank}
             onBoard={() => setBoardOpen("heist")}
+            comms={summary?.comms}
+            crew={reveal.crew}
           />
         ) : (
           cleared && (
@@ -1086,6 +1096,8 @@ function Hud({
               onRestartHeist={() => ask("heist")}
               board={summary?.board}
               onBoard={() => setBoardOpen(`room-${reveal.index + 1}`)}
+              comms={summary?.comms}
+              crew={reveal.crew}
             />
           )
         )}

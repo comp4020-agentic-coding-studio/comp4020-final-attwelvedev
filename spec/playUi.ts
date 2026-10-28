@@ -1,8 +1,9 @@
 // Shared by the layout specs: three people in a started room, through the real screens.
 import type { Browser, Page } from "playwright";
 import type { Role } from "../src/game/types.ts";
-import { DESKTOP, openPage, PHONE } from "./browser.ts";
+import { DESKTOP, openPage, PHONE, type Viewport } from "./browser.ts";
 import { createLobbyAs } from "./lobbyUi.ts";
+import type { Player } from "./play.ts";
 
 export interface Table {
   pages: Page[];
@@ -43,6 +44,28 @@ export async function playRoom(browser: Browser, baseUrl: string): Promise<Table
   for (const page of pages) await page.locator(".frame canvas").waitFor();
   // seats rotate by room: room 1 is seat 0 blind, seat 1 deaf, seat 2 mute
   return { pages, phone, byRole: { blind: host, deaf: phone, mute: third } };
+}
+
+// A player's own device opened on a game sockets started: their cookie and saved nickname, so the
+// lobby page rejoins their seat.
+export async function openAs(
+  browser: Browser,
+  baseUrl: string,
+  player: Player,
+  nickname: string,
+  code: string,
+  viewport: Viewport,
+): Promise<Page> {
+  const eq = player.cookie.indexOf("=");
+  const context = await browser.newContext({ viewport });
+  await context.addCookies([
+    { name: player.cookie.slice(0, eq), value: player.cookie.slice(eq + 1), url: baseUrl },
+  ]);
+  await context.addInitScript((n) => localStorage.setItem("heist.nickname", n), nickname);
+  const page: Page = await context.newPage();
+  await page.goto(new URL(`/lobby/${code}`, baseUrl).href);
+  await page.locator(".frame canvas").waitFor();
+  return page;
 }
 
 export const canvasHash = (page: Page) =>

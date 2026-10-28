@@ -16,7 +16,7 @@ import { parseSetup, type Setup } from "../game/setup.ts";
 import type { StationType } from "../game/sim/world.ts";
 import type { Method, PlayerInput, Role, Seat, Vec } from "../game/types.ts";
 import type { BoardRow, RoomBoard } from "../lib/runs.ts";
-import type { CrewMember, SendRequest, VoteKind } from "./game.ts";
+import type { CommsEdge, CrewMember, SendRequest, VoteKind } from "./game.ts";
 import type { ErrorCode, LobbyState, LobbySummary, Person } from "./lobbies.ts";
 import type { RealLife } from "./realLife.ts";
 
@@ -27,6 +27,7 @@ export type {
   BoardRow,
   Callout,
   ChannelMessage,
+  CommsEdge,
   CrewMember,
   EntityView,
   ErrorCode,
@@ -98,7 +99,15 @@ export type ServerMsg =
   | { t: "view"; view: RoleView }
   // `board`: the room's top 5 with this run marked, and its rank alone if it is outside them. Team
   // names are public on the board already (FR32); never log them.
-  | { t: "cleared"; room: string; ms: number; loot: number; lootTotal: number; board: RoomBoard }
+  | {
+      t: "cleared";
+      room: string;
+      ms: number;
+      loot: number;
+      lootTotal: number;
+      board: RoomBoard;
+      comms: CommsEdge[]; // the comms map: deliveries per direction and method, never content
+    }
   | ({ t: "msg" } & ChannelMessage) // only ever sent to a seat whose role receives the method
   | { t: "cooldown"; method: Method; until: number }
   // The game is paused for a dropped seat. `left` is the ms to go as the server counts them

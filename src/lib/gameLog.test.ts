@@ -48,6 +48,14 @@ describe("describeGame", () => {
     expect(line.detail).toEqual({ room: "loading-dock", seat: 2, ms: 41_000, bots: 0 });
   });
 
+  it("keeps a room's comms total as `sends`, a number, and drops any message content beside it", () => {
+    const line = describeGame({
+      event: "room.clear",
+      detail: { room: "01-first-steps", sends: 14, text: "go left", callout: "wait", by: "Ana" },
+    });
+    expect(line.detail).toEqual({ room: "01-first-steps", sends: 14 });
+  });
+
   it("uses null for a missing device or lobby and omits empty detail", () => {
     const line = describeGame({ event: "socket.open", detail: { text: "nope" } });
     expect(line.who).toBeNull();

@@ -1,5 +1,6 @@
 import { formatTime } from "../client/hud.ts";
-import type { RoomBoard as Board } from "../net/protocol.ts";
+import type { RoomBoard as Board, CommsEdge, CrewMember } from "../net/protocol.ts";
+import { CommsMap } from "./CommsMap.tsx";
 import { ConfirmButton } from "./ConfirmButton.tsx";
 import { RoomBoard } from "./RoomBoard.tsx";
 
@@ -18,6 +19,8 @@ export function RoomCleared({
   onRestartHeist,
   board,
   onBoard,
+  comms,
+  crew,
 }: {
   ms: number;
   loot: number;
@@ -29,6 +32,8 @@ export function RoomCleared({
   onRestartHeist: () => void;
   board?: Board; // the room's board, once the `cleared` message brings it
   onBoard: () => void; // open the full leaderboard panel
+  comms?: CommsEdge[]; // the comms map's counts, once the `cleared` message brings them
+  crew: readonly CrewMember[]; // who sat where this room, to name the map's corners
 }) {
   return (
     <div class="overlay" role="status">
@@ -40,6 +45,8 @@ export function RoomCleared({
         </p>
       )}
       {last && <p class="muted">That was the last room.</p>}
+      {comms && <CommsMap edges={comms} crew={crew} />}
+      {/* Task 28: the credit lines (`credits` on `cleared`, one per seat) go here, under the map */}
       <div class="overlay-actions">
         {host && !last && (
           <button type="button" class="btn primary" onClick={onNext}>
