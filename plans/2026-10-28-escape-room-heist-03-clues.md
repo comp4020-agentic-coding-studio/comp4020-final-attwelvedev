@@ -144,7 +144,7 @@ entities), not the sim.
 - **Acceptance criteria:** tests green; the shipped rooms pass.
 - **Depends on:** Task 11.
 
-### Task 13: Perception-only bot core
+### Task 13: Perception-only bot core ✅
 
 - **Description:** Remove `Hidden`; bots build `Known.stations` (`StationBelief`), gear and
   holding from their own view and inbox; `DECODERS` registry (empty here) and `stationStep` via

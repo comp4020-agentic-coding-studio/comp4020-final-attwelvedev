@@ -3,7 +3,7 @@ import { viewFor } from "../perception.ts";
 import type { Room } from "../rooms/format.ts";
 import type { World } from "../sim/world.ts";
 import type { Method, PlayerInput, Role, Seat } from "../types.ts";
-import { type BotMemory, hiddenOf, think } from "./brain.ts";
+import { type BotMemory, think } from "./brain.ts";
 
 // The bots of one game: a memory and an inbox each. The inbox holds what the seat's
 // role was sent since it last thought.
@@ -42,10 +42,8 @@ export function botsAct(
   for (const seat of order) {
     const bot = bots[seat] as BotSeat;
     const view = viewFor(world, seat, roles[seat], full.has(seat));
-    // FR3: in a station room each bot is handed the answers (the one hidden read, brain.ts: Hidden)
-    const hidden =
-      Object.keys(world.stations).length + world.gear.length > 0 ? hiddenOf(world) : null;
-    const turn = think(room, view, bot.inbox.splice(0), bot.memory, now, hidden);
+    // the bot is given its own role's view and inbox and nothing else (clues FR5, ADR 0018)
+    const turn = think(room, view, bot.inbox.splice(0), bot.memory, now);
     inputs[seat] = turn.input;
     if (!turn.send) continue;
     const result = route(roles as [Role, Role, Role], seat, turn.send, cooldowns, now);

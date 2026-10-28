@@ -781,9 +781,9 @@ describe("steering a person who cannot see", () => {
   });
 });
 
-// FR3: in station rooms the bots read each station's answer from the simulation, so a room test
-// proves the room can be cleared, not that a role is needed (the presence linter carries that).
-describe("a bot on a station job (escape-room Task 4)", () => {
+// Clues FR5: bots solve only from what their own role perceives and what teammates send. The sim's
+// station state is never read: a world whose `stations` throws on read still runs the bots.
+describe("a bot on a station job reads only its view and inbox (escape-room Task 13)", () => {
   const GRID = [
     "##############",
     "#1...........#",
@@ -791,19 +791,17 @@ describe("a bot on a station job (escape-room Task 4)", () => {
     "#3...........#",
     "##############",
   ];
-  const DIAL = {
-    type: "dial",
-    pads: [
+  const WIRES = {
+    type: "wires",
+    wires: [
       [4, 1],
+      [5, 1],
       [6, 1],
     ],
-    back: [5, 3],
-    digits: 2,
-    range: 10,
   };
   const r = roomWith(
     GRID,
-    { Q1: DIAL, g1: { item: "stethoscope" } },
+    { Q1: WIRES, g1: { item: "stethoscope" } },
     {
       beats: [{ name: "b", x: [0, 13], intent: { blind: "b", deaf: "d", mute: "m" } }],
       hints: {
@@ -814,29 +812,67 @@ describe("a bot on a station job (escape-room Task 4)", () => {
       },
     },
   );
-  const run = (seat: Seat, role: Role, ticks: number) => {
-    const world = createWorld(r, 5);
-    const bots: Partial<Record<Seat, BotSeat>> = {
-      [seat]: { memory: createBotMemory(seat, new Set(), ROLES3), inbox: [] },
-    };
-    const roles: [Role, Role, Role] = ["blind", "deaf", "mute"];
-    roles[seat] = role;
-    for (let i = 0; i < ticks && !world.stations.Q1?.solved; i++) {
-      const out = botsAct(r, world, roles, bots, { until: {} }, world.tick * TICK_MS, () => "Bot");
-      step(world, out.inputs, TICK_MS);
-    }
-    return world;
-  };
 
-  it("walks to the pads and dials in the answer it reads from the world", () => {
-    const world = run(1, "deaf", 1200);
-    expect(world.stations.Q1?.solved).toBe(true);
-    expect(world.attempt).toBe(0); // never a wrong number: no dye, no reset
+  it("think takes no hidden state: a sixth argument is a type error", () => {
+    const world = createWorld(r, 5);
+    const memory = createBotMemory(1, new Set(), ROLES3);
+    const view = viewFor(world, 1, "deaf", true);
+    // @ts-expect-error think(room, view, inbox, memory, now) has no hidden parameter (ADR 0018)
+    think(r, view, [], memory, 0, { stations: world.stations });
   });
 
-  it("takes the gear on a take job", () => {
+  // think is the bot: botsAct also builds each view, and perception reads the sim by design
+  it("never reads world.stations while the bots think", () => {
     const world = createWorld(r, 5);
     const bots: Partial<Record<Seat, BotSeat>> = {
+      1: { memory: createBotMemory(1, new Set(), ROLES3), inbox: [] },
+      2: { memory: createBotMemory(2, new Set(), ROLES3), inbox: [] },
+    };
+    const views = ([1, 2] as const).map((s) => viewFor(world, s, ROLES3[s], true));
+    Object.defineProperty(world, "stations", {
+      get() {
+        throw new Error("a bot read world.stations");
+      },
+    });
+    for (const [i, s] of ([1, 2] as const).entries()) {
+      const bot = bots[s] as BotSeat;
+      for (let t = 0; t < 40; t++)
+        expect(() => think(r, views[i] as RoleView, [], bot.memory, t * TICK_MS)).not.toThrow();
+    }
+  });
+
+  it("a sighted bot that sees a teammate's x mark on a wire tile puts that tile in its belief", () => {
+    const world = createWorld(r, 5);
+    const memory = createBotMemory(1, new Set(), ROLES3);
+    const mark = {
+      method: "mark",
+      id: "x",
+      at: { x: 5.5, y: 1.5 },
+      from: { seat: 2, role: "mute", nickname: "Cy" },
+      sentAt: 0,
+    } as ChannelMessage;
+    think(r, viewFor(world, 1, "deaf", true), [mark], memory, 0);
+    expect(memory.known?.stations.Q1?.marked).toEqual([{ x: 5, y: 1 }]);
+  });
+
+  it("a bot reads 5 from text and ignores five", () => {
+    const world = createWorld(r, 5);
+    const memory = createBotMemory(2, new Set(), ROLES3);
+    const text = (t: string) =>
+      ({
+        method: "text",
+        text: t,
+        from: { seat: 0, role: "blind", nickname: "Ana" },
+        sentAt: 0,
+      }) as ChannelMessage;
+    think(r, viewFor(world, 2, "mute", true), [text("five"), text("5")], memory, 0);
+    expect(memory.known?.stations.Q1?.numbers).toEqual([5]);
+  });
+
+  it("does not work a station whose type has no decoder yet, and still takes the gear", () => {
+    const world = createWorld(r, 5);
+    const bots: Partial<Record<Seat, BotSeat>> = {
+      1: { memory: createBotMemory(1, new Set(), ROLES3), inbox: [] },
       2: { memory: createBotMemory(2, new Set(), ROLES3), inbox: [] },
     };
     for (let i = 0; i < 400 && world.gear[0]?.heldBy !== 2; i++) {
@@ -844,6 +880,8 @@ describe("a bot on a station job (escape-room Task 4)", () => {
       step(world, out.inputs, TICK_MS);
     }
     expect(world.gear[0]?.heldBy).toBe(2);
+    expect(world.stations.Q1?.input).toEqual([]); // never cut a wire it could not decode
+    expect(world.attempt).toBe(0);
   });
 });
 

@@ -17,6 +17,11 @@ const rooms = loadRooms();
 const NOT_YET: Record<string, string> = {
   "03-vault":
     "caught in the dark corridor by perception-only bots (overhaul phase 04 finding); rewritten in escape-room heist phase 04",
+  // a deliberate, dated scope change (escape-room phase 03 Task 13, 2026-10-29), not a weakened
+  // test: bots now solve only from what they perceive, and no station type has a decoder until
+  // phases 05 to 10 add one each; phase 10, Task 27 restores this room to the sweep
+  "00-stations-draft":
+    "perception-only bots have no station decoders until phases 05 to 10; phase 10 Task 27 restores it",
 };
 
 function clearEveryRotation(title: string, set: typeof rooms, minimum: number) {

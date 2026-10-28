@@ -144,6 +144,9 @@ describe("a clue job resolves from the chime a bot heard, not from the room file
   );
   const job = hintsOf(r)[0] as Job;
   const known = (clues: Record<string, number>): Known => ({
+    stations: {},
+    gear: {},
+    holding: {},
     doorOpen: {},
     pressed: {},
     crates: {},
@@ -234,6 +237,9 @@ describe("exitTile", () => {
 
 describe("isDone / isOpen", () => {
   const known = (over: Partial<Known> = {}): Known => ({
+    stations: {},
+    gear: {},
+    holding: {},
     doorOpen: { D1: false },
     pressed: {},
     crates: { B1: { x: 4, y: 2 } },
@@ -274,6 +280,9 @@ describe("isDone / isOpen", () => {
 describe("flag jobs", () => {
   const flagRoom = roomWith({ jobs: [{ beat: 1, goTo: "K1", all: true }] });
   const known = (checkpoint: number): Known => ({
+    stations: {},
+    gear: {},
+    holding: {},
     doorOpen: {},
     pressed: {},
     crates: {},

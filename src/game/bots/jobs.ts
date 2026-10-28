@@ -1,5 +1,6 @@
 import type { Room } from "../rooms/format.ts";
 import type { Role, Seat, Vec } from "../types.ts";
+import type { StationBelief } from "./decode.ts";
 
 // A room's hints (metadata key `hints`) say what the team has to do, beat by
 // beat. Bots claim jobs, humans first, then follow their own queue.
@@ -33,12 +34,12 @@ export interface Job {
   all: boolean; // every seat does it, rather than one
 }
 
-// What a bot has seen of the room: kept between ticks, since a dark zone hides things.
-// `solved`, `gear` and `holding` are what the bots read from the simulation itself (FR3).
+// What a bot has seen of the room: kept between ticks, since a dark zone hides things. Stations,
+// gear and held hands too come from its own view and inbox (clues FR5), never the simulation.
 export interface Known {
-  solved?: Record<string, boolean>; // stations solved
-  gear?: Record<string, { at: Vec | null; heldBy: Seat | null; sill: string | null }>;
-  holding?: Partial<Record<Seat, Seat>>; // towed seat -> leader
+  stations: Record<string, StationBelief>; // what it has worked out of each station (decode.ts)
+  gear: Record<string, { at: Vec | null; heldBy: Seat | null; sill: string | null }>;
+  holding: Partial<Record<Seat, Seat>>; // towed seat -> leader
   roles?: readonly [Role, Role, Role]; // who is what, so a give job knows its seat
   doorOpen: Record<string, boolean>;
   pressed: Record<string, boolean>;
@@ -329,7 +330,7 @@ export function isDone(
     case "exit":
       return false;
     case "station":
-      return known.solved?.[job.target.id] === true;
+      return known.stations[job.target.id]?.solved === true;
     case "take": {
       const by = known.gear?.[job.target.gear]?.heldBy;
       return seat === undefined ? by != null : by === seat;

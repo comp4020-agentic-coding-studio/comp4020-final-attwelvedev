@@ -3,16 +3,11 @@ import type { EntityView, RoleView, SoundCue } from "../perception.ts";
 import type { Room } from "../rooms/format.ts";
 import { blockedAt } from "../sim/collide.ts";
 import { laserBeam } from "../sim/hazards.ts";
-import { tilesOf, toggled } from "../sim/stations.ts";
-import {
-  createWorld,
-  type GearState,
-  SPEED_TPS,
-  type StationState,
-  TICK_MS,
-  type World,
-} from "../sim/world.ts";
+import { stationParts, tilesOf } from "../sim/stations.ts";
+import { decodeSeen } from "../sim/visibility.ts";
+import { createWorld, SPEED_TPS, type StationType, TICK_MS, type World } from "../sim/world.ts";
 import { type PlayerInput, ROLES, type Role, type Seat, type Vec } from "../types.ts";
+import { beliefFrom, DECODERS, emptyBelief } from "./decode.ts";
 import { type AlarmWindow, forecastFor } from "./forecast.ts";
 import {
   claimJobs,
@@ -30,23 +25,10 @@ import { pickPhrase, type Situation } from "./phrases.ts";
 
 // A bot thinks once per tick from its own role's view and the messages its role
 // received, and answers with an input and at most one message. It reads nothing
-// else about the live world (ADR 0007), with one exception: in a station room it
-// is handed `Hidden`, the stations' answers and where the gear is (escape-room
-// spec FR3), so a room test proves a station room can be cleared. What it also
-// holds is the room's static plan: the grid, the hints, and the hazards' timing (FR24).
-
-// The one place bots read hidden state (FR3): taken from the world by `botsAct`.
-export interface Hidden {
-  stations: Record<string, StationState>;
-  gear: GearState[];
-  holding: Partial<Record<Seat, Seat>>;
-}
-
-export const hiddenOf = (world: World): Hidden => ({
-  stations: world.stations,
-  gear: world.gear,
-  holding: world.holding,
-});
+// else about the live world (ADR 0007): a station is solved from what it perceives
+// and what teammates send (clues FR5, ADR 0018), through its type's decoder
+// (decode.ts). What it also holds is the room's static plan: the grid, the hints,
+// and the hazards' timing (FR24).
 export interface BotMemory {
   seat: Seat;
   tiles: string[] | null;
@@ -74,7 +56,6 @@ export interface BotMemory {
   celebrated: boolean;
   model: World | null;
   lastPos: Vec | null; // where the bot was last tick: a jump is the team being sent back
-  hidden: Hidden | null; // this tick's stations and gear (FR3), when the room has any
   bodies: Partial<Record<Seat, Vec>>; // where it last saw each player
   actWas: boolean; // pressed Act last tick: a press needs a release before the next
   gearWas: boolean;
@@ -192,7 +173,6 @@ export function createBotMemory(
     celebrated: false,
     model: null,
     lastPos: null,
-    hidden: null,
     bodies: {},
     actWas: false,
     gearWas: false,
@@ -218,13 +198,11 @@ export function think(
   inbox: ChannelMessage[],
   memory: BotMemory,
   now: number,
-  hidden: Hidden | null = null,
 ): BotTurn {
   memory.seq++;
-  memory.hidden = hidden;
   if (view.tiles) memory.tiles = view.tiles;
   if (view.role === "blind") return thinkBlind(view, inbox, memory, now);
-  return thinkSighted(room, view, memory, now);
+  return thinkSighted(room, view, inbox, memory, now);
 }
 
 // --- Can't see: acts on what it is told, and on what it hears -------------------
@@ -272,8 +250,14 @@ function ensureKnown(room: Room, m: BotMemory): Known {
     seenHazards: {},
     clues: {},
     checkpoint: 0,
+    stations: {},
+    gear: {},
+    holding: {},
   };
   for (const o of room.objects) {
+    if (o.kind === "station") known.stations[o.id] = emptyBelief();
+    else if (o.kind === "gear" && o.tiles[0])
+      known.gear[o.id] = { at: { ...o.tiles[0] }, heldBy: null, sill: null };
     if (o.kind === "door") known.doorOpen[o.id] = false;
     else if (o.kind === "plate") known.pressed[o.id] = false;
     else if (o.kind === "crate" && o.tiles[0]) known.crates[o.id] = { ...o.tiles[0] };
@@ -282,16 +266,54 @@ function ensureKnown(room: Room, m: BotMemory): Known {
   return known;
 }
 
-// Stations solved, where the gear is and who holds whose hand: read from the simulation (FR3).
-function readHidden(m: BotMemory, known: Known, own: Role): void {
-  const h = m.hidden;
-  if (!h) return;
-  known.solved = Object.fromEntries(Object.values(h.stations).map((s) => [s.id, s.solved]));
-  known.gear = Object.fromEntries(
-    h.gear.map((g) => [g.id, { at: g.at, heldBy: g.heldBy, sill: g.sill }]),
-  );
-  known.holding = { ...h.holding };
-  known.roles = rolesOf(m, own);
+// What the bot believes of each station, where the gear is and who holds whose hand, from its own
+// view and inbox (clues FR5): gear on the floor or a sill where it is seen, gear on a figure in
+// sight (or its own slot) as held, a hand held as the figures show it. What is out of sight
+// keeps its last belief.
+function readStations(
+  room: Room,
+  view: RoleView,
+  inbox: ChannelMessage[],
+  m: BotMemory,
+  known: Known,
+): void {
+  known.roles = rolesOf(m, view.role);
+  for (const o of room.objects) {
+    if (o.kind !== "station") continue;
+    const b = beliefFrom(view, inbox, o, known.stations[o.id] ?? emptyBelief());
+    DECODERS[o.params?.type as StationType]?.(view, inbox, b, o, view.tick);
+    known.stations[o.id] = b;
+  }
+  if (view.sounds.some((c) => c.kind === "caught")) known.holding = {};
+  const figures = view.entities.filter((e) => e.kind === "player" && e.seat !== undefined);
+  for (const f of figures) {
+    const seat = f.seat as Seat;
+    if (f.heldBy !== undefined) known.holding[seat] = f.heldBy;
+    else if (f.holding === undefined) delete known.holding[seat];
+  }
+  const hatchAt = (t: Vec) =>
+    room.objects.find((o) => o.kind === "hatch" && o.tiles.some((h) => key(h) === key(t)))?.id;
+  for (const [id, g] of Object.entries(known.gear)) {
+    const item = room.objects.find((o) => o.id === id)?.params?.item;
+    const lying = view.entities.find((e) => e.kind === "gear" && e.id === id);
+    const holder =
+      view.gear === item ? m.seat : figures.find((f) => f.item === item && f.seat !== m.seat)?.seat;
+    if (lying) {
+      const t = tileOf(lying.pos);
+      const sill = hatchAt(t) ?? null;
+      known.gear[id] = { at: sill ? null : t, heldBy: null, sill };
+    } else if (holder !== undefined) {
+      known.gear[id] = { at: null, heldBy: holder, sill: null };
+    } else if (g.at && seenTile(view, g.at)) {
+      // where it last lay is in sight and it is gone: someone out of sight has it
+      known.gear[id] = { at: null, heldBy: null, sill: null };
+    }
+  }
+}
+
+// Whether a tile is in the view's line of sight (perception.ts: encodeSeen).
+function seenTile(view: RoleView, t: Vec): boolean {
+  return view.seen !== undefined && decodeSeen(view.seen).has(key(t));
 }
 
 const HEARD_KIND: Partial<Record<SoundCue["kind"], "guard" | "camera" | "laser">> = {
@@ -349,9 +371,9 @@ function hearHazards(room: Room, view: RoleView, known: Known): void {
   }
 }
 
-function observe(room: Room, view: RoleView, m: BotMemory): Known {
+function observe(room: Room, view: RoleView, inbox: ChannelMessage[], m: BotMemory): Known {
   const known = ensureKnown(room, m);
-  readHidden(m, known, view.role);
+  readStations(room, view, inbox, m, known);
   hearHazards(room, view, known);
   for (const e of view.entities) {
     if (e.kind === "door") known.doorOpen[e.id] = e.state === "open";
@@ -645,7 +667,7 @@ function gearTurn(room: Room, m: BotMemory, job: Job, known: Known, own: Role): 
 // (or its holder, or the sill), the teammate to take by the hand, or the tow's end.
 function workGoal(room: Room, m: BotMemory, job: Job, known: Known, seat: Seat): Vec | null {
   const t = job.target;
-  if (t.kind === "station") return stationStep(room, m, t.id)?.tile ?? null;
+  if (t.kind === "station") return stationStep(room, m, known, t.id)?.tile ?? null;
   if (t.kind === "take" || t.kind === "give" || t.kind === "sill") {
     const g = known.gear?.[t.gear];
     if (!g) return null;
@@ -687,69 +709,34 @@ function besideOf(room: Room, known: Known, tile: Vec, from: Vec | null): Vec | 
   return options.reduce<Vec | null>((a, b) => (a === null || d(b) < d(a) ? b : a), null);
 }
 
-// The next press a station needs, from its answer (FR3): which tile to stand on. A dial turns
-// the short way to the next digit, then presses the anchor; a radio turns to its setting; wires
-// cut the one the rule names; a keypad or music box presses the next key or bell; switches press
-// the buttons that reach the target from where the lamps are; a vault steps each socket, then
-// presses the anchor; a sync lock is turned by every seat that has a key (one each).
+// The next press a station needs, from the bot's belief (clues FR5): which tile to stand on. Only
+// a station type with a decoder (decode.ts: DECODERS) is worked; the decoder fills the belief's
+// answer, and the part to press is a tile a teammate marked, or the part its answer names next. A
+// sync lock is turned by every seat that has a key (one each): it has no secret.
 interface Press {
   tile: Vec;
 }
-function stationStep(room: Room, m: BotMemory, id: string): Press | null {
-  const s = m.hidden?.stations[id];
+function stationStep(room: Room, m: BotMemory, known: Known, id: string): Press | null {
+  const b = known.stations[id];
   const o = room.objects.find((x) => x.id === id);
-  if (!s || !o || s.solved) return null;
+  if (!b || !o || b.solved) return null;
   const p = o.params ?? {};
-  const anchor = o.tiles[0] as Vec;
-  const part = (k: string, i: number): Press | null => {
-    const t = tilesOf(p[k])[i];
+  const type = p.type as StationType;
+  if (type === "sync") {
+    const order = (m.roles ?? ["blind", "deaf", "mute"])
+      .map((role, seat) => ({ role, seat }))
+      .filter((x) => x.role !== "blind");
+    const mine = order.findIndex((x) => x.seat === m.seat);
+    const t = mine >= 0 ? tilesOf(p.keys)[mine] : undefined;
     return t ? { tile: t } : null;
-  };
-  switch (s.type) {
-    case "dial":
-    case "radio": {
-      const range = typeof p.range === "number" ? p.range : 10;
-      const want = s.answer[s.type === "radio" ? 0 : s.input.length - 1] as number;
-      const now = s.input.at(-1) ?? 0;
-      if (now === want) return s.type === "dial" ? { tile: anchor } : null;
-      const up = (want - now + range) % range;
-      return part("pads", up <= range - up ? 1 : 0);
-    }
-    case "wires":
-      return part("wires", s.answer[0] as number);
-    case "keypad":
-      return part("keys", s.answer[s.input.length] as number);
-    case "bells":
-      return part("bells", s.answer[s.input.length] as number);
-    case "switches": {
-      const cols = typeof p.cols === "number" ? p.cols : 3;
-      const i = switchPress(s.input, s.answer, cols);
-      return i === null ? null : part("buttons", i);
-    }
-    case "vault": {
-      const i = s.input.findIndex((v, k) => v !== s.answer[k]);
-      return i >= 0 ? part("sockets", i) : { tile: anchor };
-    }
-    case "sync": {
-      const order = (m.roles ?? ["blind", "deaf", "mute"])
-        .map((role, seat) => ({ role, seat }))
-        .filter((x) => x.role !== "blind");
-      const mine = order.findIndex((x) => x.seat === m.seat);
-      return mine >= 0 ? part("keys", mine) : null;
-    }
   }
-}
-
-// The first button whose press is part of a solution from `lamps` to `target` (lights-out is
-// solved by trying each subset of buttons; the grids are at most 3x3, so 512 at most).
-function switchPress(lamps: number[], target: number[], cols: number): number | null {
-  const n = lamps.length;
-  for (let mask = 1; mask < 1 << n; mask++) {
-    let at = lamps;
-    for (let i = 0; i < n; i++) if (mask & (1 << i)) at = toggled(at, i, cols);
-    if (at.join() === target.join()) return Math.log2(mask & -mask);
-  }
-  return null;
+  if (!DECODERS[type]) return null;
+  const marked = b.marked[0];
+  if (marked) return { tile: marked };
+  const next = b.answer.find((v) => v !== null);
+  const parts = stationParts(o).filter((x) => x.key !== "anchor" && x.key !== "back");
+  const t = next === undefined || next === null ? undefined : parts[0]?.at[next];
+  return t ? { tile: t } : null;
 }
 
 // The team was caught and sent back: every plan, step under way and belief about where
@@ -770,8 +757,14 @@ function forgetPlans(m: BotMemory): void {
   g.stopFrom = null;
 }
 
-function thinkSighted(room: Room, view: RoleView, m: BotMemory, now: number): BotTurn {
-  const known = observe(room, view, m);
+function thinkSighted(
+  room: Room,
+  view: RoleView,
+  inbox: ChannelMessage[],
+  m: BotMemory,
+  now: number,
+): BotTurn {
+  const known = observe(room, view, inbox, m);
   if (view.you.pos) {
     const last = m.lastPos;
     if (last && Math.hypot(view.you.pos.x - last.x, view.you.pos.y - last.y) > 1.5) forgetPlans(m);
@@ -817,7 +810,7 @@ function press(
   const job = queuesOf(room, m, view.role)[m.seat][m.ptr[m.seat]];
   const tile = tileOf(pos);
   const centred = Math.hypot(pos.x - (tile.x + 0.5), pos.y - (tile.y + 0.5)) < 0.15;
-  const goal = job && m.hidden ? workGoal(room, m, job, known, m.seat) : null;
+  const goal = job ? workGoal(room, m, job, known, m.seat) : null;
   const here = centred && goal !== null && goal.x === tile.x && goal.y === tile.y;
   const button = job && here ? pressFor(room, m, known, job, view.tick) : null;
   const was = button === "act" ? m.actWas : button === "gear" ? m.gearWas : false;
@@ -838,7 +831,7 @@ function pressFor(
 ): "act" | "gear" | "wait" | null {
   const t = job.target;
   if (t.kind === "station") {
-    if (m.hidden?.stations[t.id]?.type !== "sync") return "act";
+    if (room.objects.find((x) => x.id === t.id)?.params?.type !== "sync") return "act";
     const keys = tilesOf(room.objects.find((x) => x.id === t.id)?.params?.keys);
     const stood = keys.every((k) =>
       Object.values(m.bodies).some((b) => b && tileOf(b).x === k.x && tileOf(b).y === k.y),

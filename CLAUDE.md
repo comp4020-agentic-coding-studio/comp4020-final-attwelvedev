@@ -40,7 +40,10 @@
   (`src/client/fx.ts`) or the view, with its sound.
 - **Rooms:** `rooms/NN-slug.room` (format in the phase 02 plan §4.1). Never
   hand-write one without running `pnpm lint:rooms` and `spec/rooms.test.ts`
-  (bots must clear it in every role rotation).
+  (bots must clear it in every role rotation). Bots solve only from what they
+  perceive and what teammates send (ADR 0018): never hand a bot the
+  simulation's state; a station type needs its decoder in
+  `src/game/bots/decode.ts`.
 - **Look before you build a room:** `pnpm mockup:room rooms/NN-slug.room out.html` (or a draft
   in `spec/fixtures/drafts/`) writes one self-contained page: click a tile, pick a role, and it
   shows what that role sees and hears from there, as the game's own `viewFor` reports it
