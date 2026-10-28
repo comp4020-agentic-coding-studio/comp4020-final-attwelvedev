@@ -397,11 +397,11 @@ to a station elsewhere via `yields`; sync: keys ≥3 tiles apart).
 
 ## 6. Phase Definition of Done
 
-- [ ] Every task in §5 is complete and its tests pass
-- [ ] `pnpm test:unit` passes
-- [ ] `pnpm build && pnpm start` then `pnpm check` passes
-- [ ] `00-stations-draft` lints clean and bots clear it in every rotation
-- [ ] Tick this phase in overview §5 and commit
+- [x] Every task in §5 is complete and its tests pass
+- [x] `pnpm test:unit` passes
+- [x] `pnpm build && pnpm start` then `pnpm check` passes
+- [x] `00-stations-draft` lints clean and bots clear it in every rotation
+- [x] Tick this phase in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)
 
@@ -437,3 +437,7 @@ None.
   airlock deletion are pulled into Task 1; `03-vault` is skipped with a dated `NOT_YET` note until
   phase 04 rewrites it. The full check also overloaded the machine (load 300–485, 107 browser
   timeouts that pass alone): logged to the backlog, not fixed here.
+- 2026-10-28, phase close: expected the default `pnpm check` to go green once the code was right. It
+  kept timing out 18-107 browser specs under load, and the user asked for the overload to be fixed
+  rather than lived with: the spec project is capped at 3 workers (9c5aaf3), two full checks green.
+  Missed because the overload was parked in the backlog as out of scope for every task.

@@ -218,7 +218,7 @@ splatter shows before the reset completes.
 
 | Phase | File | Tasks | Needs | Ends with | Done |
 | --- | --- | --- | --- | --- | --- |
-| 01 | `…-01-framework.md` | 1–6 | — | WIP committed; stations, gear, holding, hatch, bell, lamp, dye in the sim with perception, parity rows and logging; the presence linter replaces lead beats; docs superseded | [ ] |
+| 01 | `…-01-framework.md` | 1–6 | — | WIP committed; stations, gear, holding, hatch, bell, lamp, dye in the sim with perception, parity rows and logging; the presence linter replaces lead beats; docs superseded | [x] |
 | 02 | `…-02-client.md` | 7–10 | 01 | measured camera/LoS on a hub room; every new object drawn, heard and labelled; HUD gear slot, Act hint, lamp, side-job chip; **human review** | [ ] |
 | 03 | `…-03-gallery.md` | 11–13 | 01, 02 | room 2 The Gallery shipped, bots clear it; **human review**; **playtest 5** written up | [ ] |
 | 04 | `…-04-lights-vault.md` | 14–16 | 03 | rooms 3 and 4 shipped, old rooms removed; **human review** of each | [ ] |
