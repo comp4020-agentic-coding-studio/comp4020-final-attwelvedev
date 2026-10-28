@@ -5,7 +5,7 @@ import { NOTE_TICKS, PIP_TICKS, TUNE_TICKS, tilesOf } from "../sim/stations.ts";
 import { step } from "../sim/step.ts";
 import { type GearItem, patrolOf, TICK_MS } from "../sim/world.ts";
 import type { Role, Vec } from "../types.ts";
-import { flipsOf, GEAR_ITEMS, type Room, type RoomObject } from "./format.ts";
+import { flipsOf, GEAR_ITEMS, isMotif, type Room, type RoomObject } from "./format.ts";
 import { worldAt } from "./mockup.ts";
 
 const SAFE_S = 2; // FR14: a cue-dependent safe window is at least this long
@@ -68,6 +68,7 @@ export function lintRoom(room: Room): LintIssue[] {
   lintSight(room, issue);
   lintHints(room, issue);
   lintPresence(room, issue);
+  lintClues(room, issue);
 
   // every exit tile must be reachable from every spawn, treating doors as open
   if (exits.length > 0 && spawns.length > 0) {
@@ -492,4 +493,104 @@ function lintOpenAtOnce(
       );
     }
   }
+}
+
+// Clues FR4: each station's clue reaches a person, and each link carries its motif at both ends.
+// A plaque's text and a target card must be in some sighted view from some floor tile (a plaque in
+// UV ink, with the torch); a radio's pips are heard from its pads; a vault's wings each reveal a
+// symbol and carry the motif its order clue shows; a station that yields feeds one that takes a
+// slot from it, with a motif they share.
+export function lintClues(room: Room, issue: (message: string) => void): void {
+  const byId = new Map(room.objects.map((o) => [o.id, o]));
+  const stations = room.objects.filter((o) => o.kind === "station");
+  const seenBy = (check: (view: RoleView) => boolean, gear?: GearItem) =>
+    reachesSighted(room, check, gear);
+  for (const o of stations) {
+    const p = o.params ?? {};
+    const name = `${o.id} (${String(p.type)})`;
+    if (p.type === "wires") {
+      const plaque = typeof p.plaque === "string" ? p.plaque : undefined;
+      const read = (v: RoleView) =>
+        v.entities.some((e) => e.id === plaque && (e.kind === "ink" || !!e.text));
+      if (!plaque || !byId.has(plaque)) issue(`${name} has no plaque`);
+      else if (!seenBy(read) && !seenBy(read, "uv"))
+        issue(`${name}: its plaque ${plaque} has no text any role can read`);
+    } else if (p.type === "switches") {
+      const cards = room.objects.filter((c) => c.kind === "card" && c.params?.of === o.id);
+      if (cards.length === 0) issue(`${name} has no target card`);
+      else if (
+        !seenBy((v) =>
+          v.entities.some((e) => e.kind === "card" && cards.some((c) => c.id === e.id)),
+        )
+      )
+        issue(`${name}: its target card is in no sighted role's view`);
+    } else if (p.type === "radio") {
+      if (!pipReaches(room, o)) issue(`${name}: its pips reach no role as light or sound`);
+    } else if (p.type === "vault") {
+      const from = Array.isArray(p.from) ? p.from : [];
+      if (from.length === 0) issue(`${name} is fed by no wing ("from")`);
+      for (const id of from) {
+        const wing = byId.get(String(id));
+        if (wing?.kind !== "station") issue(`${name}: ${String(id)} is not a station`);
+        else if (wing.params?.reveal !== true) issue(`${name}: ${String(id)} reveals no symbol`);
+        else if (!isMotif(wing.params?.motif))
+          issue(`${name}: ${String(id)} has no motif for the order clue`);
+      }
+      if (byId.get(String(p.symbols))?.kind !== "order") issue(`${name} has no order clue`);
+    }
+    if (typeof p.yields === "string") {
+      const fed = byId.get(p.yields);
+      const slot = fed?.params?.slot as { from?: unknown } | undefined;
+      if (fed?.kind !== "station") issue(`${o.id} yields to ${p.yields}, which is not a station`);
+      else if (slot?.from !== o.id)
+        issue(`${o.id} yields to ${p.yields}, which takes no slot from it`);
+      else if (!isMotif(p.motif) || p.motif !== fed.params?.motif)
+        issue(`${o.id} yields to ${p.yields} but they share no motif`);
+    }
+    const slot = p.slot as { from?: unknown } | undefined;
+    if (slot && byId.get(String(slot.from))?.params?.yields !== o.id)
+      issue(`${o.id} takes a slot from ${String(slot.from)}, which does not yield to it`);
+  }
+  for (const c of room.objects.filter((x) => x.kind === "card")) {
+    if (byId.get(String(c.params?.of))?.params?.type !== "switches")
+      issue(`card ${c.id} is for ${String(c.params?.of)}, which is not a switches station`);
+  }
+}
+
+// Whether a tuned radio's pip reaches some role on some floor tile: seen on its face (the sighted)
+// or heard (Can't see, Can't speak), on the tick it pips.
+function pipReaches(room: Room, o: RoomObject): boolean {
+  const world = worldAt(room, 1, 1);
+  const s = world.stations[o.id];
+  if (!s) return false;
+  s.solved = true;
+  s.input[0] = s.answer[0] as number;
+  world.tick = PIP_TICKS * 10;
+  for (let y = 0; y < room.height; y++) {
+    for (let x = 0; x < room.width; x++) {
+      if (room.grid[y]?.[x] !== ".") continue;
+      world.players[1].pos = { x: x + 0.5, y: y + 0.5 };
+      for (const role of ROLES) {
+        const v = viewFor(world, 1, role, false);
+        const seen = v.entities.some((e) => e.id === o.id && (e.station?.shows.length ?? 0) > 1);
+        if (seen || v.sounds.some((c) => c.kind === "pip")) return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Whether a sighted role (Can't hear or Can't speak), standing on some floor tile, has a view
+// that passes `check`. One world (mockup.ts: worldAt), the probe moved tile by tile.
+function reachesSighted(room: Room, check: (view: RoleView) => boolean, gear?: GearItem): boolean {
+  const world = worldAt(room, 1, 1, gear);
+  for (let y = 0; y < room.height; y++) {
+    for (let x = 0; x < room.width; x++) {
+      if (room.grid[y]?.[x] !== ".") continue;
+      world.players[1].pos = { x: x + 0.5, y: y + 0.5 };
+      for (const role of ["deaf", "mute"] as const)
+        if (check(viewFor(world, 1, role, false))) return true;
+    }
+  }
+  return false;
 }

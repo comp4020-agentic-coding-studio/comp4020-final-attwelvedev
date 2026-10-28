@@ -128,7 +128,7 @@ entities), not the sim.
 - **Acceptance criteria:** tests green; `pnpm lint:rooms` and `spec/rooms.test.ts` still green.
 - **Depends on:** Tasks 2, 3, 8.
 
-### Task 12: The clue-path linter rule
+### Task 12: The clue-path linter rule ✅
 
 - **Description:** `lintClues(room, issue)` in `src/game/rooms/lint.ts`, called by `lintRoom`,
   per this file's §4.

@@ -545,3 +545,25 @@ const LETTER: Record<string, string> = {
   clue: "c",
   plate: "p",
 };
+
+// Clues FR4: a station whose clue cannot reach a person, or a link without its motif at both ends,
+// fails the room. spec/fixtures/clue-faults is the stations draft with each fault once (kept out of
+// the drafts dir, which the bots sweep).
+describe("lintRoom: clue paths (escape-room Task 12)", () => {
+  it("gives exactly one message per fault in 01-clue-faults", () => {
+    const [faults] = loadRooms("./spec/fixtures/clue-faults");
+    expect(faults?.id).toBe("01-clue-faults");
+    expect(
+      lintRoom(faults as Room)
+        .map((i) => i.message)
+        .sort(),
+    ).toEqual(
+      [
+        "Q8 (switches) has no target card",
+        "Q4 (wires): its plaque S1 has no text any role can read",
+        "Q2 (vault): Q6 reveals no symbol",
+        "Q3 yields to Q5 but they share no motif",
+      ].sort(),
+    );
+  });
+});
