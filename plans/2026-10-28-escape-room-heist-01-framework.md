@@ -8,6 +8,10 @@
   types), §4.3 (randomness), §4.4 (wrong = caught).
 - **Depends on phases:** none.
 
+- **Note (re-plan, 2026-10-28, after this phase was done):** later phases were renumbered. This
+  file's "phase 03, 04" (real rooms) are now phases 04 to 10, and "phase 05" (side jobs, results)
+  is phase 11; see the overview's §0. The text below is left as it was when this phase ran.
+
 ## 1. Summary
 
 Lands the uncommitted overhaul work, then builds every new mechanic headless:
