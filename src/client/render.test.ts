@@ -110,6 +110,47 @@ describe("camera", () => {
     expect(fx).toBeGreaterThanOrEqual(0);
     expect(fx).toBeLessThanOrEqual(s.w);
   });
+
+  // spec/fixtures/perf/00-hub-size.room: a 60x30 hub with chambers in every corner, not a strip.
+  // You in the far corner of one chamber, the others in the hub and the opposite chamber, so the
+  // team's centroid pulls hard away from you on both axes.
+  it("follow keeps you in frame at a chamber corner of a hub room, at both viewports", () => {
+    const HUB = Array.from({ length: 30 }, (_, y) =>
+      y === 0 || y === 29 ? "#".repeat(60) : `#${".".repeat(58)}#`,
+    );
+    for (const self of [
+      { x: 1.5, y: 28.5 },
+      { x: 58.5, y: 1.5 },
+      { x: 58.5, y: 28.5 },
+      { x: 1.5, y: 1.5 },
+    ]) {
+      for (const [w, h] of [
+        [375, 560],
+        [1280, 600],
+      ] as const) {
+        const s = scene({
+          w,
+          h,
+          tiles: HUB,
+          self,
+          entities: [
+            player(0, 30, 15),
+            player(1, self.x, self.y),
+            player(2, 59 - self.x, 29 - self.y),
+          ],
+        });
+        const cam = camera(s);
+        const me = toScreen(cam, self.x, self.y);
+        const head = toScreen(cam, self.x, self.y, TILT.wall);
+        expect(me.x).toBeGreaterThanOrEqual(0);
+        expect(me.x).toBeLessThanOrEqual(w);
+        expect(me.y).toBeLessThanOrEqual(h);
+        expect(head.y).toBeGreaterThanOrEqual(0);
+        expect(toScreen(cam, 0, 0).x).toBeLessThanOrEqual(1e-6); // no sky beside the room
+        expect(toScreen(cam, 60, 0).x).toBeGreaterThanOrEqual(w - 1e-6);
+      }
+    }
+  });
 });
 
 describe("easeCamera: the camera never snaps", () => {

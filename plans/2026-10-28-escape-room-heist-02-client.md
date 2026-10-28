@@ -119,10 +119,11 @@ tone = steady sine; pip = 880 Hz blip; clunk = low square; bellnote `n` = sine
 
 ## 5. Task breakdown
 
-### Task 7: Measure the camera and line-of-sight cost on a hub room
+### Task 7: Measure the camera and line-of-sight cost on a hub room ✅
 
 - **Description:** Before any room is built: a 60×30 hub-and-chambers
-  fixture (`spec/fixtures/drafts/00-hub-size.room`), drawn at both viewports,
+  fixture (`spec/fixtures/perf/00-hub-size.room`: its own folder, a measuring
+  stick that need not lint or be bot-clearable; ruled 2026-10-28), drawn at both viewports,
   and per-tick `viewFor` cost for three seats with a UV pool active.
 - **Files touched:** new fixture; new `src/game/perf.test.ts` (unit, writes the
   measured ms beside its threshold); `src/client/render/project.ts` only if
@@ -153,12 +154,17 @@ tone = steady sine; pip = 880 Hz blip; clunk = low square; bellnote `n` = sine
   `--w-steel-front`, `--w-brass`, `--w-lamp`, `--w-uv`, `--w-uv-ink`,
   `--w-nv`, `--w-card`, with high-contrast values; `DESIGN.md` (§2 tokens,
   §4 new subsections, Components: canvas helpers `turnPad`, `codeSwatch`,
-  `symbolGlyph`, `splat`).
+  `symbolGlyph`, `splat`); `src/net/protocol.ts` + `src/net/attach.ts`
+  (`caught` gains optional `station?: StationType`, team-wide) and
+  `caughtText` in `src/client/hud.ts` for the per-type dye banner copy
+  (ruled 2026-10-28).
 - **Tests first (red):** `render.test.ts`: each new entity kind draws without
   throwing at both scales and under reduced motion and high contrast; ink is
-  clipped to the pool polygon (pixel outside the pool is unchanged);
+  clipped to the pool polygon (asserted on the recorder: every ink fill sits
+  inside a `save`→`clip` on the pool ∩ sight path; ruled 2026-10-28);
   `fx.test.ts`: a station flipping to solved yields a `goal` fx; `tokens.test.ts`:
-  new tokens mirrored and every code colour ≥3:1 against `--w-floor`;
+  new tokens mirrored and every code colour's fill or its outline ≥3:1
+  against `--w-floor` in both themes (WCAG 1.4.11; ruled 2026-10-28);
   `spec/design.test.ts` passes with the new names.
 - **Implementation (green):** as described.
 - **Acceptance criteria:** tests green; no colour-only state (each code colour
@@ -177,7 +183,8 @@ tone = steady sine; pip = 880 Hz blip; clunk = low square; bellnote `n` = sine
   rows: "Tick", "Tumbler", "Key", "Snap", "Static", "Tone", "Pip", "Clunk",
   "Bell note", "Bell", "Dye pack", "Earpiece", "Gear", "Solved"),
   `src/client/hud.test.ts`, `src/game/cues.ts` (`BriefingCue` gains `"tick"`,
-  `"tumbler"`, `"static"`, `"bell"` for the reveal's sound briefing) +
+  `"tumbler"`, `"static"`, `"bell"` for the reveal's sound briefing, matched on
+  station type for stations: dial → tick, tumbler; radio → static; bell object → bell) +
   `cues.test.ts`.
 - **Tests first (red):** `hud.test.ts`: every new kind has a caption with no
   direction words; `cues.test.ts`: a room with a dial briefs `tick`.
@@ -197,7 +204,7 @@ tone = steady sine; pip = 880 Hz blip; clunk = low square; bellnote `n` = sine
   `LampLight.tsx`, `SideJob.tsx` (renders `view.sideJob` when present; empty
   until phase 05), `GearGlyph.tsx`; `src/components/Game.tsx` (crew row gear
   glyphs from entities' `item`/`heldBy`; phone: gear slot 48 px tap sends
-  `gear`, Act button label = `view.act`); `src/styles/game.css`;
+  `gear` (via a `[data-gear]` handler in `src/client/input.ts`, like `[data-act]`), Act button label = `view.act`); `src/styles/game.css`;
   `src/client/labels.ts` (+ test: `LABEL_COPY` rows from spec §4.1 for
   station types, gear, hatch, bell, lamp, ink, hold hands; `KIND_OF` maps the
   new kinds); `DESIGN.md` Components; `spec/layout/hud.test.ts` (gear slot,
@@ -237,3 +244,17 @@ None.
 ## 9. Corrections log
 
 <!-- one line per user redirect during execution -->
+
+- 2026-10-28, Phase 1 review: four plan gaps ruled by the user (hub fixture in
+  `spec/fixtures/perf/`, contrast on fill-or-outline, `caught` carries the
+  station type, ink clip asserted on recorder ops). The plan had named paths and
+  checks without checking them against existing assertions (`drafts/` is
+  bot-cleared; a pixel check with no pixel canvas).
+- 2026-10-28, Task 7 numbers: step + 3 × viewFor on the 60×30 hub with a lit UV
+  torch = 0.30 ms a tick (budget 2 ms; 400 ticks, players walking, the pool seen
+  by Can't speak in 394 of 440 ticks). No `visibleFrom` cache needed. The follow
+  camera keeps self in frame at all four chamber corners at 375 and 1280
+  (`render.test.ts`; mutating the clamp fails it) and frames the hub in the real
+  app at both widths, so `project.ts` is unchanged. Both tests were green on
+  first run: nothing to fix, verified by probing the workload and mutating the
+  clamp. Full check baseline: 228 s.
