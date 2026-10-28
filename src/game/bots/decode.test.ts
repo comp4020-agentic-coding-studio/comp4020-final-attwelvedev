@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { ChannelMessage, Outgoing } from "../channels.ts";
 import { type RoleView, viewFor } from "../perception.ts";
+import { step } from "../sim/step.ts";
 import { place, roomWith } from "../sim/testing.ts";
-import { createWorld } from "../sim/world.ts";
-import { beliefFrom, DECODERS, dialStep, emptyBelief, readNumber } from "./decode.ts";
+import { createWorld, TICK_MS } from "../sim/world.ts";
+import { beliefFrom, DECODERS, dialStep, emptyBelief, keypadStep, readNumber } from "./decode.ts";
 
 // A bot's belief about one station (clues FR5): only what its own view shows and what teammates
 // send, in the two forms bots use (P3): an `x` mark on a part's tile, or a one-digit text.
@@ -87,8 +88,8 @@ describe("beliefFrom", () => {
 });
 
 describe("DECODERS", () => {
-  it("has the safe's from phase 05; each later room phase adds its own (06 to 10)", () => {
-    expect(Object.keys(DECODERS)).toEqual(["dial"]);
+  it("has the safe's from phase 05 and the wires' and keypad's from 06; 07 to 10 add theirs", () => {
+    expect(Object.keys(DECODERS)).toEqual(["dial", "wires", "keypad"]);
   });
 });
 
@@ -186,5 +187,129 @@ describe("the dial decoder", () => {
     const steer = { ...stop, from: { seat: 1, role: "deaf", nickname: "Bo" } } as ChannelMessage;
     b = decode(room, viewFor(world, 2, "mute", false), [steer], b);
     expect(b.answer).toEqual([null]);
+  });
+});
+
+// Wires and their plaque, and the keypad (escape-room Task 18): from views a role really gets.
+describe("the wires decoder", () => {
+  // the plaque S1 at (2,1); a wall at x=8 hides the second panel's plaque from its wires
+  const GRID = ["############", "#1S.Q.Q.#..#", "#2......#S.#", "#3......#..#", "############"];
+  const room = roomWith(GRID, {
+    Q1: {
+      type: "wires",
+      wires: [
+        [4, 2],
+        [5, 2],
+        [6, 2],
+      ],
+      plaque: "S1",
+    },
+    Q2: {
+      type: "wires",
+      wires: [
+        [4, 3],
+        [5, 3],
+        [6, 3],
+      ],
+      plaque: "S2",
+    },
+  });
+  const objectOf = (id: string) => {
+    const q = room.objects.find((x) => x.id === id);
+    if (!q) throw new Error(`no ${id}`);
+    return q;
+  };
+  const decode = (id: string, view: RoleView, prior = emptyBelief()) => {
+    const b = beliefFrom(view, [], objectOf(id), prior);
+    DECODERS.wires?.(view, [], b, objectOf(id), view.tick);
+    return b;
+  };
+
+  it("reads the plaque's rule, applies it to the colours it sees, and cuts that wire", () => {
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const world = createWorld(room, seed);
+      const s = world.stations.Q1;
+      if (!s) throw new Error("no Q1");
+      place(world, 1, { x: 3, y: 2 });
+      const b = decode("Q1", viewFor(world, 1, "deaf", false));
+      expect(b.rule).toBe(s.answer[1]);
+      expect(b.answer).toEqual([s.answer[0]]);
+    }
+  });
+
+  it("with the plaque out of sight, it never cuts a wire", () => {
+    const world = createWorld(room, 3);
+    place(world, 2, { x: 3, y: 3 });
+    const view = viewFor(world, 2, "mute", false);
+    expect(view.entities.some((e) => e.id === "S2")).toBe(false);
+    expect(view.entities.find((e) => e.id === "Q2")?.station?.shows.length).toBe(3);
+    const b = decode("Q2", view);
+    expect(b.answer).toEqual([null]);
+  });
+
+  it("forgets the rule once the wires change colour (a panel drawn again)", () => {
+    const world = createWorld(room, 3);
+    place(world, 1, { x: 3, y: 2 });
+    const read = decode("Q1", viewFor(world, 1, "deaf", false));
+    const s = world.stations.Q1;
+    if (!s) throw new Error("no Q1");
+    s.answer = [0, 5, ...s.answer.slice(2).map((c) => (c + 1) % 6)];
+    // the plaque now behind the bot's back is still read: shows changed, so the old rule goes
+    const hidden = { ...viewFor(world, 1, "deaf", false) };
+    hidden.entities = hidden.entities.filter((e) => e.id !== "S1");
+    const b = decode("Q1", hidden, read);
+    expect(b.rule).toBeNull();
+    expect(b.answer).toEqual([null]);
+  });
+});
+
+describe("the keypad decoder", () => {
+  // the clue c1 at (2,2); a wall at x=8 keeps the sound from the far room
+  const GRID = [
+    "#############",
+    "#1..Q...#...#",
+    "#2c.....#...#",
+    "#3......#...#",
+    "#############",
+  ];
+  const keys = [0, 1, 2].flatMap((y) => [0, 1, 2].map((x) => [4 + x, 1 + y]));
+  const room = roomWith(GRID, {
+    Q1: { type: "keypad", keys, clue: "c1", length: 3 },
+    c1: {},
+  });
+  const q = room.objects.find((x) => x.id === "Q1");
+  if (!q) throw new Error("no Q1");
+  const listen = (seat: 0 | 1 | 2, role: "blind" | "mute", at: { x: number; y: number }) => {
+    const world = createWorld(room, 5);
+    place(world, seat, at);
+    let b = emptyBelief();
+    for (let t = 0; t < 200; t++) {
+      step(world, {}, TICK_MS);
+      const view = viewFor(world, seat, role, false);
+      b = beliefFrom(view, [], q, b);
+      DECODERS.keypad?.(view, [], b, q, view.tick);
+    }
+    return { world, b };
+  };
+
+  it("a hearing bot near the clue hears the code twice and presses its keys in order", () => {
+    const { world, b } = listen(2, "mute", { x: 3, y: 2 });
+    const s = world.stations.Q1;
+    if (!s) throw new Error("no Q1");
+    expect(b.answer).toEqual(s.answer);
+    expect(keypadStep(q, b)).toEqual({
+      x: 4 + ((s.answer[0] as number) % 3),
+      y: 1 + Math.floor((s.answer[0] as number) / 3),
+    });
+    s.input = [s.answer[0] as number];
+    const pressed = beliefFrom(viewFor(world, 2, "mute", false), [], q, b);
+    const k = s.answer[1] as number;
+    expect(keypadStep(q, pressed)).toEqual({ x: 4 + (k % 3), y: 1 + Math.floor(k / 3) });
+  });
+
+  it("out of earshot of the clue, it never presses a key", () => {
+    const { b } = listen(2, "mute", { x: 10, y: 2 });
+    expect(b.answer).toEqual([]);
+    expect(keypadStep(q, b)).toBeNull();
   });
 });

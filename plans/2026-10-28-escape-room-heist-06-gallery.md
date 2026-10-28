@@ -69,6 +69,8 @@ export function think(room: Room, view: RoleView, inbox: ChannelMessage[], memor
 
 ### Task 18: Bots solve wires and their plaque; keypad from what they perceive
 
+- [x] Done 2026-10-29 (overnight run; calls logged in `…-overnight.md`, 06/18)
+
 - **Description:** Per this file's §4: the decoder(s) (or, for gear, the job choice from the view)
   in `src/game/bots/decode.ts`, registered in `DECODERS`; bots send and read only P3's forms.
 - **Files touched:** `src/game/bots/decode.ts` (+ `decode.test.ts`), `src/game/bots/brain.ts`

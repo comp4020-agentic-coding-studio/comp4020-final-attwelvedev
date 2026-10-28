@@ -1,0 +1,18 @@
+{"id":"03-wires","name":"Wires and plaque (bots fixture)","version":1,"budgetS":240,
+ "beats":[
+  {"name":"Plaque","x":[0,19],"intent":{"blind":"hears the snip","deaf":"reads the plaque through the glass","mute":"reads the plaque and cuts the wire"}},
+  {"name":"Out","x":[0,19],"intent":{"blind":"walks out","deaf":"walks out","mute":"walks out"}}
+ ],
+ "objects":{
+  "Q1":{"type":"wires","wires":[[10,1],[11,1],[12,1],[13,1]],"plaque":"S1"},
+  "D1":{"opensWhen":["Q1"]}},
+ "hints":{"jobs":[
+  {"beat":1,"station":"Q1","at":[3,3],"prefer":"mute"},
+  {"beat":2,"goTo":"E","all":true}]}}
+---
+###################
+#1.......Q....D..E#
+#2............D..E#
+#3............D..E#
+##S################
+###################

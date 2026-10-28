@@ -7,7 +7,14 @@ import { stationParts, tilesOf } from "../sim/stations.ts";
 import { decodeSeen } from "../sim/visibility.ts";
 import { createWorld, SPEED_TPS, type StationType, TICK_MS, type World } from "../sim/world.ts";
 import { type PlayerInput, ROLES, type Role, type Seat, type Vec } from "../types.ts";
-import { beliefFrom, DECODERS, dialStep, emptyBelief, TURN_WAIT_TICKS } from "./decode.ts";
+import {
+  beliefFrom,
+  DECODERS,
+  dialStep,
+  emptyBelief,
+  keypadStep,
+  TURN_WAIT_TICKS,
+} from "./decode.ts";
 import { type AlarmWindow, forecastFor } from "./forecast.ts";
 import {
   claimJobs,
@@ -751,12 +758,15 @@ function stationStep(room: Room, m: BotMemory, known: Known, id: string): Press 
     return t ? { tile: t } : null;
   }
   if (!DECODERS[type]) return null;
-  if (type === "dial") {
-    const t = dialStep(o, b);
+  if (type === "dial" || type === "keypad") {
+    const t = type === "dial" ? dialStep(o, b) : keypadStep(o, b);
     return t ? { tile: t } : null;
   }
   const marked = b.marked[0];
   if (marked) return { tile: marked };
+  // the plaque read but the wires not yet seen: the panel's anchor, where an Act cuts nothing
+  if (type === "wires" && b.rule !== null && b.shows.length === 0)
+    return { tile: o.tiles[0] as Vec };
   const next = b.answer.find((v) => v !== null);
   const parts = stationParts(o).filter((x) => x.key !== "anchor" && x.key !== "back");
   const t = next === undefined || next === null ? undefined : parts[0]?.at[next];
@@ -793,8 +803,14 @@ function thinkSighted(
     const last = m.lastPos;
     if (last && Math.hypot(view.you.pos.x - last.x, view.you.pos.y - last.y) > 1.5) {
       forgetPlans(m);
-      // sent back: every unsolved safe has a fresh number, so what was heard of it is stale
-      for (const b of Object.values(known.stations)) if (!b.solved) b.answer = [];
+      // sent back: every unsolved station has a fresh answer, so what was heard of it is stale
+      for (const b of Object.values(known.stations)) {
+        if (b.solved) continue;
+        b.answer = [];
+        b.heard = [];
+        b.rule = null;
+        b.shows = [];
+      }
     }
     m.lastPos = view.you.pos;
   }

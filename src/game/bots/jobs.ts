@@ -11,7 +11,9 @@ export type JobTarget =
   | { kind: "tile"; tile: Vec } // a waypoint
   | { kind: "exit" } // this seat's exit tile
   | { kind: "push"; crate: string; to: Vec } // push a crate onto a tile
-  | { kind: "station"; id: string } // work a station until it is solved
+  // work a station until it is solved; `at` is where its clue is perceived (a plaque read, a code
+  // heard), stood on until the answer is worked out; a keypad's code is heard, so `hearing`
+  | { kind: "station"; id: string; at?: Vec; hearing?: true }
   | { kind: "listen"; station: string; tile: Vec } // stand here (at a safe's back) until it is solved
   | { kind: "take"; gear: string } // pick up a piece of gear
   | { kind: "give"; gear: string; to: Role } // hand it to the seat with this role
@@ -79,7 +81,16 @@ export function parseJob(room: Room, j: unknown, index: number): Job | string {
     if (!room.objects.some((o) => o.id === j.station && o.kind === "station")) {
       return `hint job ${index + 1} works ${j.station}, which is not a station in this room`;
     }
-    target = { kind: "station", id: j.station };
+    if (j.at !== undefined && (!isTile(j.at) || room.grid[j.at[1]]?.[j.at[0]] !== ".")) {
+      return `hint job ${index + 1} works ${j.station} from ${JSON.stringify(j.at)}, which is not floor`;
+    }
+    const type = room.objects.find((o) => o.id === j.station)?.params?.type;
+    target = {
+      kind: "station",
+      id: j.station,
+      ...(isTile(j.at) ? { at: { x: j.at[0], y: j.at[1] } } : {}),
+      ...(type === "keypad" ? { hearing: true as const } : {}),
+    };
   } else if (typeof j.listen === "string") {
     if (!room.objects.some((o) => o.id === j.listen && o.kind === "station")) {
       return `hint job ${index + 1} listens at ${j.listen}, which is not a station in this room`;
@@ -233,6 +244,7 @@ export function jobTile(room: Room, job: Job, seat: Seat): Vec {
     case "tow":
       return job.target.to;
     case "station": {
+      if (job.target.at) return job.target.at;
       const id = job.target.id;
       return room.objects.find((o) => o.id === id)?.tiles[0] ?? { x: 0, y: 0 };
     }
@@ -255,12 +267,13 @@ export function exitTile(room: Room, seat: Seat): Vec {
 }
 
 // Blind never pushes or works the stations, gear and hands (it steers by callouts alone), and
-// Can't hear never gets a clue job or a listen job: it could not learn the number.
+// Can't hear never gets a clue job, a listen job or a keypad: it could not learn the number.
 const SIGHTED_ONLY = new Set<JobTarget["kind"]>(["push", "station", "take", "give", "sill", "tow"]);
 const eligible = (role: Role, job: Job) =>
   !(role === "blind" && SIGHTED_ONLY.has(job.target.kind)) &&
   !(role === "deaf" && job.target.kind === "plate" && job.target.clue !== undefined) &&
-  !(role === "deaf" && job.target.kind === "listen");
+  !(role === "deaf" && job.target.kind === "listen") &&
+  !(role === "deaf" && job.target.kind === "station" && job.target.hearing === true);
 const distance = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
 
 // Splits the room's jobs between the three seats, one job per seat per beat, as

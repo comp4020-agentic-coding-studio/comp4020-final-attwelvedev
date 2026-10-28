@@ -1,7 +1,7 @@
 import type { ChannelMessage } from "../channels.ts";
 import type { RoleView } from "../perception.ts";
 import type { RoomObject } from "../rooms/format.ts";
-import { stationParts, tilesOf } from "../sim/stations.ts";
+import { NOTE_TICKS, stationParts, tilesOf, WIRE_RULES } from "../sim/stations.ts";
 import type { StationType } from "../sim/world.ts";
 import type { Vec } from "../types.ts";
 
@@ -16,6 +16,8 @@ export interface StationBelief {
   marked: Vec[]; // part tiles a teammate put an `x` mark on: "press this"
   numbers: number[]; // one-digit texts received, in order
   changedAt: number; // the tick `shows` last changed while in sight (a dial's turner waits on it)
+  rule: number | null; // a wire panel's plaque, read: which of WIRE_RULES it says
+  heard: { tick: number; n: number }[]; // a keypad's code notes heard (n: the key), latest last
 }
 
 export type Decoder = (
@@ -34,6 +36,8 @@ export const emptyBelief = (): StationBelief => ({
   marked: [],
   numbers: [],
   changedAt: Number.NEGATIVE_INFINITY,
+  rule: null,
+  heard: [],
 });
 
 // The only text a bot reads (P3): a single digit.
@@ -56,12 +60,16 @@ export function beliefFrom(
     told: new Set(prior.told),
     marked: [...prior.marked],
     numbers: [...prior.numbers],
+    heard: [...prior.heard],
   };
   const e = view.entities.find((x) => x.id === o.id && x.kind === "station");
   if (e?.station) {
     if (e.station.solved) b.solved = true;
     if (!e.station.furniture) {
-      if (e.station.shows.join() !== prior.shows.join()) b.changedAt = view.tick;
+      if (e.station.shows.join() !== prior.shows.join()) {
+        b.changedAt = view.tick;
+        if (prior.shows.length > 0 && o.params?.type === "wires") b.rule = null; // drawn again
+      }
       b.shows = [...e.station.shows];
     }
   }
@@ -116,6 +124,46 @@ export function dialStep(o: RoomObject, b: StationBelief): Vec | null {
   return tilesOf(o.params?.pads)[1] ?? null;
 }
 
+// --- Wires and their plaque -------------------------------------------------------------------
+// A sighted bot reads the plaque (a sign whose text is one of the rules) and sees the wires'
+// colours, and applies the rule it read, as a person would. Wires seen to change colour (a panel
+// drawn again after a wrong cut) make the rule read before stale: beliefFrom forgets it.
+const wires: Decoder = (view, _inbox, b, o) => {
+  const plaque = view.entities.find((e) => e.id === o.params?.plaque && e.text);
+  const read = plaque ? WIRE_RULES.findIndex((r) => r.text === plaque.text) : -1;
+  if (read >= 0) b.rule = read;
+  const cut = b.rule === null || b.shows.length === 0 ? null : WIRE_RULES[b.rule]?.cut(b.shows);
+  b.answer = [cut ?? null];
+};
+
+// --- The keypad -------------------------------------------------------------------------------
+// Its code plays at its clue, one note a key (a `clue` chime with n = key + 1), every note
+// NOTE_TICKS after the last, then a pause. A hearing bot takes the code once it has heard the same
+// whole tune twice running: the first may have been caught half-way through.
+const keypad: Decoder = (view, _inbox, b, _o, now) => {
+  for (const s of view.sounds)
+    if (s.kind === "clue" && s.n !== undefined) b.heard.push({ tick: view.tick, n: s.n - 1 });
+  const tunes: number[][] = [];
+  b.heard.forEach((h, i) => {
+    const before = b.heard[i - 1];
+    if (!before || h.tick - before.tick > NOTE_TICKS) tunes.push([]);
+    tunes.at(-1)?.push(h.n);
+  });
+  const last = b.heard.at(-1);
+  if (last && now - last.tick <= NOTE_TICKS) tunes.pop(); // still playing
+  const [a, c] = tunes.slice(-2);
+  if (a && c && a.join() === c.join()) b.answer = [...c];
+  b.heard = b.heard.slice(-12);
+};
+
+// The keypad key to press next: the code's next note after the keys already entered (seen on the
+// pad), once the code is known.
+export function keypadStep(o: RoomObject, b: StationBelief): Vec | null {
+  const key = b.answer[b.shows.length];
+  if (key === null || key === undefined) return null;
+  return tilesOf(o.params?.keys)[key] ?? null;
+}
+
 // One decoder per station type, added with the room that first needs it. A bot does not work a
 // station whose type has none.
-export const DECODERS: Partial<Record<StationType, Decoder>> = { dial };
+export const DECODERS: Partial<Record<StationType, Decoder>> = { dial, wires, keypad };

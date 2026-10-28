@@ -9,6 +9,7 @@ import {
   isDone,
   isOpen,
   type Job,
+  jobTile,
   type Known,
   parseJob,
 } from "./jobs.ts";
@@ -358,5 +359,51 @@ describe("jobs for stations, gear and hands (escape-room Task 4)", () => {
     expect(job({ give: "g1", to: "ghost" })).toMatch(/not a role/);
     expect(job({ sill: "g1", hatch: "H9" })).toMatch(/H9.*not a hatch/);
     expect(job({ tow: "blind", to: [0, 0] })).toMatch(/not floor/);
+  });
+});
+
+describe("station jobs that perceive the clue from a tile (escape-room Task 18)", () => {
+  const GRID = ["############", "#1..Q...#..#", "#2..Q...#..#", "#3......#.E#", "############"];
+  const r = parseRoom(
+    `${JSON.stringify({
+      id: "t",
+      name: "T",
+      beats: [{ name: "b", x: [0, 11], intent: { blind: "b", deaf: "d", mute: "m" } }],
+      objects: {
+        Q1: {
+          type: "wires",
+          wires: [
+            [5, 1],
+            [6, 1],
+            [7, 1],
+          ],
+          plaque: "S9",
+        },
+        Q2: {
+          type: "keypad",
+          keys: [
+            [5, 2],
+            [6, 2],
+            [7, 2],
+          ],
+          clue: "c9",
+        },
+      },
+    })}\n---\n${GRID.join("\n")}\n`,
+  );
+  const job = (j: Record<string, unknown>) => parseJob(r, { beat: 1, ...j }, 0);
+
+  it("goes to `at` first, where the plaque is read or the code heard", () => {
+    const j = job({ station: "Q1", at: [2, 3] }) as Job;
+    expect(j.target).toEqual({ kind: "station", id: "Q1", at: { x: 2, y: 3 } });
+    expect(jobTile(r, j, 0)).toEqual({ x: 2, y: 3 });
+    expect(job({ station: "Q1", at: [0, 0] })).toMatch(/not floor/);
+  });
+
+  it("leaves a keypad, whose code is heard, to a seat that can hear", () => {
+    const j = job({ station: "Q2", at: [2, 3], prefer: "deaf" }) as Job;
+    expect(j.target).toMatchObject({ hearing: true });
+    const queues = claimJobs(r, [j], seats());
+    expect(queues[1]).toEqual([]);
   });
 });
