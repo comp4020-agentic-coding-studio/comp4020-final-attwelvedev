@@ -109,13 +109,13 @@ describe("the top bar", () => {
 });
 
 describe("room one's labels", () => {
-  it("shows a label for a plate in sight and keeps it there, and the Labels toggle hides them", async () => {
+  it("shows the nearest chips, at most three, and the Labels toggle hides them", async () => {
     const table = await playRoom(browser, baseUrl);
     const page = table.byRole.deaf;
     const canvas = page.locator("canvas[data-camera]");
-    await expect
-      .poll(() => canvas.getAttribute("data-labels"), { timeout: 5000 })
-      .toContain("plate");
+    await expect.poll(() => canvas.getAttribute("data-labels"), { timeout: 5000 }).not.toBe("");
+    const chips = (await canvas.getAttribute("data-labels"))?.split(" ").filter(Boolean) ?? [];
+    expect(chips.length).toBeLessThanOrEqual(3);
     await page.getByRole("button", { name: "Menu" }).click();
     await page.getByRole("button", { name: "Settings" }).click();
     await page.getByLabel("Labels").uncheck();

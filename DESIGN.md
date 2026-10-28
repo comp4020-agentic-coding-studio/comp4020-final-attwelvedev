@@ -168,8 +168,9 @@ Room 1 (and, for the escape-room objects, every room: a station, gear, the hatch
 reference, not a notification: while a kind of thing (plate, crate, door, glass, vent, camera,
 guard, exit, loot) is in your line of sight, one chip floats above the nearest of it on `--glass`
 with a one-sentence job, in the HUD's font. Out of sight, the chip goes; back in sight, it returns.
-Chips wrap, stay inside the frame, and lift above one another rather than overlap. They show in the
-first room only, and the **Labels** setting (in the menu's Settings, on by default) turns them off.
+At most three chips show on desktop and two on a phone (a canvas under 720 px), the nearest first.
+Chips wrap, stay inside the frame, and move to the nearest free spot rather than overlap. The
+escape-room objects are labelled in every room, the rest in the first room only, and the **Labels** setting (in the menu's Settings, on by default) turns them off.
 Can't see has no map and gets none.
 
 ### 4.8 Stations, gear and signals (built, escape-room phase 02)

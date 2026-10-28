@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EntityView } from "../game/perception.ts";
-import { LABEL_COPY, labelsFor } from "./labels.ts";
+import { LABEL_CAP, LABEL_COPY, labelsFor } from "./labels.ts";
 
 const plate: EntityView = { id: "p1", kind: "plate", pos: { x: 3.5, y: 4.5 } };
 const plate2: EntityView = { id: "p2", kind: "plate", pos: { x: 9.5, y: 4.5 } };
@@ -151,5 +151,27 @@ describe("labelsFor: where a station's chip points", () => {
     };
     const [l] = labelsFor([box], undefined, { x: 8, y: 8 }, true);
     expect(l?.at).toEqual({ x: 8.5, y: 10.5 });
+  });
+});
+
+// Label cap (clues FR12): three chips on desktop, two on a phone, the nearest first.
+describe("labelsFor: the cap", () => {
+  const five: EntityView[] = [
+    { ...plate, pos: { x: 3.5, y: 4.5 } },
+    { ...crate, pos: { x: 4.5, y: 4.5 } },
+    { ...door, pos: { x: 6.5, y: 4.5 } },
+    { id: "g1", kind: "gear", pos: { x: 8.5, y: 4.5 }, item: "uv" },
+    { id: "b1", kind: "bell", pos: { x: 10.5, y: 4.5 } },
+  ];
+  it("keeps the three nearest kinds on desktop", () => {
+    const got = labelsFor(five, undefined, me, true, () => true, undefined, LABEL_CAP.desktop);
+    expect(got.map((l) => l.kind).sort()).toEqual(["crate", "door", "plate"]);
+  });
+  it("keeps the two nearest kinds on a phone", () => {
+    const got = labelsFor(five, undefined, me, true, () => true, undefined, LABEL_CAP.phone);
+    expect(got.map((l) => l.kind).sort()).toEqual(["crate", "plate"]);
+  });
+  it("has no cap unless asked", () => {
+    expect(labelsFor(five, undefined, me, true)).toHaveLength(5);
   });
 });

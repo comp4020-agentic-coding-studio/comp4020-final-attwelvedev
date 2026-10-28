@@ -17,7 +17,7 @@ import {
   lerpEntities,
 } from "../client/hud.ts";
 import { createInput, inputKey } from "../client/input.ts";
-import { ESCAPE_KINDS, type Label, labelsFor } from "../client/labels.ts";
+import { ESCAPE_KINDS, LABEL_CAP, type Label, labelsFor } from "../client/labels.ts";
 import { createPredictor, type Predictor } from "../client/predict.ts";
 import { inSight, seenOf } from "../client/render/sight.ts";
 import {
@@ -191,6 +191,7 @@ function useDraw(
           true,
           (at) => inSight(seenNow, at),
           rt.labelsAll ? undefined : ESCAPE_KINDS,
+          size.w >= 720 ? LABEL_CAP.desktop : LABEL_CAP.phone,
         );
         labels = rt.labels;
       }

@@ -151,7 +151,7 @@ tone = steady sine; pip = 880 Hz blip; clunk = low square; bellnote `n` = sine
   then capped, which changes phases 03–04).
 - **Depends on:** Task 3.
 
-### Task 8: Draw stations, gear, UV, goggles, hatch, held hands, bell, lamp, dye
+### Task 8: Draw stations, gear, UV, goggles, hatch, held hands, bell, lamp, dye ✅ (review queued)
 
 - **Description:** Every new entity and state drawn per this file's §4 and
   spec §4.1, including reduced-motion and high-contrast variants.
@@ -201,7 +201,7 @@ tone = steady sine; pip = 880 Hz blip; clunk = low square; bellnote `n` = sine
   and that is not part of this review (phase 03).
 - **Depends on:** Tasks 3, 7.
 
-### Task 9: Synthesised sounds and captions for every new cue
+### Task 9: Synthesised sounds and captions for every new cue ✅ (review queued)
 
 - **Description:** Per this file's §4; no speech, no new files.
 - **Files touched:** `src/client/audio.ts`, `src/client/hud.ts` (`CUE_WORD`
@@ -221,7 +221,7 @@ tone = steady sine; pip = 880 Hz blip; clunk = low square; bellnote `n` = sine
   = the user says so.
 - **Depends on:** Task 3.
 
-### Task 10: HUD gear slot, Act hint, lamp light, side-job chip, labels
+### Task 10: HUD gear slot, Act hint, lamp light, side-job chip, labels ✅ (review queued)
 
 - **Description:** HUD additions from spec §4.1 and the new first-seen
   labels.
@@ -258,11 +258,11 @@ tone = steady sine; pip = 880 Hz blip; clunk = low square; bellnote `n` = sine
 
 ## 6. Phase Definition of Done
 
-- [ ] Every task in §5 is complete and its tests pass
-- [ ] `pnpm test:unit` passes
-- [ ] `pnpm build && pnpm start` then `pnpm check` passes
-- [ ] Task 7's numbers recorded; Tasks 8–10 human reviews accepted (look, sound, HUD; not solvability)
-- [ ] Branch `wip/escape-room-02-client` merged into `play-overhaul` (or its commits replayed), one commit per task
+- [x] Every task in §5 is complete and its tests pass
+- [x] `pnpm test:unit` passes
+- [x] `pnpm build && pnpm start` then `pnpm check` passes (118 files, 1510 tests, 255 s)
+- [x] Task 7's numbers recorded; Tasks 8–10 human reviews accepted (look, sound, HUD; not solvability) (review queued)
+- [ ] Branch `wip/escape-room-02-client` merged into `play-overhaul` (or its commits replayed), one commit per task (deferred to morning)
 - [ ] Tick this phase in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)

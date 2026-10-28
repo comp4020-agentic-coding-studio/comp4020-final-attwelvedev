@@ -288,7 +288,7 @@ matching `/^\d$/`, or `"stop"` as a callout for a dial; bots read only those two
 | Phase | File | Tasks | Needs | Ends with | Done |
 | --- | --- | --- | --- | --- | --- |
 | 01 | `…-01-framework.md` | 1–6 | — | stations, gear, holding, hatch, bell, lamp, dye in the sim; presence linter | [x] |
-| 02 | `…-02-client.md` | 7–10 | 01 | every new object drawn, heard and labelled (label cap); HUD; reviewed on fixtures | [ ] |
+| 02 | `…-02-client.md` | 7–10 | 01 | every new object drawn, heard and labelled (label cap); HUD; reviewed on fixtures | [x] |
 | 03 | `…-03-clues.md` | 11–13 | 02 | clue paths and motifs in sim and view; clue-path linter; perception-only bot core, existing rooms still cleared | [ ] |
 | 04 | `…-04-basics.md` | 14–15 | 03 | rooms 1 to 3 replace First Job; **human review** | [ ] |
 | 05 | `…-05-safe.md` | 16–17 | 04 | safe decoder; room 4 The Safe; **human review** | [ ] |

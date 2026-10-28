@@ -68,6 +68,10 @@ const STATION_KIND: Record<NonNullable<EntityView["station"]>["type"], string> =
   sync: "keys",
 };
 
+// At most this many chips at once, the nearest first (clues FR12); a phone is a canvas narrower
+// than 720 px, the camera's phone split.
+export const LABEL_CAP = { desktop: 3, phone: 2 } as const;
+
 const TILE_RADIUS = 7; // glass and vents are labelled when one is this close to the seat
 const KIND_OF: Partial<Record<EntityView["kind"], string>> = {
   plate: "plate",
@@ -104,6 +108,7 @@ export function labelsFor(
   enabled = true,
   visible: (at: Vec) => boolean = () => true,
   only?: ReadonlySet<string>, // label just these kinds (past the first room: the new objects)
+  max = Number.POSITIVE_INFINITY, // keep only this many chips, the nearest
 ): Label[] {
   if (!enabled) return [];
   const nearest = new Map<string, { at: Vec; d: number }>();
@@ -150,5 +155,7 @@ export function labelsFor(
   }
   return [...nearest]
     .filter(([kind]) => !only || only.has(kind))
+    .sort((a, b) => a[1].d - b[1].d)
+    .slice(0, max)
     .map(([kind, { at }]) => ({ kind, text: LABEL_COPY[kind] ?? kind, at }));
 }
