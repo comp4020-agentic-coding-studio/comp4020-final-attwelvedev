@@ -93,7 +93,9 @@ a failing test.
 ## Tests
 
 vitest runs a file's tests serially and files in parallel, so the slowest file
-sets `pnpm check`'s time. Put slow (browser, server-booting) tests in a file per
+sets `pnpm check`'s time. The browser specs run at most 3 files at once
+(`maxWorkers` in `vitest.config.ts`): uncapped, they starved the machine and
+timed out at random. Don't raise it without timing a full check twice. Put slow (browser, server-booting) tests in a file per
 area, and measure per file (`vitest run --reporter=json`) before guessing at a
 fix.
 
