@@ -149,8 +149,8 @@
   on its face, and a sound). The keypad (moon motif, 4-key code) is in the east room; its code chimes
   from the closet behind the vent in the corridor's south wall, with a **rest** where the third key
   goes: that key is the radio's digit. The exit door is in the keypad room's east wall. Questions: can
-  each clue be found and understood; does the teaching radio teach the real one (it never pips: the
-  teaching version only tunes); does the moon link (radio digit → the rest in the tune) work out
+  each clue be found and understood; does the teaching radio teach the real one (it pips its digit once
+  tuned too, but that digit feeds nothing); does the moon link (radio digit → the rest in the tune) work out
   unaided, or does the rest need a stronger tell; is the three-switch lights-out learnable from the
   card alone; does anyone wait with nothing to do for more than about 20 s (Can't see in beat 1 may)?
 - **Start locally:** `lsof -ti tcp:8080 -sTCP:LISTEN | xargs kill; pnpm build && pnpm start`, open
