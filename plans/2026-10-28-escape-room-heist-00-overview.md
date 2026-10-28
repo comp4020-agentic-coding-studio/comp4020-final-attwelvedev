@@ -296,7 +296,7 @@ matching `/^\d$/`, or `"stop"` as a callout for a dial; bots read only those two
 | 07 | `…-07-lights-out.md` | 20–21 | 06 | radio and switches decoders; room 6; **human review** | [x] |
 | 08 | `…-08-night-shift.md` | 22–23 | 07 | UV and goggles bot use; room 7; **human review** | [x] |
 | 09 | `…-09-music-room.md` | 24–25 | 08 | music box and earpiece decoders; room 8; **human review** | [x] |
-| 10 | `…-10-vault.md` | 26–27 | 09 | vault and sync decoders; room 9; old rooms removed; **human review** | [ ] |
+| 10 | `…-10-vault.md` | 26–27 | 09 | vault and sync decoders; room 9; old rooms removed; **human review** | [x] |
 | 11 | `…-11-wrap-up.md` | 28–31 | 10 | side jobs, credits, comms map, edition 2, docs, ADRs; **human review** | [ ] |
 
 ## 6. Feature-level Definition of Done
