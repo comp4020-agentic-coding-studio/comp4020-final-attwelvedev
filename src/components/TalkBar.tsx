@@ -23,7 +23,6 @@ export function TalkBar({
   onText,
   onFocus,
   onComms,
-  commsDisabled,
 }: {
   role: Role;
   voice: Voice;
@@ -35,7 +34,6 @@ export function TalkBar({
   // The Comms button sits with the other talk buttons, for a mouse and keyboard player who
   // would rather click than hold Q. Absent on a phone, whose wheel button does the same.
   onComms?: () => void;
-  commsDisabled?: boolean;
 }) {
   const text = canSend(role, "text");
   const speaks = canSend(role, "voice");
@@ -74,7 +72,6 @@ export function TalkBar({
             class="btn talk-comms"
             aria-keyshortcuts="Q"
             aria-label="Comms, key Q"
-            disabled={commsDisabled}
             onClick={onComms}
           >
             <kbd>Q</kbd> Comms

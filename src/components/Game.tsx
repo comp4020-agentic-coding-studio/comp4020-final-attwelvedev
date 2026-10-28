@@ -614,8 +614,10 @@ function Hud({
   rt.soundOn = settings.sound && !forceCaptions;
 
   // The tile centre under a client point, for placing a mark; `open` is false
-  // for a wall (the server decides what is in sight).
+  // for a wall (the server decides what is in sight). None once the room is cleared: its panel
+  // covers the map, so there is no tile to point at.
   function toTile(clientX: number, clientY: number): { at: Vec; open: boolean } | null {
+    if (rt.view?.status === "cleared") return null;
     const box = canvas.current?.getBoundingClientRect();
     const cam = rt.cam;
     const tiles = rt.tiles;
@@ -1125,12 +1127,11 @@ function Hud({
         }}
         onFocus={setTyping}
         onComms={touch ? undefined : () => comms.current?.toggle()}
-        commsDisabled={cleared}
       />
 
       {touch ? (
         <TouchControls
-          disabled={cleared}
+          moveDisabled={cleared}
           comms={comms}
           quickLabel={quickSlot(role, settings.quick).name}
           act={act}

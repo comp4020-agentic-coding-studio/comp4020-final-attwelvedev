@@ -7,26 +7,27 @@ import type { CommsApi } from "./CommsWheel.tsx";
 // press could still raise the browser's menu mid-game.
 const noMenu = (e: Event): void => e.preventDefault();
 
-// `disabled` greys the controls out (the room is cleared: there is nothing to steer).
+// `moveDisabled` greys out the joystick and Act (the room is cleared: there is nothing to steer);
+// the comms buttons stay live, so the crew can still talk.
 export function TouchControls({
-  disabled = false,
+  moveDisabled = false,
   comms,
   quickLabel,
   act,
 }: {
-  disabled?: boolean;
+  moveDisabled?: boolean;
   comms?: { current: CommsApi | null };
   quickLabel?: string; // what the quick slot sends, for its label
   act?: string; // what Act would do here (the view's words): the button says it
 }) {
   return (
-    <div class={disabled ? "touch-zone is-off" : "touch-zone"}>
+    <div class="touch-zone">
       <div
-        class="joystick"
+        class={moveDisabled ? "joystick is-off" : "joystick"}
         data-joystick
         role="application"
         aria-label="Move"
-        aria-disabled={disabled ? "true" : undefined}
+        aria-disabled={moveDisabled ? "true" : undefined}
         onContextMenu={noMenu}
       >
         <span class="knob" />
@@ -37,7 +38,6 @@ export function TouchControls({
             type="button"
             class="quick-btn"
             aria-label={`Quick send: ${quickLabel ?? ""}`}
-            disabled={disabled}
             onClick={() => comms.current?.quick()}
             onContextMenu={noMenu}
           >
@@ -47,7 +47,6 @@ export function TouchControls({
             type="button"
             class="wheel-btn"
             aria-label="Comms wheel: hold, drag to a choice, let go to send"
-            disabled={disabled}
             onPointerDown={(e) => {
               e.preventDefault();
               e.currentTarget.setPointerCapture(e.pointerId);
@@ -61,9 +60,9 @@ export function TouchControls({
       )}
       <button
         type="button"
-        class={act ? "act has-hint" : "act"}
+        class={["act", act && "has-hint", moveDisabled && "is-off"].filter(Boolean).join(" ")}
         data-act
-        disabled={disabled}
+        disabled={moveDisabled}
         aria-label={act ? `Act: ${act}` : "Act"}
         onContextMenu={noMenu}
       >

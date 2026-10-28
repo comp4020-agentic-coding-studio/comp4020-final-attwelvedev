@@ -437,6 +437,17 @@ describe("a person's messages reach the bots they are sent to", () => {
   });
 });
 
+describe("the crew can still talk once a room is cleared", () => {
+  it("relays a text from Can't see (to Can't speak, its only reader) while the room is cleared", () => {
+    const l = withBots("a", 1, 2);
+    const game = startGame(l, rooms);
+    game.world.status = "cleared";
+    const blind = game.roles.indexOf("blind") as Seat;
+    const sent = relay(game, l, blind, { method: "text", text: "nice one" }, 1_000);
+    expect(sent).toMatchObject({ ok: true });
+  });
+});
+
 describe("a mark must be on a tile the sender can see", () => {
   const first = (game: ReturnType<typeof startGame>, role: "deaf" | "blind" | "mute") =>
     game.roles.indexOf(role) as Seat;

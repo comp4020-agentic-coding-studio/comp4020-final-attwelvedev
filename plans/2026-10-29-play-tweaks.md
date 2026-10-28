@@ -114,7 +114,7 @@ cleared panel. Restyling the `/leaderboard` page.
   - **Test first:** `spec/layout/reveal.test.ts` checks that a row after one room contains
     "Played: " and isn't clipped (`scrollHeight`), at 375 and 1280.
   - **Verify:** demo 1.
-- [ ] **Task 4: Comms while cleared.**
+- [x] **Task 4: Comms while cleared.**
   - **Change:**
     - Stop disabling the talk bar, text field, voice, wheel and touch comms on `cleared`. Disable only
       mark placement (`toTile` returns null while cleared) and movement or Act (`TouchControls`

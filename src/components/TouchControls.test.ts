@@ -18,7 +18,7 @@ describe("TouchControls", () => {
   // The browser spec fired this event the instant the joystick appeared, before
   // any effect had run. The handler must belong to the element, not be added later.
   it("keeps the joystick and Act from raising a context menu the moment they exist", () => {
-    render(h(TouchControls, { disabled: false }), document.body);
+    render(h(TouchControls, { moveDisabled: false }), document.body);
     const stick = document.querySelector("[data-joystick]");
     const act = document.querySelector("[data-act]");
     expect(stick).not.toBeNull();
@@ -28,23 +28,34 @@ describe("TouchControls", () => {
   });
 
   it("labels the joystick for assistive technology", () => {
-    render(h(TouchControls, { disabled: false }), document.body);
+    render(h(TouchControls, { moveDisabled: false }), document.body);
     expect(document.querySelector("[data-joystick]")?.getAttribute("aria-label")).toBe("Move");
   });
 
   it("greys out and stops answering touches when disabled, but still blocks the menu", () => {
-    render(h(TouchControls, { disabled: true }), document.body);
+    render(h(TouchControls, { moveDisabled: true }), document.body);
     const stick = document.querySelector("[data-joystick]") as Element;
     const act = document.querySelector("[data-act]") as HTMLButtonElement;
     expect(stick.getAttribute("aria-disabled")).toBe("true");
     expect(act.disabled).toBe(true);
-    expect(document.querySelector(".touch-zone")?.classList.contains("is-off")).toBe(true);
+    expect(stick.classList.contains("is-off")).toBe(true);
+    expect(act.classList.contains("is-off")).toBe(true);
     expect(menu(stick)).toBe(true);
   });
 
+  it("keeps the comms buttons live while movement is off, so the crew can still talk", () => {
+    const comms = { current: null };
+    render(h(TouchControls, { moveDisabled: true, comms, quickLabel: "Wait" }), document.body);
+    for (const sel of [".quick-btn", ".wheel-btn"]) {
+      const b = document.querySelector(sel) as HTMLButtonElement;
+      expect(b.disabled, sel).toBe(false);
+      expect(b.closest(".is-off"), sel).toBeNull();
+    }
+  });
+
   it("is live by default", () => {
-    render(h(TouchControls, { disabled: false }), document.body);
-    expect(document.querySelector(".touch-zone")?.classList.contains("is-off")).toBe(false);
+    render(h(TouchControls, { moveDisabled: false }), document.body);
+    expect(document.querySelector(".is-off")).toBeNull();
     expect((document.querySelector("[data-act]") as HTMLButtonElement).disabled).toBe(false);
   });
 });

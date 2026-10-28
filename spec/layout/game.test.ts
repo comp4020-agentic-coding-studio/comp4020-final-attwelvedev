@@ -1,8 +1,10 @@
 import type { Browser, Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 import { ROLE_LABEL } from "../../src/game/types.ts";
-import { axeViolations, horizontalOverflow, launch } from "../browser.ts";
+import { axeViolations, DESKTOP, horizontalOverflow, launch } from "../browser.ts";
+import { clearRoomOne } from "../heistPlay.ts";
 import { leaveGameAndClose } from "../lobbyUi.ts";
+import { closeAll, type Player, ready, startedGame } from "../play.ts";
 import { canvasHash, playRoom, settledHash } from "../playUi.ts";
 
 const baseUrl = inject("baseUrl");
@@ -306,6 +308,45 @@ describe("the game screen", () => {
     await leaveGameAndClose(deaf, baseUrl);
     await leaveGameAndClose(mute, baseUrl);
   });
+});
+
+// A player's own device, opened in a browser on a game that sockets started: the cookie and the
+// saved nickname are theirs, so the lobby page rejoins their seat.
+async function openAs(player: Player, nickname: string, code: string): Promise<Page> {
+  const eq = player.cookie.indexOf("=");
+  const context = await browser.newContext({ viewport: DESKTOP });
+  await context.addCookies([
+    { name: player.cookie.slice(0, eq), value: player.cookie.slice(eq + 1), url: baseUrl },
+  ]);
+  await context.addInitScript((n) => localStorage.setItem("heist.nickname", n), nickname);
+  const page = await context.newPage();
+  await page.goto(new URL(`/lobby/${code}`, baseUrl).href);
+  await page.locator(".frame canvas").waitFor();
+  return page;
+}
+
+describe("after a room is cleared", () => {
+  it("the crew can still write and read: the text field is live and a text arrives", async () => {
+    const { players, code } = await startedGame(baseUrl);
+    ready(players);
+    // seat 0 is Can't see and seat 2 Can't speak in room 1; Can't speak is the one who reads text
+    const blind = await openAs(players[0] as Player, "Ana", code);
+    const mute = await openAs(players[2] as Player, "Cy", code);
+    await clearRoomOne(players);
+    await blind.getByRole("heading", { name: "Room cleared" }).waitFor();
+    // the panel covers the map, not the talk bar: Comms and Write are both live and clickable
+    await blind.getByRole("button", { name: /comms/i }).click({ trial: true, timeout: 2000 });
+    expect(await blind.getByRole("button", { name: /comms/i }).isEnabled()).toBe(true);
+    await blind.getByRole("button", { name: "Write a message" }).click({ timeout: 2000 });
+    const field = blind.getByLabel("Message");
+    expect(await field.isEnabled()).toBe(true);
+    await field.fill("nice one");
+    await field.press("Enter");
+    await mute.locator(".captions p", { hasText: "Ana: nice one" }).waitFor({ timeout: 3000 });
+    await blind.context().close();
+    await mute.context().close();
+    await closeAll(players);
+  }, 120_000);
 });
 
 describe("high contrast", () => {
