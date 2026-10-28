@@ -17,7 +17,7 @@ export type JobTarget =
   | { kind: "listen"; station: string; tile: Vec } // stand here (at a safe's back) until it is solved
   // read a switches station's card, then stand where its lamps are seen and mark each button to press
   // (`read`: where its card is read first, when it is not in sight from `tile`)
-  | { kind: "watch"; station: string; tile: Vec; read?: Vec }
+  | { kind: "watch"; station: string; tile: Vec; read?: Vec; hearing?: true }
   | { kind: "take"; gear: string } // pick up a piece of gear
   | { kind: "give"; gear: string; to: Role } // hand it to the seat with this role
   | { kind: "sill"; gear: string; hatch: string } // put it on a hatch sill
@@ -92,7 +92,10 @@ export function parseJob(room: Room, j: unknown, index: number): Job | string {
       kind: "station",
       id: j.station,
       ...(isTile(j.at) ? { at: { x: j.at[0], y: j.at[1] } } : {}),
-      ...(type === "keypad" ? { hearing: true as const } : {}),
+      // a keypad's code is heard; so is a music box's tune, where it is worked from its tune box
+      ...(type === "keypad" || (type === "bells" && isTile(j.at))
+        ? { hearing: true as const }
+        : {}),
     };
   } else if (typeof j.listen === "string") {
     if (!room.objects.some((o) => o.id === j.listen && o.kind === "station")) {
@@ -104,8 +107,9 @@ export function parseJob(room: Room, j: unknown, index: number): Job | string {
     target = { kind: "listen", station: j.listen, tile: { x: j.at[0], y: j.at[1] } };
   } else if (typeof j.watch === "string") {
     const o = room.objects.find((x) => x.id === j.watch && x.kind === "station");
-    if (o?.params?.type !== "switches") {
-      return `hint job ${index + 1} watches ${j.watch}, which is not a switches station in this room`;
+    const watched = o?.params?.type;
+    if (watched !== "switches" && watched !== "bells") {
+      return `hint job ${index + 1} watches ${j.watch}, which is not a switches station or music box in this room`;
     }
     if (!isTile(j.at) || room.grid[j.at[1]]?.[j.at[0]] !== ".") {
       return `hint job ${index + 1} watches from ${JSON.stringify(j.at)}, which is not floor`;
@@ -118,6 +122,8 @@ export function parseJob(room: Room, j: unknown, index: number): Job | string {
       station: j.watch,
       tile: { x: j.at[0], y: j.at[1] },
       ...(isTile(j.read) ? { read: { x: j.read[0], y: j.read[1] } } : {}),
+      // a music box's watcher hears the tune at its box and marks the bells in order
+      ...(watched === "bells" ? { hearing: true as const } : {}),
     };
   } else if (typeof j.take === "string") {
     const gear = gearId(j.take);
@@ -288,7 +294,8 @@ export function exitTile(room: Room, seat: Seat): Vec {
 }
 
 // Blind never pushes, watches or works the stations, gear and hands (it steers by callouts alone),
-// and Can't hear never gets a clue job, a listen job or a keypad: it could not learn the number.
+// and Can't hear never gets a clue job, a listen job, a keypad or a music box's tune: it could not
+// learn the number.
 const SIGHTED_ONLY = new Set<JobTarget["kind"]>([
   "push",
   "station",
@@ -302,7 +309,11 @@ const eligible = (role: Role, job: Job) =>
   !(role === "blind" && SIGHTED_ONLY.has(job.target.kind)) &&
   !(role === "deaf" && job.target.kind === "plate" && job.target.clue !== undefined) &&
   !(role === "deaf" && job.target.kind === "listen") &&
-  !(role === "deaf" && job.target.kind === "station" && job.target.hearing === true);
+  !(
+    role === "deaf" &&
+    (job.target.kind === "station" || job.target.kind === "watch") &&
+    job.target.hearing === true
+  );
 const distance = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
 
 // Splits the room's jobs between the three seats, one job per seat per beat, as

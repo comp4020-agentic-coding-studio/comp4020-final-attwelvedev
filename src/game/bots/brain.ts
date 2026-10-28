@@ -9,9 +9,14 @@ import { createWorld, SPEED_TPS, type StationType, TICK_MS, type World } from ".
 import { canSend, type PlayerInput, ROLES, type Role, type Seat, type Vec } from "../types.ts";
 import {
   beliefFrom,
+  bellsStep,
+  bellToMark,
   DECODERS,
   dialStep,
+  type Ear,
+  earStep,
   emptyBelief,
+  emptyEar,
   keypadStep,
   linkedFrom,
   radioToTell,
@@ -72,6 +77,8 @@ export interface BotMemory {
   gearWas: boolean;
   markedFor: string | null; // a switches watcher: the lamps (as seen) it last marked a button for
   lastMarkAt: number; // when it last sent a mark (game ms): marks have a cooldown
+  ear: Ear; // Can't see holding the earpiece: the tune heard, and the code last told
+  toTell: number[]; // digits of the earpiece's code still to text, one a turn
 }
 export interface BotTurn {
   input: PlayerInput;
@@ -198,6 +205,8 @@ export function createBotMemory(
     gearWas: false,
     markedFor: null,
     lastMarkAt: Number.NEGATIVE_INFINITY,
+    ear: emptyEar(),
+    toTell: [],
   };
 }
 
@@ -259,7 +268,14 @@ function thinkBlind(view: RoleView, inbox: ChannelMessage[], m: BotMemory, now: 
   if (view.status === "cleared") m.holding = true;
   // the stethoscope at a safe's back: the tumbler means the dial is on the number now (decode.ts)
   const tumbler = view.gear === "stethoscope" && view.sounds.some((s) => s.kind === "tumbler");
-  const send: Outgoing | null = tumbler ? { method: "callout", callout: "stop" } : null;
+  // the earpiece: the code it plays, heard the same twice, is texted a digit a key (decode.ts)
+  m.toTell.push(...earStep(view, m.ear));
+  const digit = tumbler ? undefined : m.toTell.shift();
+  const send: Outgoing | null = tumbler
+    ? { method: "callout", callout: "stop" }
+    : digit !== undefined
+      ? { method: "text", text: String(digit) }
+      : null;
   return { input: idle(m, m.holding ? ZERO : m.heading), send };
 }
 
@@ -777,8 +793,9 @@ function stationStep(room: Room, m: BotMemory, known: Known, id: string): Press 
     return t ? { tile: t } : null;
   }
   if (!DECODERS[type]) return null;
-  if (type === "dial" || type === "keypad") {
-    const t = type === "dial" ? dialStep(o, b) : keypadStep(o, b);
+  if (type === "dial" || type === "keypad" || type === "bells") {
+    const t =
+      type === "dial" ? dialStep(o, b) : type === "keypad" ? keypadStep(o, b) : bellsStep(o, b);
     return t ? { tile: t } : null;
   }
   // a radio is turned on its right-hand pad until it is tuned; then its digit is watched for
@@ -836,8 +853,12 @@ function thinkSighted(
       forgetPlans(m);
       m.markedFor = null;
       // sent back: every unsolved station has a fresh answer, so what was heard of it is stale
-      for (const b of Object.values(known.stations)) {
+      for (const [id, b] of Object.entries(known.stations)) {
         if (b.solved) continue;
+        // an earpiece's keypad: the digits told were the old code (a radio's digit is kept)
+        const clue = room.objects.find((o) => o.id === id)?.params?.clue;
+        if (String(clue ?? "").startsWith("g")) b.numbers = [];
+        b.told = new Set();
         b.answer = [];
         b.heard = [];
         b.rule = null;
@@ -878,8 +899,9 @@ function thinkSighted(
 }
 
 // What a seat's work has it tell the others (P3): a radio's digit, as text, once (a radio that
-// feeds a station; Can't speak, who cannot text, keeps it); and a switches watcher's next button, an
-// `x` on it, each time the lamps it sees have changed since its last mark.
+// feeds a station; Can't speak, who cannot text, keeps it); a switches watcher's next button, an
+// `x` on it, each time the lamps it sees have changed since its last mark; and a music box's
+// watcher the tune's bells, an `x` each, in order.
 function workSend(
   room: Room,
   view: RoleView,
@@ -903,12 +925,21 @@ function workSend(
   if (!o || !b || b.solved) return null;
   const tile = tileOf(pos);
   if (tile.x !== job.target.tile.x || tile.y !== job.target.tile.y) return null;
+  const cool = view.tick * TICK_MS - m.lastMarkAt < COOLDOWN_MS.mark;
+  if (o.params?.type === "bells") {
+    // a music box's watcher at its tune box: the tune's bells, an x each, in order
+    const next = bellToMark(o, b);
+    if (!next || cool) return null;
+    b.told.add(next.i);
+    m.lastMarkAt = view.tick * TICK_MS;
+    return { method: "mark", id: "x", at: centreOf(next.at) };
+  }
   const left = switchesLeft(o, b, view.tick);
   const next = left?.[0];
   const lamps = b.shows.join();
   if (next === undefined || m.markedFor === lamps) return null;
   const at = tilesOf(o.params?.buttons)[next];
-  if (!at || view.tick * TICK_MS - m.lastMarkAt < COOLDOWN_MS.mark) return null;
+  if (!at || cool) return null;
   m.markedFor = lamps;
   m.lastMarkAt = view.tick * TICK_MS;
   return { method: "mark", id: "x", at: centreOf(at) };

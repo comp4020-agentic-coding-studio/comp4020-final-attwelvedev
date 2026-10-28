@@ -85,8 +85,8 @@ export function beliefFrom(
   const parts = stationParts(o)
     .filter((p) => p.key !== "anchor" || o.params?.type === "dial" || o.params?.type === "vault")
     .flatMap((p) => p.at);
-  // switches take their marks as a queue, one press a mark (a button may be marked again later)
-  const queue = o.params?.type === "switches";
+  // switches and bells take their marks as a queue, one press a mark (a part may be marked again)
+  const queue = o.params?.type === "switches" || o.params?.type === "bells";
   for (const m of inbox) {
     if (m.method === "mark" && m.id === "x") {
       const tile = { x: Math.floor(m.at.x), y: Math.floor(m.at.y) };
@@ -160,21 +160,39 @@ export function slotOf(o: RoomObject): number | null {
   return typeof slot?.at === "number" ? slot.at : null;
 }
 
-const keypad: Decoder = (view, _inbox, b, o, now) => {
-  for (const s of view.sounds)
-    if (s.kind === "clue" && s.n !== undefined) b.heard.push({ tick: view.tick, n: s.n - 1 });
+// The tune last heard twice running in `heard` (notes NOTE_TICKS apart, tunes a longer pause apart),
+// or null: the first may have been caught half-way through, and one still playing is not over.
+export function tuneOf(heard: { tick: number; n: number }[], now: number): number[] | null {
   const tunes: number[][] = [];
-  b.heard.forEach((h, i) => {
-    const before = b.heard[i - 1];
+  heard.forEach((h, i) => {
+    const before = heard[i - 1];
     if (!before || h.tick - before.tick > TUNE_GAP) tunes.push([]);
     tunes.at(-1)?.push(h.n);
   });
-  const last = b.heard.at(-1);
+  const last = heard.at(-1);
   if (last && now - last.tick <= TUNE_GAP) tunes.pop(); // still playing
   const [a, c] = tunes.slice(-2);
+  return a && c && a.join() === c.join() ? c : null;
+}
+
+// A keypad whose clue is gear (an id `g<n>`, rooms/format.ts) is the earpiece's: only its holder
+// hears the code, and Can't see, who holds it, texts it a digit a key (earStep). The keypad's
+// presser takes the code from the last digits it was sent.
+const KEYPAD_LENGTH = (o: RoomObject) =>
+  Math.max(3, Math.min(4, typeof o.params?.length === "number" ? o.params.length : 3));
+
+const keypad: Decoder = (view, _inbox, b, o, now) => {
+  if (String(o.params?.clue ?? "").startsWith("g")) {
+    const len = KEYPAD_LENGTH(o);
+    if (b.numbers.length >= len) b.answer = b.numbers.slice(-len).map((d) => d - 1);
+    return;
+  }
+  for (const s of view.sounds)
+    if (s.kind === "clue" && s.n !== undefined) b.heard.push({ tick: view.tick, n: s.n - 1 });
+  const tune = tuneOf(b.heard, now);
   const slot = slotOf(o);
-  if (a && c && a.join() === c.join()) {
-    const code: (number | null)[] = [...c];
+  if (tune) {
+    const code: (number | null)[] = [...tune];
     if (slot !== null) code.splice(slot, 0, null);
     b.answer = code;
   }
@@ -193,21 +211,26 @@ export function keypadStep(o: RoomObject, b: StationBelief): Vec | null {
   return tilesOf(o.params?.keys)[key] ?? null;
 }
 
+// Whether a sound heard came from `at`, by its direction (loosely within a tile and a half): two
+// stations sounding in one room are told apart by where each sound comes from.
+function fromTile(view: RoleView, s: { dir?: Vec }, at: Vec): boolean {
+  const me = view.you.pos;
+  if (!me) return false;
+  const to = { x: at.x + 0.5 - me.x, y: at.y + 0.5 - me.y };
+  const d = Math.hypot(to.x, to.y);
+  if (s.dir === undefined || d < 0.01) return d < 1.5; // on its tile: no direction to tell by
+  return (s.dir.x * to.x + s.dir.y * to.y) / d > (d < 1.5 ? 0.5 : 0.9);
+}
+
 // --- The radio --------------------------------------------------------------------------------
 // Turned until it is tuned (seen solved, or its static heard giving way to a tone); a turn is never a
 // wrong answer, so the turner searches. Once tuned, every PIP_TICKS it gives its digit: on its face
 // for the sighted (shows[1]) and as `n` pips for hearers, from where it stands.
 const radio: Decoder = (view, _inbox, b, o) => {
   if (b.shows.length === 2) b.answer = [b.shows[1] as number];
-  const me = view.you.pos;
-  const at = o.tiles[0] as Vec;
-  for (const s of view.sounds) {
-    if (s.kind !== "pip" || s.n === undefined || !me) continue;
-    const to = { x: at.x + 0.5 - me.x, y: at.y + 0.5 - me.y };
-    const d = Math.hypot(to.x, to.y);
-    const towards = d < 1.5 || (s.dir !== undefined && (s.dir.x * to.x + s.dir.y * to.y) / d > 0.9);
-    if (towards) b.answer = [s.n];
-  }
+  for (const s of view.sounds)
+    if (s.kind === "pip" && s.n !== undefined && fromTile(view, s, o.tiles[0] as Vec))
+      b.answer = [s.n];
 };
 
 // The pip count of a radio, once known, is sent as a digit by a seat that can text it to the one at
@@ -249,6 +272,65 @@ const switches: Decoder = (view, _inbox, b, o) => {
   b.answer = [switchesLeft(o, b, view.tick)?.[0] ?? null];
 };
 
+// --- The music box (bells) ----------------------------------------------------------------------
+// Its tune plays at its tune box, one bell a note (a `bellnote` with n = the bell), then a pause;
+// no bell lights as it plays, so the tune is learnt by ear, the same tune twice running. The box
+// stands behind glass from its bells: who hears it strikes the bells after walking round, or marks
+// them in order (an `x` each) for a striker, who strikes the marks as a queue. A tune once learnt
+// is kept: the bot's own strikes ring the same bells.
+const tuneLength = (o: RoomObject) => (o.params?.teach === true ? 2 : 4);
+
+const bells: Decoder = (view, _inbox, b, o, now) => {
+  if (b.answer.length === tuneLength(o) && b.answer.every((n) => n !== null)) return;
+  const box =
+    (Array.isArray(o.params?.tune) ? tilesOf([o.params.tune])[0] : undefined) ?? o.tiles[0];
+  for (const s of view.sounds)
+    if (s.kind === "bellnote" && s.n !== undefined && box && fromTile(view, s, box))
+      b.heard.push({ tick: view.tick, n: s.n });
+  const tune = tuneOf(b.heard, now);
+  if (tune && tune.length === tuneLength(o)) b.answer = [...tune];
+  b.heard = b.heard.slice(-12);
+};
+
+// The bell to strike next: the tune's next note after the bells struck so far (seen, through the
+// glass or beside them), or the next bell a teammate marked.
+export function bellsStep(o: RoomObject, b: StationBelief): Vec | null {
+  const tiles = tilesOf(o.params?.bells);
+  const own = b.answer[Math.max(0, b.shows.length - 1)];
+  if (b.answer.length > 0) return own === null || own === undefined ? null : (tiles[own] ?? null);
+  return b.marked[b.used] ?? null;
+}
+
+// The bell a marker at the tune box marks next, once it knows the tune: the first note not yet
+// marked. Null when the whole tune is marked or not yet known.
+export function bellToMark(o: RoomObject, b: StationBelief): { i: number; at: Vec } | null {
+  if (b.answer.length !== tuneLength(o) || b.answer.some((n) => n === null)) return null;
+  const i = b.answer.findIndex((_, k) => !b.told.has(k));
+  const at = i >= 0 ? tilesOf(o.params?.bells)[b.answer[i] as number] : undefined;
+  return at ? { i, at } : null;
+}
+
+// --- The earpiece -----------------------------------------------------------------------------
+// Only its holder hears it: the keypad's code as a tune, one key a note (n = the key). Once Can't
+// see has heard the same tune twice it tells the code, key n as the digit n + 1, one text a key;
+// a code is told once (a new one after a send-back is told again).
+export interface Ear {
+  heard: { tick: number; n: number }[];
+  told: string | null;
+}
+export const emptyEar = (): Ear => ({ heard: [], told: null });
+
+export function earStep(view: RoleView, ear: Ear): number[] {
+  if (view.gear !== "earpiece") return [];
+  for (const s of view.sounds)
+    if (s.kind === "earpiece" && s.n !== undefined) ear.heard.push({ tick: view.tick, n: s.n });
+  ear.heard = ear.heard.slice(-12);
+  const tune = tuneOf(ear.heard, view.tick);
+  if (!tune || tune.join() === ear.told) return [];
+  ear.told = tune.join();
+  return tune.map((k) => k + 1);
+}
+
 // What a station learns from another object of the room (what the bot holds of the room's static
 // plan says which): a switches station's card, read where it stands; a keypad slot's digit, from
 // the radio drawn with the same motif.
@@ -280,4 +362,5 @@ export const DECODERS: Partial<Record<StationType, Decoder>> = {
   keypad,
   radio,
   switches,
+  bells,
 };

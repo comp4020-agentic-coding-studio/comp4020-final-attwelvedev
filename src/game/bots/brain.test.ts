@@ -1078,3 +1078,131 @@ describe("a Can't-hear bot leading Can't see by the hand (escape-room phase 04)"
     expect(Math.floor(world.players[1].pos.x)).toBe(7);
   });
 });
+
+// Music box and earpiece (escape-room Task 24): the tune and the earpiece's code are heard, so the
+// jobs that need them never go to Can't hear, and Can't see tells what the earpiece plays.
+describe("bots work a music box and an earpiece from what they hear (escape-room Task 24)", () => {
+  const BELLS = {
+    type: "bells",
+    bells: [
+      [6, 1],
+      [7, 1],
+      [8, 1],
+      [9, 1],
+    ],
+    tune: [3, 3],
+  };
+  const keys = [0, 1, 2].flatMap((y) => [0, 1, 2].map((x) => [6 + x, 1 + y]));
+  const GRID = ["############", "#1..#.....Q#", "#2g.=......#", "#3..=....Q.#", "############"];
+  const r = roomWith(
+    GRID,
+    { Q1: BELLS, Q2: { type: "keypad", keys, clue: "g1", length: 3 }, g1: { item: "earpiece" } },
+    {
+      beats: [{ name: "b", x: [0, 11], intent: { blind: "b", deaf: "d", mute: "m" } }],
+      hints: {
+        jobs: [
+          { beat: 1, station: "Q1", at: [2, 3], prefer: "mute" },
+          { beat: 1, watch: "Q1", at: [2, 3], prefer: "mute" },
+          { beat: 1, station: "Q2", prefer: "mute" },
+        ],
+      },
+    },
+  );
+
+  it("a music box's station job from its tune box, and its watch job, never go to Can't hear", () => {
+    const jobs = hintsOf(r);
+    expect(jobs.slice(0, 2).map((j) => j.target.kind)).toEqual(["station", "watch"]);
+    for (const job of jobs.slice(0, 2)) {
+      const queues = claimJobs(
+        r,
+        [job],
+        ([0, 1, 2] as const).map((seat) => ({ seat, role: ROLES3[seat], human: false })),
+      );
+      expect(queues[1]).toEqual([]);
+    }
+  });
+
+  it("Can't see holding the earpiece texts the code it hears, a digit a key, once", () => {
+    const world = createWorld(r, 6);
+    const memory = createBotMemory(0, new Set(), ROLES3);
+    Object.assign(world.gear[0] as object, { heldBy: 0, at: null });
+    const sent: string[] = [];
+    for (let t = 0; t < 400; t++) {
+      step(world, {}, TICK_MS);
+      const out = think(r, viewFor(world, 0, "blind", false), [], memory, t * TICK_MS).send;
+      if (out?.method === "text") sent.push(out.text);
+    }
+    expect(sent).toEqual(world.stations.Q2?.answer.map((k) => String(k + 1)));
+  });
+
+  it("a watcher at the tune box marks the tune's bells in order, an x each", () => {
+    const w = roomWith(
+      GRID,
+      { Q1: BELLS, Q2: { type: "keypad", keys, clue: "g1", length: 3 }, g1: { item: "earpiece" } },
+      {
+        beats: [{ name: "b", x: [0, 11], intent: { blind: "b", deaf: "d", mute: "m" } }],
+        hints: { jobs: [{ beat: 1, watch: "Q1", at: [2, 3], prefer: "mute" }] },
+      },
+    );
+    const world = createWorld(w, 6);
+    const memory = createBotMemory(2, new Set(), ROLES3);
+    world.players[2].pos = { x: 2.5, y: 3.5 };
+    const marks: { x: number; y: number }[] = [];
+    for (let t = 0; t < 400; t++) {
+      step(world, {}, TICK_MS);
+      world.players[2].pos = { x: 2.5, y: 3.5 };
+      const out = think(w, viewFor(world, 2, "mute", false), [], memory, t * TICK_MS).send;
+      if (out?.method === "mark") marks.push({ x: Math.floor(out.at.x), y: Math.floor(out.at.y) });
+    }
+    const tune = world.stations.Q1?.answer ?? [];
+    expect(marks).toEqual(tune.map((i) => ({ x: 6 + i, y: 1 })));
+  });
+});
+
+describe("a keypad whose code is in the earpiece (escape-room Task 24)", () => {
+  const keys = [0, 1, 2].flatMap((y) => [0, 1, 2].map((x) => [9 + x, 1 + y]));
+  const GRID = [
+    "#############",
+    "#1.......Q..#",
+    "#2g.........#",
+    "#3..........#",
+    "#############",
+  ];
+  const r = roomWith(
+    GRID,
+    { Q1: { type: "keypad", keys, clue: "g1", length: 3 }, g1: { item: "earpiece" } },
+    {
+      beats: [{ name: "b", x: [0, 12], intent: { blind: "b", deaf: "d", mute: "m" } }],
+      hints: { jobs: [{ beat: 1, station: "Q1", prefer: "mute" }] },
+    },
+  );
+  const run = (held: boolean) => {
+    const world = createWorld(r, 8);
+    if (held) Object.assign(world.gear[0] as object, { heldBy: 0, at: null });
+    const bots: Partial<Record<Seat, BotSeat>> = {
+      0: { memory: createBotMemory(0, new Set(), ROLES3), inbox: [] },
+      1: { memory: createBotMemory(1, new Set(), ROLES3), inbox: [] },
+      2: { memory: createBotMemory(2, new Set(), ROLES3), inbox: [] },
+    };
+    let presses = 0;
+    const cd = { until: {} };
+    for (let i = 0; i < 1200 && !world.stations.Q1?.solved; i++) {
+      const out = botsAct(r, world, ROLES3, bots, cd, world.tick * TICK_MS, () => "Bot");
+      step(world, out.inputs, TICK_MS);
+      for (const e of world.events) if (e.kind === "station" && e.result === "press") presses++;
+    }
+    return { world, presses };
+  };
+
+  it("with nobody holding the earpiece, the presser never presses a key (it does not guess)", () => {
+    const { world, presses } = run(false);
+    expect(presses).toBe(0);
+    expect(world.attempt).toBe(0);
+  });
+
+  it("with Can't see holding it, the code is texted and the keypad opens, never caught", () => {
+    const { world } = run(true);
+    expect(world.stations.Q1?.solved).toBe(true);
+    expect(world.attempt).toBe(0);
+  });
+});

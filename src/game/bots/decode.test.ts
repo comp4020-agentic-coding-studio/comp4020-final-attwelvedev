@@ -7,9 +7,12 @@ import { place, roomWith } from "../sim/testing.ts";
 import { createWorld, TICK_MS } from "../sim/world.ts";
 import {
   beliefFrom,
+  bellsStep,
   DECODERS,
   dialStep,
+  earStep,
   emptyBelief,
+  emptyEar,
   keypadStep,
   linkedFrom,
   radioToTell,
@@ -99,8 +102,15 @@ describe("beliefFrom", () => {
 });
 
 describe("DECODERS", () => {
-  it("has the safe's from 05, the wires' and keypad's from 06, radio's and switches' from 07", () => {
-    expect(Object.keys(DECODERS)).toEqual(["dial", "wires", "keypad", "radio", "switches"]);
+  it("has the safe's from 05, the wires' and keypad's from 06, radio's and switches' from 07, the music box's from 09", () => {
+    expect(Object.keys(DECODERS)).toEqual([
+      "dial",
+      "wires",
+      "keypad",
+      "radio",
+      "switches",
+      "bells",
+    ]);
   });
 });
 
@@ -556,6 +566,183 @@ describe("gear: a UV-ink plaque and lamps in the dark", () => {
         step(world, {}, TICK_MS);
       }
       expect(s.solved).toBe(true);
+    }
+  });
+});
+
+// Music box and earpiece (escape-room Task 24): from views a role really gets, through `viewFor`.
+// A music box shows no lit bell as its tune plays (its `shows` is [playing?, ...struck]): which
+// bell a note belongs to is heard, so the tune is learnt by ear at the tune box.
+describe("the music box decoder", () => {
+  // bells at (6..9,1); the tune box at (3,3); glass at x=5 keeps the tune from the bells
+  const GRID = ["############", "#1..#......#", "#2..=.....Q#", "#3..=......#", "############"];
+  const room = roomWith(GRID, {
+    Q1: {
+      type: "bells",
+      bells: [
+        [6, 1],
+        [7, 1],
+        [8, 1],
+        [9, 1],
+      ],
+      tune: [3, 3],
+    },
+  });
+  const q = room.objects.find((x) => x.id === "Q1");
+  if (!q) throw new Error("no Q1");
+  const listen = (role: "blind" | "mute" | "deaf", at: { x: number; y: number }, seed = 3) => {
+    const world = createWorld(room, seed);
+    place(world, 1, at);
+    let b = emptyBelief();
+    for (let t = 0; t < 200; t++) {
+      step(world, {}, TICK_MS);
+      const view = viewFor(world, 1, role, false);
+      b = beliefFrom(view, [], q, b);
+      DECODERS.bells?.(view, [], b, q, view.tick);
+    }
+    return { world, b };
+  };
+
+  it("a hearing bot at the tune box learns the tune and strikes its bells in order", () => {
+    for (const seed of [1, 2, 3, 4]) {
+      const { world, b } = listen("mute", { x: 2, y: 3 }, seed);
+      const s = world.stations.Q1;
+      if (!s) throw new Error("no Q1");
+      expect(b.answer).toEqual(s.answer);
+      expect(bellsStep(q, b)).toEqual({ x: 6 + (s.answer[0] as number), y: 1 });
+      s.input = [s.answer[0] as number];
+      const struck = beliefFrom(viewFor(world, 1, "mute", false), [], q, b);
+      expect(bellsStep(q, struck)).toEqual({ x: 6 + (s.answer[1] as number), y: 1 });
+    }
+  });
+
+  it("at the bells, behind the glass from the tune, it never strikes a bell", () => {
+    const { b } = listen("mute", { x: 7, y: 2 });
+    expect(b.answer).toEqual([]);
+    expect(bellsStep(q, b)).toBeNull();
+  });
+
+  it("Can't hear, at the tune box, sees it play but never learns the tune", () => {
+    const { b } = listen("deaf", { x: 2, y: 3 });
+    expect(b.answer).toEqual([]);
+    expect(bellsStep(q, b)).toBeNull();
+  });
+
+  it("a striker with no tune of its own strikes the bells marked x, in the order they came", () => {
+    const b = beliefFrom(
+      view(false),
+      [
+        msg({ method: "mark", id: "x", at: { x: 8.5, y: 1.5 } }),
+        msg({ method: "mark", id: "x", at: { x: 8.5, y: 1.5 } }),
+        msg({ method: "mark", id: "x", at: { x: 6.5, y: 1.5 } }),
+      ],
+      q,
+      emptyBelief(),
+    );
+    expect(bellsStep(q, b)).toEqual({ x: 8, y: 1 });
+    b.used = 2;
+    expect(bellsStep(q, b)).toEqual({ x: 6, y: 1 });
+    b.used = 3;
+    expect(bellsStep(q, b)).toBeNull();
+  });
+});
+
+describe("the earpiece", () => {
+  it("a keypad whose clue is the earpiece takes its code from the digits texted to it, key n as n", () => {
+    const keys = [0, 1, 2].flatMap((y) => [0, 1, 2].map((x) => [4 + x, 1 + y]));
+    const room = roomWith(["#########", "#1..Q...#", "#2.g....#", "#3......#", "#########"], {
+      Q1: { type: "keypad", keys, clue: "g1", length: 3 },
+      g1: { item: "earpiece" },
+    });
+    const q = room.objects.find((x) => x.id === "Q1");
+    if (!q) throw new Error("no Q1");
+    const none = emptyBelief();
+    DECODERS.keypad?.(view(false), [], none, q, 1);
+    expect(keypadStep(q, none)).toBeNull();
+    const texts = ["7", "2"].map((text) => msg({ method: "text", text }));
+    const two = beliefFrom(view(false), texts, q, emptyBelief());
+    DECODERS.keypad?.(view(false), texts, two, q, 1);
+    expect(keypadStep(q, two)).toBeNull(); // not the whole code yet
+    const third = [msg({ method: "text", text: "9" })];
+    const all = beliefFrom(view(false), third, q, two);
+    DECODERS.keypad?.(view(false), third, all, q, 1);
+    expect(all.answer).toEqual([6, 1, 8]);
+    expect(keypadStep(q, all)).toEqual({ x: 4, y: 3 });
+  });
+
+  it("the earpiece's tune, heard the same twice, is the code to tell, key n as the digit n", () => {
+    const keys = [0, 1, 2].flatMap((y) => [0, 1, 2].map((x) => [4 + x, 1 + y]));
+    const room = roomWith(["#########", "#1..Q...#", "#2.g....#", "#3......#", "#########"], {
+      Q1: { type: "keypad", keys, clue: "g1", length: 3 },
+      g1: { item: "earpiece" },
+    });
+    for (const seed of [1, 2, 3]) {
+      const world = createWorld(room, seed);
+      const ear = emptyEar();
+      const without: number[] = [];
+      for (let t = 0; t < 200; t++) {
+        step(world, {}, TICK_MS);
+        without.push(...earStep(viewFor(world, 0, "blind", false), ear));
+      }
+      expect(without).toEqual([]); // nobody holds it: nothing heard, nothing told
+      Object.assign(world.gear[0] as object, { heldBy: 0, at: null });
+      const told: number[] = [];
+      for (let t = 0; t < 200; t++) {
+        step(world, {}, TICK_MS);
+        told.push(...earStep(viewFor(world, 0, "blind", false), ear));
+      }
+      expect(told).toEqual(world.stations.Q1?.answer.map((k) => k + 1));
+    }
+  });
+});
+
+describe("the music box decoder, with two boxes playing", () => {
+  // two boxes play at once in one room: each decoder takes the notes from its own box alone
+  const GRID = [
+    "#############",
+    "#1.......#..#",
+    "#2.......=Q.#",
+    "#3.......=Q.#",
+    "#############",
+  ];
+  const room = roomWith(GRID, {
+    Q1: {
+      type: "bells",
+      bells: [
+        [10, 2],
+        [11, 2],
+      ],
+      tune: [2, 1],
+      teach: true,
+    },
+    Q2: {
+      type: "bells",
+      bells: [
+        [10, 3],
+        [11, 3],
+        [11, 1],
+        [10, 1],
+      ],
+      tune: [7, 3],
+    },
+  });
+  it("hears each box's tune from where it plays, not the other's", () => {
+    for (const seed of [1, 2, 3]) {
+      const world = createWorld(room, seed);
+      place(world, 1, { x: 2, y: 2 });
+      const b: Record<string, StationBelief> = { Q1: emptyBelief(), Q2: emptyBelief() };
+      for (let t = 0; t < 200; t++) {
+        step(world, {}, TICK_MS);
+        const view = viewFor(world, 1, "mute", false);
+        for (const id of ["Q1", "Q2"]) {
+          const q = room.objects.find((x) => x.id === id);
+          if (!q) throw new Error(`no ${id}`);
+          b[id] = beliefFrom(view, [], q, b[id] as StationBelief);
+          DECODERS.bells?.(view, [], b[id] as StationBelief, q, view.tick);
+        }
+      }
+      expect(b.Q1?.answer).toEqual(world.stations.Q1?.answer);
+      expect(b.Q2?.answer).toEqual(world.stations.Q2?.answer);
     }
   });
 });

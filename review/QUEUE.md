@@ -195,3 +195,7 @@
   fixed a perception bug (a sighted player without goggles was sent the state of lamps in the dark);
   the room has no sound clue, so Can't see only listens for snips and clunks; and the old rooms are
   now 08 and 09.
+
+## Flaky: comms wheel spec under load (found in phase 09, not fixed)
+
+- `spec/layout/wheel.test.ts` failed 4 tests in one full `pnpm check` (axe `color-contrast: .is-centre > .wheel-label`, then 3 timeouts) and passed `pnpm check:flaky 3 spec/layout/wheel.test.ts` 3/3. Phase 09 touched no client code. Likely cause: the centre slot's label is on `--glass` (translucent) over the live canvas, so axe's contrast depends on what is drawn underneath at that moment. Needs a fix per CLAUDE.md's flaky rules (an opaque centre, or axe run on a settled frame).

@@ -63,11 +63,23 @@ export function think(room: Room, view: RoleView, inbox: ChannelMessage[], memor
 
 **Music box decoder.** As each note plays, the bell it belongs to lights (a sighted bot sees which, Task 11's drawing reads `shows`) and its pitch sounds (a hearer hears it); the bot that perceives the order marks bells with `x` in order, or strikes them itself. **Earpiece.** A hearing bot with the earpiece hears the keypad's code as `earpiece` notes and works the keypad as in phase 06.
 
+**Ruled 2026-10-29 (overnight run, Phase 1 review).** Two points in this section do not match
+the code. (1) A music box's `shows` is `[playing?, ...struck]`: no bell lights as its note
+plays, so which bell a note belongs to is heard (`bellnote`, `n`), not seen. A hearing bot learns
+the tune at the tune box, behind glass from the bells, once it has heard the same tune twice
+(as the keypad does). Either it strikes the bells itself (a station job with `at`, the
+teaching box), or it marks them in order with `x` from the tune box (a `watch` job) for a sighted
+striker, who strikes the marks in turn (a queue, as switches do). (2) The presence lint flags any keypad whose earpiece a
+hearing, sighted role can wear at its lit keys (spec probe #12, `lint.test.ts`), so the earpiece's
+keypad keys sit in a dark zone. Can't see wears the earpiece and texts the code one digit at a
+time (key n as the digit n, P3). Can't speak, wearing the goggles, presses the keys from those
+digits. (Can't hear cannot receive text.)
+
 **Room 8.** A teaching music box (two notes); a real one whose tune box is behind glass from the bells; a keypad whose code is only on the earpiece.
 
 ## 5. Task breakdown
 
-### Task 24: Bots solve music box; earpiece from what they perceive
+### Task 24: Bots solve music box; earpiece from what they perceive [x]
 
 - **Description:** Per this file's §4: the decoder(s) (or, for gear, the job choice from the view)
   in `src/game/bots/decode.ts`, registered in `DECODERS`; bots send and read only P3's forms.
