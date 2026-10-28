@@ -1,5 +1,5 @@
 // node scripts/bench-tick.ts — the cost of one server tick at showcase load: 10 lobbies,
-// each a room 03 world stepped and viewed for all three seats (line of sight included).
+// each a room 05 world stepped and viewed for all three seats (line of sight included).
 // Prints ms per tick; the budget is 10 ms at 20 Hz (plan 04, non-functional requirements).
 import { viewFor } from "../src/game/perception.ts";
 import { loadRooms } from "../src/game/rooms/load.ts";
@@ -11,8 +11,8 @@ const LOBBIES = 10;
 const TICKS = 200;
 const ROLES: Role[] = ["blind", "deaf", "mute"];
 
-const room = loadRooms().find((r) => r.id === "03-vault");
-if (!room) throw new Error("room 03-vault not found");
+const room = loadRooms().find((r) => r.id === "05-vault");
+if (!room) throw new Error("room 05-vault not found");
 const worlds = Array.from({ length: LOBBIES }, () => createWorld(room));
 
 // the players walk, so the viewpoints change tile and the cache (if any) is exercised

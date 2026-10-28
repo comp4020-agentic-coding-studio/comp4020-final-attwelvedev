@@ -31,6 +31,13 @@ import {
 import { type LobbyState, newPerson } from "./lobbies.ts";
 
 const rooms = loadRooms();
+// room 1 until escape-room phase 04: a crate, and spawns in rows 4 to 6, which the restart test uses
+const firstJob = loadRooms("./spec/fixtures/first-job");
+const roomById = (id: string) => {
+  const found = rooms.find((r) => r.id === id);
+  if (!found) throw new Error(`no room ${id}`);
+  return found;
+};
 
 const seat = (n: string | null, person: number | null = n === null ? null : 0) => ({
   who: n,
@@ -86,7 +93,7 @@ describe("startGame", () => {
   it("starts room 01 with distinct roles and nobody ready", () => {
     const game = startGame(lobby("a", "b", "c"), rooms);
     expect(game).toMatchObject({ lobby: "ABCD", roomIndex: 0 });
-    expect(game.world.room.id).toBe("01-first-job");
+    expect(game.world.room.id).toBe("01-first-steps");
     expect(game.ready.size).toBe(0);
     expect(new Set(game.roles).size).toBe(3);
     expect(crewOf(lobby("a", "b", "c"), game)).toEqual([
@@ -149,7 +156,7 @@ describe("inputs and views", () => {
 
 describe("restartGame", () => {
   it("puts everyone back at spawn with crates and doors reset, keeping roles and ready", () => {
-    const game = startGame(lobby("a", "b", "c"), rooms);
+    const game = startGame(lobby("a", "b", "c"), firstJob);
     game.ready.add(0);
     const roles = [...game.roles];
     const crate = game.world.crates[0]?.tile;
@@ -191,8 +198,14 @@ describe("advanceRoom", () => {
     return startGame(l, rooms);
   };
 
-  it("has three rooms to play", () => {
-    expect(rooms.map((r) => r.id)).toEqual(["01-first-job", "02-cameras-lasers", "03-vault"]);
+  it("has five rooms to play: the basics, then the old rooms until phase 10 replaces them", () => {
+    expect(rooms.map((r) => r.id)).toEqual([
+      "01-first-steps",
+      "02-three-hands",
+      "03-watchers",
+      "04-cameras-lasers",
+      "05-vault",
+    ]);
   });
 
   it("moves to the next room: new world, roles rotated, nobody ready, inputs and cooldowns cleared", () => {
@@ -204,7 +217,7 @@ describe("advanceRoom", () => {
     game.world.status = "cleared";
     expect(advanceRoom(game, l, rooms)).toBe("next");
     expect(game.roomIndex).toBe(1);
-    expect(game.world.room.id).toBe("02-cameras-lasers");
+    expect(game.world.room.id).toBe("02-three-hands");
     expect(game.world.status).toBe("playing");
     expect(game.world.tick).toBe(0);
     expect(game.roles).toEqual(rolesFor(1));
@@ -213,7 +226,7 @@ describe("advanceRoom", () => {
     expect(game.cooldowns.until).toEqual({});
   });
 
-  it("gives every seat every role once across the three rooms, then reports done", () => {
+  it("gives every seat every role once across any three rooms in a row, then reports done", () => {
     const game = started();
     const played: string[][] = [[], [], []];
     const record = () => {
@@ -222,14 +235,17 @@ describe("advanceRoom", () => {
       });
     };
     record();
-    expect(advanceRoom(game, l, rooms)).toBe("next");
-    record();
-    expect(advanceRoom(game, l, rooms)).toBe("next");
-    record();
-    for (const roles of played) expect(new Set(roles).size).toBe(3);
-    expect(game.world.room.id).toBe("03-vault");
+    for (let i = 1; i < rooms.length; i++) {
+      expect(advanceRoom(game, l, rooms)).toBe("next");
+      record();
+    }
+    for (const roles of played) {
+      for (let i = 0; i + 3 <= roles.length; i++)
+        expect(new Set(roles.slice(i, i + 3)).size).toBe(3);
+    }
+    expect(game.world.room.id).toBe(rooms.at(-1)?.id);
     expect(advanceRoom(game, l, rooms)).toBe("done");
-    expect(game.roomIndex).toBe(2);
+    expect(game.roomIndex).toBe(rooms.length - 1);
   });
 });
 
@@ -446,7 +462,7 @@ describe("a mark must be on a tile the sender can see", () => {
 
 describe("being caught", () => {
   it("is reported by tickGame: what, which player, and the checkpoint the team goes back to", () => {
-    const game = startGame(lobby("a", "b", "c"), [rooms[1] as (typeof rooms)[0]]);
+    const game = startGame(lobby("a", "b", "c"), [roomById("04-cameras-lasers")]);
     game.ready.add(0);
     game.world.checkpoint = 1;
     game.world.players[1].pos = { x: 23.5, y: 4.5 }; // in L1's column (a laser column at x = 23)

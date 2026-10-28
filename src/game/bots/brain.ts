@@ -962,7 +962,9 @@ function guideBlind(
   let p: Vec;
   if (seen) {
     p = seen.pos;
-    if (g.last && Math.hypot(p.x - g.last.x, p.y - g.last.y) > 1.5) forgetPlans(m); // sent back
+    // sent back; a hand taken in front swings them round behind, which is no reason to forget
+    const towing = known.holding[b as Seat] === m.seat;
+    if (g.last && !towing && Math.hypot(p.x - g.last.x, p.y - g.last.y) > 1.5) forgetPlans(m);
     g.est = p;
     if (g.last && Math.hypot(p.x - g.last.x, p.y - g.last.y) < 0.01) g.still++;
     else g.still = 0;

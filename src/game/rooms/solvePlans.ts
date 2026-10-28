@@ -2,7 +2,7 @@ import type { World } from "../sim/world.ts";
 import type { Room } from "./format.ts";
 import { laserOffFor, type Move, type Plan } from "./solveBuilder.ts";
 
-// Hand-authored routes that clear rooms 02 and 03. `pnpm solve:rooms` plays
+// Hand-authored routes that clear rooms 04 and 05. `pnpm solve:rooms` plays
 // them through the simulation and writes src/game/rooms/solutions/*.json;
 // solve.test.ts replays those, so an edit to a room that breaks its solution
 // (or a stale recording) fails the check. Bots replace this in Task 16.
@@ -49,8 +49,8 @@ const rows = (f: (y: number, seat: 0 | 1 | 2) => Move[]): Plan => ({
 
 // `impatient` drops the waits for the guard, so a test can show the guard matters.
 export function planFor(room: Room, impatient = false): Plan {
-  if (room.id === "02-cameras-lasers") return room02(room, impatient);
-  if (room.id === "03-vault") return room03(room, impatient);
+  if (room.id === "04-cameras-lasers") return room02(room, impatient);
+  if (room.id === "05-vault") return room03(room, impatient);
   throw new Error(`no solve plan for ${room.id}`);
 }
 

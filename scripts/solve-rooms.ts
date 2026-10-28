@@ -1,4 +1,4 @@
-// pnpm solve:rooms — play the hand-authored routes for rooms 02 and 03 through
+// pnpm solve:rooms — play the hand-authored routes for rooms 04 and 05 through
 // the simulation and write what each seat held to src/game/rooms/solutions/.
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
@@ -7,7 +7,7 @@ import { buildScript } from "../src/game/rooms/solveBuilder.ts";
 import { planFor } from "../src/game/rooms/solvePlans.ts";
 
 for (const room of loadRooms()) {
-  if (room.id === "01-first-job") continue; // solved by src/game/sim/room01.test.ts
+  if (!["04-cameras-lasers", "05-vault"].includes(room.id)) continue; // the bots solve the rest
   const script = buildScript(room, planFor(room));
   const ticks = script.runs.reduce((sum, r) => sum + r.n, 0);
   const file = `src/game/rooms/solutions/${room.id}.json`;

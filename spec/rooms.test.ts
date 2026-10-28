@@ -15,8 +15,8 @@ const rooms = loadRooms();
 // Rooms the perception-only bots (overhaul Task 28) cannot clear yet, each with why and what ends
 // the skip. Ruled by the user on 2026-10-28; a room on this list does not ship as finished.
 const NOT_YET: Record<string, string> = {
-  "03-vault":
-    "caught in the dark corridor by perception-only bots (overhaul phase 04 finding); rewritten in escape-room heist phase 04",
+  "05-vault":
+    "caught in the dark corridor by perception-only bots (overhaul phase 04 finding); renumbered after rooms 1 to 3 in escape-room phase 04; phase 10 replaces it with room 9",
   // a deliberate, dated scope change (escape-room phase 03 Task 13, 2026-10-29), not a weakened
   // test: bots now solve only from what they perceive, and no station type has a decoder until
   // phases 05 to 10 add one each; phase 10, Task 27 restores this room to the sweep
@@ -58,4 +58,6 @@ function clearEveryRotation(title: string, set: typeof rooms, minimum: number) {
 
 clearEveryRotation("three bots clear every room", rooms, 3);
 clearEveryRotation("three bots clear every fixture room", loadRooms("./spec/fixtures/rooms"), 1);
+// room 1 until escape-room phase 04, kept as a fixture by the tests that used it
+clearEveryRotation("three bots clear First Job", loadRooms("./spec/fixtures/first-job"), 1);
 clearEveryRotation("three bots clear every draft room", loadRooms("./spec/fixtures/drafts"), 1);

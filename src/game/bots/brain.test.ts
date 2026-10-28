@@ -9,7 +9,8 @@ import type { Role, Seat } from "../types.ts";
 import { createBotMemory, think } from "./brain.ts";
 import { type BotSeat, botsAct } from "./crew.ts";
 
-const rooms = loadRooms();
+// First Job left the heist in escape-room phase 04; it stays a fixture for what it tests
+const rooms = [...loadRooms(), ...loadRooms("./spec/fixtures/first-job")];
 const room = (id: string) => rooms.find((r) => r.id === id) ?? (rooms[0] as (typeof rooms)[0]);
 const ROLES3: [Role, Role, Role] = ["blind", "deaf", "mute"];
 
@@ -457,7 +458,7 @@ describe("a Can't-hear bot guiding a Can't-see teammate", () => {
 
   it("says a phrase now and then, at most one every 10 s", () => {
     const texts: number[] = [];
-    play("02-cameras-lasers", ROLES3, [0, 1, 2], 2000, (_t, sent) => {
+    play("04-cameras-lasers", ROLES3, [0, 1, 2], 2000, (_t, sent) => {
       for (const s of sent) if (s.message.method === "text") texts.push(s.message.sentAt);
     });
     expect(texts.length).toBeGreaterThan(0);
@@ -506,7 +507,7 @@ describe("a Can't-speak bot", () => {
 
 describe("a seeing bot among hazards", () => {
   it("waits while the camera watches, and crosses its cone when it looks away", () => {
-    const r = room("02-cameras-lasers");
+    const r = room("04-cameras-lasers");
     // seat 1 is the only bot; the others stay at spawn
     let stoodStill = 0;
     let watchedWhileStill = false;
@@ -537,10 +538,10 @@ describe("a seeing bot among hazards", () => {
     expect(watchedWhileStill).toBe(true);
   });
 
-  // 03-vault is left out (ruled 2026-10-28): perception-only bots are caught in its dark corridor,
+  // 05-vault is left out (ruled 2026-10-28): perception-only bots are caught in its dark corridor,
   // the overhaul phase 04 finding, and escape-room heist phase 04 rewrites the room.
   it("is never caught by a guard in room 2, in any rotation", () => {
-    for (const id of ["02-cameras-lasers"]) {
+    for (const id of ["04-cameras-lasers"]) {
       for (const roles of [
         ["blind", "deaf", "mute"],
         ["deaf", "mute", "blind"],
@@ -573,7 +574,7 @@ describe("with a person on the team", () => {
   it("recovers when the team is caught and sent back, wherever they were: nobody walks on in the old direction", () => {
     for (const when of [60, 100, 130, 170, 220, 260]) {
       let sentBack = false;
-      const run = play("03-vault", ROTATION_2, [0, 1, 2], 2400, () => {}, {
+      const run = play("05-vault", ROTATION_2, [0, 1, 2], 2400, () => {}, {
         onTick: (world) => {
           // the way the simulation sends a caught team back: to the spawns, sequence forgotten
           if (!sentBack && world.tick === when) {
@@ -596,7 +597,7 @@ describe("with a person on the team", () => {
     // a person who does nothing for 25 s, longer than the 5 s the sequence allows (not the one
     // who cannot see: steering a person is its own test below, since they do not obey like a bot)
     for (const slow of [0, 2] as const) {
-      const run = play("03-vault", ROTATION_2, [0, 1, 2], 4000, () => {}, {
+      const run = play("05-vault", ROTATION_2, [0, 1, 2], 4000, () => {}, {
         humans: [slow],
         slow: { [slow]: 500 },
       });
@@ -609,7 +610,7 @@ describe("with a person on the team", () => {
     let letGo = 0;
     let opened = 0;
     const seq = ["p7", "p1", "p4"];
-    const run = play("03-vault", ROTATION_2, [0, 1, 2], 4000, () => {}, {
+    const run = play("05-vault", ROTATION_2, [0, 1, 2], 4000, () => {}, {
       onTick: (world) => {
         wrong += world.events.filter((e) => e.kind === "seq" && e.result === "wrong").length;
         // a plate of the sequence released before the door has opened
@@ -627,7 +628,7 @@ describe("with a person on the team", () => {
 
   it("waits at each checkpoint for the person, so the whole team sets every one", () => {
     for (const slow of [0, 2] as const) {
-      const run = play("03-vault", ROTATION_2, [0, 1, 2], 4000, () => {}, {
+      const run = play("05-vault", ROTATION_2, [0, 1, 2], 4000, () => {}, {
         humans: [slow],
         slow: { [slow]: 400 },
       });
@@ -638,7 +639,7 @@ describe("with a person on the team", () => {
 
   it("does not press the first plate until the person is at theirs", () => {
     let pressedEarly = false;
-    play("03-vault", ROTATION_2, [0, 1, 2], 1200, () => {}, {
+    play("05-vault", ROTATION_2, [0, 1, 2], 1200, () => {}, {
       humans: [0],
       slow: { 0: 600 },
       onTick: (world) => {
@@ -767,7 +768,7 @@ describe("steering a person who cannot see", () => {
   });
 
   it("gets a person who reacts late through every room, in every role rotation, without pushing at walls", () => {
-    for (const id of ["01-first-job", "02-cameras-lasers", "03-vault"]) {
+    for (const id of ["01-first-job", "04-cameras-lasers", "05-vault"]) {
       for (const roles of [
         ["blind", "deaf", "mute"],
         ["deaf", "mute", "blind"],
@@ -907,5 +908,35 @@ describe("a seeing bot never plans a way through a hatch (escape-room Task 4)", 
     // the plan it made goes nowhere near the hatch tile
     expect(Math.floor(world.players[1].pos.y)).toBe(1);
     expect(memory.nav.plan).not.toContain("down");
+  });
+});
+
+describe("a Can't-hear bot leading Can't see by the hand (escape-room phase 04)", () => {
+  // Can't see stands east of its guide, in the way it is going: taking their hand swings them
+  // round behind, a jump the guide must not mistake for the team being sent back.
+  const GRID = ["##########", "#1.......#", "#.23.....#", "##########"];
+  const r = roomWith(
+    GRID,
+    {},
+    {
+      beats: [{ name: "b", x: [0, 9], intent: { blind: "b", deaf: "d", mute: "m" } }],
+      hints: { jobs: [{ beat: 1, tow: "blind", to: [7, 2], prefer: "deaf" }] },
+    },
+  );
+  it("takes the hand and leads them to the tile, rather than starting over every tick", () => {
+    const roles: [Role, Role, Role] = ["mute", "deaf", "blind"];
+    const world = createWorld(r);
+    const bots: Partial<Record<Seat, BotSeat>> = {
+      1: { memory: createBotMemory(1, new Set(), roles), inbox: [] },
+    };
+    const cooldowns = { until: {} };
+    world.players[1].facing = { x: -1, y: 0 }; // it came from the east: behind it is where they stand
+    for (let i = 0; i < 200 && Math.floor(world.players[1].pos.x) !== 7; i++) {
+      const now = world.tick * TICK_MS;
+      const full = new Set<Seat>(i === 0 ? [0, 1, 2] : []);
+      const turn = botsAct(r, world, roles, bots, cooldowns, now, (s) => `Bot ${s}`, full);
+      step(world, turn.inputs, TICK_MS);
+    }
+    expect(Math.floor(world.players[1].pos.x)).toBe(7);
   });
 });

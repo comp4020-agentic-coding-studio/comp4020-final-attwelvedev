@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { cuesIn } from "./cues.ts";
 import { loadRooms } from "./rooms/load.ts";
 
-const rooms = loadRooms("./rooms");
+// First Job left the heist in escape-room phase 04; it stays a fixture for what it tests
+const rooms = [...loadRooms("./rooms"), ...loadRooms("./spec/fixtures/first-job")];
 const room = (id: string) => {
   const found = rooms.find((r) => r.id === id);
   if (!found) throw new Error(`no room ${id}`);
@@ -15,7 +16,7 @@ describe("cuesIn", () => {
   });
 
   it("adds the hazards a room has, in a fixed order (camera, laser, guard, then plate hum and door)", () => {
-    const cues = cuesIn(room("02-cameras-lasers"));
+    const cues = cuesIn(room("04-cameras-lasers"));
     expect(cues).toEqual(["camera", "laser", "guard", "hum", "door"]);
   });
 

@@ -1,0 +1,21 @@
+{"id":"01-first-steps","name":"First Steps","version":1,"hue":"rose","budgetS":240,
+ "beats":[
+  {"name":"One plate","x":[0,11],"intent":{"blind":"is told where the plate is and stands on it","deaf":"sees the plate and calls who should step on","mute":"points out the plate and the door it opens"}},
+  {"name":"Everyone through","x":[12,24],"intent":{"blind":"hears the door click and is talked onto a plate","deaf":"sees which plate is free and calls it","mute":"signals each of them onto a plate"}}
+ ],
+ "objects":{
+  "D1":{"opensWhen":["p1"]},
+  "D2":{"opensWhen":["p2","p3","p4"]}},
+ "hints":{"jobs":[
+  {"beat":1,"goTo":"p1","prefer":"blind"},
+  {"beat":1,"goTo":"K1","all":true},
+  {"beat":2,"goTo":"p2","prefer":"mute"},
+  {"beat":2,"goTo":"p3","prefer":"deaf"},
+  {"beat":2,"goTo":"p4","prefer":"blind"},
+  {"beat":2,"goTo":"E","all":true}]}}
+---
+##########################
+#1.....p....D.......p.DE.#
+#2..........D.K.....p.DE.#
+#3..........D.......p.DE$#
+##########################

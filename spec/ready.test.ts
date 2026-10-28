@@ -133,7 +133,8 @@ describe("the reveal's sights and sounds", () => {
     const five = await startedFive(baseUrl);
     for (const [i, reveal] of (five.reveals as unknown as CuesReveal[]).entries()) {
       if (i > 2) continue;
-      if (reveal.role === "blind") expect(reveal.cues).toEqual(["camera", "guard", "hum", "door"]);
+      // room 1 First Steps has plates and doors only: their hum and click are all there is to learn
+      if (reveal.role === "blind") expect(reveal.cues).toEqual(["hum", "door"]);
       else expect(reveal.cues).toEqual([]);
     }
     await close(five.sockets);

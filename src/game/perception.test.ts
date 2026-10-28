@@ -915,9 +915,9 @@ describe("viewFor: line of sight", () => {
     expect(viewFor(w, 0, "blind", false).sounds.map((s) => s.kind)).toContain("loot");
   });
 
-  it("keeps the largest full view of room 03 under 8 KiB", () => {
-    const room = loadRooms().find((r) => r.id === "03-vault");
-    if (!room) throw new Error("room 03 is missing");
+  it("keeps the largest full view of room 05 under 8 KiB", () => {
+    const room = loadRooms().find((r) => r.id === "05-vault");
+    if (!room) throw new Error("room 05 is missing");
     const w = createWorld(room);
     let worst = 0;
     for (let y = 1; y < room.height - 1; y++) {

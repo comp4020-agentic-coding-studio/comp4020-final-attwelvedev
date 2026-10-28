@@ -1,5 +1,5 @@
 {
-  "room": "02-cameras-lasers",
+  "room": "04-cameras-lasers",
   "runs": [
     { "n": 19, "moves": [[1, 0], [1, 0], [1, 0]] },
     {

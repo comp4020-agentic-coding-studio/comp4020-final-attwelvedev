@@ -82,6 +82,8 @@ updated to the new first room.
 
 ### Task 14: Rooms 1 to 3
 
+- [x] Done 2026-10-29 (overnight run). Deviations, ruled and logged in `plans/2026-10-28-escape-room-heist-overnight.md`: room 1 ends with a three-plate door (the FR10 lint rule); First Job's fixture is `spec/fixtures/first-job/`, not `spec/fixtures/rooms/`; `spec/caught.test.ts` runs its own app on it; a guide-bot fix for towing (`guideBlind`).
+
 - **Description:** Author the three rooms per this file's §4, with beats, intents, hints,
   checkpoints and labels; rename the old rooms; move room-id fixtures.
 - **Files touched:** new `rooms/01-first-steps.room`, `02-three-hands.room`, `03-watchers.room`;

@@ -36,8 +36,8 @@ const CAMERA_IDLE_S = 3; // the camera watches the first 2.5 s of every 8 s: cro
 
 describe("room 01, First Job", () => {
   it("can be cleared by three players: push the crate, wait out the camera, hold the plates, go through together", () => {
-    const room = loadRooms()[0];
-    if (!room) throw new Error("rooms/01-first-job.room is missing");
+    const room = loadRooms("./spec/fixtures/first-job")[0];
+    if (!room) throw new Error("spec/fixtures/first-job/01-first-job.room is missing");
     const w = createWorld(room);
     const run = (routes: Record<Seat, Vec[]>, until: () => boolean, max: number) => {
       const walkers = ([0, 1, 2] as const).map((s) => walker(w, s, routes[s]));
@@ -89,8 +89,8 @@ describe("room 01, First Job", () => {
   });
 
   it("needs all three players: two on plates leave the door shut", () => {
-    const room = loadRooms()[0];
-    if (!room) throw new Error("rooms/01-first-job.room is missing");
+    const room = loadRooms("./spec/fixtures/first-job")[0];
+    if (!room) throw new Error("spec/fixtures/first-job/01-first-job.room is missing");
     const w = createWorld(room);
     w.players[0].pos = at(30.5, 4.5);
     w.players[1].pos = at(30.5, 5.5);

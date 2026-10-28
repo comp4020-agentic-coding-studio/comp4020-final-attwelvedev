@@ -71,7 +71,7 @@ describe("the leaderboard", () => {
       const { players, code } = await startedGame(ownUrl);
       ready(players);
       const cleared = await clearRoomOne(players);
-      expect(cleared.room).toBe("01-first-job");
+      expect(cleared.room).toBe("01-first-steps");
       await closeAll(players);
 
       const res = await fetch(new URL("/leaderboard?tab=room-1", ownUrl));

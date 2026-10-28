@@ -1,0 +1,28 @@
+{"id":"03-watchers","name":"Watchers","version":1,"hue":"amber","budgetS":240,
+ "beats":[
+  {"name":"Glass","x":[0,29],"intent":{"blind":"can't hear the camera through the glass and waits for the call","deaf":"watches the camera through the glass and says when the hall is clear","mute":"sees the camera and signals the dash"}},
+  {"name":"Vent","x":[30,39],"intent":{"blind":"hears the guard through the vent and holds a plate","deaf":"can't see the guard behind the vent: asks Can't see","mute":"signals the moment to step in"}}
+ ],
+ "objects":{
+  "C1":{"facingDeg":90,"fovDeg":90,"range":6,"periodS":8,"watchingS":2.5,"offsetS":0},
+  "G1":{"patrol":[[31,8],[37,8]],"speedTps":1.2,"sightTiles":4,"fovDeg":60,"turnDegPerS":180},
+  "D1":{"opensWhen":["p1","p2","p3"]}},
+ "hints":{"jobs":[
+  {"beat":1,"goTo":"K1","all":true},
+  {"beat":1,"goTo":[28,5],"all":true},
+  {"beat":2,"goTo":"p1","prefer":"mute"},
+  {"beat":2,"goTo":"p2","prefer":"deaf"},
+  {"beat":2,"goTo":"p3","prefer":"blind"},
+  {"beat":2,"goTo":"E","all":true}]}}
+---
+########################################
+##################....C....#############
+##################.........#############
+##################=========#############
+#1............................p..D..EE.#
+#2............K...............p..D..EE.#
+#3............................p..D..EE$#
+###############################%%%%%####
+###############################G......##
+###############################.......##
+########################################

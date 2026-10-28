@@ -39,12 +39,12 @@ describe("the heist moves on from a cleared room", () => {
     const before = players.map((p) => p.role);
     ready(players);
     const first = await clearRoomOne(players);
-    expect(first).toMatchObject({ room: "01-first-job", loot: 0 });
+    expect(first).toMatchObject({ room: "01-first-steps", loot: 0 });
     expect(first.ms).toBeGreaterThan(0);
     expect(first.lootTotal).toBeGreaterThanOrEqual(1);
     for (const p of players.slice(1)) {
       expect(await p.socket.next<{ room: string }>("cleared")).toMatchObject({
-        room: "01-first-job",
+        room: "01-first-steps",
       });
     }
 
@@ -60,7 +60,7 @@ describe("the heist moves on from a cleared room", () => {
     const reveals = await Promise.all(players.map((p) => p.socket.next<Reveal>("reveal", 3000)));
     for (const [i, reveal] of reveals.entries()) {
       expect(reveal.index).toBe(1);
-      expect(reveal.room).toBe("02-cameras-lasers");
+      expect(reveal.room).toBe("02-three-hands");
       expect(reveal.role).not.toBe(before[i]);
     }
     expect(new Set(reveals.map((r) => r.role))).toEqual(new Set(ROLES));

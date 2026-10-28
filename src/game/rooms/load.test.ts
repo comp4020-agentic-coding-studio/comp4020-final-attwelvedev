@@ -9,8 +9,8 @@ import { loadRooms } from "./load.ts";
 describe("loadRooms", () => {
   it("loads the shipped rooms in file-name order and every one lints clean", () => {
     const rooms = loadRooms();
-    expect(rooms[0]?.id).toBe("01-first-job");
-    expect(rooms[0]?.beats).toHaveLength(3);
+    expect(rooms[0]?.id).toBe("01-first-steps");
+    expect(rooms[0]?.beats).toHaveLength(2);
     expect(rooms.flatMap(lintRoom)).toEqual([]);
   });
 
