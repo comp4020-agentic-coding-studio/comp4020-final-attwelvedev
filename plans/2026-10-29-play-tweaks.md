@@ -156,7 +156,7 @@ the board looks like part of the game. Overnight, take screenshots and queue the
 
 ## Done
 
-- [ ] All tasks done and committed, `pnpm check` green, reviews queued
+- [x] All tasks done and committed, `pnpm check` green, reviews queued (review queued)
 
 ## Corrections log
 
