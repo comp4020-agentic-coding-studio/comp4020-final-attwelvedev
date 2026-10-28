@@ -1,7 +1,9 @@
 import type { Browser, Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 import { axeViolations, DESKTOP, horizontalOverflow, launch, openPage, PHONE } from "../browser.ts";
+import { clearRoomOne } from "../heistPlay.ts";
 import { createLobbyAs, joinWithCode, leaveGameAndClose } from "../lobbyUi.ts";
+import { closeAll as closeSockets, ready, startedGame } from "../play.ts";
 
 const baseUrl = inject("baseUrl");
 let browser: Browser;
@@ -190,14 +192,14 @@ describe("the crew column", () => {
     await closeAll(pages);
   });
 
-  it("shows who has played what as pips, and who sits out", async () => {
+  it("shows who sits out, and nothing played before the first room", async () => {
     const { pages } = await revealed(["Ana", "Bo", "Cy", "Di", "Ed"]);
     const host = pages[0] as Page;
     await host.getByText("Watching").first().waitFor();
     expect(await crewRow(host, "Di").innerText()).toContain("Watching");
     expect(await crewRow(host, "Ed").innerText()).toContain("Watching");
-    // nobody has played yet, so no pips and no placeholder mark: nothing to say is nothing drawn
-    expect(await host.locator(".reveal-crew .pips").count()).toBe(0);
+    // nobody has played yet, so no Played line and no placeholder mark: nothing to say is nothing drawn
+    expect(await host.locator(".reveal-crew .played").count()).toBe(0);
     expect(await host.locator(".reveal-crew").innerText()).not.toMatch(/[—–─-]\s*$/m);
     await closeAll(pages);
   });
@@ -306,6 +308,47 @@ describe("the crew column", () => {
       .toContain("Left the game");
     await closeAll(pages);
   });
+});
+
+describe("the crew column after a room", () => {
+  // three sockets play room 1, then Ana's own device opens the next reveal in a browser
+  it.each([
+    ["desktop", DESKTOP],
+    ["phone", PHONE],
+  ] as const)(
+    "says who played what in words, unclipped (%s)",
+    async (_name, viewport) => {
+      const { players, code } = await startedGame(baseUrl);
+      ready(players);
+      await clearRoomOne(players);
+      players[0]?.socket.send({ t: "next" });
+      await players[0]?.socket.next("reveal", 5000);
+      // the device cookie and saved nickname are Ana's, so the lobby page rejoins as her
+      const cookie = players[0]?.cookie ?? "";
+      const eq = cookie.indexOf("=");
+      const context = await browser.newContext({ viewport });
+      await context.addCookies([
+        { name: cookie.slice(0, eq), value: cookie.slice(eq + 1), url: baseUrl },
+      ]);
+      await context.addInitScript(() => localStorage.setItem("heist.nickname", "Ana"));
+      const page = await context.newPage();
+      await page.goto(new URL(`/lobby/${code}`, baseUrl).href);
+      await page.locator(".reveal").waitFor();
+      for (const who of ["Ana", "Bo", "Cy"]) {
+        const played = crewRow(page, who).locator(".played");
+        await played.waitFor();
+        expect(await played.innerText()).toMatch(/^Played: (Can't see|Can't hear|Can't speak)$/);
+        const clipped = await played.evaluate(
+          (el) => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1,
+        );
+        expect(clipped, who).toBe(false);
+      }
+      expect(await horizontalOverflow(page)).toBe(0);
+      await context.close();
+      await closeSockets(players);
+    },
+    120_000,
+  );
 });
 
 describe("host swaps", () => {
@@ -518,8 +561,8 @@ describe("players leave during the reveal", () => {
     expect(await di.getByRole("alertdialog").count()).toBe(0);
     await expect.poll(() => crewRow(ana, "Di").innerText()).toContain("Not ready");
     await ana.getByRole("button", { name: "I'm ready" }).click({ timeout: 3000 });
-    // the role they are about to play is not "played" yet: no pip beside their name
-    expect(await crewRow(di, "Di").locator(".pips").count()).toBe(0);
+    // the role they are about to play is not "played" yet: no Played line beside their name
+    expect(await crewRow(di, "Di").locator(".played").count()).toBe(0);
     await di.getByRole("button", { name: "I'm ready" }).click({ timeout: 3000 });
     await di.getByText(/You're ready/).waitFor({ timeout: 3000 });
     await closeAll(pages);

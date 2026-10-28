@@ -56,3 +56,12 @@
   `http://localhost:8080`, Start a new team, Start alone.
 - **Screenshots:** `review/play-tweaks-task2-bots-{1280,375}.png` (crew panel).
 - **Judged:** names read as names, nothing like a role or a shape; fits at both widths.
+
+## Play tweaks, Task 3: played roles in words (demo 1)
+
+- **Look at:** the reveal's crew column before room 2. Each row reads "Played: <role names>" in
+  words, muted, on its own line under the name; it wraps on a phone.
+- **Start locally:** `pkill -f "node server.ts"; pnpm build && pnpm start`, three tabs at
+  `http://localhost:8080` (one at 375 px), create, join, Start, Ready, clear room 1, press Next.
+- **Screenshots:** `review/play-tweaks-task3-played-{1280,375}.png` (crew panel, room 2 reveal).
+- **Judged:** clear and unclipped at both widths; the role shape stays only for the current role.

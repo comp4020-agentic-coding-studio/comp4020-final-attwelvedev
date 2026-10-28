@@ -231,11 +231,11 @@ body.playing main {
   font-size: var(--t-14);
   font-weight: 700;
 }
-.reveal-crew .pips {
-  display: inline-flex;
-  gap: 3px;
-  align-items: center;
+.reveal-crew .played {
+  flex-basis: 100%; /* its own line under the name, wrapping on a phone */
+  min-width: 0;
   color: var(--ui-muted);
+  font-size: var(--t-14);
 }
 .reveal-crew .no-shape {
   width: 20px;

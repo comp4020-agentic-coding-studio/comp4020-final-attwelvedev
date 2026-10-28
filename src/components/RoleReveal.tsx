@@ -187,14 +187,8 @@ export function RoleReveal({
                         : "Not ready"}
                 </span>
                 {r.played.length > 0 && (
-                  <span
-                    class="pips"
-                    role="img"
-                    aria-label={`Played ${r.played.map((p) => ROLE_LABEL[p]).join(", ")}`}
-                  >
-                    {r.played.map((p, i) => (
-                      <RoleShape key={`${p}${i}`} role={p} size={12} />
-                    ))}
+                  <span class="played">
+                    Played: {r.played.map((p) => ROLE_LABEL[p]).join(", ")}
                   </span>
                 )}
                 {swappable && (

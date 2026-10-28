@@ -108,7 +108,7 @@ cleared panel. Restyling the `/leaderboard` page.
   - **Test first:** `lobbies.test.ts` — a bot in seat 2 is "Bot Moss".
   - **Check:** `grep -rn "Bot \(circle\|square\|triangle\)" src spec` is empty.
   - **Verify:** demo 2.
-- [ ] **Task 3: Played roles in words.**
+- [x] **Task 3: Played roles in words.**
   - **Change:** replace the pips in `RoleReveal.tsx` with text "Played: " plus `ROLE_LABEL` names
     joined by ", ", styled `muted` in `src/styles/game.css` if needed, wrapping on a phone.
   - **Test first:** `spec/layout/reveal.test.ts` checks that a row after one room contains
