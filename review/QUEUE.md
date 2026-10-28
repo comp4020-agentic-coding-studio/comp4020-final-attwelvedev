@@ -26,3 +26,24 @@
 - **Judged:** all four new pieces render and the plaque is legible at 375. The phase 02 label chip
   ("Plaque: a rule for another room...") sits over the plaque's text at both widths: worth a look; the
   chip placement is phase 02's. The lamp board overlapping the switches plate is the showcase room's layout.
+
+## Phase 04, Task 15: rooms 1 to 3 played (First Steps, Three Hands, Watchers)
+
+- **Look at:** play rooms 1 to 3 in three tabs, each role at least once. Does each room teach its
+  two things and nothing else feel unexplained? (1: plate and door, ends at a three-plate door;
+  2: crate onto a plate, then Can't hear takes Can't see by the hand (Space beside them) to the three
+  plates; 3: a camera seen through glass but not heard, a guard heard through a vent but not seen.)
+  Never more than three label chips (two on a phone); nobody waits with nothing to do for more than
+  about 20 s.
+- **Start locally:** `pkill -f "node server.ts"; pnpm build && pnpm start`, open
+  `http://localhost:8080` in three tabs (one at 375 px wide, or a phone on the LAN), create a lobby,
+  join from the other two, Start, Ready. The heist plays rooms 1 to 3, then the old rooms 4 and 5.
+  For one room alone: copy `rooms/0N-*.room` into an empty dir `D`, then `ROOMS_DIR=D PORT=8093 node server.ts`.
+- **Screenshots** (start of each room; 375 = Can't hear on a phone, 1280 = Can't speak):
+  `review/04-task15-first-steps-{1280,375}.png`, `review/04-task15-three-hands-{1280,375}.png`,
+  `review/04-task15-watchers-{1280,375}.png`. Per-role mockups: `playtests/mockups/0{1,2,3}-*.html`.
+- **Judged:** renders clean at both widths; chips capped and legible; HUD clear of the map. Bots
+  clear each room in about 7 to 10 s in every rotation. Worth your eye: Watchers opens on an empty
+  13-tile corridor (First Job's old crate bay, kept so the proven camera/guard layout is unchanged);
+  room 1 ends at a three-plate door because the FR10 lint rule asks every station-free room for
+  one (overnight decisions file). Not playtested by a person: that is this review.
