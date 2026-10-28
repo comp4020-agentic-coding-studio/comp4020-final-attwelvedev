@@ -779,3 +779,30 @@ empty-database app (as its sibling already did), and `pnpm start:check` runs
 the server on a throwaway database, written into CLAUDE.md so the next local
 check doesn't fill the real one with test runs. Checked: the moved spec passes
 against a server on the real database, the case that failed before.
+
+## 2026-10-28 — Lead beats still made passengers: balance by presence, and four corrections to the design
+
+367098f, c8c2df8..e062047; [ADR 0017](doc/adr/0017-balance-by-presence-stations-and-gear.md)
+
+Two playtests and the `02-blackout` draft showed that a beat one role leads
+still leaves the other two following. The obvious next step was a better lead
+beat; the call I made instead was to stop leading at all. In the escape-room
+heist brainstorm each puzzle (a station) splits what tells you the answer,
+where you act and how you know it worked across places and senses, and gear
+changes what a person perceives. That way "every role is needed" becomes a
+property a linter can check, not something a bot test only approximates.
+
+I corrected the design four times after seeing it: a cartoon dog as the comic
+failure was out of place, so it became a dye pack; "just in-world clues" was
+ambiguous, so there is no recorded speech anywhere, only tones; a wrong answer
+costs the whole team the checkpoint, not a heat meter; and the rooms grow
+larger where the puzzles need it, not smaller (the spec's probe table, rows 2,
+6, 7 and 13).
+
+How I knew it held: the presence linter flags each of the plan's four
+one-loadout cases (stethoscope at the dial, plaque in sight of the wires,
+earpiece worn at the keypad, lamps seen from the buttons). It flagged the
+fixture's own music box too, whose tune stood beside the bells; the tune moved
+behind glass. Bots still clear the fixture in every rotation, reading answers
+from the sim (FR3), so the bot test proves a room can be cleared and the
+linter proves no role is a passenger.

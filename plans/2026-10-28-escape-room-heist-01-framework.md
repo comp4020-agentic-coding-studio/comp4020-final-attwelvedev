@@ -374,6 +374,9 @@ to a station elsewhere via `yields`; sync: keys ≥3 tiles apart).
 
 ### Task 6: Supersede the old plan and spec lines; park the backlog
 
+- **Status:** done, 367098f (2026-10-28); the `PROCESS_LOG.md` entry cites it, so it lands in
+  the commit after.
+
 - **Description:** P2 and the brainstorm's housekeeping.
 - **Files touched:** `specs/2026-10-19-play-overhaul.md` (FR12, FR14:
   "Superseded by `specs/2026-10-28-escape-room-heist.md` (2026-10-28)"),
