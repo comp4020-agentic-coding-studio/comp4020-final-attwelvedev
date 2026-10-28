@@ -12,6 +12,7 @@ export function Settings({
   settings,
   onChange,
   maskNoiseAvailable,
+  maskNoiseDefault = true,
   othersSoundOff,
   voiceOn,
 }: {
@@ -21,6 +22,8 @@ export function Settings({
   // Whether this person's setup says they have headphones, so Can't hear's masking noise can play;
   // they can still choose not to use it, but can't turn on what their setup rules out.
   maskNoiseAvailable: boolean;
+  // Whether masking noise starts on before they choose: off for someone remote, on in the room.
+  maskNoiseDefault?: boolean;
   // This person's setup says they have no headphones (Can't see, Can't speak): captions carry
   // the game's sound instead, so the checkboxes say so rather than show a choice that isn't one.
   othersSoundOff: boolean;
@@ -31,6 +34,7 @@ export function Settings({
   const [open, setOpen] = useState(false);
   const deaf = role === "deaf";
   const forcedCaptions = !deaf && othersSoundOff;
+  const maskNoiseOn = settings.maskNoiseOn ?? maskNoiseDefault;
   const toggle = (key: keyof SettingsState) => (e: Event) =>
     onChange({ ...settings, [key]: (e.target as HTMLInputElement).checked });
   return (
@@ -133,7 +137,7 @@ export function Settings({
                 <input
                   type="checkbox"
                   name="mask-noise"
-                  checked={maskNoiseAvailable && settings.maskNoiseOn}
+                  checked={maskNoiseAvailable && maskNoiseOn}
                   disabled={!maskNoiseAvailable}
                   aria-describedby={maskNoiseAvailable ? undefined : "mask-noise-note"}
                   onChange={toggle("maskNoiseOn")}
@@ -148,7 +152,7 @@ export function Settings({
                   max={1}
                   step={0.05}
                   value={settings.volume}
-                  disabled={!maskNoiseAvailable || !settings.maskNoiseOn}
+                  disabled={!maskNoiseAvailable || !maskNoiseOn}
                   aria-describedby={maskNoiseAvailable ? undefined : "mask-noise-note"}
                   onInput={(e) =>
                     onChange({

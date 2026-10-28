@@ -15,6 +15,7 @@ interface RevealMsg {
   index: number;
   real: {
     maskNoise: boolean;
+    maskDefault: boolean;
     soundOff: boolean;
     captions: boolean;
     voice: boolean;
@@ -117,12 +118,19 @@ describe("a person's real-life setup", () => {
     expect(reveals.map((r) => r.role)).toEqual(["blind", "deaf", "mute"]);
     expect(reveals[0]?.real).toEqual({
       maskNoise: false,
+      maskDefault: true, // Ana and Bo share a room
       soundOff: true,
       captions: true,
       voice: true, // Cy is remote, so the crew is not all in one room
       lines: ["Mask on. Find WASD and Space first."],
     });
-    expect(reveals[1]?.real).toMatchObject({ maskNoise: true, soundOff: false, captions: false });
+    expect(reveals[1]?.real).toMatchObject({
+      maskNoise: true,
+      maskDefault: true,
+      soundOff: false,
+      captions: false,
+    });
+    expect(reveals[2]?.real.maskDefault).toBe(false); // Cy is remote
     expect(reveals[1]?.real.lines).toEqual([
       "Earplugs in now.",
       "Sit where you can't see the others' mouths, so you can't lip-read.",

@@ -644,7 +644,7 @@ function Hud({
 
   // The deaf seat's own masking noise: on when their setup says they have headphones, unless they
   // turned it off, at the volume they chose.
-  const maskNoiseOn = real.maskNoise && settings.maskNoiseOn;
+  const maskNoiseOn = real.maskNoise && (settings.maskNoiseOn ?? real.maskDefault);
   useEffect(() => {
     audio.current?.setMaskNoise(maskNoiseOn, settings.volume);
   }, [audio, maskNoiseOn, settings.volume]);
@@ -950,6 +950,7 @@ function Hud({
               settings={settings}
               onChange={change}
               maskNoiseAvailable={real.maskNoise}
+              maskNoiseDefault={real.maskDefault}
               othersSoundOff={real.soundOff}
               voiceOn={real.voice}
             />

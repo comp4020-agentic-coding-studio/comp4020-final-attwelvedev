@@ -30,10 +30,10 @@ describe("defaultsFor", () => {
     });
   });
 
-  it("starts with high contrast off, masking noise on and its volume at half", () => {
+  it("starts with high contrast off, masking noise not chosen and its volume at half", () => {
     expect(defaultsFor("deaf")).toMatchObject({
       highContrast: false,
-      maskNoiseOn: true,
+      maskNoiseOn: null,
       volume: 0.5,
     });
   });
@@ -117,9 +117,22 @@ describe("loadSettings and saveSettings", () => {
     const s = store({ "heist.settings": JSON.stringify({ sound: false, captions: true }) });
     expect(loadSettings("blind", s)).toMatchObject({
       highContrast: false,
-      maskNoiseOn: true,
+      maskNoiseOn: null,
       volume: 0.5,
     });
+  });
+
+  it("reads a masking-noise `true` saved before it could be unset as not chosen", () => {
+    const s = store({ "heist.settings": JSON.stringify({ maskNoiseOn: true }) });
+    expect(loadSettings("deaf", s).maskNoiseOn).toBeNull();
+  });
+
+  it("keeps a masking-noise choice made now, on or off, across a reload", () => {
+    for (const maskNoiseOn of [true, false, null]) {
+      const s = store();
+      saveSettings({ ...defaultsFor("deaf"), maskNoiseOn }, s);
+      expect(loadSettings("deaf", s).maskNoiseOn).toBe(maskNoiseOn);
+    }
   });
 
   it("ignores junk and survives storage that throws", () => {

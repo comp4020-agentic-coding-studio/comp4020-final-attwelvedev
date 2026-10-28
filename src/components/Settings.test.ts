@@ -124,6 +124,29 @@ describe("Settings: masking noise", () => {
     expect(document.body.textContent).toMatch(/headphones/i);
   });
 
+  it("shows the setup's default until they choose: off for someone remote", async () => {
+    for (const maskNoiseDefault of [false, true]) {
+      render(
+        h(Settings, {
+          role: "deaf",
+          settings: { ...settings, maskNoiseOn: null },
+          onChange: () => {},
+          maskNoiseAvailable: true,
+          maskNoiseDefault,
+          othersSoundOff: false,
+          voiceOn: true,
+        }),
+        document.body,
+      );
+      await act(() => (document.querySelector("button.hud-btn") as HTMLButtonElement).click());
+      const toggle = document.querySelector(
+        'input[type="checkbox"][name="mask-noise"]',
+      ) as HTMLInputElement;
+      expect(toggle.checked).toBe(maskNoiseDefault);
+      render(null, document.body);
+    }
+  });
+
   it("calls onChange with maskNoiseOn flipped", async () => {
     const onChange = vi.fn();
     await openAs("deaf", true, onChange);

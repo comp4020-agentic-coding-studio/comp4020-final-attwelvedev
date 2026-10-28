@@ -7,14 +7,16 @@ export interface Settings {
   voiceMode: "hold" | "toggle"; // V: hold to talk, or press to turn the mic on and off
   quick: string | null; // the phone quick slot's pinned wheel slot, e.g. "face:f03"; null = the role's default
   highContrast: boolean; // high-contrast HUD and canvas palette, every role
-  maskNoiseOn: boolean; // the deaf seat's own choice, when the host has turned masking noise on
+  maskNoiseOn: boolean | null; // Can't hear's own masking-noise choice; null = not chosen, so the setup's default
   volume: number; // 0-1: the deaf seat's masking-noise volume
   labels: boolean; // in-world labels for what is new in sight; the HUD shows them in the first room only
 }
 
-// What is stored: `captions: null` means "whatever this role defaults to".
+// What is stored: `captions: null` means "whatever this role defaults to". `maskNoiseSet` marks a
+// `maskNoiseOn` saved since it could be null: before that it was always stored, `true` by default.
 export interface Stored extends Omit<Settings, "captions"> {
   captions: boolean | null;
+  maskNoiseSet?: true;
 }
 
 interface Store {
@@ -33,7 +35,7 @@ export const defaultsFor = (_role: Role): Settings => ({
   voiceMode: "hold",
   quick: null,
   highContrast: false,
-  maskNoiseOn: true,
+  maskNoiseOn: null,
   volume: 0.5,
   labels: true,
 });
@@ -62,7 +64,10 @@ export function loadSettings(role: Role, store: Store | null = browserStore()): 
       quick: typeof saved.quick === "string" ? saved.quick : null,
       highContrast:
         typeof saved.highContrast === "boolean" ? saved.highContrast : base.highContrast,
-      maskNoiseOn: typeof saved.maskNoiseOn === "boolean" ? saved.maskNoiseOn : base.maskNoiseOn,
+      maskNoiseOn:
+        typeof saved.maskNoiseOn === "boolean" && (saved.maskNoiseSet || !saved.maskNoiseOn)
+          ? saved.maskNoiseOn
+          : base.maskNoiseOn,
       volume: typeof saved.volume === "number" ? saved.volume : base.volume,
       labels: typeof saved.labels === "boolean" ? saved.labels : base.labels,
     };
@@ -73,7 +78,7 @@ export function loadSettings(role: Role, store: Store | null = browserStore()): 
 
 export function saveSettings(settings: Stored, store: Store | null = browserStore()): void {
   try {
-    store?.setItem(KEY, JSON.stringify(settings));
+    store?.setItem(KEY, JSON.stringify({ ...settings, maskNoiseSet: true }));
   } catch {
     // a setting that doesn't stick is not worth interrupting a game for
   }
