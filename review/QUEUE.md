@@ -114,8 +114,8 @@
 ## Phase 06, Task 19: room 5 The Gallery (teaching wires, then real wires and a keypad by ear)
 
 - **Look at:** play room 5 in three tabs, each role at least once. Chamber 1: a teaching wire panel
-  (three wires); its plaque is on the corridor wall just below the doorway (S at the corridor's
-  west end), round the corner from the wires, because the presence lint forbids one sighted
+  (three wires); its plaque is on the corridor's south wall near its west end (x=4), round the
+  corner from the wires, because the presence lint forbids one sighted
   person seeing the plaque and the wires at once. A wrong cut there only re-draws the panel. Chamber
   2: the real four-wire panel; its plaque is on the north wall of chamber 3 (the keypad room), out of
   sight of the wires, so one person reads and another cuts (Can't hear can mark the wire for Can't
