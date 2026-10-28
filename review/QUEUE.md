@@ -199,3 +199,32 @@
 ## Flaky: comms wheel spec under load (found in phase 09, not fixed)
 
 - `spec/layout/wheel.test.ts` failed 4 tests in one full `pnpm check` (axe `color-contrast: .is-centre > .wheel-label`, then 3 timeouts) and passed `pnpm check:flaky 3 spec/layout/wheel.test.ts` 3/3. Phase 09 touched no client code. Likely cause: the centre slot's label is on `--glass` (translucent) over the live canvas, so axe's contrast depends on what is drawn underneath at that moment. Needs a fix per CLAUDE.md's flaky rules (an opaque centre, or axe run on a settled frame).
+
+## Phase 09, Task 25: room 8 Music Room (a teaching music box and the earpiece, then a real music box)
+
+- **Look at:** play room 8 in three tabs, each role at least once. Room A (start): an earpiece and
+  goggles on the floor, and a **teaching music box** (two bells) whose tune box stands in the
+  corridor below, behind glass: whoever hears the two-note tune walks round and strikes the bells
+  in order. Middle room: a keypad whose keys sit in a **dark** nook; its code plays only in the
+  earpiece, so Can't see (handed it by Can't hear) texts the tune a number a note, and Can't speak,
+  in the goggles, presses the keys. Room B, past the flag: a **real music box** (four bells), its
+  tune box again behind glass in the corridor; Can't speak hears the tune and marks each bell in
+  order with an x, Can't hear strikes the marks. The exit door opens when all three are done.
+  Questions: is the tune box found and tied to its bells (only the glass and the label link them);
+  does Can't see understand the earpiece's tune as numbers to text (key n is the digit n; the
+  hardest step); does anyone know the goggles are for the dark nook; does anyone wait idle more
+  than about 20 s?
+- **Ruled overnight (phase file §4):** the plan said each bell lights as its note plays, but the sim
+  shows no such light, so the tune is heard only; and an earpiece keypad must be in the dark (the
+  lint for spec probe #12). Both are design calls worth your eye.
+- **Start locally:** `lsof -ti tcp:8080 -sTCP:LISTEN | xargs kill; pnpm build && pnpm start`, open
+  `http://localhost:8080` in three tabs (one at 375 px wide), create a lobby, join from the other two,
+  Start, Ready: room 8 comes after rooms 1 to 7. Room 8 alone: `mkdir -p /tmp/r8 && cp
+  rooms/08-music-room.room /tmp/r8/ && ROOMS_DIR=/tmp/r8 PORT=8098 node server.ts`, then
+  `http://localhost:8098`. Per-role perception: `playtests/mockups/08-music-room.html`.
+- **Screenshots** (room start; 1280 = Can't speak, 375 = Can't hear on a phone):
+  `review/09-task25-music-room-1280.png`, `review/09-task25-music-room-375.png`.
+- **Judged:** renders clean at both widths: the two bells with numbers and pattern bands, the tune
+  box under the glass, the gear, the dark nook to the east. On the phone the gear and glass labels
+  sit close (the label cap's usual crowding at the start). Bots clear it in about 37 s in every
+  rotation, never caught. The old rooms are now 09 and 10.

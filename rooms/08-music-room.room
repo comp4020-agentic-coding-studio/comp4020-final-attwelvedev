@@ -1,0 +1,35 @@
+{"id":"08-music-room","name":"Music Room","version":1,"hue":"teal","budgetS":240,
+ "flips":[{"kind":"dark","zone":[12,1,16,3]}],
+ "beats":[
+  {"name":"Gear up","x":[0,9],"intent":{"blind":"waits in the corridor","deaf":"picks up the earpiece","mute":"puts on the goggles"}},
+  {"name":"Two notes","x":[0,9],"intent":{"blind":"is handed the earpiece and hears its tune","deaf":"hands Can't see the earpiece","mute":"listens to the little music box through the glass, then strikes its two bells in order"}},
+  {"name":"The earpiece","x":[10,18],"intent":{"blind":"texts the earpiece's tune, a number a note","deaf":"brings Can't see to the flag","mute":"presses the keys in the dark nook as the numbers come"}},
+  {"name":"The real tune","x":[19,29],"intent":{"blind":"hears the bells ring","deaf":"strikes each bell Can't speak marks","mute":"listens to the big music box through the glass and marks its bells in order"}},
+  {"name":"Out","x":[30,34],"intent":{"blind":"walks out","deaf":"walks out","mute":"walks out"}}],
+ "objects":{
+  "Q1":{"type":"bells","bells":[[5,1],[6,1]],"tune":[5,5],"teach":true},
+  "Q2":{"type":"keypad","keys":[[13,1],[14,1],[15,1],[13,2],[14,2],[15,2],[13,3],[14,3],[15,3]],"clue":"g1","length":3},
+  "Q3":{"type":"bells","bells":[[22,1],[23,1],[24,1],[25,1]],"tune":[24,5]},
+  "g1":{"item":"earpiece"},
+  "g2":{"item":"goggles"},
+  "D1":{"opensWhen":["Q1","Q2","Q3"]}},
+ "hints":{"jobs":[
+  {"beat":1,"take":"g1","prefer":"deaf"},
+  {"beat":1,"take":"g2","prefer":"mute"},
+  {"beat":1,"goTo":[3,5],"prefer":"blind"},
+  {"beat":2,"give":"g1","to":"blind","prefer":"deaf"},
+  {"beat":2,"station":"Q1","at":[4,5],"prefer":"mute"},
+  {"beat":3,"goTo":"K1","all":true},
+  {"beat":3,"station":"Q2","prefer":"mute"},
+  {"beat":4,"watch":"Q3","at":[23,5],"prefer":"mute"},
+  {"beat":4,"station":"Q3","prefer":"deaf"},
+  {"beat":5,"goTo":"E","all":true}]}}
+---
+###################################
+#1......Q#.Q.......#.......Q.######
+#2.g.....#.........#.........######
+#3..g....#.........#.........######
+#..#==####..#######.##====#..######
+#..................K...........D.E#
+#..............................D.E#
+###################################

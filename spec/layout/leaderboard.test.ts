@@ -93,11 +93,11 @@ describe.each([
     await page.getByRole("button", { name: "Full leaderboard" }).click();
     const panel = page.getByRole("dialog", { name: "Leaderboard" });
     await panel.waitFor();
-    await panel.getByRole("tab", { name: "Room 1" }).click();
+    await panel.getByRole("tab", { name: "Room 1", exact: true }).click();
     await panel.locator("table").waitFor();
-    expect(await panel.getByRole("tab", { name: "Room 1" }).getAttribute("aria-selected")).toBe(
-      "true",
-    );
+    expect(
+      await panel.getByRole("tab", { name: "Room 1", exact: true }).getAttribute("aria-selected"),
+    ).toBe("true");
     expect(page.url()).toBe(url);
     expect(await page.context().pages()).toHaveLength(1);
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);

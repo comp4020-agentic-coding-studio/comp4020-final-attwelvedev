@@ -16,7 +16,7 @@ describe("cuesIn", () => {
   });
 
   it("adds the hazards a room has, in a fixed order (camera, laser, guard, then plate hum and door)", () => {
-    const cues = cuesIn(room("08-cameras-lasers"));
+    const cues = cuesIn(room("09-cameras-lasers"));
     expect(cues).toEqual(["camera", "laser", "guard", "hum", "door"]);
   });
 

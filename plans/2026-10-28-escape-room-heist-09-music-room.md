@@ -96,7 +96,7 @@ digits. (Can't hear cannot receive text.)
   nothing outside comments.
 - **Depends on:** Task 13, Task 23.
 
-### Task 25: Build and play room 8
+### Task 25: Build and play room 8 [x] (review queued)
 
 - **Description:** Author `rooms/08-music-room.room` per this file's §4 (teaching versions first, then
   real), with beats, intents, hints, checkpoints and labels.
