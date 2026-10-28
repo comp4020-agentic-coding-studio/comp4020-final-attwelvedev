@@ -21,7 +21,10 @@
       "Bash(mise exec -- flyctl status *)",
       "Bash(mise exec -- flyctl logs *)",
       "Bash(mise exec -- flyctl releases *)",
-      "Bash(mise exec -- flyctl apps list)"
+      "Bash(mise exec -- flyctl apps list)",
+      "Bash(pkill -f \"node server.ts\")",
+      "Bash(pnpm build)",
+      "Bash(pnpm start:check)"
     ],
     "ask": [
       "Bash(git push *)",
