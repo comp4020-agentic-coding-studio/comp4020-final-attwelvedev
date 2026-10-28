@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type Db, openDb } from "./db.ts";
-import { type RunInput, saveRun, topRuns } from "./runs.ts";
+import { boardTabs, type RunInput, roomBoard, saveRun, topRuns } from "./runs.ts";
 
 let dir: string;
 let path: string;
@@ -100,5 +100,62 @@ describe("topRuns", () => {
     saveRun(db, { ...room(), kind: "heist", roomId: null, version: "1.1.1" });
     expect(topRuns(db, { kind: "room", roomId: "loading-dock" })).toHaveLength(1);
     expect(topRuns(db, { kind: "heist" })).toHaveLength(1);
+  });
+});
+
+describe("boardTabs", () => {
+  it("has the full heist first, then a tab per room in order, each with its rows", () => {
+    const db = openDb(path);
+    saveRun(db, room({ roomId: "b", ms: 9_000 }));
+    const tabs = boardTabs(db, [{ id: "a" }, { id: "b" }]);
+    expect(tabs.map((t) => [t.id, t.label])).toEqual([
+      ["heist", "Full heist"],
+      ["room-1", "Room 1"],
+      ["room-2", "Room 2"],
+    ]);
+    expect(tabs[1]?.rows).toEqual([]);
+    expect(tabs[2]?.rows.map((r) => r.ms)).toEqual([9_000]);
+  });
+});
+
+describe("roomBoard", () => {
+  it("is the room's top 5 with this run marked, and no extra line when it is in them", () => {
+    const db = openDb(path);
+    for (let i = 1; i <= 4; i++) saveRun(db, room({ ms: i * 10_000 }), i);
+    const mine = saveRun(db, room({ ms: 15_000, teamName: "Team MINE" }), 10);
+    const board = roomBoard(db, mine);
+    expect(board.top.map((r) => [r.rank, r.ms, r.mine])).toEqual([
+      [1, 10_000, false],
+      [2, 15_000, true],
+      [3, 20_000, false],
+      [4, 30_000, false],
+      [5, 40_000, false],
+    ]);
+    expect(board.top[1]).toEqual({
+      rank: 2,
+      teamName: "Team MINE",
+      ms: 15_000,
+      loot: 2,
+      lootTotal: 3,
+      mine: true,
+    });
+    expect(board.mine).toBeNull();
+  });
+
+  it("gives this run's rank on its own when it is outside the top 5", () => {
+    const db = openDb(path);
+    for (let i = 1; i <= 5; i++) saveRun(db, room({ ms: i * 10_000 }), i);
+    const mine = saveRun(db, room({ ms: 90_000 }), 10);
+    const board = roomBoard(db, mine);
+    expect(board.top).toHaveLength(5);
+    expect(board.top.some((r) => r.mine)).toBe(false);
+    expect(board.mine).toEqual({ rank: 6, ms: 90_000 });
+  });
+
+  it("is only this run on a first clear", () => {
+    const db = openDb(path);
+    const board = roomBoard(db, saveRun(db, room()));
+    expect(board.top).toHaveLength(1);
+    expect(board.top[0]?.mine).toBe(true);
   });
 });

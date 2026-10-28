@@ -44,6 +44,17 @@ export interface ClearedMsg {
   ms: number;
   loot: number;
   lootTotal: number;
+  board: {
+    top: {
+      rank: number;
+      teamName: string;
+      ms: number;
+      loot: number;
+      lootTotal: number;
+      mine: boolean;
+    }[];
+    mine: { rank: number; ms: number } | null;
+  };
 }
 
 // A room played the way three people would, as stages: each gives every seat a route (orthogonal

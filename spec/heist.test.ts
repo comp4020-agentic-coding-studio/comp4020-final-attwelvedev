@@ -42,6 +42,18 @@ describe("the heist moves on from a cleared room", () => {
     expect(first).toMatchObject({ room: "01-first-steps", loot: 0 });
     expect(first.ms).toBeGreaterThan(0);
     expect(first.lootTotal).toBeGreaterThanOrEqual(1);
+    // the room's top 5 comes with it, this run among them or ranked on its own line
+    expect(first.board.top.length).toBeGreaterThanOrEqual(1);
+    expect(first.board.top.length).toBeLessThanOrEqual(5);
+    const mine = first.board.top.filter((r) => r.mine);
+    if (first.board.mine === null) {
+      expect(mine).toHaveLength(1);
+      expect(mine[0]).toMatchObject({ ms: first.ms, loot: first.loot, lootTotal: first.lootTotal });
+    } else {
+      expect(mine).toHaveLength(0);
+      expect(first.board.mine).toMatchObject({ ms: first.ms });
+      expect(first.board.mine.rank).toBeGreaterThan(5);
+    }
     for (const p of players.slice(1)) {
       expect(await p.socket.next<{ room: string }>("cleared")).toMatchObject({
         room: "01-first-steps",

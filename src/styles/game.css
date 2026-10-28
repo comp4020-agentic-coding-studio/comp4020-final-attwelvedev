@@ -620,7 +620,11 @@ body.playing main {
   position: absolute;
   inset: 0;
   display: grid;
-  place-content: center;
+  /* centred while it fits; taller than the frame (the cleared card's board on a phone), it scrolls
+     from its top instead of being cut off at both ends */
+  place-content: safe center;
+  overflow: auto;
+  padding: var(--s-3) var(--s-2);
   gap: var(--s-2);
   text-align: center;
   background: rgb(11 18 32 / 85%);
@@ -1541,5 +1545,96 @@ fieldset.settings {
   font-size: var(--t-14);
   font-stretch: 75%;
   line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+/* the room's top 5 on the cleared card; this team's row is outlined, not coloured alone */
+.room-board {
+  display: grid;
+  gap: var(--s-2);
+  justify-items: center;
+  margin-top: var(--s-3);
+  max-width: min(100%, 26rem);
+}
+.room-board h3 {
+  margin: 0;
+  font-size: var(--t-18);
+}
+.room-board table,
+.board-panel table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--t-14);
+  font-variant-numeric: tabular-nums;
+}
+.room-board th,
+.room-board td,
+.board-panel th,
+.board-panel td {
+  padding: var(--s-1) var(--s-2);
+  text-align: left;
+}
+.room-board th,
+.board-panel th {
+  color: var(--ui-muted);
+  font-weight: 700;
+}
+.room-board .team {
+  overflow-wrap: anywhere;
+}
+.room-board tr.mine td {
+  font-weight: 700;
+  border-block: 2px solid var(--goal);
+}
+
+/* the leaderboard inside the game: a wide modal that scrolls inside itself, never the page (its
+   Close and tabs are focusable, so a keyboard can scroll it) */
+.board-panel {
+  width: min(100%, 40rem);
+  max-height: calc(100dvh - 2 * var(--s-4));
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  text-align: left;
+}
+.board-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+.board-panel-head .modal-title {
+  margin: 0;
+}
+.board-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.board-tabs [role="tab"] {
+  min-height: var(--target);
+  padding: 0 var(--s-3);
+  background: none;
+  color: var(--ui);
+  border: 2px solid var(--ui-muted);
+  border-radius: var(--r);
+  font: inherit;
+  cursor: pointer;
+}
+.board-tabs [role="tab"][aria-selected="true"] {
+  border-color: var(--ui);
+  font-weight: 700;
+  text-decoration: underline;
+}
+/* headers and numbers never break mid-word; only the team and crew wrap */
+.room-board th,
+.board-panel th,
+.board-panel td {
+  white-space: nowrap;
+}
+.board-panel td:nth-child(2),
+.board-panel td:nth-child(3) {
+  white-space: normal;
   overflow-wrap: anywhere;
 }

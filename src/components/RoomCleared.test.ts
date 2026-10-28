@@ -19,11 +19,14 @@ const mount = (over: Partial<Parameters<typeof RoomCleared>[0]> = {}) =>
       onNext: vi.fn(),
       onRestart: vi.fn(),
       onRestartHeist: vi.fn(),
+      onBoard: vi.fn(),
       ...over,
     }),
     document.body,
   );
-const names = () => [...document.querySelectorAll("button")].map((b) => b.textContent);
+// the card's own buttons; "Full leaderboard" sits with the board, after them
+const names = () =>
+  [...document.querySelectorAll(".overlay-actions button")].map((b) => b.textContent);
 
 describe("RoomCleared", () => {
   it("never offers Leave: it is too easy to press without reading", () => {
@@ -59,6 +62,50 @@ describe("RoomCleared", () => {
     room.click();
     await Promise.resolve();
     expect(onRestart).not.toHaveBeenCalled();
+  });
+
+  it("shows the room's board with this run highlighted, and opens the full board", () => {
+    const onBoard = vi.fn();
+    mount({
+      onBoard,
+      board: {
+        top: [
+          { rank: 1, teamName: "Team AAAA", ms: 60_000, loot: 1, lootTotal: 2, mine: false },
+          { rank: 2, teamName: "Team MINE", ms: 95_000, loot: 1, lootTotal: 2, mine: true },
+        ],
+        mine: null,
+      },
+    });
+    const rows = [...document.querySelectorAll(".room-board tbody tr")];
+    expect(rows.map((r) => r.textContent)).toEqual(["1Team AAAA1:001/2", "2Team MINE1:351/2"]);
+    expect(rows[1]?.classList.contains("mine")).toBe(true);
+    expect(rows[1]?.getAttribute("aria-current")).toBe("true");
+    const full = [...document.querySelectorAll("button")].find(
+      (b) => b.textContent === "Full leaderboard",
+    ) as HTMLButtonElement;
+    full.click();
+    expect(onBoard).toHaveBeenCalled();
+  });
+
+  it("adds a sixth line with this run's rank when it is outside the top 5", () => {
+    const top = [1, 2, 3, 4, 5].map((rank) => ({
+      rank,
+      teamName: `Team ${rank}`,
+      ms: rank * 10_000,
+      loot: 0,
+      lootTotal: 0,
+      mine: false,
+    }));
+    mount({ ms: 95_000, board: { top, mine: { rank: 9, ms: 95_000 } } });
+    const rows = [...document.querySelectorAll(".room-board tbody tr")];
+    expect(rows).toHaveLength(6);
+    expect(rows[5]?.textContent).toMatch(/^9.*You.*1:35/);
+    expect(rows[5]?.classList.contains("mine")).toBe(true);
+  });
+
+  it("says it is the first clear of the room when the board is empty", () => {
+    mount({ board: { top: [], mine: null } });
+    expect(document.querySelector(".room-board")?.textContent).toMatch(/First clear of this room/);
   });
 
   it("shows the time and the loot", () => {

@@ -126,7 +126,7 @@ cleared panel. Restyling the `/leaderboard` page.
   - **Spec, in `spec/layout/game.test.ts`:** after a clear, the text field is enabled and a sent
     text reaches the receiver.
   - **Verify:** demo 5.
-- [ ] **Task 5: Room leaderboard on clear, board in the game.**
+- [x] **Task 5: Room leaderboard on clear, board in the game.**
   - **Server change:**
     - In `attach.ts`, save the room run *before* sending `cleared`.
     - `cleared` gains `board: { top: BoardRow[]; mine: { rank: number; ms: number } | null }`, where

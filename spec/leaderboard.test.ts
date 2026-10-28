@@ -20,6 +20,22 @@ describe("the leaderboard", () => {
     expect(body).toContain("Room 3");
   });
 
+  it("serves the same boards as JSON for the in-game panel: the full heist, then a tab per room", async () => {
+    const res = await fetch(new URL("/leaderboard.json", baseUrl));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/application\/json/);
+    const { tabs } = (await res.json()) as {
+      tabs: { id: string; label: string; rows: { rank: number; names: unknown[] }[] }[];
+    };
+    expect(tabs.map((t) => t.label).slice(0, 4)).toEqual([
+      "Full heist",
+      "Room 1",
+      "Room 2",
+      "Room 3",
+    ]);
+    for (const t of tabs) expect(Array.isArray(t.rows)).toBe(true);
+  });
+
   it("selects a tab from `?tab=` alone, without scripts", async () => {
     const res = await fetch(new URL("/leaderboard?tab=room-2", baseUrl));
     const dom = await res.text();
@@ -82,6 +98,10 @@ describe("the leaderboard", () => {
       expect(body).toContain("Bo");
       expect(body).toContain("Cy");
       expect(raw).not.toMatch(/\b[0-9a-f]{8}\b/);
+
+      const json = await (await fetch(new URL("/leaderboard.json", ownUrl))).text();
+      expect(json).toContain(`Team ${code}`);
+      expect(json).not.toMatch(/"(id|who|device)"\s*:\s*"[0-9a-f-]{8,}/); // no run id, no device hash
     });
   });
 });

@@ -13,7 +13,7 @@ import { db } from "../lib/db.ts";
 import { type GameEvent, gameLinesFor, lobbyKey, logGame } from "../lib/gameLog.ts";
 import { sharedPresence } from "../lib/presence.ts";
 import { anon } from "../lib/requestLog.ts";
-import { saveRun } from "../lib/runs.ts";
+import { roomBoard, saveRun } from "../lib/runs.ts";
 import { DEVICE_COOKIE } from "../lib/session.ts";
 import { sharedStats } from "../lib/stats.ts";
 import { joinThrottle } from "../lib/throttle.ts";
@@ -327,21 +327,10 @@ function tick(code: string): void {
       room: world.room.id,
       ms: Date.now() - running.game.startedAt,
     });
-    for (const seat of [0, 1, 2] as const) {
-      const who = lobby.seats[seat]?.who;
-      if (who) {
-        hub.sendTo(who, {
-          t: "cleared",
-          room: world.room.id,
-          ms: roomMs,
-          loot: world.loot,
-          lootTotal: world.lootTotal,
-        });
-      }
-    }
     const names = lobby.seats.map((s) => ({ nickname: s.nickname ?? "Bot", bot: s.bot }));
     const heistNames = [...running.game.heistPeople.values()];
-    saveRun(db, {
+    // saved first, so the board sent with `cleared` already has this run on it
+    const roomRun = saveRun(db, {
       kind: "room",
       roomId: world.room.id,
       version: String(world.room.version),
@@ -351,6 +340,20 @@ function tick(code: string): void {
       loot: world.loot,
       lootTotal: world.lootTotal,
     });
+    const board = roomBoard(db, roomRun);
+    for (const seat of [0, 1, 2] as const) {
+      const who = lobby.seats[seat]?.who;
+      if (who) {
+        hub.sendTo(who, {
+          t: "cleared",
+          room: world.room.id,
+          ms: roomMs,
+          loot: world.loot,
+          lootTotal: world.lootTotal,
+          board,
+        });
+      }
+    }
     record("run.saved", null, lobby, { kind: "room", room: world.room.id });
     running.heist.ms += roomMs;
     running.heist.loot += world.loot;

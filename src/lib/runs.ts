@@ -112,3 +112,51 @@ export function topRuns(
     rank: i + 1,
   }));
 }
+
+// One board as the leaderboard shows it: the full heist first, then a tab per room in play order.
+// Shared by the `/leaderboard` page and `/leaderboard.json`, the in-game panel's source.
+export interface BoardTab {
+  id: string; // "heist" or "room-N", the page's `?tab=`
+  label: string;
+  roomId: string | null;
+  rows: RunRow[];
+}
+
+export function boardTabs(db: Db, rooms: readonly { id: string }[]): BoardTab[] {
+  return [
+    { id: "heist", label: "Full heist", roomId: null, rows: topRuns(db, { kind: "heist" }) },
+    ...rooms.map((r, i) => ({
+      id: `room-${i + 1}`,
+      label: `Room ${i + 1}`,
+      roomId: r.id,
+      rows: topRuns(db, { kind: "room", roomId: r.id }),
+    })),
+  ];
+}
+
+// The cleared card's board (it goes in the `cleared` message): the room's top 5, this run marked
+// by its id, and this run's own rank only when it is outside them.
+export interface BoardRow {
+  rank: number;
+  teamName: string;
+  ms: number;
+  loot: number;
+  lootTotal: number;
+  mine: boolean;
+}
+export interface RoomBoard {
+  top: BoardRow[];
+  mine: { rank: number; ms: number } | null;
+}
+
+export function roomBoard(db: Db, run: RunRow): RoomBoard {
+  const top = topRuns(db, { kind: "room", roomId: run.roomId as string }, 5).map((r) => ({
+    rank: r.rank,
+    teamName: r.teamName,
+    ms: r.ms,
+    loot: r.loot,
+    lootTotal: r.lootTotal,
+    mine: r.id === run.id,
+  }));
+  return { top, mine: top.some((r) => r.mine) ? null : { rank: run.rank, ms: run.ms } };
+}

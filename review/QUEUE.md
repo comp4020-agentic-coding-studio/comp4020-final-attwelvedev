@@ -65,3 +65,24 @@
   `http://localhost:8080` (one at 375 px), create, join, Start, Ready, clear room 1, press Next.
 - **Screenshots:** `review/play-tweaks-task3-played-{1280,375}.png` (crew panel, room 2 reveal).
 - **Judged:** clear and unclipped at both widths; the role shape stays only for the current role.
+
+## Play tweaks, Task 5: room board on clear, leaderboard in the game (demo 6 and 7)
+
+- **Look at:** the Room cleared card's "This room's best" (team, time, loot), with this team's row
+  outlined and bold; a run outside the top 5 is a sixth "You" line with its rank; a room nobody
+  cleared before says "First clear of this room". "Full leaderboard", and "See the leaderboard" on
+  Heist complete, open the board as a panel in the game (tabs, Close, Escape); no navigation.
+  Does it look like part of the game?
+- **Start locally:** `pkill -f "node server.ts"; pnpm build && pnpm start`, three tabs at
+  `http://localhost:8080` (one at 375 px), create, join, Start, Ready, clear room 1 (play it a few
+  times, Restart room, to fill the board). For Heist complete quickly:
+  `ROOMS_DIR=spec/fixtures/rooms PORT=8094 DATABASE_PATH=$(mktemp -d)/app.db node server.ts`
+  (one tiny room) and play it at `http://localhost:8094`.
+- **Screenshots:** `review/play-tweaks-task5-cleared-{1280,375}.png`,
+  `review/play-tweaks-task5-panel-{1280,375}.png`,
+  `review/play-tweaks-task5-heist-complete-{1280,375}.png`,
+  `review/play-tweaks-task5-panel-heist-{1280,375}.png`.
+- **Judged:** fixed two things the screenshots showed: the cleared card outgrew a phone's frame (it
+  now scrolls, centred when it fits) and the panel's headers broke mid-word at 375. Worth your eye:
+  the card is busy on a phone (three buttons, then the board); the "You" line has no loot. On the
+  fixture server the panel still lists five room tabs (it reads `./rooms`, as `/leaderboard` does).

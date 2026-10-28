@@ -39,12 +39,13 @@ export function horizontalOverflow(page: Page): Promise<number> {
   );
 }
 
-// Colour contrast is checked, so run it in both colour schemes.
-export async function axeViolations(page: Page): Promise<string[]> {
+// Colour contrast is checked, so run it in both colour schemes. `within` limits it to one part of
+// the page (a selector), for a modal whose promise is its own content, not what it covers.
+export async function axeViolations(page: Page, within?: string): Promise<string[]> {
   await page.addScriptTag({ content: (await import("axe-core")).default.source });
-  return page.evaluate(async () => {
+  return page.evaluate(async (within) => {
     const axe = (window as unknown as { axe: typeof import("axe-core") }).axe;
-    const results = await axe.run(document, {
+    const results = await axe.run(within ? { include: [within] } : document, {
       rules: {
         "link-in-text-block": { enabled: false },
       },
@@ -52,5 +53,5 @@ export async function axeViolations(page: Page): Promise<string[]> {
     return results.violations.map(
       (v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join("; ")}`,
     );
-  });
+  }, within);
 }

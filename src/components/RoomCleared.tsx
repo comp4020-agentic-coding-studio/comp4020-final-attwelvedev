@@ -1,5 +1,7 @@
 import { formatTime } from "../client/hud.ts";
+import type { RoomBoard as Board } from "../net/protocol.ts";
 import { ConfirmButton } from "./ConfirmButton.tsx";
+import { RoomBoard } from "./RoomBoard.tsx";
 
 // Shown over the map when the team is on the exit. The host moves on to the next room; anyone
 // may ask to play this one again, or the whole heist, which the others vote on. There is
@@ -14,6 +16,8 @@ export function RoomCleared({
   onNext,
   onRestart,
   onRestartHeist,
+  board,
+  onBoard,
 }: {
   ms: number;
   loot: number;
@@ -23,6 +27,8 @@ export function RoomCleared({
   onNext: () => void;
   onRestart: () => void;
   onRestartHeist: () => void;
+  board?: Board; // the room's board, once the `cleared` message brings it
+  onBoard: () => void; // open the full leaderboard panel
 }) {
   return (
     <div class="overlay" role="status">
@@ -54,6 +60,7 @@ export function RoomCleared({
         />
       </div>
       {!host && <p class="muted">The host picks the next room.</p>}
+      {board && <RoomBoard board={board} onFull={onBoard} />}
     </div>
   );
 }

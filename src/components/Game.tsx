@@ -40,7 +40,13 @@ import { botRef } from "../game/crew.ts";
 import type { BriefingCue } from "../game/cues.ts";
 import type { GearItem } from "../game/sim/world.ts";
 import { ROLE_LABEL, type Role, type Seat, type Vec } from "../game/types.ts";
-import type { CrewMember, LobbyState, RealLife, RoleView } from "../net/protocol.ts";
+import type {
+  CrewMember,
+  LobbyState,
+  RealLife,
+  RoleView,
+  RoomBoard as RoomBoardData,
+} from "../net/protocol.ts";
 import { ActHint } from "./ActHint.tsx";
 import { type CaptionLine, Captions } from "./Captions.tsx";
 import { type CommsApi, CommsWheel } from "./CommsWheel.tsx";
@@ -51,6 +57,7 @@ import { GearSlot } from "./GearSlot.tsx";
 import { HeistComplete } from "./HeistComplete.tsx";
 import { HudMenu } from "./HudMenu.tsx";
 import { LampLight } from "./LampLight.tsx";
+import { LeaderboardPanel } from "./LeaderboardPanel.tsx";
 import { RoleReveal } from "./RoleReveal.tsx";
 import { RoleShape } from "./RoleShape.tsx";
 import { RoomCleared } from "./RoomCleared.tsx";
@@ -576,9 +583,13 @@ function Hud({
   const [carried, setCarried] = useState<Partial<Record<Seat, GearItem>>>({});
   const [watchOpen, setWatchOpen] = useState(false);
   const [cleared, setCleared] = useState(false);
-  const [summary, setSummary] = useState<{ ms: number; loot: number; lootTotal: number } | null>(
-    null,
-  );
+  const [summary, setSummary] = useState<{
+    ms: number;
+    loot: number;
+    lootTotal: number;
+    board: RoomBoardData;
+  } | null>(null);
+  const [boardOpen, setBoardOpen] = useState<string | null>(null); // the leaderboard panel's first tab
   const [heist, setHeist] = useState<{
     ms: number;
     loot: number;
@@ -692,7 +703,9 @@ function Hud({
 
   useEffect(
     () =>
-      socket.on("cleared", (m) => setSummary({ ms: m.ms, loot: m.loot, lootTotal: m.lootTotal })),
+      socket.on("cleared", (m) =>
+        setSummary({ ms: m.ms, loot: m.loot, lootTotal: m.lootTotal, board: m.board }),
+      ),
     [socket],
   );
 
@@ -1058,6 +1071,7 @@ function Hud({
             loot={heist.loot}
             lootTotal={heist.lootTotal}
             rank={heist.rank}
+            onBoard={() => setBoardOpen("heist")}
           />
         ) : (
           cleared && (
@@ -1070,6 +1084,8 @@ function Hud({
               onNext={() => socket.send({ t: "next" })}
               onRestart={() => ask("room")}
               onRestartHeist={() => ask("heist")}
+              board={summary?.board}
+              onBoard={() => setBoardOpen(`room-${reveal.index + 1}`)}
             />
           )
         )}
@@ -1103,6 +1119,7 @@ function Hud({
             }
           />
         )}
+        {boardOpen && <LeaderboardPanel initial={boardOpen} onClose={() => setBoardOpen(null)} />}
         {!online && (
           <div class="overlay" role="alert">
             <h2>Lost connection</h2>

@@ -5,22 +5,14 @@
 import { loadRooms } from "../game/rooms/load.ts";
 import Base from "../layouts/Base.astro";
 import { db } from "../lib/db.ts";
-import { type RunRow, topRuns } from "../lib/runs.ts";
+import { boardTabs, type RunRow } from "../lib/runs.ts";
 
 Astro.response.headers.set("Cache-Control", "no-store");
 
-const rooms = loadRooms();
-const tabs = [
-  { id: "heist", label: "Full heist", roomId: null as string | null },
-  ...rooms.map((r, i) => ({ id: `room-${i + 1}`, label: `Room ${i + 1}`, roomId: r.id })),
-];
+const tabs = boardTabs(db, loadRooms());
 const requested = Astro.url.searchParams.get("tab");
-const active = tabs.find((t) => t.id === requested) ?? tabs[0] ?? { id: "heist", roomId: null };
-
-const runs: RunRow[] =
-  active.roomId === null
-    ? topRuns(db, { kind: "heist" })
-    : topRuns(db, { kind: "room", roomId: active.roomId });
+const active = tabs.find((t) => t.id === requested) ?? tabs[0];
+const runs: RunRow[] = active?.rows ?? [];
 
 const formatTime = (ms: number): string => {
   const total = Math.floor(ms / 1000);
@@ -37,7 +29,7 @@ const formatTime = (ms: number): string => {
           <li>
             <a
               href={`/leaderboard?tab=${t.id}`}
-              aria-current={t.id === active.id ? "page" : undefined}
+              aria-current={t.id === active?.id ? "page" : undefined}
             >
               {t.label}
             </a>
