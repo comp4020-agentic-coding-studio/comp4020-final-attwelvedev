@@ -39,6 +39,15 @@ describe("defaultsFor", () => {
   });
 });
 
+describe("labels", () => {
+  it("starts on, and a stored choice survives a reload", () => {
+    expect(defaultsFor("deaf").labels).toBe(true);
+    const s = store();
+    saveSettings({ ...defaultsFor("deaf"), labels: false }, s);
+    expect(loadSettings("deaf", s).labels).toBe(false);
+  });
+});
+
 describe("loadSettings and saveSettings", () => {
   it("round-trips a change", () => {
     const s = store();
@@ -59,6 +68,7 @@ describe("loadSettings and saveSettings", () => {
         highContrast: false,
         maskNoiseOn: true,
         volume: 0.5,
+        labels: true,
       },
       s,
     );

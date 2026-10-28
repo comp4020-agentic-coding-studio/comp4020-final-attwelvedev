@@ -27,3 +27,4 @@ mise.local.toml
 # copies in public/ (see CREDITS.md), and the clips are never redistributed as-is
 src/assets/bluemojis/
 src/assets/soundboard/
+.vitest/

@@ -133,7 +133,7 @@ describe("the reveal's sights and sounds", () => {
     const five = await startedFive(baseUrl);
     for (const [i, reveal] of (five.reveals as unknown as CuesReveal[]).entries()) {
       if (i > 2) continue;
-      if (reveal.role === "blind") expect(reveal.cues).toEqual(["hum", "door"]);
+      if (reveal.role === "blind") expect(reveal.cues).toEqual(["camera", "guard", "hum", "door"]);
       else expect(reveal.cues).toEqual([]);
     }
     await close(five.sockets);

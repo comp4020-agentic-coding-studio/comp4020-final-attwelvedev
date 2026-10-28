@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import roomText from "../../rooms/01-loading-dock.room?raw";
+import roomText from "../../rooms/01-first-job.room?raw";
 import { faceImage } from "../client/faces.ts";
 import { detectFx, FX_MAX, FX_MS, type Fx } from "../client/fx.ts";
 import { captionFor, cueCaptions, type HeldCues, hearCues, heardCues } from "../client/hud.ts";

@@ -41,6 +41,11 @@
 - **Rooms:** `rooms/NN-slug.room` (format in the phase 02 plan §4.1). Never
   hand-write one without running `pnpm lint:rooms` and `spec/rooms.test.ts`
   (bots must clear it in every role rotation).
+- **Look before you build a room:** `pnpm mockup:room rooms/NN-slug.room out.html` (or a draft
+  in `spec/fixtures/drafts/`) writes one self-contained page: click a tile, pick a role, and it
+  shows what that role sees and hears from there, as the game's own `viewFor` reports it
+  (`src/game/rooms/mockup.ts`; its test checks it against `viewFor`). It shows who can perceive what,
+  not how it is drawn or whether it is fun, so it does not replace the three-tab playtest.
 - **Naming and layout:** domain services in `src/lib/` take `db` first and
   never touch requests. Unit tests sit beside the code; promises to users get
   `spec/<area>.test.ts`; browser checks get one `spec/layout/<area>.test.ts`

@@ -24,7 +24,7 @@ const callout = (c: string, from: Seat = 1): ChannelMessage =>
 const blindView = (tick: number, sounds: RoleView["sounds"] = []): RoleView => ({
   tick,
   ack: 0,
-  room: "01-loading-dock",
+  room: "01-first-job",
   role: "blind",
   full: false,
   you: { seat: 0 },
@@ -39,7 +39,7 @@ const blindView = (tick: number, sounds: RoleView["sounds"] = []): RoleView => (
 });
 
 describe("a Can't-see bot", () => {
-  const r = room("01-loading-dock");
+  const r = room("01-first-job");
 
   it("does nothing until it is told something, and never needs tiles or entities", () => {
     const m = createBotMemory(0);
@@ -97,10 +97,9 @@ describe("a Can't-see bot", () => {
 });
 
 // A run of the real simulation with bots in the chosen seats; `watch` sees every tick.
-// A3 is only half built (plan 04, Task 16): a bot keeps a record of the hazards it has seen or
-// heard, but its planner does not use it yet, so it still plans from the room file. See the
-// plan's execution note for why.
-describe("a seeing bot records the hazards it has perceived (A3, recording only)", () => {
+// A3 (Task 28): a bot keeps a record of the hazards it has seen or heard, and its planner plans
+// only around those, so a room cannot be passed by bots knowing what their role cannot.
+describe("a seeing bot records the hazards it has perceived (A3)", () => {
   // The corridor runs east along the top, then turns south at x = 11 to a guard who watches
   // the bend. From the west half the guard is out of sight, so a bot there has seen nothing.
   const GRID = [
@@ -205,6 +204,192 @@ describe("a seeing bot records the hazards it has perceived (A3, recording only)
   });
 });
 
+describe("a seeing bot plans only around what it has perceived (A3, Task 28)", () => {
+  // The same L-shaped corridor: the guard at the bend watches the way to the exit, so a bot that
+  // knows of it has no safe way through and waits; one that has not perceived it walks on.
+  const GRID = [
+    "##############",
+    "#1...........#",
+    "#2.........#.#",
+    "#3.........#.#",
+    "###########G.#",
+    "###########.E#",
+    "##############",
+  ];
+  const setup = () => {
+    const r = roomWith(
+      GRID,
+      { G1: { sightTiles: 5, fovDeg: 90, speedTps: 0 } },
+      { hints: { jobs: [{ beat: 1, goTo: "E", all: true }] } },
+    );
+    const world = createWorld(r);
+    const guard = world.guards[0];
+    if (guard) guard.facing = { x: 0, y: -1 };
+    world.players[0].pos = { x: 1.5, y: 2.5 };
+    world.players[2].pos = { x: 1.5, y: 3.5 };
+    const memory = createBotMemory(1, new Set([0, 2] as Seat[]), ROLES3);
+    return { r, world, memory };
+  };
+  const at = (x: number, y: number) => ({ x: x + 0.5, y: y + 0.5 });
+  const moves = (move: { x: number; y: number }) => move.x !== 0 || move.y !== 0;
+
+  it("heads down the lane a guard covers when it has never seen or heard the guard", () => {
+    const { r, world, memory } = setup();
+    world.players[1].pos = at(2, 1);
+    const view = viewFor(world, 1, "deaf", true);
+    expect(view.entities.some((e) => e.id === "G1")).toBe(false);
+    expect(moves(think(r, view, [], memory, 0).input.move)).toBe(true);
+  });
+
+  it("does not, once it saw the guard a second ago", () => {
+    const { r, world, memory } = setup();
+    world.players[1].pos = at(9, 1);
+    world.tick = 100;
+    think(r, viewFor(world, 1, "deaf", true), [], memory, world.tick * TICK_MS);
+    expect(memory.known?.seenHazards.G1?.lastTick).toBe(100);
+    world.players[1].pos = at(2, 1);
+    world.tick = 120; // 1 s on, and out of sight again
+    const away = viewFor(world, 1, "deaf", true);
+    expect(away.entities.some((e) => e.id === "G1")).toBe(false);
+    expect(moves(think(r, away, [], memory, world.tick * TICK_MS).input.move)).toBe(false);
+  });
+
+  it("forgets the guard after 2 s without seeing or hearing it, and plans through again", () => {
+    const { r, world, memory } = setup();
+    world.players[1].pos = at(9, 1);
+    world.tick = 100;
+    think(r, viewFor(world, 1, "deaf", true), [], memory, world.tick * TICK_MS);
+    world.players[1].pos = at(2, 1);
+    world.tick = 160; // 3 s on
+    const away = viewFor(world, 1, "deaf", true);
+    expect(moves(think(r, away, [], memory, world.tick * TICK_MS).input.move)).toBe(true);
+  });
+});
+
+describe("a bot keeps a hazard in mind while it is waiting for it (A3, Task 28)", () => {
+  // A guard watches the bend from out of sight of the west half. Once seen, the bot waits
+  // short of it; waiting hides the guard again, and 2 s on the bot must not forget it and
+  // walk in: that would be the planner forgetting what it is waiting on.
+  const GRID = [
+    "##############",
+    "#1...........#",
+    "#2.........#.#",
+    "#3.........#.#",
+    "###########G.#",
+    "###########.E#",
+    "##############",
+  ];
+  const at = (x: number, y: number) => ({ x: x + 0.5, y: y + 0.5 });
+  it("is still waiting 5 s after it last saw the guard, with the way still covered", () => {
+    const r = roomWith(
+      GRID,
+      { G1: { sightTiles: 5, fovDeg: 90, speedTps: 0 } },
+      { hints: { jobs: [{ beat: 1, goTo: "E", all: true }] } },
+    );
+    const world = createWorld(r);
+    const guard = world.guards[0];
+    if (guard) guard.facing = { x: 0, y: -1 };
+    world.players[0].pos = { x: 1.5, y: 2.5 };
+    world.players[2].pos = { x: 1.5, y: 3.5 };
+    const memory = createBotMemory(1, new Set([0, 2] as Seat[]), ROLES3);
+    world.players[1].pos = at(9, 1);
+    world.tick = 100;
+    think(r, viewFor(world, 1, "deaf", true), [], memory, world.tick * TICK_MS);
+    world.players[1].pos = at(2, 1); // back out of sight of it
+    for (let t = 105; t <= 300; t += 5) {
+      world.tick = t;
+      const view = viewFor(world, 1, "deaf", true);
+      const turn = think(r, view, [], memory, t * TICK_MS);
+      expect(turn.input.move, `walked on at tick ${t}`).toEqual({ x: 0, y: 0 });
+    }
+  });
+});
+
+describe("a guide recovers a Can't-see seat that paused off the middle of its lane (Task 28)", () => {
+  // A one-tile gap in the wall at x = 5. A seat that pauses mid-tile drifts off the lane's middle
+  // and then pushes at the wall beside the gap: it is too wide to pass, and "go" cannot help.
+  const GRID = ["###########", "#1...#....#", "#2........#", "#3...#...E#", "###########"];
+  it("stops it and asks for a tap to line it up, instead of saying go forever", () => {
+    const r = roomWith(GRID, {}, { hints: { jobs: [{ beat: 1, goTo: "E", all: true }] } });
+    const world = createWorld(r);
+    const memory = createBotMemory(1, new Set(), ROLES3);
+    world.players[1].pos = { x: 1.5, y: 1.5 };
+    world.players[2].pos = { x: 1.5, y: 3.5 };
+    const words: string[] = [];
+    for (let t = 1; t <= 40; t++) {
+      world.tick = t;
+      // the blind seat is pressed against the corner of the gap at x = 5, not moving
+      world.players[0].pos = { x: 4.72, y: 3.05 };
+      const turn = think(r, viewFor(world, 1, "deaf", true), [], memory, t * TICK_MS);
+      if (turn.send?.method === "callout") words.push(turn.send.callout);
+      if (turn.send?.method === "text") words.push(turn.send.text);
+    }
+    // 2 s of being stuck: it says what to do about it once, and does not go on saying "go"
+    expect(words).toContain("stop");
+    expect(words.filter((w) => w === "go").length).toBeLessThanOrEqual(7);
+  });
+});
+
+describe("a bot with a clue job goes to the plate it heard named (A2, Task 23)", () => {
+  // A chime of n sounds from a vented pocket. The room file says n = 2, but the chime the bot
+  // hears decides: it must hold until it has heard one, then stand on that plate.
+  const GRID = [
+    "####################",
+    "#1...........p....E#",
+    "#2...c.......p.....#",
+    "#3...........p.....#",
+    "####################",
+  ];
+  const room = (n: number) =>
+    roomWith(
+      GRID,
+      { c1: { n, everyS: 3 } },
+      {
+        beats: [
+          { name: "b", x: [1, 18], intent: { blind: "b", deaf: "d", mute: "m" }, cue: "split" },
+        ],
+        hints: { jobs: [{ beat: 1, goTo: "clue:c1", prefer: "mute" }] },
+      },
+    );
+  const at = (x: number, y: number) => ({ x: x + 0.5, y: y + 0.5 });
+  const walk = (r: ReturnType<typeof room>, chimes: number, ticks: number) => {
+    const world = createWorld(r);
+    const memory = createBotMemory(2, new Set(), ROLES3); // all bots: the mute seat claims the job
+    world.players[2].pos = at(8, 2);
+    let heard: number | undefined;
+    for (let i = 0; i < ticks; i++) {
+      step(world, {}, TICK_MS);
+      const view = viewFor(world, 2, "mute", i === 0);
+      if (chimes === 0) view.sounds = view.sounds.filter((x) => x.kind !== "clue");
+      else {
+        const c = view.sounds.find((x) => x.kind === "clue");
+        if (c) c.n = chimes;
+      }
+      const turn = think(r, view, [], memory, world.tick * TICK_MS);
+      world.players[2].pos = {
+        x: world.players[2].pos.x + turn.input.move.x * 0.2,
+        y: world.players[2].pos.y + turn.input.move.y * 0.2,
+      };
+      heard = memory.known?.clues.c1;
+    }
+    return { pos: world.players[2].pos, heard };
+  };
+
+  it("holds where it is until it has heard a chime", () => {
+    const { pos, heard } = walk(room(2), 0, 120);
+    expect(heard).toBeUndefined();
+    expect(Math.abs(pos.x - 8.5)).toBeLessThan(1.5);
+  });
+
+  it("stands on the plate the chime it heard names, not the one the room file says", () => {
+    const { pos, heard } = walk(room(2), 3, 400);
+    expect(heard).toBe(3);
+    // the file says n = 2 (the middle plate, y = 2); the chime heard said 3 (y = 3)
+    expect(Math.floor(pos.y)).toBe(3);
+    expect(Math.floor(pos.x)).toBe(13);
+  });
+});
+
 function play(
   roomId: string,
   roles: [Role, Role, Role],
@@ -247,7 +432,7 @@ describe("a Can't-hear bot guiding a Can't-see teammate", () => {
     let previous: { callout: string; at: number } | null = null;
     const repeats: number[] = [];
     let said = 0;
-    const run = play("01-loading-dock", ROLES3, [0, 1, 2], 600, (_tick, sent) => {
+    const run = play("01-first-job", ROLES3, [0, 1, 2], 600, (_tick, sent) => {
       for (const s of sent) {
         if (s.message.method !== "callout") continue;
         said++;
@@ -263,7 +448,7 @@ describe("a Can't-hear bot guiding a Can't-see teammate", () => {
 
   it("steers a blind bot to the plates with callouts alone", () => {
     const said = new Set<string>();
-    const run = play("01-loading-dock", ROLES3, [0, 1, 2], 600, (_t, sent) => {
+    const run = play("01-first-job", ROLES3, [0, 1, 2], 600, (_t, sent) => {
       for (const s of sent) if (s.message.method === "callout") said.add(s.message.callout);
     });
     expect(run.world.status).toBe("cleared");
@@ -284,7 +469,7 @@ describe("a Can't-hear bot guiding a Can't-see teammate", () => {
 
 describe("a Can't-speak bot", () => {
   it("never says anything, whatever it sees", () => {
-    const r = room("01-loading-dock");
+    const r = room("01-first-job");
     const world = createWorld(r);
     const m = createBotMemory(2, new Set(), ROLES3);
     for (let i = 0; i < 400; i++) {
@@ -297,7 +482,7 @@ describe("a Can't-speak bot", () => {
   });
 
   it("plays a sound clip when the blind teammate is on the wrong side of a closed door", () => {
-    const r = room("01-loading-dock");
+    const r = room("01-first-job");
     const world = createWorld(r);
     world.players[0].pos = { x: 20.5, y: 4.5 }; // blind, west of the door at x = 31
     world.players[2].pos = { x: 35.5, y: 4.5 }; // mute, east of it
@@ -309,7 +494,7 @@ describe("a Can't-speak bot", () => {
   });
 
   it("sends a face when the room is cleared", () => {
-    const r = room("01-loading-dock");
+    const r = room("01-first-job");
     const world = createWorld(r);
     world.status = "cleared";
     const m = createBotMemory(2, new Set(), ROLES3);
@@ -353,8 +538,10 @@ describe("a seeing bot among hazards", () => {
     expect(watchedWhileStill).toBe(true);
   });
 
-  it("is never caught by a guard in room 2 or the dark of room 3, in any rotation", () => {
-    for (const id of ["02-cameras-lasers", "03-vault"]) {
+  // 03-vault is left out (ruled 2026-10-28): perception-only bots are caught in its dark corridor,
+  // the overhaul phase 04 finding, and escape-room heist phase 04 rewrites the room.
+  it("is never caught by a guard in room 2, in any rotation", () => {
+    for (const id of ["02-cameras-lasers"]) {
       for (const roles of [
         ["blind", "deaf", "mute"],
         ["deaf", "mute", "blind"],
@@ -366,7 +553,7 @@ describe("a seeing bot among hazards", () => {
   });
 
   it("reads only its view: a bot's answer does not change with what else is in the room", () => {
-    const r = room("01-loading-dock");
+    const r = room("01-first-job");
     const a = createWorld(r);
     const b = createWorld(r);
     b.pressed.p1 = true; // something the deaf role cannot see in this view is not what it acts on
@@ -545,12 +732,12 @@ describe("steering a person who cannot see", () => {
   };
 
   it("gets a person who starts off-centre through the tunnel to the plates", () => {
-    const run = sim("01-loading-dock", ["blind", "deaf", "mute"]);
+    const run = sim("01-first-job", ["blind", "deaf", "mute"]);
     expect(run.world.status).toBe("cleared");
   });
 
   it("tells a person to tap toward the middle of the lane, in words, rather than repeating a direction", () => {
-    const r = room("01-loading-dock");
+    const r = room("01-first-job");
     const world = createWorld(r);
     (world.crates[0] as { tile: { x: number; y: number } }).tile = { x: 12, y: 4 }; // the tunnel is clear
     world.players[0].pos = { x: 4.5, y: 4.3 }; // at the tunnel's mouth, 0.2 above the middle of its lane
@@ -575,13 +762,13 @@ describe("steering a person who cannot see", () => {
 
   it("never lets a person push against a wall for more than a second", () => {
     for (const offset of [0.3, -0.3, 0.2, -0.2]) {
-      const run = sim("01-loading-dock", ["blind", "deaf", "mute"], offset);
+      const run = sim("01-first-job", ["blind", "deaf", "mute"], offset);
       expect(run.worst, `offset ${offset}`).toBeLessThanOrEqual(20);
     }
   });
 
   it("gets a person who reacts late through every room, in every role rotation, without pushing at walls", () => {
-    for (const id of ["01-loading-dock", "02-cameras-lasers", "03-vault"]) {
+    for (const id of ["01-first-job", "02-cameras-lasers", "03-vault"]) {
       for (const roles of [
         ["blind", "deaf", "mute"],
         ["deaf", "mute", "blind"],

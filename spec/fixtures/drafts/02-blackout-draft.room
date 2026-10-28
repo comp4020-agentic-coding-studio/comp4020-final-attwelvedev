@@ -1,0 +1,32 @@
+{"id":"02-blackout-draft","name":"Blackout (draft)","version":1,"hue":"apricot",
+ "beats":[
+  {"name":"The dark corridor","x":[7,25],"lead":"blind","intent":{"blind":"hears the guard in the pocket and the hum of the beams, and calls the crossing","deaf":"watches the beams' emitters from the gallery and calls when each is off","mute":"hears the hum and follows the call"}},
+  {"name":"Three hands","x":[26,39],"cue":"split","intent":{"blind":"holds a plate and hears the hum","deaf":"sees which plate is free","mute":"hears the chime and holds the plate it counts"}}
+ ],
+ "objects":{
+  "L1":{"dir":"down","onS":2,"offS":3,"offsetS":0},
+  "L2":{"dir":"down","onS":2,"offS":3,"offsetS":2.5},
+  "G1":{"patrol":[[14,10],[18,10]],"speedTps":1.2,"sightTiles":4,"fovDeg":60,"turnDegPerS":180},
+  "c1":{"n":2,"everyS":3},
+  "D1":{"opensWhen":["p1","p2","p3"]}},
+ "flips":[{"kind":"dark","zone":[9,4,24,10]}],
+ "hints":{"jobs":[
+  {"beat":1,"goTo":"K1","all":true},
+  {"beat":1,"goTo":[26,5],"all":true},
+  {"beat":2,"goTo":"p1","prefer":"blind"},
+  {"beat":2,"goTo":"p3","prefer":"deaf"},
+  {"beat":2,"goTo":"clue:c1","prefer":"mute"},
+  {"beat":2,"goTo":"E","all":true}]}}
+---
+############################################
+###.....................####################
+###.######==============####################
+###.########L####L##########################
+#1.....##.....................p..D..EE######
+#2..K.........................p..D..EE######
+#3.....##.....................p..D..EE######
+#########................#%%%###############
+#########................#.c.###############
+#########................###################
+##############G....$.#######################
+############################################

@@ -14,7 +14,7 @@ const room = (id: string) => {
 
 describe("forecastFor", () => {
   it("says danger wherever the real simulation would catch a player standing still", () => {
-    for (const id of ["02-cameras-lasers", "03-vault"]) {
+    for (const id of ["01-first-job", "02-cameras-lasers", "03-vault"]) {
       const r = room(id);
       const forecast = forecastFor(r);
       const world = createWorld(r);

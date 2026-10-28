@@ -221,10 +221,32 @@ export function drawHazard(
     ctx.roundRect(foot.x - s * 0.18, top.y, s * 0.36, foot.y - top.y, 3);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = WORLD.laser;
-    ctx.beginPath();
-    ctx.arc(foot.x, toScreen(cam, e.pos.x, e.pos.y, 0.6).y, s * 0.07, 0, Math.PI * 2);
-    ctx.fill();
+    // The lens is the laser's state where the beam is not drawn: a beam in a dark zone is kept
+    // from the sighted, so a seat outside the dark reads on and off from this alone. Lit, with a
+    // glow, while on; a dim, empty ring while off.
+    const lens = toScreen(cam, e.pos.x, e.pos.y, 0.6);
+    if (e.state === "on") {
+      ctx.save();
+      ctx.globalAlpha = 0.3;
+      ctx.fillStyle = WORLD.laser;
+      ctx.beginPath();
+      ctx.arc(foot.x, lens.y, s * 0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = WORLD.laser;
+      ctx.beginPath();
+      ctx.arc(foot.x, lens.y, s * 0.09, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      ctx.strokeStyle = WORLD.line;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(foot.x, lens.y, s * 0.07, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
   } else if (e.kind === "guard") {
     drawCone(ctx, e, cam, scene, WORLD.laser, true);
     // a larger slate figure: a shadow, a body, and a diamond cap

@@ -18,6 +18,7 @@ const settings = {
   highContrast: false,
   maskNoiseOn: true,
   volume: 0.5,
+  labels: true,
 };
 
 async function open() {

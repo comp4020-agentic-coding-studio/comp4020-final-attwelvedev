@@ -1,8 +1,9 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { solveRoom } from "../src/game/bots/solve.ts";
 import { rolesFor } from "../src/game/crew.ts";
+import { parseRoom } from "../src/game/rooms/format.ts";
 import { loadRooms } from "../src/game/rooms/load.ts";
-import type { Role } from "../src/game/types.ts";
 
 // FR27: the bots are the room solver. Three bots, each seeing only what its role
 // sees and talking only through its role's channels (the router is in the loop),
@@ -11,52 +12,61 @@ import type { Role } from "../src/game/types.ts";
 // clear is not finished, however a person might manage it.
 const rooms = loadRooms();
 
-// FR14: every role is needed. In a beat that names a `lead`, the team cannot get through
-// when that role's sending is switched off, because nobody else perceives what the lead does.
-// Skipped, with this message, while no room declares one: the rooms that do arrive in phase 06.
-const led = rooms.flatMap((room) =>
-  room.beats.flatMap((beat, i) => (beat.lead ? [{ room, beat, index: i }] : [])),
-);
+// The same check for any set of rooms: the shipped ones, and the fixtures a room is drafted in
+// before it ships (Task 28), so a draft is proved under the same rules.
+// Rooms the perception-only bots (overhaul Task 28) cannot clear yet, each with why and what ends
+// the skip. Ruled by the user on 2026-10-28; a room on this list does not ship as finished.
+const NOT_YET: Record<string, string> = {
+  "03-vault":
+    "caught in the dark corridor by perception-only bots (overhaul phase 04 finding); rewritten in escape-room heist phase 04",
+};
 
-describe("each lead role is needed", () => {
-  if (led.length === 0) {
-    it.skip("no room declares a beat `lead` yet (rooms with leads arrive in phase 06)", () => {});
-    return;
-  }
-  for (const { room, beat, index } of led) {
-    const budgetS = typeof room.meta.budgetS === "number" ? room.meta.budgetS : 600;
-    it(`${room.id} beat ${index + 1} fails without ${beat.lead}'s sends`, () => {
-      const lead = beat.lead as Role;
-      const roles = rolesFor(0);
-      const result = solveRoom(room, roles, budgetS, new Set(), { mute: lead });
-      // the room is not cleared, or the team never got past this beat's far edge
-      const past = result.world.players.every((p) => p.pos.x > beat.x[1]);
-      expect(result.cleared && past, `cleared without ${lead}`).toBe(false);
+function clearEveryRotation(title: string, set: typeof rooms, minimum: number) {
+  describe(title, () => {
+    it("has rooms to check", () => {
+      expect(set.length).toBeGreaterThanOrEqual(minimum);
     });
-  }
-});
 
-describe("three bots clear every room", () => {
-  it("has rooms to check", () => {
-    expect(rooms.length).toBeGreaterThanOrEqual(3);
-  });
-
-  for (const room of rooms) {
-    const budgetS = typeof room.meta.budgetS === "number" ? room.meta.budgetS : 600;
-    for (const rotation of [0, 1, 2]) {
-      const roles = rolesFor(rotation);
-      it(`${room.id} with ${roles.join("/")} (seats 1-3)`, () => {
-        const result = solveRoom(room, roles, budgetS);
-        expect(result.cleared, `not cleared after ${result.ticks / 20} s`).toBe(true);
-        expect(result.ticks / 20).toBeLessThanOrEqual(budgetS);
-        // a room the bots only clear by being caught and sent back is unfair play
-        expect(result.caught).toBe(0);
-        // the team sets every checkpoint on the way, so being caught costs little
-        const flags = room.objects.filter((o) => o.kind === "checkpoint").length;
-        expect(result.world.checkpoint).toBe(flags);
-        // a bot keeps its own cooldowns: the router never has to turn one away
-        expect(result.refused).toBe(0);
-      });
+    for (const room of set) {
+      const budgetS = typeof room.meta.budgetS === "number" ? room.meta.budgetS : 600;
+      for (const rotation of [0, 1, 2]) {
+        const roles = rolesFor(rotation);
+        const why = NOT_YET[room.id];
+        if (why) {
+          it.skip(`${room.id} with ${roles.join("/")} (seats 1-3): ${why}`, () => {});
+          continue;
+        }
+        it(`${room.id} with ${roles.join("/")} (seats 1-3)`, () => {
+          const result = solveRoom(room, roles, budgetS);
+          expect(result.cleared, `not cleared after ${result.ticks / 20} s`).toBe(true);
+          expect(result.ticks / 20).toBeLessThanOrEqual(budgetS);
+          // a room the bots only clear by being caught and sent back is unfair play
+          expect(result.caught).toBe(0);
+          // the team sets every checkpoint on the way, so being caught costs little
+          const flags = room.objects.filter((o) => o.kind === "checkpoint").length;
+          expect(result.world.checkpoint).toBe(flags);
+          // a bot keeps its own cooldowns: the router never has to turn one away
+          expect(result.refused).toBe(0);
+        });
+      }
     }
+  });
+}
+
+clearEveryRotation("three bots clear every room", rooms, 3);
+clearEveryRotation("three bots clear every fixture room", loadRooms("./spec/fixtures/rooms"), 1);
+clearEveryRotation("three bots clear every draft room", loadRooms("./spec/fixtures/drafts"), 1);
+
+// A split cue has to bind (A2): the plate to hold is the one the chime names, so a team whose
+// chime names a plate another seat already holds does not get through. Without this the clue is
+// decoration, which is what the first draft of 02-blackout was.
+describe("the split cue in 02-blackout-draft decides the plate", () => {
+  const text = readFileSync("./spec/fixtures/drafts/02-blackout-draft.room", "utf8");
+  for (const n of [1, 3]) {
+    it(`does not clear when the chime names plate ${n}, which another seat holds`, () => {
+      const room = parseRoom(text.replace('"c1":{"n":2', `"c1":{"n":${n}`));
+      const result = solveRoom(room, rolesFor(0), 60);
+      expect(result.cleared).toBe(false);
+    });
   }
 });

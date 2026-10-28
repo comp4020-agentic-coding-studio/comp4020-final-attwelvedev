@@ -58,6 +58,15 @@ beforeAll(async () => {
   });
   // the sea drifts and a hop is a motion: nothing here measures them
   for (const page of table.pages) await page.emulateMedia({ reducedMotion: "reduce" });
+  // the first room's labels are chips drawn over the world, and this measures the world's own pixels
+  for (const page of table.pages) {
+    await page.evaluate(() => {
+      const saved = JSON.parse(localStorage.getItem("heist.settings") ?? "{}");
+      localStorage.setItem("heist.settings", JSON.stringify({ ...saved, labels: false }));
+    });
+    await page.reload();
+    await page.locator(".frame canvas").waitFor();
+  }
 }, 60_000);
 
 // No leaving the lobby first: that habit stops abandoned lobbies filling a shared server, and this

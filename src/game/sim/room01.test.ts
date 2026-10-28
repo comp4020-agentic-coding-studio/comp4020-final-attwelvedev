@@ -31,59 +31,71 @@ function walker(world: World, seat: Seat, route: Vec[]) {
 }
 
 const at = (x: number, y: number): Vec => ({ x, y });
-const COMMON = [at(10.5, 4.5), at(10.5, 6.5), at(27.5, 6.5)];
+const PUSH = [at(2.5, 4.5), at(8.5, 4.5)]; // leaning east on the crate carries it onto the plate
+const CAMERA_IDLE_S = 3; // the camera watches the first 2.5 s of every 8 s: cross after that
 
-describe("room 01, Loading Dock", () => {
-  it("can be cleared by three players: push the crate, hold the plates, go through together", () => {
+describe("room 01, First Job", () => {
+  it("can be cleared by three players: push the crate, wait out the camera, hold the plates, go through together", () => {
     const room = loadRooms()[0];
-    if (!room) throw new Error("rooms/01-loading-dock.room is missing");
+    if (!room) throw new Error("rooms/01-first-job.room is missing");
     const w = createWorld(room);
-    const routes: Record<Seat, Vec[]> = {
-      0: [at(2.5, 4.5), ...COMMON, at(27.5, 3.5), at(30.5, 3.5)],
-      1: [...COMMON, at(27.5, 4.5), at(30.5, 4.5)],
-      2: [at(2.5, 4.5), ...COMMON, at(27.5, 5.5), at(30.5, 5.5)],
+    const run = (routes: Record<Seat, Vec[]>, until: () => boolean, max: number) => {
+      const walkers = ([0, 1, 2] as const).map((s) => walker(w, s, routes[s]));
+      let ticks = 0;
+      while (ticks++ < max && !until()) {
+        step(
+          w,
+          {
+            0: walkers[0]?.() ?? undefined,
+            1: walkers[1]?.() ?? undefined,
+            2: walkers[2]?.() ?? undefined,
+          },
+          TICK_MS,
+        );
+      }
     };
-    const walkers = ([0, 1, 2] as const).map((s) => walker(w, s, routes[s]));
+    const idle = (ticks: number) => run({ 0: [], 1: [], 2: [] }, () => false, ticks);
 
-    // The tunnel crate has to be pushed on, past the junction at x = 10.
-    let ticks = 0;
-    while (ticks++ < 1200 && !(w.pressed.p1 && w.pressed.p2 && w.pressed.p3)) {
-      step(
-        w,
-        {
-          0: walkers[0]?.() ?? undefined,
-          1: walkers[1]?.() ?? undefined,
-          2: walkers[2]?.() ?? undefined,
-        },
-        TICK_MS,
-      );
-    }
-    expect(w.crates[0]?.tile.x).toBeGreaterThan(10);
-    expect(w.pressed).toEqual({ p1: true, p2: true, p3: true });
+    // The crate has to be pushed onto the first plate, which opens the first door.
+    run(
+      {
+        0: [...PUSH, at(8.5, 5.5), at(13.5, 5.5)],
+        1: [at(2.5, 5.5), at(13.5, 6.5)],
+        2: [at(2.5, 6.5), at(13.5, 6.5)],
+      },
+      () => w.doorOpen.D1 === true && w.players.every((p) => p.pos.x > 13),
+      1200,
+    );
+    expect(w.crates[0]?.tile).toEqual({ x: 9, y: 4 });
     expect(w.doorOpen.D1).toBe(true);
 
+    // The camera looks down the corridor through the glass: cross while it is idle.
+    while (((w.tick * TICK_MS) / 1000) % 8 < CAMERA_IDLE_S) idle(1);
+    run(
+      { 0: [at(30.5, 4.5)], 1: [at(30.5, 5.5)], 2: [at(30.5, 6.5)] },
+      () => w.pressed.p2 === true && w.pressed.p3 === true && w.pressed.p4 === true,
+      1200,
+    );
+    expect(w.pressed).toMatchObject({ p2: true, p3: true, p4: true });
+    expect(w.doorOpen.D2).toBe(true);
+
     // All three step east together: the doorway keeps the door open.
-    const east = (y: number) => walker(w, y === 3.5 ? 0 : y === 4.5 ? 1 : 2, [at(45.5, y)]);
-    const out = [east(3.5), east(4.5), east(5.5)];
-    ticks = 0;
-    while (ticks++ < 400 && w.status !== "cleared") {
-      step(
-        w,
-        { 0: out[0]?.() ?? undefined, 1: out[1]?.() ?? undefined, 2: out[2]?.() ?? undefined },
-        TICK_MS,
-      );
-    }
+    run(
+      { 0: [at(36.5, 4.5)], 1: [at(36.5, 5.5)], 2: [at(36.5, 6.5)] },
+      () => w.status === "cleared",
+      400,
+    );
     expect(w.status).toBe("cleared");
   });
 
   it("needs all three players: two on plates leave the door shut", () => {
     const room = loadRooms()[0];
-    if (!room) throw new Error("rooms/01-loading-dock.room is missing");
+    if (!room) throw new Error("rooms/01-first-job.room is missing");
     const w = createWorld(room);
-    w.players[0].pos = at(30.5, 3.5);
-    w.players[1].pos = at(30.5, 4.5);
-    w.players[2].pos = at(26.5, 4.5);
+    w.players[0].pos = at(30.5, 4.5);
+    w.players[1].pos = at(30.5, 5.5);
+    w.players[2].pos = at(26.5, 5.5);
     for (let i = 0; i < 10; i++) step(w, {}, TICK_MS);
-    expect(w.doorOpen.D1).toBe(false);
+    expect(w.doorOpen.D2).toBe(false);
   });
 });

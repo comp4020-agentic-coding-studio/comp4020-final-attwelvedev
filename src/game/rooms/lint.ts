@@ -232,10 +232,59 @@ function lintSight(room: Room, issue: (message: string) => void): void {
     }
   }
 
+  lintLeadBeats(room, issue);
+
   // A room that says `"leads": true` gives every role a beat of its own to lead.
   if (room.meta.leads === true) {
     for (const role of ROLES) {
       if (!room.beats.some((b) => b.lead === role)) issue(`no beat has ${role} as its lead`);
+    }
+  }
+}
+
+// FR14 as ruled on 2026-10-21 ("c2"): a beat that names a lead must hold something its lead role
+// perceives and another cannot. Checked from the room's geometry, since the bots take nothing
+// from another role's messages and so cannot show the team failing without the lead.
+function lintLeadBeats(room: Room, issue: (message: string) => void): void {
+  const zones = flipsOf(room).flatMap((f) => (f.kind === "dark" ? [f.zone] : []));
+  const inDark = (t: { x: number; y: number }) =>
+    zones.some(([x0, y0, x1, y1]) => t.x >= x0 && t.x <= x1 && t.y >= y0 && t.y <= y1);
+  for (const beat of room.beats) {
+    if (!beat.lead) continue;
+    const inBeat = (t: { x: number }) => t.x >= beat.x[0] && t.x <= beat.x[1];
+    const objects = room.objects.filter((o) => o.tiles.some(inBeat));
+    if (beat.lead === "blind") {
+      // heard (a guard's steps, a laser's hum) and not seen: inside a dark zone
+      const hidden = objects.some(
+        (o) => (o.kind === "guard" || o.kind === "laser") && o.tiles.every(inDark),
+      );
+      const patrolInDark = objects.some(
+        (o) =>
+          o.kind === "guard" && patrolOf(o.params).length > 0 && patrolOf(o.params).every(inDark),
+      );
+      if (!hidden && !patrolInDark) {
+        issue(
+          `beat "${beat.name}" is led by blind but has no guard or laser in the dark for them to hear and the others not to see`,
+        );
+      }
+    } else if (beat.lead === "deaf") {
+      // seen and not heard: a camera, with glass in the beat to read it through
+      const camera = objects.some((o) => o.kind === "camera");
+      const glass = room.grid.some((row) => [...row].some((ch, x) => ch === "=" && inBeat({ x })));
+      if (!camera || !glass) {
+        issue(
+          `beat "${beat.name}" is led by deaf but has no camera seen through glass for them to read`,
+        );
+      }
+    } else if (beat.lead === "mute") {
+      // heard and seen together: the cue beat's clue and a sign to match it with
+      const clue = objects.some((o) => o.kind === "clue");
+      const sign = objects.some((o) => o.kind === "sign");
+      if (!beat.cue || !clue || !sign) {
+        issue(
+          `beat "${beat.name}" is led by mute but is not a cue beat holding both a clue and a sign`,
+        );
+      }
     }
   }
 }

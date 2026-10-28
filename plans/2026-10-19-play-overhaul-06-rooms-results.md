@@ -160,12 +160,13 @@ checkpoint where the team waits and listens before crossing), as phase 04's
 diagnosis of the old room 03 showed this is what makes the beat solvable.
 
 **Labels (FR15).** `src/client/labels.ts` (pure): `labelsFor(entities,
-tiles, shown: Set<string>): Label[]` returns at most two new labels per frame
-for kinds first seen this room, with the copy table from the spec ("Plate: one
+tiles, near, enabled, visible): Label[]` returns one label per kind in sight, on the nearest of
+it (changed 2026-10-21, see Corrections log: it was "at most two new labels per frame for kinds
+first seen this room", shown 6 s), with the copy table from the spec ("Plate: one
 person on each opens the door", "Glass: see through it, sound doesn't pass",
 "Vent: sound passes, you can't see through", crate, door, loot, camera, laser,
 guard, exit, dark). Drawn by `src/client/render/labels.ts` as a glass chip
-with a leader line; shown for 6 s each; a "Labels" toggle in the HUD menu
+with a leader line; shown while the kind is in sight; a "Labels" toggle in the HUD menu
 (`Settings.labels`, default on in the first room only: the HUD reads
 `reveal.index === 0`).
 
@@ -410,3 +411,62 @@ cleared by perception-only bots. Phase 04 tried two ways of getting there on the
 old room 03 and each failed (Task 28 lists them), so the plan does not promise it.
 The task's stop condition says what happens then: stop and ask the user. It never
 falls back to the room file.
+
+## 9. Corrections log
+
+- 2026-10-21, Task 22: expected labels shown 6 s each, once per kind per room (as the plan
+  said). The user wanted them to stay while the thing is in sight, because a beginner may want
+  them as a reference at any time and can switch them off. The first attempt treated them as
+  notifications. Now one chip per kind in sight, nearest first; `DESIGN.md` §4.6 and the
+  `hud.test.ts` label spec follow. No cap on chips yet; to be judged on the phone viewport.
+- 2026-10-21, Task 28: expected `HUMAN.blind.pauseChance` back at 0.01 with room 1 clearing under 30 s
+  for all 60 attract seeds. Not met: with the planner on perceived hazards and the two fixes below,
+  36 of 60 seeds still get caught or do not clear (seeds 5, 7, 35 stall with no catch). The user ruled
+  (option 2): keep `pauseChance` at 0, leave this requirement unmet and open, and carry on to
+  `02-blackout` and the old-room deletion. Real defects found on the way, each fixed with a test: a bot
+  forgot a hazard it was waiting on after 2 s and walked into it; a Can't-see seat wedged off its
+  lane was told `go` every tick (it now gets the stop-and-tap path). Tried and removed because they
+  did not help the sweep: planSafe slack and learned pace in the planner, a stall branch. `planSafe`
+  keeps an opt-in `slack` option (unused by the brain). Open item for the final report: why the attract
+  runs still catch or stall when the unhumanised bots clear room 1 in every rotation.
+- 2026-10-21, Tasks 23/28 (FR14), ruled by the user as "c2": expected the "each lead role is needed" spec
+  (mute the lead, the beat must fail) to hold for every lead beat. It cannot with perception-only bots:
+  no bot learns a hazard from another role's message, so either everyone perceives the hazard (muting
+  the lead changes nothing) or only the lead does (the others walk into it; phase 04 tried two warning
+  mechanisms and both failed). Ruling: a lead beat is checked by a room lint rule instead. The beat
+  must hold something its lead role perceives and another role cannot (blind: a hazard it hears that
+  Can't hear cannot see; deaf: a hazard it sees that Can't see cannot hear; mute: a clue it hears and
+  a sign it sees in the same cue beat). The "each lead role is needed" describe in `spec/rooms.test.ts`
+  is replaced by this rule. It does not prove the team fails without the lead: the user's playtest of
+  each room has to confirm that. This weakens FR14 as written.
+- 2026-10-21, Task 28: the plan puts the draft in `spec/fixtures/rooms/`, but `spec/crew.test.ts` runs a
+  server with `ROOMS_DIR` there and expects one room, so the draft made its one-room heist a two-room
+  one. The draft lives in `spec/fixtures/drafts/` instead; `rooms.test.ts` and `lint.test.ts` load both.
+- 2026-10-21, Task 22: expected the first-room labels to be harmless to specs that read canvas pixels.
+  `spec/layout/sight.test.ts` (one-room heist, so index 0) failed 3 of 3 runs: a label chip sat over
+  the sampled point and read as "lit". Found by the full check, not by the labels' own tests. The spec
+  now turns the Labels setting off, as it would for any pixel measurement. Same shape as a spec that
+  must not see the sea or the hop (it already emulates reduced motion).
+- 2026-10-21, Task 23 (`02-blackout` draft): the user's playtest found Can't hear had no way to take part
+  in the dark corridor (inside the dark they see no tiles, objects or players and hear nothing, so they
+  could only wait for faces). Expected the plan's "give Can't hear a way in" to be in the first draft;
+  it was not, and the first attempt only noted it as a rough edge. Added a lit gallery above the lane,
+  separated from it by glass, with the two laser emitters in niches behind the glass, outside the dark:
+  from the gallery Can't hear reads each beam's on/off state and can call it with faces. Checked: from
+  the gallery they see both emitters' state; from the spawn room, none; with the dark zone closed the
+  landing is unreachable, so the gallery does not bypass the lane. Not checked by the linter: nothing
+  stops a later edit removing the gallery. The chime's vent was also widened to three tiles: a
+  one-tile vent was audible only from the column above it, so bots standing a hair off it never heard
+  the chime and the room did not clear.
+- 2026-10-21, Task 23 (`02-blackout` draft): the user, playing the gallery, could only hear the lasers,
+  not see them. Expected a laser seen through glass to show on and off. The renderer drew an emitter
+  the same either way and drew a beam only when beam tiles were sent; the server sends none for a
+  laser inside a dark zone (the lane stays secret), so the emitter was all there was to read and it did
+  not change. My earlier check measured the view data (the laser's `state` was present) and never
+  looked at the picture. Fixed in `src/client/render/hazards.ts`: the lens is lit with a glow while on
+  and a hollow ring while off, with a render test; six screenshots across a cycle show both states.
+  Still open: the second emitter was not seen in a screenshot (the server sends it from gallery
+  x = 14 to 20; both emitters only from x = 14 to 16).
+  Pattern for the process log: a spec that checks the data a view carries is not a check of what the
+  player sees; for anything drawn, look at the render across the state's whole cycle.
+

@@ -86,7 +86,7 @@ describe("startGame", () => {
   it("starts room 01 with distinct roles and nobody ready", () => {
     const game = startGame(lobby("a", "b", "c"), rooms);
     expect(game).toMatchObject({ lobby: "ABCD", roomIndex: 0 });
-    expect(game.world.room.id).toBe("01-loading-dock");
+    expect(game.world.room.id).toBe("01-first-job");
     expect(game.ready.size).toBe(0);
     expect(new Set(game.roles).size).toBe(3);
     expect(crewOf(lobby("a", "b", "c"), game)).toEqual([
@@ -115,7 +115,7 @@ describe("inputs and views", () => {
     for (let i = 0; i < 9; i++) views = tickGame(game).views;
     const deaf = views.get(1);
     expect(deaf?.ack).toBe(4);
-    expect(deaf?.you.pos?.x).toBeCloseTo(2.5 + 2, 3);
+    expect(deaf?.you.pos?.x).toBeCloseTo(1.5 + 2, 3);
     expect(views.get(0)?.ack).toBe(0);
   });
 
@@ -164,7 +164,7 @@ describe("restartGame", () => {
     expect(game.world.status).toBe("playing");
     expect(game.world.doorOpen.D1).toBe(false);
     expect(game.world.crates[0]?.tile).toEqual(crate);
-    expect(game.world.players[1].pos).toEqual({ x: 2.5, y: 4.5 });
+    expect(game.world.players[1].pos).toEqual({ x: 1.5, y: 5.5 });
     expect(game.inputs).toEqual({});
     expect(game.roles).toEqual(roles);
     expect([...game.ready]).toEqual([0]);
@@ -181,7 +181,7 @@ describe("advanceRoom", () => {
   };
 
   it("has three rooms to play", () => {
-    expect(rooms.map((r) => r.id)).toEqual(["01-loading-dock", "02-cameras-lasers", "03-vault"]);
+    expect(rooms.map((r) => r.id)).toEqual(["01-first-job", "02-cameras-lasers", "03-vault"]);
   });
 
   it("moves to the next room: new world, roles rotated, nobody ready, inputs and cooldowns cleared", () => {

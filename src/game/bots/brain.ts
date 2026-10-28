@@ -8,6 +8,7 @@ import { type PlayerInput, ROLES, type Role, type Seat, type Vec } from "../type
 import { type AlarmWindow, forecastFor } from "./forecast.ts";
 import {
   claimJobs,
+  clueTarget,
   exitTile,
   hintsOf,
   isDone,
@@ -84,6 +85,18 @@ interface Guide {
   stopFrom: Vec | null; // where they were when told to stop, to measure it
   bumped: Vec | null; // a person pushed at something here: until they are clear of it, line them up first
   tapAt: number; // when the guide last asked a person for a tap
+}
+
+const PERCEIVED_TICKS = 40; // a hazard seen or heard in the last 2 s is planned around (A3)
+
+// The hazards this bot has seen or heard lately: all it may plan around, since a role that
+// has perceived nothing of a hazard knows nothing of it.
+function perceivedHazards(known: Known, tick: number): ReadonlySet<string> {
+  const out = new Set<string>();
+  for (const [id, seen] of Object.entries(known.seenHazards)) {
+    if (tick - seen.lastTick <= PERCEIVED_TICKS) out.add(id);
+  }
+  return out;
 }
 
 const newNav = (): Nav => ({ key: "", plan: [], i: 0, expect: null });
@@ -403,7 +416,8 @@ function decide(
     .join();
   const crates = Object.values(known.crates).map(key).join(";");
   const alarms = m.alarms.map((a) => `${a.from}-${a.to}`).join();
-  const planKey = `${key(goal)}|${open}|${crates}|${alarms}`;
+  const perceived = perceivedHazards(known, stepTick - 1);
+  const planKey = `${key(goal)}|${open}|${crates}|${alarms}|${[...perceived].sort().join()}`;
   if (
     nav.key === planKey &&
     nav.i < nav.plan.length &&
@@ -421,7 +435,7 @@ function decide(
     blocked: blockedFor(room, known, goal),
   };
   const target = findPath(grid, tile, goal) ? goal : nearestReachable(grid, tile, goal);
-  const forecast = forecastFor(room, m.alarms);
+  const forecast = forecastFor(room, m.alarms, perceived);
   const plan = planSafe({
     ...grid,
     from: tile,
@@ -430,6 +444,14 @@ function decide(
     danger: (x, y, t) => forecast.danger(Math.max(0, t))[y * room.width + x] === 1,
     rest: (x, y, t) => forecast.rest(Math.max(0, t))[y * room.width + x] === 1,
   });
+  // Waiting on a hazard keeps it in mind: standing still short of it hides it, and a bot that
+  // forgot it after 2 s would walk into what it is waiting for.
+  if (perceived.size > 0 && (plan === null || plan[0] === "wait")) {
+    for (const id of perceived) {
+      const seen = known.seenHazards[id];
+      if (seen) seen.lastTick = Math.max(seen.lastTick, stepTick - 1);
+    }
+  }
   nav.key = planKey;
   nav.plan = plan ?? [];
   nav.i = 0;
@@ -499,8 +521,15 @@ function goalFor(
     (queue[i]?.target.kind === "tile" &&
       queue.slice(i + 1).some((j) => j.target.kind !== "exit" && isDone(room, j, known, at)));
   while (m.ptr[seat] < queue.length && behind(m.ptr[seat])) m.ptr[seat]++;
-  const job = queue[m.ptr[seat]] ?? null;
-  if (!job) return { goal: exitTile(room, seat), job };
+  const queued = queue[m.ptr[seat]] ?? null;
+  if (!queued) return { goal: exitTile(room, seat), job: queued };
+  let job: Job = queued;
+  if (queued.target.kind === "plate" && queued.target.clue) {
+    // a clue job's plate is the one the chime heard names; until one is heard, stay put and listen
+    const heard = clueTarget(queued, known);
+    if (!heard) return { goal: from, job: queued };
+    job = { ...queued, target: { kind: "plate", id: heard.id, tile: heard.tile } };
+  }
   const goal = jobTile(room, job, seat);
   const turn = job.target.kind === "plate" ? sequenceTurn(room, m, job, known, view) : null;
   if (job.target.kind === "plate" && turn) {
@@ -700,7 +729,8 @@ function guideBlind(
     if (g.last && Math.hypot(p.x - g.last.x, p.y - g.last.y) < 0.01) g.still++;
     else g.still = 0;
     g.last = p;
-    if (g.moving && g.still >= 2 && blindIsBot) g.moving = false; // it stopped on its own: a hum, or a wall
+    // it stopped on its own: a hum, or a wall
+    if (g.moving && g.still >= 2 && blindIsBot && onPlate(room, p)) g.moving = false; // a hum
     if (g.bumped && Math.hypot(p.x - g.bumped.x, p.y - g.bumped.y) > 0.9) g.bumped = null; // clear of it
     if (g.stopFrom && !g.moving && g.still >= 3) {
       // they have come to rest: that far is how long a person takes to react, in tiles
@@ -734,12 +764,7 @@ function guideBlind(
       callout = "wait";
       g.moving = false;
     }
-  } else if (
-    !blindIsBot &&
-    g.moving &&
-    g.still >= STUCK_TICKS &&
-    !mapsOf(room).plateAt.has(key(tile))
-  ) {
+  } else if (g.moving && g.still >= STUCK_TICKS && !mapsOf(room).plateAt.has(key(tile))) {
     // A person pushing at something and getting nowhere: say so and stop them, rather than
     // calling the same direction again. Line them up with the lane before going on.
     callout = "stop";
@@ -851,6 +876,11 @@ function approach(
   if (!ready) return {};
   const word = along > 0 ? headingWord(delta) : headingWord({ x: -delta.x, y: -delta.y });
   return { tap: `Tap ${word}.` };
+}
+
+// Whether a body stands on a plate: it stops there on its own when it hears the hum.
+function onPlate(room: Room, p: Vec): boolean {
+  return mapsOf(room).plateAt.has(key(tileOf(p)));
 }
 
 // How far a person is from the middle of their lane, across the way they are headed.

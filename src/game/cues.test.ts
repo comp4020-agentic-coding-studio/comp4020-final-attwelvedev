@@ -10,8 +10,8 @@ const room = (id: string) => {
 };
 
 describe("cuesIn", () => {
-  it("lists the sounds a room can make: a plate's hum and a door's click in the first room", () => {
-    expect(cuesIn(room("01-loading-dock"))).toEqual(["hum", "door"]);
+  it("lists the sounds a room can make: a camera's whir, a guard's steps, a plate's hum and a door's click in the first room", () => {
+    expect(cuesIn(room("01-first-job"))).toEqual(["camera", "guard", "hum", "door"]);
   });
 
   it("adds the hazards a room has, in a fixed order (camera, laser, guard, then plate hum and door)", () => {

@@ -17,7 +17,9 @@ import {
   lerpEntities,
 } from "../client/hud.ts";
 import { createInput } from "../client/input.ts";
+import { type Label, labelsFor } from "../client/labels.ts";
 import { createPredictor, type Predictor } from "../client/predict.ts";
+import { inSight, seenOf } from "../client/render/sight.ts";
 import {
   type Camera,
   camera,
@@ -92,6 +94,8 @@ interface Runtime {
   // cross-fade of reduced motion. Null until the game starts; a page that loads mid-game never rises.
   rise: { at: number; reduced: boolean } | null;
   cam: { scale: number; ox: number; oy: number } | null; // the last frame's map camera, to turn a tap into a tile
+  labelsOn: boolean; // the first room's labels: the Labels setting, in room one only
+  labels: Label[]; // the chips on show this frame: one per kind in sight
 }
 
 const RISE_MS = 900; // the world rises out of the reveal
@@ -166,8 +170,15 @@ function useDraw(
           pops.push({ seat, ...pill, alone: true, fade: fadeOut(PILL_MS - age) }); // the pill outlasts the face
         }
       }
+      let labels: Scene["labels"];
+      if (!flat && rt.labelsOn && role !== "blind" && rt.tiles && rt.self) {
+        const seenNow = view.seen ? seenOf(view.seen) : null;
+        rt.labels = labelsFor(view.entities, rt.tiles, rt.self, true, (at) => inSight(seenNow, at));
+        labels = rt.labels;
+      }
       const scene: Scene = {
         ...size,
+        labels,
         role,
         seat: view.you.seat,
         roles: crew.map((c) => c.role) as Scene["roles"],
@@ -205,6 +216,9 @@ function useDraw(
         // and whether the alarm is on: it is only ever drawn, so the picture cannot be asked
         const alarm = view.alarm ? "on" : "off";
         if (el.dataset.alarm !== alarm) el.dataset.alarm = alarm;
+        // and which first-room labels are on show, which are only ever drawn
+        const shownLabels = rt.labelsOn ? rt.labels.map((l) => l.kind).join(" ") : "";
+        if ((el.dataset.labels ?? "") !== shownLabels) el.dataset.labels = shownLabels;
         // and where you are drawn, which is the point the light is cast from
         if (scene.self) {
           const me = `${scene.self.x.toFixed(3)},${scene.self.y.toFixed(3)}`;
@@ -314,6 +328,8 @@ export function Game({
     soundOn: true,
     rise: null,
     cam: null,
+    labelsOn: false,
+    labels: [],
   });
   const audio = useRef<GameAudio | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -563,6 +579,7 @@ function Hud({
   const live = useRef({ settings, lineId: 0, forceCaptions });
   live.current.settings = settings;
   live.current.forceCaptions = forceCaptions;
+  rt.labelsOn = settings.labels && reveal.index === 0;
   rt.soundOn = settings.sound && !forceCaptions;
 
   // The tile centre under a client point, for placing a mark; `open` is false

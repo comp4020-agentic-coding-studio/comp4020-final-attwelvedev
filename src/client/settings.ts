@@ -9,6 +9,7 @@ export interface Settings {
   highContrast: boolean; // high-contrast HUD and canvas palette, every role
   maskNoiseOn: boolean; // the deaf seat's own choice, when the host has turned masking noise on
   volume: number; // 0-1: the deaf seat's masking-noise volume
+  labels: boolean; // in-world labels for what is new in sight; the HUD shows them in the first room only
 }
 
 // What is stored: `captions: null` means "whatever this role defaults to".
@@ -34,6 +35,7 @@ export const defaultsFor = (_role: Role): Settings => ({
   highContrast: false,
   maskNoiseOn: true,
   volume: 0.5,
+  labels: true,
 });
 
 const browserStore = (): Store | null => {
@@ -62,6 +64,7 @@ export function loadSettings(role: Role, store: Store | null = browserStore()): 
         typeof saved.highContrast === "boolean" ? saved.highContrast : base.highContrast,
       maskNoiseOn: typeof saved.maskNoiseOn === "boolean" ? saved.maskNoiseOn : base.maskNoiseOn,
       volume: typeof saved.volume === "number" ? saved.volume : base.volume,
+      labels: typeof saved.labels === "boolean" ? saved.labels : base.labels,
     };
   } catch {
     return base;

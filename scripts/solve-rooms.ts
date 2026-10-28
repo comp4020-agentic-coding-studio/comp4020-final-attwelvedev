@@ -7,7 +7,7 @@ import { buildScript } from "../src/game/rooms/solveBuilder.ts";
 import { planFor } from "../src/game/rooms/solvePlans.ts";
 
 for (const room of loadRooms()) {
-  if (room.id === "01-loading-dock") continue; // solved by src/game/sim/room01.test.ts
+  if (room.id === "01-first-job") continue; // solved by src/game/sim/room01.test.ts
   const script = buildScript(room, planFor(room));
   const ticks = script.runs.reduce((sum, r) => sum + r.n, 0);
   const file = `src/game/rooms/solutions/${room.id}.json`;

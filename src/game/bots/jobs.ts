@@ -4,11 +4,19 @@ import type { Role, Seat, Vec } from "../types.ts";
 // A room's hints (metadata key `hints`) say what the team has to do, beat by
 // beat. Bots claim jobs, humans first, then follow their own queue.
 export type JobTarget =
-  | { kind: "plate"; id: string; tile: Vec } // stand on it until its door opens (`until`)
+  // stand on it until its door opens (`until`); a `clue` job names its plate by the chime heard
+  | { kind: "plate"; id: string; tile: Vec; clue?: ClueChoice }
   | { kind: "flag"; id: string; tile: Vec; n: number } // stand at a checkpoint until the team has set it
   | { kind: "tile"; tile: Vec } // a waypoint
   | { kind: "exit" } // this seat's exit tile
   | { kind: "push"; crate: string; to: Vec }; // push a crate onto a tile
+
+// A plate chosen by a chime: the clue, and the plates of its beat in reading order (plate n is the
+// n-th). `id` and `tile` on the target are what the room file says, which only the linter reads.
+export interface ClueChoice {
+  id: string;
+  plates: { id: string; tile: Vec }[];
+}
 
 export interface Job {
   index: number; // position in the room's hint list, the job's identity
@@ -92,7 +100,15 @@ export function parseJob(room: Room, j: unknown, index: number): Job | string {
     if (!beat || !plate || !tile) {
       return `hint job ${index + 1} goes to clue ${id}, but its beat has no plate number ${n}`;
     }
-    target = { kind: "plate", id: plate.id, tile };
+    target = {
+      kind: "plate",
+      id: plate.id,
+      tile,
+      clue: {
+        id,
+        plates: plates.map((p) => ({ id: p.id, tile: p.tiles[0] as Vec })),
+      },
+    };
   } else if (typeof j.goTo === "string") {
     const plate = room.objects.find((o) => o.id === j.goTo && o.kind === "plate");
     const tile = plate?.tiles[0];
@@ -141,6 +157,16 @@ export function hintsOf(room: Room): Job[] {
   });
 }
 
+// The plate a clue job stands on, from the chime the bot has heard: null while it has heard none, or
+// when the beat has no plate of that number. A job that is not a clue job is its own plate.
+export function clueTarget(job: Job, known: Known): { id: string; tile: Vec } | null {
+  if (job.target.kind !== "plate") return null;
+  const { clue } = job.target;
+  if (!clue) return { id: job.target.id, tile: job.target.tile };
+  const n = known.clues[clue.id];
+  return n === undefined ? null : (clue.plates[n - 1] ?? null);
+}
+
 // The tile a job sends a seat to.
 export function jobTile(room: Room, job: Job, seat: Seat): Vec {
   switch (job.target.kind) {
@@ -164,7 +190,10 @@ export function exitTile(room: Room, seat: Seat): Vec {
   return tiles[seat % Math.max(1, tiles.length)] ?? { x: 0, y: 0 };
 }
 
-const eligible = (role: Role, job: Job) => !(role === "blind" && job.target.kind === "push");
+// Blind never pushes, and Can't hear never gets a clue job: it could not learn the number.
+const eligible = (role: Role, job: Job) =>
+  !(role === "blind" && job.target.kind === "push") &&
+  !(role === "deaf" && job.target.kind === "plate" && job.target.clue !== undefined);
 const distance = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
 
 // Splits the room's jobs between the three seats, one job per seat per beat, as

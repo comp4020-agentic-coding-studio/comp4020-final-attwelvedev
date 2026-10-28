@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { parseRoom, type Room } from "../rooms/format.ts";
+import type { Role, Seat } from "../types.ts";
 import {
   claimJobs,
+  clueTarget,
   exitTile,
   hintsOf,
   isDone,
@@ -116,6 +118,65 @@ describe("a clue job", () => {
   it("says why, through parseJob", () => {
     const r = withClue(2, "clue:c9");
     expect(parseJob(r, { beat: 2, goTo: "clue:c9" }, 0)).toMatch(/clue c9/i);
+  });
+});
+
+describe("a clue job resolves from the chime a bot heard, not from the room file", () => {
+  const GRID = [
+    "####################",
+    "#1.p.c...p...p...E.#",
+    "#2.......D.........#",
+    "#3.....p...........#",
+    "####################",
+  ];
+  const r = parseRoom(
+    `${JSON.stringify({
+      id: "t",
+      name: "T",
+      version: 1,
+      beats: [
+        { name: "one", x: [1, 8], intent: { blind: "b", deaf: "d", mute: "m" } },
+        { name: "two", x: [9, 18], intent: { blind: "b", deaf: "d", mute: "m" } },
+      ],
+      objects: { D1: { opensWhen: ["p1"] }, c1: { n: 2 } },
+      hints: { jobs: [{ beat: 2, goTo: "clue:c1" }] },
+    })}\n---\n${GRID.join("\n")}\n`,
+  );
+  const job = hintsOf(r)[0] as Job;
+  const known = (clues: Record<string, number>): Known => ({
+    doorOpen: {},
+    pressed: {},
+    crates: {},
+    checkpoint: 0,
+    seq: {},
+    seenHazards: {},
+    clues,
+  });
+
+  it("keeps the clue and the beat's plates on the job", () => {
+    expect(job.target).toMatchObject({ kind: "plate", clue: { id: "c1" } });
+  });
+
+  it("has no plate until a chime has been heard", () => {
+    expect(clueTarget(job, known({}))).toBeNull();
+  });
+
+  it("takes the plate the heard number names, whatever the room file says", () => {
+    // the room file says n = 2 (p4); a chime of 1 heard means p1
+    expect(clueTarget(job, known({ c1: 1 }))).toMatchObject({ id: "p1" });
+    expect(clueTarget(job, known({ c1: 2 }))).toMatchObject({ id: "p4" });
+  });
+
+  it("has no plate for a number the beat has no plate for", () => {
+    expect(clueTarget(job, known({ c1: 3 }))).toBeNull();
+  });
+
+  it("is left to a seat that can hear: Can't hear never gets it", () => {
+    const seats = (roles: Role[]) =>
+      roles.map((role, seat) => ({ seat: seat as Seat, role, human: false }));
+    const queues = claimJobs(r, [job], seats(["blind", "deaf", "mute"]));
+    expect(queues[1]).toEqual([]);
+    expect(queues[0].length + queues[2].length).toBe(1);
   });
 });
 

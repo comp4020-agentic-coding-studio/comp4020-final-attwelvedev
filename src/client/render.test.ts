@@ -456,6 +456,50 @@ describe("a hazard's sight reaching out of the dark", () => {
   });
 });
 
+describe("a laser's emitter shows whether it is on, whatever of the beam is sent", () => {
+  // A laser in a dark zone arrives with no beam tiles (the dark keeps its lane secret), so the
+  // emitter is all a seat outside the dark can read the beam's timing from.
+  const drawn = (state: "on" | "off") => {
+    const laser = {
+      id: "L1",
+      kind: "laser" as const,
+      pos: { x: 20.5, y: 3.5 },
+      state,
+      beam: [],
+    };
+    const s = scene({ layout: "fit", w: 1180, h: 500, entities: [...scene({}).entities, laser] });
+    const { ctx, ops } = recorder();
+    draw(ctx, s);
+    const cam = camera(s);
+    const lens = toScreen(cam, 20.5, 3.5, 0.6);
+    // everything painted around the emitter's lens
+    return ops.filter(
+      (c) =>
+        (c.name === "arc" || c.name === "fillRect" || c.name === "ellipse") &&
+        Math.abs((c.args[0] as number) - lens.x) < 1e-6 &&
+        Math.abs((c.args[1] as number) - lens.y) < cam.scale,
+    );
+  };
+
+  it("draws the lens differently when the laser is on and when it is off", () => {
+    const on = drawn("on");
+    const off = drawn("off");
+    expect(on.length).toBeGreaterThan(0);
+    expect(JSON.stringify(on.map((c) => [c.name, c.args, c.fillStyle, c.globalAlpha]))).not.toBe(
+      JSON.stringify(off.map((c) => [c.name, c.args, c.fillStyle, c.globalAlpha])),
+    );
+  });
+
+  it("lights the lens in the laser colour only while it is on", () => {
+    const lit = (state: "on" | "off") =>
+      drawn(state).some(
+        (c) => c.name === "arc" && c.fillStyle === WORLD.laser && c.globalAlpha >= 0.9,
+      );
+    expect(lit("on")).toBe(true);
+    expect(lit("off")).toBe(false);
+  });
+});
+
 describe("figures that move (FR31)", () => {
   const still = (over: Partial<Scene> = {}) =>
     scene({ layout: "fit", w: 400, h: 300, nowMs: 100, ...over });

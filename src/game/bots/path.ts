@@ -105,6 +105,12 @@ export interface PlanRequest extends Grid {
   rest?(x: number, y: number, tick: number): boolean; // standing still on the middle of it (default: danger)
   dwell?: number; // the goal must stay safe this many steps after arriving (default 6)
   maxSteps?: number; // how far ahead it looks (default 240, one minute)
+  // Ticks kept clear on each side of a step: a plan that is exact to the tick is wrong for anyone
+  // who walks a little late. Default 1, the margin a bot walking exactly to plan needs.
+  slack?: number;
+  // Ticks one step takes this walker (default STEP_TICKS, full speed): a slower walker is in a
+  // hazard's window for longer, and arrives later than a plan at full speed says.
+  stepTicks?: number;
 }
 
 // A time-expanded search: the earliest way to the goal in which, at every step,
@@ -117,16 +123,19 @@ export function planSafe(req: PlanRequest): Step[] | null {
   const cells = width * height;
   if (!inside(req, to.x, to.y) || req.blocked(to.x, to.y)) return null;
 
+  const slack = req.slack ?? 1;
+  const stepLen = req.stepTicks ?? STEP_TICKS;
   const resting = req.rest ?? req.danger;
   const occupied = (x: number, y: number, step: number, still: boolean): boolean => {
-    const start = tick + step * STEP_TICKS;
+    const start = tick + step * stepLen;
     const unsafe = still ? resting : req.danger;
-    for (let t = start - 1; t <= start + STEP_TICKS; t++) if (unsafe(x, y, t)) return true;
+    for (let t = start - slack; t <= start + stepLen + slack - 1; t++)
+      if (unsafe(x, y, t)) return true;
     return false;
   };
   const goalHolds = (step: number): boolean => {
-    const start = tick + step * STEP_TICKS;
-    for (let t = start - 1; t <= start + dwell * STEP_TICKS; t++) {
+    const start = tick + step * stepLen;
+    for (let t = start - slack; t <= start + dwell * STEP_TICKS; t++) {
       if (resting(to.x, to.y, t)) return false;
     }
     return true;

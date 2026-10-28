@@ -154,10 +154,16 @@ When everyone is ready the game starts underneath the reveal and **rises**: over
 - A page that loads mid-game (a reload) does not rise; it is simply there.
 - `Scene.rise` (0 to 1) drives it; `LIVE` in `src/client/render/project.ts` is the projection a frame draws with, and `TILT` is the finished one.
 
-### 4.6 Labels
+### 4.6 Labels (built, Task 22)
 
-Room 1 carries glass chips with a leader line that name what each thing is for.
-planned (Task 22)
+Room 1 carries glass chips with a leader line that name what each thing is for
+(`src/client/labels.ts` picks them, `src/client/render/labels.ts` draws them). They are a
+reference, not a notification: while a kind of thing (plate, crate, door, glass, vent, camera,
+guard, exit, loot) is in your line of sight, one chip floats above the nearest of it on `--glass`
+with a one-sentence job, in the HUD's font. Out of sight, the chip goes; back in sight, it returns.
+Chips wrap, stay inside the frame, and lift above one another rather than overlap. They show in the
+first room only, and the **Labels** setting (in the menu's Settings, on by default) turns them off.
+Can't see has no map and gets none.
 
 ### 4.7 The role frame (built)
 

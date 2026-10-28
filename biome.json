@@ -8,6 +8,7 @@
       "!!**/dist",
       "!!**/.astro",
       "!drizzle",
+      "!playtests/mockups",
       "!pnpm-lock.yaml",
       "!spec/invariants.test.ts",
       "!spec/global-setup.ts",

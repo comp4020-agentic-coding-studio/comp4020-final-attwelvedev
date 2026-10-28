@@ -108,6 +108,22 @@ describe("the top bar", () => {
   });
 });
 
+describe("room one's labels", () => {
+  it("shows a label for a plate in sight and keeps it there, and the Labels toggle hides them", async () => {
+    const table = await playRoom(browser, baseUrl);
+    const page = table.byRole.deaf;
+    const canvas = page.locator("canvas[data-camera]");
+    await expect
+      .poll(() => canvas.getAttribute("data-labels"), { timeout: 5000 })
+      .toContain("plate");
+    await page.getByRole("button", { name: "Menu" }).click();
+    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByLabel("Labels").uncheck();
+    await expect.poll(() => canvas.getAttribute("data-labels"), { timeout: 3000 }).toBe("");
+    await closeAll(table.pages);
+  });
+});
+
 describe("restart votes", () => {
   const move = async (page: Page) => {
     await page.keyboard.down("d");

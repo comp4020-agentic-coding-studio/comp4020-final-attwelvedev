@@ -253,11 +253,96 @@ describe("lintRoom hints", () => {
   });
 });
 
+// FR14 as the user ruled it (2026-10-21, "c2"): a lead beat must hold something its lead role
+// perceives and another role cannot, so the lead has something nobody else has to say.
+describe("lead beats hold something only the lead perceives", () => {
+  const head = (lead: string, cue = "", objects = "{}", flips = "[]") =>
+    `{"id":"t-lead","name":"T","version":1,"leads":false,"beats":[{"name":"B","x":[4,17],"lead":"${lead}"${cue},"intent":{"blind":"b","deaf":"d","mute":"m"}}],"objects":${objects},"flips":${flips},"hints":{"jobs":[{"beat":1,"goTo":"E","all":true}]}}`;
+  const lint = (grid: string[], h: string) =>
+    lintRoom(parseRoom(`${h}\n---\n${grid.join("\n")}\n`)).map((i) => i.message);
+  const CORRIDOR = [
+    "####################",
+    "#1.K.............E.#",
+    "#2.#.............#.#",
+    "#3.#.G...........#.#",
+    "####################",
+  ];
+
+  it("blind: passes when a guard in the dark can be heard but not seen", () => {
+    const issues = lint(
+      CORRIDOR,
+      head("blind", "", `{"G1":{"patrol":[[6,3],[12,3]]}}`, `[{"kind":"dark","zone":[4,1,16,3]}]`),
+    );
+    expect(issues.filter((m) => /led by/i.test(m))).toEqual([]);
+  });
+
+  it("blind: flags a beat whose hazards are all in plain sight", () => {
+    const issues = lint(CORRIDOR, head("blind", "", `{"G1":{"patrol":[[6,3],[12,3]]}}`));
+    expect(issues).toContainEqual(expect.stringMatching(/led by blind.*(hear|dark)/i));
+  });
+
+  it("deaf: passes when a camera is seen through glass that sound cannot cross", () => {
+    const grid = [
+      "####################",
+      "#1.K......C......E.#",
+      "#2.#.....====....#.#",
+      "#3.#.............#.#",
+      "####################",
+    ];
+    const issues = lint(grid, head("deaf", "", `{"C1":{"facingDeg":90,"fovDeg":60,"range":6}}`));
+    expect(issues.filter((m) => /led by/i.test(m))).toEqual([]);
+  });
+
+  it("deaf: flags a beat with no camera or glass for the lead to read", () => {
+    expect(lint(CORRIDOR, head("deaf"))).toContainEqual(
+      expect.stringMatching(/led by deaf.*(glass|see)/i),
+    );
+  });
+
+  it("mute: passes when the cue beat holds both a clue and a sign", () => {
+    const grid = [
+      "####################",
+      "#1.K....c...S....E.#",
+      "#2.#.............#.#",
+      "#3.#.............#.#",
+      "####################",
+    ];
+    const issues = lint(
+      grid,
+      head("mute", `,"cue":"twin"`, `{"c1":{"n":2,"everyS":4},"S1":{"shows":["p1"]}}`),
+    );
+    expect(issues.filter((m) => /led by/i.test(m))).toEqual([]);
+  });
+
+  it("mute: flags a cue beat that has a clue but no sign to pair it with", () => {
+    const grid = [
+      "####################",
+      "#1.K....c........E.#",
+      "#2.#.............#.#",
+      "#3.#.............#.#",
+      "####################",
+    ];
+    expect(lint(grid, head("mute", `,"cue":"twin"`, `{"c1":{"n":2,"everyS":4}}`))).toContainEqual(
+      expect.stringMatching(/led by mute.*(clue|sign)/i),
+    );
+  });
+});
+
 describe("the fixture rooms", () => {
   // spec/fixtures/rooms is what ROOMS_DIR points the server at in specs that need a tiny room
   it("load and pass the linter", () => {
     const rooms = loadRooms("./spec/fixtures/rooms");
     expect(rooms.map((r) => r.id)).toEqual(["01-tiny"]);
+    for (const r of rooms) expect(lintRoom(r)).toEqual([]);
+  });
+});
+
+describe("the draft rooms", () => {
+  // spec/fixtures/drafts: a room is proved here, by the same bots and linter, before it ships
+  // in rooms/. Kept apart from spec/fixtures/rooms, which the heist specs run a server on.
+  it("load and pass the linter", () => {
+    const rooms = loadRooms("./spec/fixtures/drafts");
+    expect(rooms.map((r) => r.id)).toEqual(["02-blackout-draft"]);
     for (const r of rooms) expect(lintRoom(r)).toEqual([]);
   });
 });

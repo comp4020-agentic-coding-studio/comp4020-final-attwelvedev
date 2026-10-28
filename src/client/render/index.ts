@@ -8,6 +8,7 @@ import { drawBackdrop } from "./backdrop.ts";
 import { block, drawFlat, drawStanding, floorTop, glass, vent, wall } from "./blocks.ts";
 import { drawHidden, drawOwnBlind, drawPlayer } from "./figures.ts";
 import { drawHazard, drawSight } from "./hazards.ts";
+import { drawLabels } from "./labels.ts";
 import { figureCover, wallAlpha } from "./occlusion.ts";
 import { drawEdgePills, drawPops } from "./pops.ts";
 import { type Camera, camera, LIVE, setRise, tileWindow, toScreen } from "./project.ts";
@@ -51,6 +52,7 @@ export interface Scene {
   // else under mist; absent for watchers, who see the whole room.
   seen?: string[];
   bots?: [boolean, boolean, boolean]; // by seat: a bot's figure has an antenna
+  labels?: { text: string; at: Vec }[]; // the first room's labels: one per kind in sight (FR15)
 }
 
 export interface Motion {
@@ -199,6 +201,7 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
   for (const f of figures) drawHidden(ctx, f, cam, scene, figureCover(cam, f.pos, tiles));
   void block;
   drawFx(ctx, scene, cam);
+  drawLabels(ctx, scene, cam);
   drawPops(ctx, scene, cam);
   drawEdgePills(ctx, scene, cam);
   if (scene.alarm) drawAlarm(ctx, scene);

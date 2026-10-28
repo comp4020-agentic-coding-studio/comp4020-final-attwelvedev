@@ -123,6 +123,10 @@ export function Settings({
             />
             High contrast
           </label>
+          <label>
+            <input type="checkbox" checked={settings.labels} onChange={toggle("labels")} />
+            Labels
+          </label>
           {deaf && (
             <>
               <label>
