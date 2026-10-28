@@ -829,3 +829,26 @@ rules, which is correct, so I added the allow rule to my user settings myself.
 How I knew it held: with both in place, the agent stopped the stale servers,
 the ports came free, and a fresh `start:check` answered 200 on :8080 on the
 current build.
+
+## 2026-10-28 — Bots that read the answers hid puzzles no person could solve
+
+resolved by 73cd110 (spec and ADR 0018 proposed; built in phases 03 to 10)
+
+Phase 02 drew, voiced and labelled every station, and `pnpm check` was green, with bots clearing
+the stations draft in every rotation. When I played it I could not solve a single station: the
+safe's clicks sounded alike, the music box never said which bell was which note, and nothing told
+me which wire, code or switches. Tracing it, most clues never reached a person (the plaque's rule
+was never drawn, the switches had no target, the vault's answer was random), and the bots cleared
+it because they read answers from the simulation. The room also asked me to learn every station
+type at once, and even room 1 shows about eleven kinds of object with no cap on labels.
+
+The obvious fix was to patch the missing clues on the client. I stopped the phase instead: the
+test meant to prove a room could be cleared was proving only that the simulation had an answer,
+so the same miss would recur in every room. The decision lands in the harness: bots now solve
+only from what their role perceives (ADR 0018), a clue-path linter fails a room whose clue cannot
+reach a person, links between stations are implicit but carry a matching motif at both ends, and
+the heist becomes nine short rooms that each introduce at most two new things, taught before
+tested, with label chips capped at three (two on a phone).
+
+How I'll know: the draft's faults each fail the new linter rule, perception-only bots clear each
+new room, and I play each room before it ships.
