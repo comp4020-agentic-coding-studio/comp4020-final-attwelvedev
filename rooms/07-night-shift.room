@@ -1,0 +1,32 @@
+{"id":"07-night-shift","name":"Night Shift","version":1,"hue":"indigo","budgetS":240,
+ "flips":[{"kind":"dark","zone":[18,1,20,2]},{"kind":"dark","zone":[40,1,42,2]}],
+ "beats":[
+  {"name":"Gear up","x":[0,22],"intent":{"blind":"waits in the corridor","deaf":"picks up the UV torch","mute":"puts on the goggles"}},
+  {"name":"The ink and the dark","x":[0,22],"intent":{"blind":"hears the snip and the clunks","deaf":"shines the torch on the corridor wall, reads the hidden rule and cuts the wire","mute":"reads the card, looks into the dark nook through the goggles and marks each switch"}},
+  {"name":"Three switches","x":[0,22],"intent":{"blind":"hears each switch clunk","deaf":"presses the switches Can't speak marks","mute":"keeps marking until the lamps match the card"}},
+  {"name":"The real thing","x":[23,46],"intent":{"blind":"follows to the checkpoint","deaf":"lights the ink under the checkpoint and cuts the wire","mute":"reads the big card, then watches the six dark lamps and marks"}},
+  {"name":"Six switches","x":[23,46],"intent":{"blind":"hears each switch clunk","deaf":"presses the marked switches","mute":"marks each switch until the lamps match"}},
+  {"name":"Out","x":[47,51],"intent":{"blind":"walks out","deaf":"walks out","mute":"walks out"}}],
+ "objects":{"Q1":{"type":"wires","wires":[[7,1],[8,1],[9,1]],"plaque":"u1","teach":true},"Q2":{"type":"switches","buttons":[[13,2],[14,2],[15,2]],"cols":3,"lamps":[[18,2],[19,2],[20,2]],"teach":true},"Q3":{"type":"wires","wires":[[27,1],[28,1],[29,1],[30,1]],"plaque":"u2"},"Q4":{"type":"switches","buttons":[[34,1],[35,1],[36,1],[34,2],[35,2],[36,2]],"cols":3,"lamps":[[40,1],[41,1],[42,1],[40,2],[41,2],[42,2]]},"T1":{"of":"Q4"},"T2":{"of":"Q2"},"g1":{"item":"uv"},"g2":{"item":"goggles"},"u1":{"text":""},"u2":{"text":""},"D2":{"opensWhen":["Q1","Q2"]},"D1":{"opensWhen":["Q3","Q4"]}},
+ "hints":{"jobs":[
+  {"beat":1,"take":"g1","prefer":"deaf"},
+  {"beat":1,"take":"g2","prefer":"mute"},
+  {"beat":1,"goTo":[11,5],"prefer":"blind"},
+  {"beat":2,"station":"Q1","at":[2,6],"prefer":"deaf"},
+  {"beat":2,"watch":"Q2","at":[19,4],"read":[9,6],"prefer":"mute"},
+  {"beat":3,"station":"Q2","prefer":"deaf"},
+  {"beat":4,"goTo":"K1","all":true},
+  {"beat":4,"station":"Q3","at":[25,6],"prefer":"deaf"},
+  {"beat":4,"watch":"Q4","at":[41,4],"read":[33,2],"prefer":"mute"},
+  {"beat":5,"station":"Q4","prefer":"deaf"},
+  {"beat":6,"goTo":"E","all":true}]}}
+---
+###################################t################
+#1....Q....#..Q..#...####.Q.....#......#...#########
+#2.g.......#.....#...####.......#......#...#########
+#3..g......#.....#===####.......#....Q.#===#########
+##........##..........##.......................D..E#
+#......................D.K.....................D..E#
+#......................D.......................D.$E#
+##u######t###############u##########################
+####################################################

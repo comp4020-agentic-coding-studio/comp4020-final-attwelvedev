@@ -84,7 +84,7 @@ export function think(room: Room, view: RoleView, inbox: ChannelMessage[], memor
   nothing outside comments.
 - **Depends on:** Task 13, Task 21.
 
-### Task 23: Build and play room 7
+### Task 23: Build and play room 7 ✅ built 2026-10-29 (overnight run); human review queued in `review/QUEUE.md`
 
 - **Description:** Author `rooms/07-night-shift.room` per this file's §4 (teaching versions first, then
   real), with beats, intents, hints, checkpoints and labels.

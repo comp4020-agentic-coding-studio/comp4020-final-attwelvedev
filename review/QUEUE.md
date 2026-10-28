@@ -166,3 +166,32 @@
   rotation, never caught: Can't hear texts the radio's digit and marks each switch for Can't speak.
   Worth your eye: the keypad tune's rest is a sim change (the slot's note is silent) made so the radio
   is needed at all; and the old rooms are now 07 and 08.
+
+## Phase 08, Task 23: room 7 Night Shift (UV ink and goggles, taught small, then used for real)
+
+- **Look at:** play room 7 in three tabs, each role at least once. Room A (start): a UV torch and
+  goggles on the floor; a teaching wire panel (three wires) whose rule plaque is **UV ink** on the
+  corridor's south wall at the far west end (seen only in the torch's light); and a teaching row of
+  three switches whose lamps sit in a **dark** glassed nook to the east, seen from the corridor only
+  through the goggles; their card (lit/hollow lamps) is on the corridor's south wall. Door D2 opens
+  when both are done. Room B, past the flag: a real four-wire panel whose ink plaque is under the
+  flag's corridor wall, and a real 2×3 switches panel whose six lamps are in a second dark nook to the
+  east, with its card on the north wall of the switches room. The exit door opens when both are done.
+  Questions: does anyone know to pick up the torch and goggles before being told; is the ink found
+  without a hint (it is on a wall, not by the panel); is "look into the dark with the goggles"
+  understood; does the teaching pair teach the real pair; does Can't see wait with nothing to do for
+  more than about 20 s (likely: it has no job but listening in this room; worth your call)?
+- **Start locally:** `lsof -ti tcp:8080 -sTCP:LISTEN | xargs kill; pnpm build && pnpm start`, open
+  `http://localhost:8080` in three tabs (one at 375 px wide), create a lobby, join from the other two,
+  Start, Ready: room 7 comes after rooms 1 to 6. Room 7 alone: `mkdir -p /tmp/r7 && cp
+  rooms/07-night-shift.room /tmp/r7/ && ROOMS_DIR=/tmp/r7 PORT=8097 node server.ts`, then
+  `http://localhost:8097`. Per-role perception: `playtests/mockups/07-night-shift.html`.
+- **Screenshots** (room start; 1280 = Can't speak, 375 = Can't hear on a phone):
+  `review/08-task23-night-shift-1280.png`, `review/08-task23-night-shift-375.png`.
+- **Judged:** renders clean at both widths: torch and goggles icons, the teaching wires with their
+  label, and the card down the corridor read clearly. Bots clear the room in about 28 s in every
+  rotation, never caught: Can't hear takes the torch, lights the ink and cuts; Can't speak wears the
+  goggles, reads each card and marks the switches for Can't hear. Worth your eye: Task 22 found and
+  fixed a perception bug (a sighted player without goggles was sent the state of lamps in the dark);
+  the room has no sound clue, so Can't see only listens for snips and clunks; and the old rooms are
+  now 08 and 09.
