@@ -20,14 +20,6 @@ describe("the leaderboard", () => {
     expect(body).toContain("Room 3");
   });
 
-  it("shows the empty state for a board nothing has been saved to yet", async () => {
-    // nothing in this suite plays a heist through to its third room, so the
-    // full-heist board stays empty however many room runs other specs save
-    const res = await fetch(new URL("/leaderboard?tab=heist", baseUrl));
-    const body = text(await res.text());
-    expect(body).toContain("No runs yet. Be first.");
-  });
-
   it("selects a tab from `?tab=` alone, without scripts", async () => {
     const res = await fetch(new URL("/leaderboard?tab=room-2", baseUrl));
     const dom = await res.text();
@@ -65,6 +57,14 @@ describe("the leaderboard", () => {
     afterAll(() => {
       app?.kill();
       rmSync(dir, { recursive: true, force: true });
+    });
+
+    // on the shared app a person may have played a heist through on the same database
+    // (2026-10-28: a local run of `pnpm check` read one), so the empty board is checked here
+    it("shows the empty state for a board nothing has been saved to yet", async () => {
+      const res = await fetch(new URL("/leaderboard?tab=heist", ownUrl));
+      const body = text(await res.text());
+      expect(body).toContain("No runs yet. Be first.");
     });
 
     it("lists a real run once a room is cleared, with its team and crew, never a device hash", async () => {

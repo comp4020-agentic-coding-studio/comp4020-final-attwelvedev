@@ -78,7 +78,9 @@ a failing test.
 
 - `pnpm check` (types, lint/format, `spec/` tests) must be green. It runs
   against the live app, so start it first (`APP_URL`, default
-  `http://localhost:8080`). `pnpm format` auto-fixes style.
+  `http://localhost:8080`) with `pnpm start:check`: a throwaway database, so
+  the specs neither read nor fill `./.data/app.db`. A spec that needs an empty
+  board runs its own app (`spec/leaderboard.test.ts`). `pnpm format` auto-fixes style.
 - A visual change is verified by running the app and looking at a screenshot at
   desktop and phone width: the render is the truth, not the source. A layout
   spec measures the promise, not a stand-in for it (slot boxes that never
