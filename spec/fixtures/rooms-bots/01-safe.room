@@ -1,0 +1,26 @@
+{"id":"01-safe","name":"Safe (bots fixture)","version":1,"budgetS":240,
+ "beats":[
+  {"name":"Gear","x":[0,21],"intent":{"blind":"waits for the stethoscope","deaf":"picks up the stethoscope","mute":"turns the dial"}},
+  {"name":"Give","x":[0,21],"intent":{"blind":"takes the stethoscope","deaf":"hands it over","mute":"turns the dial"}},
+  {"name":"Back","x":[0,21],"intent":{"blind":"listens at the back and says stop","deaf":"leads Can't see to the back","mute":"turns and enters on stop"}},
+  {"name":"Out","x":[0,21],"intent":{"blind":"walks out","deaf":"walks out","mute":"walks out"}}
+ ],
+ "objects":{
+  "Q1":{"type":"dial","pads":[[5,1],[7,1]],"back":[10,1],"digits":2,"range":10},
+  "g1":{"item":"stethoscope"},
+  "D1":{"opensWhen":["Q1"]}},
+ "hints":{"jobs":[
+  {"beat":1,"take":"g1","prefer":"deaf"},
+  {"beat":1,"station":"Q1","prefer":"mute"},
+  {"beat":1,"listen":"Q1","at":[10,1],"prefer":"blind"},
+  {"beat":2,"give":"g1","to":"blind","prefer":"deaf"},
+  {"beat":3,"tow":"blind","to":[10,1],"prefer":"deaf"},
+  {"beat":4,"goTo":"E","all":true}]}}
+---
+######################
+#1....Q..%....#.....E#
+#2.......%.g..D.....E#
+#3.......%....#.....E#
+#........#....#......#
+#.............#......#
+######################

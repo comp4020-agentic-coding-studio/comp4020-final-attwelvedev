@@ -1,0 +1,17 @@
+{"id":"02-teach-safe","name":"Teaching safe (bots fixture)","version":1,"budgetS":240,
+ "beats":[
+  {"name":"Lamp","x":[0,15],"intent":{"blind":"hears the dial tick","deaf":"turns until the lamp lights","mute":"watches the lamp"}},
+  {"name":"Out","x":[0,15],"intent":{"blind":"walks out","deaf":"walks out","mute":"walks out"}}
+ ],
+ "objects":{
+  "Q1":{"type":"dial","pads":[[5,1],[7,1]],"back":[6,3],"teach":true,"range":10},
+  "D1":{"opensWhen":["Q1"]}},
+ "hints":{"jobs":[
+  {"beat":1,"station":"Q1","prefer":"deaf"},
+  {"beat":2,"goTo":"E","all":true}]}}
+---
+################
+#1....Q...D...E#
+#2........D...E#
+#3........D...E#
+################

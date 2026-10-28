@@ -8,6 +8,7 @@ import { createWorld, TICK_MS } from "../sim/world.ts";
 import type { Role, Seat } from "../types.ts";
 import { createBotMemory, think } from "./brain.ts";
 import { type BotSeat, botsAct } from "./crew.ts";
+import { claimJobs, hintsOf } from "./jobs.ts";
 
 // First Job left the heist in escape-room phase 04; it stays a fixture for what it tests
 const rooms = [...loadRooms(), ...loadRooms("./spec/fixtures/first-job")];
@@ -882,6 +883,111 @@ describe("a bot on a station job reads only its view and inbox (escape-room Task
     }
     expect(world.gear[0]?.heldBy).toBe(2);
     expect(world.stations.Q1?.input).toEqual([]); // never cut a wire it could not decode
+    expect(world.attempt).toBe(0);
+  });
+});
+
+// The safe (escape-room Task 16): one bot turns at the pads, Can't see listens at the back with the
+// stethoscope and says "stop" on the tumbler; the turner enters the number on that word alone.
+describe("bots work a safe from what they perceive (escape-room Task 16)", () => {
+  const GRID = ["############", "#1...Q.....#", "#2.........#", "#3...g.....#", "############"];
+  const SAFE = {
+    type: "dial",
+    pads: [
+      [4, 1],
+      [6, 1],
+    ],
+    back: [5, 3],
+    digits: 2,
+    range: 10,
+  };
+  const r = roomWith(
+    GRID,
+    { Q1: SAFE, g1: { item: "stethoscope" } },
+    {
+      beats: [{ name: "b", x: [0, 11], intent: { blind: "b", deaf: "d", mute: "m" } }],
+      hints: {
+        jobs: [
+          { beat: 1, station: "Q1", prefer: "mute" },
+          { beat: 1, listen: "Q1", at: [6, 3], prefer: "blind" },
+        ],
+      },
+    },
+  );
+
+  it("Can't see holding the stethoscope says stop when it hears the tumbler, and only then", () => {
+    const world = createWorld(r, 4);
+    const memory = createBotMemory(0, new Set(), ROLES3);
+    const g = world.gear[0];
+    if (!g) throw new Error("no g1");
+    Object.assign(g, { heldBy: 0, at: null });
+    world.players[0].pos = { x: 6.5, y: 3.5 };
+    const s = world.stations.Q1;
+    if (!s) throw new Error("no Q1");
+    const wrong = ((s.answer[0] as number) + 3) % 10;
+    s.input[0] = (wrong + 9) % 10;
+    world.players[2].pos = { x: 6.5, y: 1.5 };
+    step(world, { 2: { seq: 1, move: { x: 0, y: 0 }, act: true } }, TICK_MS);
+    expect(think(r, viewFor(world, 0, "blind", false), [], memory, 0).send).toBeNull();
+    step(world, { 2: { seq: 2, move: { x: 0, y: 0 }, act: false } }, TICK_MS);
+    s.input[0] = ((s.answer[0] as number) + 9) % 10;
+    step(world, { 2: { seq: 3, move: { x: 0, y: 0 }, act: true } }, TICK_MS);
+    expect(think(r, viewFor(world, 0, "blind", false), [], memory, 0).send).toEqual({
+      method: "callout",
+      callout: "stop",
+    });
+  });
+
+  it("a listen job never goes to Can't hear, who could not hear the tumbler", () => {
+    const listen = hintsOf(r).filter((j) => j.target.kind === "listen");
+    const queues = claimJobs(
+      r,
+      listen,
+      ([0, 1, 2] as const).map((seat) => ({ seat, role: ROLES3[seat], human: false })),
+    );
+    expect(queues[1]).toEqual([]);
+  });
+
+  it("with the stethoscope out of reach, the turner turns but never enters a number (it does not guess)", () => {
+    const world = createWorld(r, 4);
+    const g = world.gear[0];
+    if (!g) throw new Error("no g1");
+    Object.assign(g, { heldBy: null, at: { x: 10, y: 1 } }); // nobody's job takes it
+    const bots: Partial<Record<Seat, BotSeat>> = {
+      0: { memory: createBotMemory(0, new Set(), ROLES3), inbox: [] },
+      1: { memory: createBotMemory(1, new Set(), ROLES3), inbox: [] },
+      2: { memory: createBotMemory(2, new Set(), ROLES3), inbox: [] },
+    };
+    let turns = 0;
+    for (let i = 0; i < 1200; i++) {
+      const out = botsAct(r, world, ROLES3, bots, { until: {} }, world.tick * TICK_MS, () => "Bot");
+      step(world, out.inputs, TICK_MS);
+      for (const e of world.events) {
+        if (e.kind === "station" && e.result === "turn") turns++;
+        expect(e.kind === "station" && e.result === "press").toBe(false);
+      }
+    }
+    expect(turns).toBeGreaterThan(10);
+    expect(world.attempt).toBe(0);
+    expect(world.stations.Q1?.solved).toBe(false);
+  });
+
+  it("with the stethoscope at the back, three bots open the safe, never caught", () => {
+    const world = createWorld(r, 4);
+    const g = world.gear[0];
+    if (!g) throw new Error("no g1");
+    Object.assign(g, { heldBy: 0, at: null });
+    const bots: Partial<Record<Seat, BotSeat>> = {
+      0: { memory: createBotMemory(0, new Set(), ROLES3), inbox: [] },
+      1: { memory: createBotMemory(1, new Set(), ROLES3), inbox: [] },
+      2: { memory: createBotMemory(2, new Set(), ROLES3), inbox: [] },
+    };
+    const cd = { until: {} };
+    for (let i = 0; i < 2400 && !world.stations.Q1?.solved; i++) {
+      const out = botsAct(r, world, ROLES3, bots, cd, world.tick * TICK_MS, () => "Bot");
+      step(world, out.inputs, TICK_MS);
+    }
+    expect(world.stations.Q1?.solved).toBe(true);
     expect(world.attempt).toBe(0);
   });
 });

@@ -69,6 +69,8 @@ export function think(room: Room, view: RoleView, inbox: ChannelMessage[], memor
 
 ### Task 16: Bots solve safe; stethoscope from what they perceive
 
+- [x] Done 2026-10-29: `dial` decoder and `dialStep` in `decode.ts`; Can't see says "stop" on the tumbler; `listen` hint job; fixtures `spec/fixtures/rooms-bots/01-safe.room`, `02-teach-safe.room` (see the overnight decisions file, 05/16)
+
 - **Description:** Per this file's §4: the decoder(s) (or, for gear, the job choice from the view)
   in `src/game/bots/decode.ts`, registered in `DECODERS`; bots send and read only P3's forms.
 - **Files touched:** `src/game/bots/decode.ts` (+ `decode.test.ts`), `src/game/bots/brain.ts`

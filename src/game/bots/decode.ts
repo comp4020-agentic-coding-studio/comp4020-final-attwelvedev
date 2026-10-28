@@ -1,7 +1,7 @@
 import type { ChannelMessage } from "../channels.ts";
 import type { RoleView } from "../perception.ts";
 import type { RoomObject } from "../rooms/format.ts";
-import { stationParts } from "../sim/stations.ts";
+import { stationParts, tilesOf } from "../sim/stations.ts";
 import type { StationType } from "../sim/world.ts";
 import type { Vec } from "../types.ts";
 
@@ -15,6 +15,7 @@ export interface StationBelief {
   shows: number[]; // what the station showed when last in sight (stations.ts: stationShows)
   marked: Vec[]; // part tiles a teammate put an `x` mark on: "press this"
   numbers: number[]; // one-digit texts received, in order
+  changedAt: number; // the tick `shows` last changed while in sight (a dial's turner waits on it)
 }
 
 export type Decoder = (
@@ -25,10 +26,6 @@ export type Decoder = (
   now: number,
 ) => void;
 
-// One decoder per station type, added with the room that first needs it. A bot does not work a
-// station whose type has none.
-export const DECODERS: Partial<Record<StationType, Decoder>> = {};
-
 export const emptyBelief = (): StationBelief => ({
   answer: [],
   solved: false,
@@ -36,6 +33,7 @@ export const emptyBelief = (): StationBelief => ({
   shows: [],
   marked: [],
   numbers: [],
+  changedAt: Number.NEGATIVE_INFINITY,
 });
 
 // The only text a bot reads (P3): a single digit.
@@ -62,7 +60,10 @@ export function beliefFrom(
   const e = view.entities.find((x) => x.id === o.id && x.kind === "station");
   if (e?.station) {
     if (e.station.solved) b.solved = true;
-    if (!e.station.furniture) b.shows = [...e.station.shows];
+    if (!e.station.furniture) {
+      if (e.station.shows.join() !== prior.shows.join()) b.changedAt = view.tick;
+      b.shows = [...e.station.shows];
+    }
   }
   const parts = stationParts(o)
     .filter((p) => p.key !== "anchor" || o.params?.type === "dial" || o.params?.type === "vault")
@@ -79,3 +80,42 @@ export function beliefFrom(
   }
   return b;
 }
+
+// --- The safe (dial) ------------------------------------------------------------------------
+// A teaching safe's lamp (shows[1]) lights while the dial sits on its number: a sighted turner
+// reads it itself. A real safe's number is heard, not seen: the tumbler reaches only a hearing
+// holder of the stethoscope at the safe's back. Can't see, holding it there, says "stop" (a
+// callout, which Can't speak receives): the dial is on the number now.
+export const TURN_WAIT_TICKS = 8; // after a turn the turner waits this long for the listener's word
+
+const dial: Decoder = (_view, inbox, b, o) => {
+  if (o.params?.teach === true) {
+    if (b.shows.length === 2) b.answer = [b.shows[1] === 1 ? (b.shows[0] as number) : null];
+    return;
+  }
+  const pos = b.shows.length - 1;
+  const setting = b.shows[pos];
+  if (setting === undefined) return;
+  const word = inbox.some(
+    (m) => m.method === "callout" && m.callout === "stop" && m.from.role === "blind",
+  );
+  // the digits entered so far are on the face; the one being searched for is what was heard
+  const answer: (number | null)[] = [...b.shows.slice(0, pos), b.answer[pos] ?? null];
+  if (word) answer[pos] = setting;
+  b.answer = answer;
+};
+
+// Where a safe's turner stands next: on the face to enter the number once the dial is on it, else
+// on the right-hand pad to turn it a notch. Null when the safe has no pads.
+export function dialStep(o: RoomObject, b: StationBelief): Vec | null {
+  const teach = o.params?.teach === true;
+  const pos = teach ? 0 : b.shows.length - 1;
+  const setting = b.shows[teach ? 0 : pos];
+  const want = b.answer[pos];
+  if (want !== null && want !== undefined && want === setting) return o.tiles[0] as Vec;
+  return tilesOf(o.params?.pads)[1] ?? null;
+}
+
+// One decoder per station type, added with the room that first needs it. A bot does not work a
+// station whose type has none.
+export const DECODERS: Partial<Record<StationType, Decoder>> = { dial };

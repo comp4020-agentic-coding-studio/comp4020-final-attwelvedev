@@ -61,3 +61,9 @@ clearEveryRotation("three bots clear every fixture room", loadRooms("./spec/fixt
 // room 1 until escape-room phase 04, kept as a fixture by the tests that used it
 clearEveryRotation("three bots clear First Job", loadRooms("./spec/fixtures/first-job"), 1);
 clearEveryRotation("three bots clear every draft room", loadRooms("./spec/fixtures/drafts"), 1);
+// one small room per station type, as each type's decoder lands (escape-room Tasks 16 to 26)
+clearEveryRotation(
+  "three bots clear every station fixture",
+  loadRooms("./spec/fixtures/rooms-bots"),
+  2,
+);

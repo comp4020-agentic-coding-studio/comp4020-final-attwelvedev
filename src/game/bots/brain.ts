@@ -7,7 +7,7 @@ import { stationParts, tilesOf } from "../sim/stations.ts";
 import { decodeSeen } from "../sim/visibility.ts";
 import { createWorld, SPEED_TPS, type StationType, TICK_MS, type World } from "../sim/world.ts";
 import { type PlayerInput, ROLES, type Role, type Seat, type Vec } from "../types.ts";
-import { beliefFrom, DECODERS, emptyBelief } from "./decode.ts";
+import { beliefFrom, DECODERS, dialStep, emptyBelief, TURN_WAIT_TICKS } from "./decode.ts";
 import { type AlarmWindow, forecastFor } from "./forecast.ts";
 import {
   claimJobs,
@@ -235,7 +235,10 @@ function thinkBlind(view: RoleView, inbox: ChannelMessage[], m: BotMemory, now: 
   if (moving && view.tick >= m.ignoreHumUntil && m.humTicks >= HUM_TICKS) m.holding = true;
   if (moving && now - m.lastCalloutAt > IDLE_MS) m.holding = true; // nobody is steering
   if (view.status === "cleared") m.holding = true;
-  return { input: idle(m, m.holding ? ZERO : m.heading), send: null };
+  // the stethoscope at a safe's back: the tumbler means the dial is on the number now (decode.ts)
+  const tumbler = view.gear === "stethoscope" && view.sounds.some((s) => s.kind === "tumbler");
+  const send: Outgoing | null = tumbler ? { method: "callout", callout: "stop" } : null;
+  return { input: idle(m, m.holding ? ZERO : m.heading), send };
 }
 
 // --- Seeing roles ------------------------------------------------------------
@@ -668,6 +671,7 @@ function gearTurn(room: Room, m: BotMemory, job: Job, known: Known, own: Role): 
 function workGoal(room: Room, m: BotMemory, job: Job, known: Known, seat: Seat): Vec | null {
   const t = job.target;
   if (t.kind === "station") return stationStep(room, m, known, t.id)?.tile ?? null;
+  if (t.kind === "listen") return t.tile;
   if (t.kind === "take" || t.kind === "give" || t.kind === "sill") {
     const g = known.gear?.[t.gear];
     if (!g) return null;
@@ -731,6 +735,10 @@ function stationStep(room: Room, m: BotMemory, known: Known, id: string): Press 
     return t ? { tile: t } : null;
   }
   if (!DECODERS[type]) return null;
+  if (type === "dial") {
+    const t = dialStep(o, b);
+    return t ? { tile: t } : null;
+  }
   const marked = b.marked[0];
   if (marked) return { tile: marked };
   const next = b.answer.find((v) => v !== null);
@@ -767,7 +775,11 @@ function thinkSighted(
   const known = observe(room, view, inbox, m);
   if (view.you.pos) {
     const last = m.lastPos;
-    if (last && Math.hypot(view.you.pos.x - last.x, view.you.pos.y - last.y) > 1.5) forgetPlans(m);
+    if (last && Math.hypot(view.you.pos.x - last.x, view.you.pos.y - last.y) > 1.5) {
+      forgetPlans(m);
+      // sent back: every unsolved safe has a fresh number, so what was heard of it is stale
+      for (const b of Object.values(known.stations)) if (!b.solved) b.answer = [];
+    }
     m.lastPos = view.you.pos;
   }
   const pos =
@@ -831,7 +843,13 @@ function pressFor(
 ): "act" | "gear" | "wait" | null {
   const t = job.target;
   if (t.kind === "station") {
-    if (room.objects.find((x) => x.id === t.id)?.params?.type !== "sync") return "act";
+    const o = room.objects.find((x) => x.id === t.id);
+    // a real safe's turner gives the listener at its back time to hear each notch
+    const b = known.stations[t.id];
+    if (o?.params?.type === "dial" && o.params.teach !== true && b) {
+      return tick - b.changedAt < TURN_WAIT_TICKS ? "wait" : "act";
+    }
+    if (o?.params?.type !== "sync") return "act";
     const keys = tilesOf(room.objects.find((x) => x.id === t.id)?.params?.keys);
     const stood = keys.every((k) =>
       Object.values(m.bodies).some((b) => b && tileOf(b).x === k.x && tileOf(b).y === k.y),
