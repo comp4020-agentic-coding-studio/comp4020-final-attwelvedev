@@ -346,9 +346,7 @@ describe("a bot with a clue job goes to the plate it heard named (A2, Task 23)",
       GRID,
       { c1: { n, everyS: 3 } },
       {
-        beats: [
-          { name: "b", x: [1, 18], intent: { blind: "b", deaf: "d", mute: "m" } },
-        ],
+        beats: [{ name: "b", x: [1, 18], intent: { blind: "b", deaf: "d", mute: "m" } }],
         hints: { jobs: [{ beat: 1, goTo: "clue:c1", prefer: "mute" }] },
       },
     );
