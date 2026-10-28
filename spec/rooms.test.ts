@@ -15,7 +15,7 @@ const rooms = loadRooms();
 // Rooms the perception-only bots (overhaul Task 28) cannot clear yet, each with why and what ends
 // the skip. Ruled by the user on 2026-10-28; a room on this list does not ship as finished.
 const NOT_YET: Record<string, string> = {
-  "06-vault":
+  "07-vault":
     "caught in the dark corridor by perception-only bots (overhaul phase 04 finding); renumbered after rooms 1 to 3 in escape-room phase 04; phase 10 replaces it with room 9",
   // a deliberate, dated scope change (escape-room phase 03 Task 13, 2026-10-29), not a weakened
   // test: bots now solve only from what they perceive, and no station type has a decoder until

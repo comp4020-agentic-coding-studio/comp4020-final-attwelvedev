@@ -110,3 +110,30 @@
   Worth your eye: in the bots' rotation the real safe works only as Can't see listening and Can't
   speak turning (the channel table: Can't hear receives no callouts or text), so a crew whose Can't
   speak seat is at the back cannot pass the number on; and the old rooms are now 05 and 06.
+
+## Phase 06, Task 19: room 5 The Gallery (teaching wires, then real wires and a keypad by ear)
+
+- **Look at:** play room 5 in three tabs, each role at least once. Chamber 1: a teaching wire panel
+  (three wires); its plaque is on the corridor wall just below the doorway (S at the corridor's
+  west end), round the corner from the wires, because the presence lint forbids one sighted
+  person seeing the plaque and the wires at once. A wrong cut there only re-draws the panel. Chamber
+  2: the real four-wire panel; its plaque is on the north wall of chamber 3 (the keypad room), out of
+  sight of the wires, so one person reads and another cuts (Can't hear can mark the wire for Can't
+  speak). Chamber 3: a 3×3 keypad whose 3-key code chimes (n chimes = key n, reading order) from a
+  closet behind the vent in the corridor's south wall (one count a key: a person hears "two,
+  seven, five" as chimes). The exit door is in chamber 3's east wall. Questions: can each clue be
+  found and understood (is "chimes = key number" learnable without being told?); does the teaching
+  panel teach the real one; does the link "plaque in the other room" work out unaided; does anyone
+  wait with nothing to do for more than about 20 s (Can't see, once the code is passed on, may)?
+- **Start locally:** `lsof -ti tcp:8080 -sTCP:LISTEN | xargs kill; pnpm build && pnpm start`, open
+  `http://localhost:8080` in three tabs (one at 375 px wide), create a lobby, join from the other two,
+  Start, Ready: room 5 comes after rooms 1 to 4. Room 5 alone: `mkdir -p /tmp/r5 && cp
+  rooms/05-the-gallery.room /tmp/r5/ && ROOMS_DIR=/tmp/r5 PORT=8095 node server.ts`, then
+  `http://localhost:8095`. Per-role perception: `playtests/mockups/05-the-gallery.html`.
+- **Screenshots** (room start; 1280 = Can't speak, 375 = Can't hear on a phone):
+  `review/06-task19-the-gallery-1280.png`, `review/06-task19-the-gallery-375.png`.
+- **Judged:** renders clean at both widths: the teaching panel's three wires (one striped, so not
+  colour alone) and its chip read clearly. Bots clear the room in 27 to 28 s in every rotation,
+  never caught. Worth your eye: the bots solve the keypad with no message at all (Can't speak hears
+  the chimes and presses), so the room does not force Can't see to talk; a person at the keys must
+  walk to the vent to hear the code. The old rooms are now 06 and 07.

@@ -916,7 +916,7 @@ describe("viewFor: line of sight", () => {
   });
 
   it("keeps the largest full view of room 05 under 8 KiB", () => {
-    const room = loadRooms().find((r) => r.id === "06-vault");
+    const room = loadRooms().find((r) => r.id === "07-vault");
     if (!room) throw new Error("room 05 is missing");
     const w = createWorld(room);
     let worst = 0;

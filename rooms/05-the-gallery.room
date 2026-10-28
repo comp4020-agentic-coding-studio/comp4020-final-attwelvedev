@@ -1,0 +1,29 @@
+{"id":"05-the-gallery","name":"The Gallery","version":1,"hue":"teal","budgetS":240,
+ "beats":[
+  {"name":"The plaque","x":[0,11],"intent":{"blind":"hears the snip and the chime of the code from the corridor","deaf":"reads the little plaque round the corner and cuts the wire it names","mute":"reads the plaque too and checks the wire before the cut"}},
+  {"name":"The far plaque","x":[12,31],"intent":{"blind":"listens at the vent and says the code's numbers to Can't speak","deaf":"reads the plaque in the keypad room and marks the wire to cut","mute":"cuts the marked wire, then presses the keys in the order Can't see reads out"}},
+  {"name":"Out","x":[32,35],"intent":{"blind":"walks out","deaf":"walks out","mute":"walks out"}}
+ ],
+ "objects":{
+  "Q1":{"type":"wires","wires":[[6,1],[7,1],[8,1]],"plaque":"S2","teach":true},
+  "Q2":{"type":"wires","wires":[[15,1],[16,1],[17,1],[18,1]],"plaque":"S1"},
+  "Q3":{"type":"keypad","keys":[[26,1],[27,1],[28,1],[26,2],[27,2],[28,2],[26,3],[27,3],[28,3]],"clue":"c1","length":3},
+  "c1":{},
+  "D1":{"opensWhen":["Q1","Q2","Q3"]}},
+ "hints":{"jobs":[
+  {"beat":1,"station":"Q1","at":[4,5],"prefer":"deaf"},
+  {"beat":1,"goTo":"K1","all":true},
+  {"beat":2,"station":"Q2","at":[29,2],"prefer":"deaf"},
+  {"beat":2,"station":"Q3","at":[17,5],"prefer":"mute"},
+  {"beat":2,"listen":"Q3","at":[18,5],"prefer":"blind"},
+  {"beat":3,"goTo":"E","all":true}]}}
+---
+#############################S######
+#1...Q.....#..Q........#.Q.....#..E#
+#2.........#...........#.......D..E#
+#3.........#...........#.......#.$E#
+#########.###.###########.##########
+#...................K..........#####
+####S############%##################
+################.c..################
+####################################

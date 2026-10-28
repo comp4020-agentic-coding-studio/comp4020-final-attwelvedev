@@ -88,6 +88,8 @@ export function think(room: Room, view: RoleView, inbox: ChannelMessage[], memor
 
 ### Task 19: Build and play room 5
 
+- [x] Done 2026-10-29 (overnight run; human review queued in `review/QUEUE.md`; calls logged, 06/19)
+
 - **Description:** Author `rooms/05-the-gallery.room` per this file's §4 (teaching versions first, then
   real), with beats, intents, hints, checkpoints and labels.
 - **Files touched:** new `rooms/05-the-gallery.room`; renamed later rooms as needed; `playtests/mockups/`
