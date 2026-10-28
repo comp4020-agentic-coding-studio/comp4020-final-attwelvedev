@@ -294,7 +294,7 @@ matching `/^\d$/`, or `"stop"` as a callout for a dial; bots read only those two
 | 05 | `…-05-safe.md` | 16–17 | 04 | safe decoder; room 4 The Safe; **human review** | [x] |
 | 06 | `…-06-gallery.md` | 18–19 | 05 | wires and keypad decoders; room 5; **human review** | [x] |
 | 07 | `…-07-lights-out.md` | 20–21 | 06 | radio and switches decoders; room 6; **human review** | [x] |
-| 08 | `…-08-night-shift.md` | 22–23 | 07 | UV and goggles bot use; room 7; **human review** | [ ] |
+| 08 | `…-08-night-shift.md` | 22–23 | 07 | UV and goggles bot use; room 7; **human review** | [x] |
 | 09 | `…-09-music-room.md` | 24–25 | 08 | music box and earpiece decoders; room 8; **human review** | [ ] |
 | 10 | `…-10-vault.md` | 26–27 | 09 | vault and sync decoders; room 9; old rooms removed; **human review** | [ ] |
 | 11 | `…-11-wrap-up.md` | 28–31 | 10 | side jobs, credits, comms map, edition 2, docs, ADRs; **human review** | [ ] |
