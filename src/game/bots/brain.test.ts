@@ -459,7 +459,7 @@ describe("a Can't-hear bot guiding a Can't-see teammate", () => {
 
   it("says a phrase now and then, at most one every 10 s", () => {
     const texts: number[] = [];
-    play("04-cameras-lasers", ROLES3, [0, 1, 2], 2000, (_t, sent) => {
+    play("05-cameras-lasers", ROLES3, [0, 1, 2], 2000, (_t, sent) => {
       for (const s of sent) if (s.message.method === "text") texts.push(s.message.sentAt);
     });
     expect(texts.length).toBeGreaterThan(0);
@@ -508,7 +508,7 @@ describe("a Can't-speak bot", () => {
 
 describe("a seeing bot among hazards", () => {
   it("waits while the camera watches, and crosses its cone when it looks away", () => {
-    const r = room("04-cameras-lasers");
+    const r = room("05-cameras-lasers");
     // seat 1 is the only bot; the others stay at spawn
     let stoodStill = 0;
     let watchedWhileStill = false;
@@ -539,10 +539,10 @@ describe("a seeing bot among hazards", () => {
     expect(watchedWhileStill).toBe(true);
   });
 
-  // 05-vault is left out (ruled 2026-10-28): perception-only bots are caught in its dark corridor,
+  // 06-vault is left out (ruled 2026-10-28): perception-only bots are caught in its dark corridor,
   // the overhaul phase 04 finding, and escape-room heist phase 04 rewrites the room.
   it("is never caught by a guard in room 2, in any rotation", () => {
-    for (const id of ["04-cameras-lasers"]) {
+    for (const id of ["05-cameras-lasers"]) {
       for (const roles of [
         ["blind", "deaf", "mute"],
         ["deaf", "mute", "blind"],
@@ -575,7 +575,7 @@ describe("with a person on the team", () => {
   it("recovers when the team is caught and sent back, wherever they were: nobody walks on in the old direction", () => {
     for (const when of [60, 100, 130, 170, 220, 260]) {
       let sentBack = false;
-      const run = play("05-vault", ROTATION_2, [0, 1, 2], 2400, () => {}, {
+      const run = play("06-vault", ROTATION_2, [0, 1, 2], 2400, () => {}, {
         onTick: (world) => {
           // the way the simulation sends a caught team back: to the spawns, sequence forgotten
           if (!sentBack && world.tick === when) {
@@ -598,7 +598,7 @@ describe("with a person on the team", () => {
     // a person who does nothing for 25 s, longer than the 5 s the sequence allows (not the one
     // who cannot see: steering a person is its own test below, since they do not obey like a bot)
     for (const slow of [0, 2] as const) {
-      const run = play("05-vault", ROTATION_2, [0, 1, 2], 4000, () => {}, {
+      const run = play("06-vault", ROTATION_2, [0, 1, 2], 4000, () => {}, {
         humans: [slow],
         slow: { [slow]: 500 },
       });
@@ -611,7 +611,7 @@ describe("with a person on the team", () => {
     let letGo = 0;
     let opened = 0;
     const seq = ["p7", "p1", "p4"];
-    const run = play("05-vault", ROTATION_2, [0, 1, 2], 4000, () => {}, {
+    const run = play("06-vault", ROTATION_2, [0, 1, 2], 4000, () => {}, {
       onTick: (world) => {
         wrong += world.events.filter((e) => e.kind === "seq" && e.result === "wrong").length;
         // a plate of the sequence released before the door has opened
@@ -629,7 +629,7 @@ describe("with a person on the team", () => {
 
   it("waits at each checkpoint for the person, so the whole team sets every one", () => {
     for (const slow of [0, 2] as const) {
-      const run = play("05-vault", ROTATION_2, [0, 1, 2], 4000, () => {}, {
+      const run = play("06-vault", ROTATION_2, [0, 1, 2], 4000, () => {}, {
         humans: [slow],
         slow: { [slow]: 400 },
       });
@@ -640,7 +640,7 @@ describe("with a person on the team", () => {
 
   it("does not press the first plate until the person is at theirs", () => {
     let pressedEarly = false;
-    play("05-vault", ROTATION_2, [0, 1, 2], 1200, () => {}, {
+    play("06-vault", ROTATION_2, [0, 1, 2], 1200, () => {}, {
       humans: [0],
       slow: { 0: 600 },
       onTick: (world) => {
@@ -769,7 +769,7 @@ describe("steering a person who cannot see", () => {
   });
 
   it("gets a person who reacts late through every room, in every role rotation, without pushing at walls", () => {
-    for (const id of ["01-first-job", "04-cameras-lasers", "05-vault"]) {
+    for (const id of ["01-first-job", "05-cameras-lasers", "06-vault"]) {
       for (const roles of [
         ["blind", "deaf", "mute"],
         ["deaf", "mute", "blind"],
@@ -989,6 +989,38 @@ describe("bots work a safe from what they perceive (escape-room Task 16)", () =>
     }
     expect(world.stations.Q1?.solved).toBe(true);
     expect(world.attempt).toBe(0);
+  });
+});
+
+// G hands gear to the nearest teammate beside you with a free slot (sim/gear.ts: gearPress), so a
+// give waits until the one it is for is the nearest: a guide standing by them would get it instead.
+describe("a bot gives gear to the role it is for, not the nearer teammate (escape-room Task 17)", () => {
+  const r = roomWith(
+    ["##########", "#1......g#", "#2.......#", "#3.......#", "##########"],
+    { g1: { item: "stethoscope" } },
+    {
+      beats: [{ name: "b", x: [0, 9], intent: { blind: "b", deaf: "d", mute: "m" } }],
+      hints: { jobs: [{ beat: 1, give: "g1", to: "blind", prefer: "mute" }] },
+    },
+  );
+  it("does not press G while Can't hear stands nearer than Can't see", () => {
+    const world = createWorld(r, 1);
+    const g = world.gear[0];
+    if (!g) throw new Error("no g1");
+    Object.assign(g, { heldBy: 2, at: null });
+    world.players[0].pos = { x: 5.5, y: 3.5 }; // Can't see
+    world.players[1].pos = { x: 5.5, y: 2.5 }; // Can't hear, between
+    world.players[2].pos = { x: 5.5, y: 1.5 }; // Can't speak, holding it
+    const bots: Partial<Record<Seat, BotSeat>> = {
+      2: { memory: createBotMemory(2, new Set(), ROLES3), inbox: [] },
+    };
+    for (let i = 0; i < 200; i++) {
+      const out = botsAct(r, world, ROLES3, bots, { until: {} }, world.tick * TICK_MS, () => "Bot");
+      step(world, out.inputs, TICK_MS);
+      expect(world.gear[0]?.heldBy).not.toBe(1);
+      if (world.gear[0]?.heldBy === 0) break;
+    }
+    expect(world.gear[0]?.heldBy).toBe(0);
   });
 });
 

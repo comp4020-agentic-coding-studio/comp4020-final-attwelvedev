@@ -1,0 +1,29 @@
+{"id":"04-the-safe","name":"The Safe","version":1,"hue":"amber","budgetS":240,
+ "beats":[
+  {"name":"The lamp","x":[0,12],"intent":{"blind":"hears the dial tick round and the clunk when it opens","deaf":"turns the little safe until its lamp lights, then enters the number","mute":"picks up the stethoscope on the way"}},
+  {"name":"The stethoscope","x":[13,21],"intent":{"blind":"is handed the stethoscope","deaf":"brings Can't see to the flag","mute":"hands Can't see the stethoscope"}},
+  {"name":"The safe","x":[13,27],"intent":{"blind":"listens at the safe's back and says stop on the tumbler","deaf":"leads Can't see round to the back of the safe","mute":"turns the dial a notch at a time and enters the number on stop"}},
+  {"name":"Out","x":[28,33],"intent":{"blind":"walks out","deaf":"walks out","mute":"walks out"}}
+ ],
+ "objects":{
+  "Q1":{"type":"dial","pads":[[5,1],[7,1]],"back":[6,3],"teach":true,"range":10},
+  "Q2":{"type":"dial","pads":[[19,1],[21,1]],"back":[23,1],"digits":2,"range":10},
+  "g1":{"item":"stethoscope"},
+  "D1":{"opensWhen":["Q1","Q2"]}},
+ "hints":{"jobs":[
+  {"beat":1,"station":"Q1","prefer":"deaf"},
+  {"beat":1,"take":"g1","prefer":"mute"},
+  {"beat":2,"give":"g1","to":"blind","prefer":"mute"},
+  {"beat":2,"goTo":"K1","all":true},
+  {"beat":3,"tow":"blind","to":[23,1],"prefer":"deaf"},
+  {"beat":3,"station":"Q2","prefer":"mute"},
+  {"beat":3,"listen":"Q2","at":[23,1],"prefer":"blind"},
+  {"beat":4,"goTo":"E","all":true}]}}
+---
+##################################
+#1....Q.....#.......Q.%.....#...E#
+#2.......g..#.........%.....#...E#
+#3..........#.........%.....#..$E#
+#####.#######....K....###.###D####
+#................................#
+##################################

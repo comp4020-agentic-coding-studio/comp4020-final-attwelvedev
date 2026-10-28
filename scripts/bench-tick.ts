@@ -11,8 +11,8 @@ const LOBBIES = 10;
 const TICKS = 200;
 const ROLES: Role[] = ["blind", "deaf", "mute"];
 
-const room = loadRooms().find((r) => r.id === "05-vault");
-if (!room) throw new Error("room 05-vault not found");
+const room = loadRooms().find((r) => r.id === "06-vault");
+if (!room) throw new Error("room 06-vault not found");
 const worlds = Array.from({ length: LOBBIES }, () => createWorld(room));
 
 // the players walk, so the viewpoints change tile and the cache (if any) is exercised

@@ -684,7 +684,12 @@ function workGoal(room: Room, m: BotMemory, job: Job, known: Known, seat: Seat):
     if (t.kind === "give") {
       const to = known.roles?.indexOf(t.to) ?? -1;
       const p = to >= 0 ? m.bodies[to as Seat] : undefined;
-      return p ? besideOf(room, known, tileOf(p), m.lastPos) : null;
+      if (!p) return null;
+      // beside them, on the side away from the others: G hands it to whoever is nearest
+      const others = ([0, 1, 2] as const)
+        .filter((s) => s !== seat && s !== to)
+        .flatMap((s) => (m.bodies[s] ? [m.bodies[s] as Vec] : []));
+      return besideOf(room, known, tileOf(p), m.lastPos, others);
     }
     const hatch = room.objects.find((o) => o.id === t.hatch)?.tiles[0];
     return hatch ? besideOf(room, known, hatch, m.lastPos) : null;
@@ -700,14 +705,25 @@ function workGoal(room: Room, m: BotMemory, job: Job, known: Known, seat: Seat):
 }
 
 // The floor tile next to `tile` nearest `from` (west first on a tie): where to stand to reach it.
-function besideOf(room: Room, known: Known, tile: Vec, from: Vec | null): Vec | null {
+// Tiles where one of `avoid` would be as near as `tile` itself are left out while others remain.
+function besideOf(
+  room: Room,
+  known: Known,
+  tile: Vec,
+  from: Vec | null,
+  avoid: Vec[] = [],
+): Vec | null {
   const blocked = blockedFor(room, known, tile);
-  const options = [
+  const free = [
     { x: tile.x - 1, y: tile.y },
     { x: tile.x, y: tile.y - 1 },
     { x: tile.x, y: tile.y + 1 },
     { x: tile.x + 1, y: tile.y },
   ].filter((t) => !blocked(t.x, t.y));
+  const clear = free.filter((t) =>
+    avoid.every((a) => Math.hypot(a.x - (t.x + 0.5), a.y - (t.y + 0.5)) > 1.01),
+  );
+  const options = clear.length > 0 ? clear : free;
   if (!from) return options[0] ?? null;
   const d = (t: Vec) => Math.hypot(t.x + 0.5 - from.x, t.y + 0.5 - from.y);
   return options.reduce<Vec | null>((a, b) => (a === null || d(b) < d(a) ? b : a), null);
@@ -861,10 +877,26 @@ function pressFor(
     if (!g) return null;
     if (g.heldBy === null) return "act"; // take it: it lies here, or on the sill beside
     if (g.heldBy !== m.seat) return "wait"; // someone else has it
-    return t.kind === "give" ? "gear" : t.kind === "sill" ? "act" : null;
+    if (t.kind === "give") return nearestIs(m, known.roles?.indexOf(t.to) ?? -1) ? "gear" : "wait";
+    return t.kind === "sill" ? "act" : null;
   }
   if (t.kind === "tow") return "act"; // take their hand beside them, or let go at the end
   return null;
+}
+
+// Is `to` the teammate G would hand gear to: the nearest one seen beside this bot? (A teammate
+// holding gear of their own is passed over by G too, but bots carry one item between them.)
+function nearestIs(m: BotMemory, to: number): boolean {
+  const me = m.lastPos;
+  if (!me || to < 0) return false;
+  const d = (s: Seat) => {
+    const b = m.bodies[s];
+    return b ? Math.hypot(b.x - me.x, b.y - me.y) : Number.POSITIVE_INFINITY;
+  };
+  const mine = d(to as Seat);
+  return (
+    mine <= 1.5 && ([0, 1, 2] as const).every((s) => s === m.seat || s === to || d(s) > mine + 0.01)
+  );
 }
 
 function stamp(m: BotMemory, send: Outgoing | null, now: number): Outgoing | null {

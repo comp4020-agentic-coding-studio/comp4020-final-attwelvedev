@@ -86,3 +86,27 @@
   now scrolls, centred when it fits) and the panel's headers broke mid-word at 375. Worth your eye:
   the card is busy on a phone (three buttons, then the board); the "You" line has no loot. On the
   fixture server the panel still lists five room tabs (it reads `./rooms`, as `/leaderboard` does).
+
+## Phase 05, Task 17: room 4 The Safe (teaching safe, then a real safe and the stethoscope)
+
+- **Look at:** play room 4 in three tabs, each role at least once. Chamber 1: a small teaching safe
+  (◀ 0 ▶ with a hollow lamp beside the face); turn it until the lamp lights, then Act on the face.
+  The stethoscope lies on the way. Chamber 2 (past the flag): a real two-digit safe whose back is
+  across a vent, at the end of the corridor beyond it. Can't see holds the stethoscope at the back and
+  says "stop" when the tumbler sounds; Can't speak (who receives callouts) turns and enters on "stop";
+  Can't hear leads Can't see by the hand round to the back. Questions: can each station's clue be
+  found and understood; does the teaching safe teach the real one; does anyone wait with nothing to
+  do for more than about 20 s (Can't hear, once Can't see is at the back, may)?
+- **Start locally:** `lsof -ti tcp:8080 -sTCP:LISTEN | xargs kill; pnpm build && pnpm start`, open
+  `http://localhost:8080` in three tabs (one at 375 px wide), create a lobby, join from the other two,
+  Start, Ready: room 4 comes after rooms 1 to 3. Room 4 alone: `mkdir -p /tmp/r4 && cp
+  rooms/04-the-safe.room /tmp/r4/ && ROOMS_DIR=/tmp/r4 PORT=8094 node server.ts`, then
+  `http://localhost:8094`. Per-role perception: `playtests/mockups/04-the-safe.html`.
+- **Screenshots** (room start; 1280 = Can't speak, 375 = Can't hear on a phone):
+  `review/05-task17-the-safe-1280.png`, `review/05-task17-the-safe-375.png`.
+- **Judged:** renders clean at 1280: teaching safe, lamp and stethoscope all legible. At 375 the two
+  label chips (Safe, Gear) sit over the safe's face: the same phase 02 chip-placement issue queued
+  under phase 03, not fixed here. Bots clear the room in 22 to 23 s in every rotation, never caught.
+  Worth your eye: in the bots' rotation the real safe works only as Can't see listening and Can't
+  speak turning (the channel table: Can't hear receives no callouts or text), so a crew whose Can't
+  speak seat is at the back cannot pass the number on; and the old rooms are now 05 and 06.

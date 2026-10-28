@@ -49,8 +49,8 @@ const rows = (f: (y: number, seat: 0 | 1 | 2) => Move[]): Plan => ({
 
 // `impatient` drops the waits for the guard, so a test can show the guard matters.
 export function planFor(room: Room, impatient = false): Plan {
-  if (room.id === "04-cameras-lasers") return room02(room, impatient);
-  if (room.id === "05-vault") return room03(room, impatient);
+  if (room.id === "05-cameras-lasers") return room02(room, impatient);
+  if (room.id === "06-vault") return room03(room, impatient);
   throw new Error(`no solve plan for ${room.id}`);
 }
 
