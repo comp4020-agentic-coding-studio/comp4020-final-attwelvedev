@@ -137,3 +137,32 @@
   never caught. Worth your eye: the bots solve the keypad with no message at all (Can't speak hears
   the chimes and presses), so the room does not force Can't see to talk; a person at the keys must
   walk to the vent to hear the code. The old rooms are now 06 and 07.
+
+## Phase 07, Task 21: room 6 Lights Out (teaching radio and switches, then a radio that fills a keypad's gap)
+
+- **Look at:** play room 6 in three tabs, each role at least once. Room A (start): a teaching radio
+  (turn ◀/▶ until the static clears to a tone, which opens its part of the door) and a teaching row of
+  three switches; their three lamps are in a glassed nook to the east, seen only from the corridor's
+  bay below, and the target card (lit/hollow lamps) is in an alcove at the corridor's far west end,
+  round a corner from both. Corridor door D2 opens when both are done. Beat 2, past the flag: a real
+  radio (moon motif) in the room north of the corridor; once tuned it gives its digit as pips (a light
+  on its face, and a sound). The keypad (moon motif, 4-key code) is in the east room; its code chimes
+  from the closet behind the vent in the corridor's south wall, with a **rest** where the third key
+  goes: that key is the radio's digit. The exit door is in the keypad room's east wall. Questions: can
+  each clue be found and understood; does the teaching radio teach the real one (it never pips: the
+  teaching version only tunes); does the moon link (radio digit → the rest in the tune) work out
+  unaided, or does the rest need a stronger tell; is the three-switch lights-out learnable from the
+  card alone; does anyone wait with nothing to do for more than about 20 s (Can't see in beat 1 may)?
+- **Start locally:** `lsof -ti tcp:8080 -sTCP:LISTEN | xargs kill; pnpm build && pnpm start`, open
+  `http://localhost:8080` in three tabs (one at 375 px wide), create a lobby, join from the other two,
+  Start, Ready: room 6 comes after rooms 1 to 5. Room 6 alone: `mkdir -p /tmp/r6 && cp
+  rooms/06-lights-out.room /tmp/r6/ && ROOMS_DIR=/tmp/r6 PORT=8096 node server.ts`, then
+  `http://localhost:8096`. Per-role perception: `playtests/mockups/06-lights-out.html`.
+- **Screenshots** (room start; 1280 = Can't speak, 375 = Can't hear on a phone):
+  `review/07-task21-lights-out-1280.png`, `review/07-task21-lights-out-375.png`.
+- **Judged:** renders clean at both widths: the radio's pads and face, switches 1 to 3 and the
+  numbered lamps behind glass read clearly (the first draft had the switches one row lower, half
+  hidden behind the glass wall face; moved up a row). Bots clear the room in about 28 s in every
+  rotation, never caught: Can't hear texts the radio's digit and marks each switch for Can't speak.
+  Worth your eye: the keypad tune's rest is a sim change (the slot's note is silent) made so the radio
+  is needed at all; and the old rooms are now 07 and 08.

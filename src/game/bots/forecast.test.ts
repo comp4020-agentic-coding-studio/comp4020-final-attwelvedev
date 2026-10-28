@@ -15,7 +15,7 @@ const room = (id: string) => {
 
 describe("forecastFor", () => {
   it("says danger wherever the real simulation would catch a player standing still", () => {
-    for (const id of ["01-first-job", "06-cameras-lasers", "07-vault"]) {
+    for (const id of ["01-first-job", "07-cameras-lasers", "08-vault"]) {
       const r = room(id);
       const forecast = forecastFor(r);
       const world = createWorld(r);
@@ -43,7 +43,7 @@ describe("forecastFor", () => {
   });
 
   it("is not all danger: some tiles are safe at every tick", () => {
-    const r = room("06-cameras-lasers");
+    const r = room("07-cameras-lasers");
     const forecast = forecastFor(r);
     const spawn = r.objects.find((o) => o.id === "s1")?.tiles[0] ?? { x: 2, y: 3 };
     for (let tick = 0; tick < 200; tick++) {
@@ -52,13 +52,13 @@ describe("forecastFor", () => {
   });
 
   it("is the same object for the same room and alarm windows, a new one for others", () => {
-    const r = room("07-vault");
+    const r = room("08-vault");
     expect(forecastFor(r)).toBe(forecastFor(r));
     expect(forecastFor(r, [{ from: 10, to: 100 }])).not.toBe(forecastFor(r));
   });
 
   it("plans only around the hazards it is told of: none, or just the named ones", () => {
-    const r = room("07-vault");
+    const r = room("08-vault");
     const sum = (a: Uint8Array) => a.reduce((n, v) => n + v, 0);
     const all = forecastFor(r);
     const none = forecastFor(r, [], new Set());
@@ -79,7 +79,7 @@ describe("forecastFor", () => {
   });
 
   it("holds every camera on while the alarm rings", () => {
-    const r = room("07-vault");
+    const r = room("08-vault");
     const quiet = forecastFor(r);
     const alarmed = forecastFor(r, [{ from: 1, to: 400 }]);
     const sum = (a: Uint8Array) => a.reduce((n, v) => n + v, 0);

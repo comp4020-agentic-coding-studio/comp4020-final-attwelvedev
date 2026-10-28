@@ -198,15 +198,16 @@ describe("advanceRoom", () => {
     return startGame(l, rooms);
   };
 
-  it("has seven rooms to play: the basics, The Safe, The Gallery, then the old rooms until phase 10 replaces them", () => {
+  it("has eight rooms to play: the basics, The Safe, The Gallery, Lights Out, then the old rooms until phase 10 replaces them", () => {
     expect(rooms.map((r) => r.id)).toEqual([
       "01-first-steps",
       "02-three-hands",
       "03-watchers",
       "04-the-safe",
       "05-the-gallery",
-      "06-cameras-lasers",
-      "07-vault",
+      "06-lights-out",
+      "07-cameras-lasers",
+      "08-vault",
     ]);
   });
 
@@ -475,7 +476,7 @@ describe("a mark must be on a tile the sender can see", () => {
 
 describe("being caught", () => {
   it("is reported by tickGame: what, which player, and the checkpoint the team goes back to", () => {
-    const game = startGame(lobby("a", "b", "c"), [roomById("06-cameras-lasers")]);
+    const game = startGame(lobby("a", "b", "c"), [roomById("07-cameras-lasers")]);
     game.ready.add(0);
     game.world.checkpoint = 1;
     game.world.players[1].pos = { x: 23.5, y: 4.5 }; // in L1's column (a laser column at x = 23)

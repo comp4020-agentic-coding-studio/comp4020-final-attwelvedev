@@ -1,0 +1,27 @@
+{"id":"06-lights-out","name":"Lights Out","version":1,"hue":"violet","budgetS":240,
+ "beats":[
+  {"name":"The radio","x":[0,19],"intent":{"blind":"hears the static clear to a tone, then counts the pips","deaf":"reads the card in the alcove round the corner","mute":"turns the little radio until the static clears"}},
+  {"name":"The switches","x":[0,19],"intent":{"blind":"hears each switch clunk","deaf":"watches the lamps through the glass and marks each switch to press","mute":"presses the switches Can't hear marks"}},
+  {"name":"The keypad","x":[20,38],"intent":{"blind":"follows the corridor to the vent","deaf":"tunes the radio, counts its pips and texts the number","mute":"listens at the vent for the code, finds the gap where the moon goes, and presses the keys"}},
+  {"name":"Out","x":[39,43],"intent":{"blind":"walks out","deaf":"walks out","mute":"walks out"}}],
+ "objects":{"Q1":{"type":"radio","pads":[[3,1],[5,1]],"range":6,"teach":true},"Q2":{"type":"switches","buttons":[[8,2],[9,2],[10,2]],"cols":3,"lamps":[[13,2],[14,2],[15,2]],"teach":true},"T1":{"of":"Q2"},"Q3":{"type":"radio","pads":[[22,1],[24,1]],"range":8,"yields":"Q4","motif":"moon"},"Q4":{"type":"keypad","keys":[[34,2],[35,2],[36,2],[34,3],[35,3],[36,3],[34,4],[35,4],[36,4]],"clue":"c1","length":4,"motif":"moon","slot":{"from":"Q3","at":2}},"c1":{},"D2":{"opensWhen":["Q1","Q2"]},"D1":{"opensWhen":["Q4"]}},
+ "hints":{"jobs":[
+  {"beat":1,"station":"Q1","prefer":"mute"},
+  {"beat":1,"watch":"Q2","at":[12,5],"read":[2,7],"prefer":"deaf"},
+  {"beat":1,"goTo":[6,5],"prefer":"blind"},
+  {"beat":2,"station":"Q2","prefer":"mute"},
+  {"beat":3,"goTo":"K1","all":true},
+  {"beat":3,"station":"Q3","at":[23,2],"prefer":"deaf"},
+  {"beat":3,"station":"Q4","at":[26,6],"prefer":"mute"},
+  {"beat":4,"goTo":"E","all":true}]}}
+---
+############################################
+#1..Q....Q..#...####...Q....####...Q...#####
+#2..........#...####........####.......#####
+#3..........#===####........####.......#####
+#####.##====.....######.########.......D..E#
+#..................D..K................D..E#
+#..................D...................D.$E#
+#..#######################%#################
+#.t######################.c.################
+############################################

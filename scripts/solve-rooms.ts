@@ -7,7 +7,7 @@ import { buildScript } from "../src/game/rooms/solveBuilder.ts";
 import { planFor } from "../src/game/rooms/solvePlans.ts";
 
 for (const room of loadRooms()) {
-  if (!["06-cameras-lasers", "07-vault"].includes(room.id)) continue; // the bots solve the rest
+  if (!["07-cameras-lasers", "08-vault"].includes(room.id)) continue; // the bots solve the rest
   const script = buildScript(room, planFor(room));
   const ticks = script.runs.reduce((sum, r) => sum + r.n, 0);
   const file = `src/game/rooms/solutions/${room.id}.json`;
