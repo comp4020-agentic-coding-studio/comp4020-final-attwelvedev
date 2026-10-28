@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { Seat, Vec } from "../types.ts";
 import { rng } from "./rng.ts";
-import { drawAnswer, plaqueText, ruleFor, WIRE_COLOURS, WIRE_RULES } from "./stations.ts";
+import {
+  drawAnswer,
+  plaqueText,
+  ruleFor,
+  stationShows,
+  WIRE_COLOURS,
+  WIRE_RULES,
+} from "./stations.ts";
 import { step } from "./step.ts";
 import { input, place, stationWorld } from "./testing.ts";
 import type { StationState, World, WorldEvent } from "./world.ts";
@@ -409,6 +416,108 @@ describe("every drawn answer can be entered (200 seeds per type)", () => {
         expect(cut).toBeLessThan(count);
         expect(ruleFor(colours)).toEqual({ rule, cut });
       }
+    }
+  });
+});
+
+describe("clue paths: answers that feed, and teaching stations (escape-room Task 11)", () => {
+  const RADIO = {
+    type: "radio",
+    pads: [
+      [6, 4],
+      [8, 4],
+    ],
+    range: 8,
+    yields: "Q2",
+    motif: "moon",
+  };
+  const keys = [0, 1, 2].flatMap((y) => [0, 1, 2].map((x) => [10 + x, 1 + y]));
+  const KEYPAD = { type: "keypad", keys, length: 3, motif: "moon", slot: { from: "Q1", at: 0 } };
+
+  it("a solved radio fixes the keypad's slot to its digit, and a re-draw keeps it", () => {
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const w = stationWorld({ Q1: RADIO, Q2: KEYPAD }, seed);
+      const digit = st(w).answer[1] as number;
+      for (let i = 0; i < 8 && !st(w).solved; i++) press(w, { x: 8, y: 4 });
+      expect(st(w).solved).toBe(true);
+      // the keys are numbered from 1: digit d is key d, the (d - 1)th
+      expect(st(w, "Q2").answer[0]).toBe(digit - 1);
+      // a wrong key sends the team back and re-draws the keypad: the slot stays
+      const wrongKey = (((st(w, "Q2").answer[0] as number) + 1) % 9) as number;
+      const k = keys[wrongKey] as [number, number];
+      press(w, { x: k[0], y: k[1] });
+      expect(w.attempt).toBe(1);
+      expect(st(w, "Q2").answer[0]).toBe(digit - 1);
+    }
+  });
+
+  it("a vault's answer is its wings' reveals, drawn as each wing is solved", () => {
+    const VAULT = {
+      type: "vault",
+      sockets: [
+        [6, 2],
+        [8, 2],
+      ],
+      from: ["Q2", "Q3"],
+    };
+    const WING = (x: number) => ({ type: "sync", keys: [[x, 4]], windowMs: 500, reveal: true });
+    const w = stationWorld({ Q1: VAULT, Q2: WING(10), Q3: WING(12) }, 10);
+    expect(w.stations.Q2?.reveal).toBeUndefined();
+    press(w, { x: 10, y: 4 });
+    expect(st(w, "Q2").solved).toBe(true);
+    const r2 = st(w, "Q2").reveal as number;
+    expect(r2).toBeGreaterThanOrEqual(0);
+    expect(r2).toBeLessThan(6);
+    expect(st(w).answer[0]).toBe(r2);
+    press(w, { x: 12, y: 4 });
+    expect(st(w).answer).toEqual([r2, st(w, "Q3").reveal]);
+  });
+
+  it("a wrong press at a teaching station re-draws only it: no dye, no send-back", () => {
+    const TEACH = {
+      type: "keypad",
+      keys,
+      length: 3,
+      teach: true,
+    };
+    const OTHER = {
+      type: "dial",
+      pads: [
+        [3, 5],
+        [5, 5],
+      ],
+      digits: 2,
+      range: 10,
+    };
+    let redrawn = false;
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const w = stationWorld({ Q1: TEACH, Q2: OTHER }, seed);
+      const before = [...st(w).answer];
+      const other = [...st(w, "Q2").answer];
+      const wrongKey = ((before[0] as number) + 1) % 9;
+      const k = keys[wrongKey] as [number, number];
+      const e = press(w, { x: k[0], y: k[1] });
+      expect(stationResults(e)).toContain("wrong");
+      expect(kinds(e)).not.toContain("dye");
+      expect(kinds(e)).not.toContain("caught");
+      expect(w.attempt).toBe(0);
+      expect(st(w).input).toEqual([]);
+      expect(st(w, "Q2").answer).toEqual(other);
+      if (st(w).answer.join() !== before.join()) redrawn = true;
+    }
+    expect(redrawn).toBe(true);
+  });
+
+  it("a teaching safe has one digit and lights shows[1] only on the right number", () => {
+    const DIAL_T = { ...DIAL, digits: 3, teach: true };
+    const w = stationWorld({ Q1: DIAL_T }, 3);
+    expect(st(w).answer).toHaveLength(1);
+    const want = st(w).answer[0] as number;
+    for (let n = 0; n < 10; n++) {
+      const shows = stationShows(w, st(w));
+      expect(shows[0]).toBe(st(w).input[0]);
+      expect(shows[1]).toBe(st(w).input[0] === want ? 1 : 0);
+      press(w, { x: 8, y: 4 });
     }
   });
 });

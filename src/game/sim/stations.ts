@@ -80,7 +80,8 @@ export function drawAnswer(
   const int = (n: number) => Math.floor(r() * n);
   switch (type) {
     case "dial": {
-      const digits = Math.max(1, Math.min(3, num(params.digits, 1)));
+      // a teaching safe has one number (clues FR7)
+      const digits = params.teach ? 1 : Math.max(1, Math.min(3, num(params.digits, 1)));
       const range = num(params.range, 10);
       return Array.from({ length: digits }, () => int(range));
     }
@@ -105,7 +106,8 @@ export function drawAnswer(
       }
     }
     case "bells":
-      return Array.from({ length: 4 }, () => int(tilesOf(params.bells).length));
+      // a teaching music box plays a two-note tune (clues FR7)
+      return Array.from({ length: params.teach ? 2 : 4 }, () => int(tilesOf(params.bells).length));
     case "vault":
       return tilesOf(params.sockets).map(() => int(SYMBOLS));
     case "sync":
@@ -141,6 +143,50 @@ export function drawStations(world: World): void {
     };
     if (type === "sync") world.syncAt[o.id] = tilesOf(params.keys).map(() => -1);
   }
+  fixFeeds(world);
+}
+
+// Answers that feed (clues FR3): a solved station that yields fixes the fed station's slot to its
+// digit (a radio's digit d is key d, the (d - 1)th), and a vault's socket i is the symbol `from[i]`
+// revealed once solved. Run after every draw and every solve, so a re-draw keeps what is true.
+function fixFeeds(world: World): void {
+  for (const o of stationObjects(world)) {
+    const s = world.stations[o.id];
+    const p = o.params ?? {};
+    if (!s || s.solved) continue;
+    const slot = p.slot as { from?: unknown; at?: unknown } | undefined;
+    const from = typeof slot?.from === "string" ? world.stations[slot.from] : undefined;
+    if (from?.solved && from.type === "radio" && typeof slot?.at === "number") {
+      s.answer[slot.at] = (from.answer[1] as number) - 1;
+    }
+    if (s.type === "vault" && Array.isArray(p.from)) {
+      p.from.forEach((id, i) => {
+        const wing = typeof id === "string" ? world.stations[id] : undefined;
+        if (wing?.solved && wing.reveal !== undefined) s.answer[i] = wing.reveal;
+      });
+    }
+  }
+}
+
+// A station is solved: a wing (`reveal`) draws the symbol it shows from now on.
+function revealOn(world: World, o: RoomObject, s: StationState): void {
+  if (!o.params?.reveal || s.reveal !== undefined) return;
+  const i = stationObjects(world).indexOf(o);
+  s.reveal = Math.floor(rng(world.seed * 1000 + world.attempt + 500 + i)() * SYMBOLS);
+}
+
+// A teaching station's wrong answer (clues FR7): this station alone is drawn again, from the tick,
+// with nothing entered. No dye and no send-back.
+function redrawOne(world: World, o: RoomObject, s: StationState): void {
+  const params = o.params ?? {};
+  s.answer = drawAnswer(
+    s.type,
+    params,
+    rng(world.seed * 1000 + world.attempt + 7 * world.tick + 1),
+  );
+  s.input = startInput(s.type, params);
+  if (s.type === "sync") world.syncAt[o.id] = tilesOf(params.keys).map(() => -1);
+  fixFeeds(world);
 }
 
 // The text on a wire panel's plaque: the rule this attempt's wires follow (FR8).
@@ -220,11 +266,13 @@ function act(
     });
   const solve = () => {
     s.solved = true;
+    revealOn(world, o, s);
     say("solved");
   };
   const fail = () => {
     say("wrong");
-    wrong.w ??= { id: o.id, seat };
+    if (p.teach) redrawOne(world, o, s);
+    else wrong.w ??= { id: o.id, seat };
   };
   const partIndex = (key: string) => tilesOf(p[key]).findIndex((t) => same(t, tile));
 
@@ -341,6 +389,7 @@ export function updateStations(
       }
     }
   }
+  fixFeeds(world);
   return wrong.w;
 }
 
@@ -433,6 +482,12 @@ export function stationParts(o: RoomObject): { key: StationPartKey; at: Vec[] }[
 
 export function stationShows(world: World, s: StationState): number[] {
   if (s.type === "wires") return s.answer.slice(2);
+  // a teaching safe's lamp (clues FR7): shows[1] is 1 while the dial sits on the right number
+  const teach = world.room.objects.find((o) => o.id === s.id)?.params?.teach === true;
+  if (s.type === "dial" && teach && !s.solved) {
+    const at = s.input[0] ?? 0;
+    return [at, at === s.answer[0] ? 1 : 0];
+  }
   if (s.type === "radio") {
     const pip = s.solved && world.tick % PIP_TICKS === 0;
     return pip ? [s.input[0] ?? 0, s.answer[1] as number] : [s.input[0] ?? 0];

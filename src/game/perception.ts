@@ -1,7 +1,7 @@
 import type { Stamp } from "./channels.ts";
 import { subtractRects } from "./clip.ts";
 import { visiblePolygon } from "./cone.ts";
-import { flipsOf } from "./rooms/format.ts";
+import { flipsOf, isMotif, type Motif } from "./rooms/format.ts";
 import { beside, carried, gearOn, hatchBeside, objectOn, onSill, partner } from "./sim/gear.ts";
 import {
   cameraApex,
@@ -64,6 +64,8 @@ export interface EntityView {
     | "lamp"
     | "ink" // UV ink, sent only while a torch lights it
     | "sidejob"
+    | "card" // a switches station's target card: `card`
+    | "order" // a vault's order clue: `motifs`, its wings' motifs in socket order
     | "uv"; // a UV torch's pool of light: `polys`
   pos: Vec;
   // a stamp's state is which stamp it is; a camera is watching or idle, a laser
@@ -104,11 +106,16 @@ export interface EntityView {
     solved: boolean;
     parts: { key: StationPartKey; at: Vec[] }[];
     furniture?: true; // only its parts are in sight, not where it shows its state: `shows` is empty
+    teach?: true; // a teaching station (clues FR7)
+    motif?: Motif; // drawn on it, and on the station it feeds or is fed by (clues FR3)
+    reveal?: number; // a solved wing's symbol, for the vault (clues FR2)
   };
+  card?: number[]; // a target card's lamps: lit (1) or hollow (0), sighted only
+  motifs?: Motif[]; // an order clue: the motif of each vault socket's wing, in socket order
   item?: GearItem; // gear, or what a player carries
   heldBy?: Seat; // a player being towed: whose hand they hold
   holding?: Seat; // a player leading: whose hand they hold
-  text?: string; // ink, or a wire panel's plaque
+  text?: string; // ink, a wire panel's plaque, or a sign's own text
   dyed?: boolean; // a player splattered by the dye pack
 }
 
@@ -336,7 +343,8 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
       const shows = Array.isArray(o.params?.shows)
         ? o.params.shows.filter((v): v is string => typeof v === "string")
         : [];
-      const text = plaqueText(world, o.id);
+      const own = typeof o.params?.text === "string" ? o.params.text : undefined;
+      const text = plaqueText(world, o.id) ?? own;
       out.push({
         id: o.id,
         kind: "sign",
@@ -357,7 +365,24 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
           shows: stationShows(world, s),
           solved: s.solved,
           parts: stationParts(o),
+          ...(o.params?.teach === true ? { teach: true as const } : {}),
+          ...(isMotif(o.params?.motif) ? { motif: o.params.motif } : {}),
+          ...(s.solved && s.reveal !== undefined ? { reveal: s.reveal } : {}),
         },
+      });
+    } else if (o.kind === "card") {
+      const s = world.stations[String(o.params?.of)];
+      if (s)
+        out.push({ id: o.id, kind: "card", pos: centre(o.tiles[0] as Vec), card: [...s.answer] });
+    } else if (o.kind === "order") {
+      const vault = world.room.objects.find((v) => v.params?.symbols === o.id);
+      const from = Array.isArray(vault?.params?.from) ? vault.params.from : [];
+      const motifs = from.map((id) => world.room.objects.find((x) => x.id === id)?.params?.motif);
+      out.push({
+        id: o.id,
+        kind: "order",
+        pos: centre(o.tiles[0] as Vec),
+        motifs: motifs.filter(isMotif),
       });
     } else if (o.kind === "gear") {
       const g = world.gear.find((x) => x.id === o.id);

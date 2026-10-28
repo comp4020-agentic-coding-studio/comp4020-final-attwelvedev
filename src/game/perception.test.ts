@@ -1229,3 +1229,57 @@ describe("viewFor: a station is seen where it shows its state", () => {
     ]);
   });
 });
+
+describe("viewFor: clue fields (escape-room Task 11)", () => {
+  const GRID5 = ["############", "#1..Q.t.S..#", "#2..Q......#", "#3.........#", "############"];
+  const OBJECTS = {
+    Q1: {
+      type: "switches",
+      buttons: [
+        [2, 3],
+        [3, 3],
+      ],
+      cols: 2,
+      lamps: [
+        [9, 3],
+        [10, 3],
+      ],
+      motif: "star",
+    },
+    Q2: {
+      type: "sync",
+      keys: [[6, 3]],
+      windowMs: 500,
+      reveal: true,
+      teach: true,
+    },
+    T1: { of: "Q1" },
+    S1: { text: "Red before blue." },
+  };
+  const w = () => worldWith(GRID5, OBJECTS);
+
+  it("the sighted see the target card, the motif, a sign's text and a solved wing's reveal", () => {
+    const world = w();
+    place(world, 2, { x: 6, y: 3 });
+    step(world, { 2: { seq: 0, move: { x: 0, y: 0 }, act: true } }, TICK_MS);
+    const view = viewFor(world, 1, "deaf", false);
+    const card = view.entities.find((e) => e.id === "T1");
+    expect(card?.kind).toBe("card");
+    expect(card?.card).toEqual(world.stations.Q1?.answer);
+    expect(view.entities.find((e) => e.id === "Q1")?.station?.motif).toBe("star");
+    expect(view.entities.find((e) => e.id === "S1")?.text).toBe("Red before blue.");
+    const q2 = view.entities.find((e) => e.id === "Q2")?.station;
+    expect(q2?.reveal).toBe(world.stations.Q2?.reveal);
+    expect(q2?.teach).toBe(true);
+  });
+
+  it("Can't see is sent none of card, motif, reveal or text", () => {
+    const world = w();
+    place(world, 2, { x: 6, y: 3 });
+    step(world, { 2: { seq: 0, move: { x: 0, y: 0 }, act: true } }, TICK_MS);
+    const json = JSON.stringify(viewFor(world, 0, "blind", true));
+    for (const k of ['"card"', '"motif"', '"reveal"', '"text"', '"teach"']) {
+      expect(json).not.toContain(k);
+    }
+  });
+});

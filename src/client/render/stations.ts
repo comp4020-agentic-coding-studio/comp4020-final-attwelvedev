@@ -1,3 +1,4 @@
+import type { Motif } from "../../game/rooms/format.ts";
 import type { StationPartKey } from "../../game/sim/stations.ts";
 import type { Vec } from "../../game/types.ts";
 import type { EntityView } from "../../net/protocol.ts";
@@ -159,6 +160,179 @@ export function symbolGlyph(
     ctx.arc(cx + r * 0.45, cy, r * 0.75, Math.PI * 1.6, Math.PI * 0.4, true);
     ctx.closePath();
   }
+}
+
+// A link's motif (clues FR3): six drawn shapes, a family apart from the vault's symbols, drawn the
+// same at both ends of a link. The path only: the caller fills and strokes it.
+export function motifGlyph(
+  ctx: CanvasRenderingContext2D,
+  motif: Motif,
+  cx: number,
+  cy: number,
+  r: number,
+) {
+  ctx.beginPath();
+  if (motif === "moon") {
+    ctx.arc(cx, cy, r, Math.PI * 0.25, Math.PI * 1.75);
+    ctx.arc(cx + r * 0.5, cy, r * 0.7, Math.PI * 1.6, Math.PI * 0.4, true);
+    ctx.closePath();
+  } else if (motif === "star") {
+    for (let i = 0; i < 12; i++) {
+      const a = -Math.PI / 2 + (i * Math.PI) / 6;
+      const rr = i % 2 === 0 ? r : r * 0.55;
+      ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+    }
+    ctx.closePath();
+  } else if (motif === "wave") {
+    ctx.moveTo(cx - r, cy + r * 0.6);
+    ctx.bezierCurveTo(cx - r * 0.5, cy - r, cx, cy + r, cx + r * 0.2, cy - r * 0.2);
+    ctx.bezierCurveTo(cx + r * 0.5, cy - r, cx + r, cy, cx + r, cy + r * 0.6);
+    ctx.closePath();
+  } else if (motif === "key") {
+    ctx.arc(cx - r * 0.45, cy, r * 0.5, 0, Math.PI * 2);
+    ctx.rect(cx - r * 0.05, cy - r * 0.15, r * 1.05, r * 0.3);
+    ctx.rect(cx + r * 0.6, cy + r * 0.1, r * 0.25, r * 0.4);
+  } else if (motif === "eye") {
+    ctx.moveTo(cx - r, cy);
+    ctx.quadraticCurveTo(cx, cy - r * 1.2, cx + r, cy);
+    ctx.quadraticCurveTo(cx, cy + r * 1.2, cx - r, cy);
+    ctx.closePath();
+    ctx.moveTo(cx + r * 0.3, cy);
+    ctx.arc(cx, cy, r * 0.3, 0, Math.PI * 2);
+  } else {
+    ctx.moveTo(cx, cy - r);
+    ctx.quadraticCurveTo(cx + r, cy - r * 0.2, cx, cy + r);
+    ctx.quadraticCurveTo(cx - r, cy - r * 0.2, cx, cy - r);
+    ctx.closePath();
+  }
+}
+
+// A motif on a small card disc at (cx, cy): cream, outlined, the shape in the line colour.
+export function motifBadge(
+  ctx: CanvasRenderingContext2D,
+  motif: Motif,
+  cx: number,
+  cy: number,
+  s: number,
+) {
+  const r = Math.max(9, s * 0.2);
+  ctx.fillStyle = WORLD.card;
+  ctx.strokeStyle = WORLD.line;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = WORLD.line;
+  motifGlyph(ctx, motif, cx, cy, r * 0.6);
+  ctx.fill();
+}
+
+// Words broken into lines no wider than `max` px, at the context's current font.
+function wrap(ctx: CanvasRenderingContext2D, text: string, max: number): string[] {
+  const lines: string[] = [];
+  let line = "";
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const next = line ? `${line} ${word}` : word;
+    if (line && ctx.measureText(next).width > max) {
+      lines.push(line);
+      line = word;
+    } else line = next;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+// A plaque's text (clues FR2): a brass plate on the wall over its tile, the words wrapped to at
+// most four tiles wide and never below PLATE_MIN_PX, outlined so it reads on any floor.
+export function drawPlaque(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera) {
+  if (!e.text) return;
+  const s = cam.scale;
+  const px = Math.max(PLATE_MIN_PX, Math.round(s * 0.22));
+  ctx.save();
+  ctx.font = `700 ${px}px Archivo, system-ui, sans-serif`;
+  const lines = wrap(ctx, e.text, Math.max(s * 4, px * 10));
+  const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + px * 1.2;
+  const h = lines.length * px * 1.3 + px * 0.8;
+  const c = toScreen(cam, e.pos.x, e.pos.y - 0.2, LIVE.block * 1.2);
+  ctx.fillStyle = WORLD.brass;
+  ctx.strokeStyle = WORLD.line;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(c.x - w / 2, c.y - h, w, h, 4);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = WORLD.line;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  lines.forEach((l, i) => {
+    ctx.fillText(l, c.x, c.y - h + px * 0.4 + px * 1.3 * (i + 0.5));
+  });
+  ctx.restore();
+}
+
+// A lamp on a card or a lamp board: lit, filled with eight rays; hollow, an outline alone.
+function lampAt(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, lit: boolean) {
+  ctx.strokeStyle = WORLD.line;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  if (lit) {
+    ctx.fillStyle = WORLD.lamp;
+    ctx.fill();
+    ctx.beginPath();
+    for (let k = 0; k < 8; k++) {
+      const a = (k * Math.PI) / 4;
+      ctx.moveTo(cx + Math.cos(a) * r * 1.33, cy + Math.sin(a) * r * 1.33);
+      ctx.lineTo(cx + Math.cos(a) * r * 1.9, cy + Math.sin(a) * r * 1.9);
+    }
+  }
+  ctx.stroke();
+}
+
+// The switches' target card (clues FR2): a card on a stand, its lamps in the station's grid, lit
+// with rays or hollow, so the pattern is never told by colour alone.
+export function drawTargetCard(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera) {
+  const lamps = e.card ?? [];
+  if (lamps.length === 0) return;
+  const s = cam.scale;
+  const cols = lamps.length % 3 === 0 ? 3 : lamps.length % 2 === 0 ? 2 : lamps.length;
+  const rows = Math.ceil(lamps.length / cols);
+  const cell = Math.max(14, s * 0.26);
+  const w = cols * cell + cell * 0.5;
+  const h = rows * cell + cell * 0.5;
+  const c = toScreen(cam, e.pos.x, e.pos.y, LIVE.block);
+  ctx.fillStyle = WORLD.card;
+  ctx.strokeStyle = WORLD.line;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(c.x - w / 2, c.y - h, w, h, 3);
+  ctx.fill();
+  ctx.stroke();
+  lamps.forEach((v, i) => {
+    const x = c.x - w / 2 + cell * 0.25 + (i % cols) * cell + cell / 2;
+    const y = c.y - h + cell * 0.25 + Math.floor(i / cols) * cell + cell / 2;
+    lampAt(ctx, x, y, cell * 0.22, v === 1);
+  });
+}
+
+// The vault's order clue (clues FR2): its wings' motifs in socket order, on a card plate.
+export function drawOrder(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera) {
+  const motifs = e.motifs ?? [];
+  if (motifs.length === 0) return;
+  const s = cam.scale;
+  const step = Math.max(22, s * 0.46);
+  const c = toScreen(cam, e.pos.x, e.pos.y, LIVE.block);
+  const w = motifs.length * step + step * 0.3;
+  ctx.fillStyle = WORLD.brass;
+  ctx.strokeStyle = WORLD.line;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(c.x - w / 2, c.y - step, w, step, 3);
+  ctx.fill();
+  ctx.stroke();
+  for (const [i, m] of motifs.entries())
+    motifBadge(ctx, m, c.x - w / 2 + step * 0.15 + step * (i + 0.5), c.y - step / 2, s * 0.9);
 }
 
 // Each station says what it is, in words, on a brass plate on the object: the drawing alone did
@@ -418,13 +592,18 @@ export function drawStationStanding(
       ctx.font = `700 ${Math.max(PLATE_MIN_PX, Math.round(s * 0.32))}px Archivo, system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(String(st.shows.at(-1) ?? 0), face.x, face.y);
-      // the digits already entered, as pips above the face
-      st.shows.slice(0, -1).forEach((_, i) => {
-        ctx.beginPath();
-        ctx.arc(face.x - s * 0.15 + i * s * 0.15, face.y - s * 0.34, s * 0.05, 0, Math.PI * 2);
-        ctx.fill();
-      });
+      ctx.fillText(String(st.shows[st.teach ? 0 : st.shows.length - 1] ?? 0), face.x, face.y);
+      if (st.teach) {
+        // the teaching safe's lamp (clues FR7): lit with rays on the right number, else hollow
+        lampAt(ctx, face.x + s * 0.4, face.y - s * 0.3, s * 0.08, st.shows[1] === 1);
+      } else {
+        // the digits already entered, as pips above the face
+        st.shows.slice(0, -1).forEach((_, i) => {
+          ctx.beginPath();
+          ctx.arc(face.x - s * 0.15 + i * s * 0.15, face.y - s * 0.34, s * 0.05, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
     }
     for (const b of partsOf(st, "back")) if (inRow(b)) plinth(ctx, cam, b, 0.25, 0.3);
   }
@@ -524,22 +703,7 @@ export function drawStationStanding(
     partsOf(st, "lamps").forEach((t, i) => {
       if (!inRow(t)) return;
       const c = toScreen(cam, t.x + 0.5, t.y + 0.5, LIVE.block * 0.6);
-      const lit = !st.furniture && st.shows[i] === 1;
-      ctx.strokeStyle = WORLD.line;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(c.x, c.y, s * 0.18, 0, Math.PI * 2);
-      if (lit) {
-        ctx.fillStyle = WORLD.lamp;
-        ctx.fill();
-        ctx.beginPath();
-        for (let k = 0; k < 8; k++) {
-          const a = (k * Math.PI) / 4;
-          ctx.moveTo(c.x + Math.cos(a) * s * 0.24, c.y + Math.sin(a) * s * 0.24);
-          ctx.lineTo(c.x + Math.cos(a) * s * 0.34, c.y + Math.sin(a) * s * 0.34);
-        }
-      }
-      ctx.stroke();
+      lampAt(ctx, c.x, c.y, s * 0.18, !st.furniture && st.shows[i] === 1);
       ctx.fillStyle = WORLD.line;
       ctx.font = `700 ${Math.max(PLATE_MIN_PX, Math.round(s * 0.26))}px Archivo, system-ui, sans-serif`;
       ctx.textAlign = "center";
@@ -573,6 +737,26 @@ export function drawStationStanding(
     plinth(ctx, cam, anchor, 0.2, 0.3);
   }
   if (st.solved && inRow(anchor)) solvedPlate(ctx, cam, centre(anchor));
+  if (inRow(anchor) && st.motif) {
+    // the link's motif, on a disc at the anchor's front corner (the other end carries the same)
+    const m = toScreen(cam, anchor.x + 0.85, anchor.y + 0.9, LIVE.block * 0.5);
+    motifBadge(ctx, st.motif, m.x, m.y, s);
+  }
+  if (inRow(anchor) && st.reveal !== undefined) {
+    // a solved wing's symbol plate (clues FR2): the symbol the vault wants from this wing
+    const r = toScreen(cam, anchor.x + 0.5, anchor.y + 0.5, LIVE.block * 1.6);
+    ctx.fillStyle = WORLD.card;
+    ctx.strokeStyle = WORLD.line;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(r.x - s * 0.25, r.y - s * 0.25, s * 0.5, s * 0.5, 4);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = WORLD.brass;
+    symbolGlyph(ctx, st.reveal, r.x, r.y, s * 0.16);
+    ctx.fill();
+    ctx.stroke();
+  }
 }
 
 // The rows a station has something standing in: its anchor, and each standing part.

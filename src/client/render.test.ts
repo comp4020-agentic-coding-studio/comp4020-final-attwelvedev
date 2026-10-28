@@ -1429,6 +1429,77 @@ describe("stations, gear and signals", () => {
   });
 });
 
+describe("clues drawn (escape-room Task 11)", () => {
+  const ROOM3 = ["##########", "#........#", "#........#", "#........#", "##########"];
+  const at = (x: number, y: number) => ({ x, y });
+  const base = (entities: EntityView[]) =>
+    scene({
+      tiles: ROOM3,
+      entities: [player(1, 2.5, 2.5), ...entities],
+      self: { x: 2.5, y: 2.5 },
+      w: 1280,
+      h: 600,
+    });
+  const px = (font: unknown) => Number(/(\d+(?:\.\d+)?)px/.exec(String(font))?.[1] ?? 0);
+
+  it("writes a sign's text on its plaque, in lines never below 11 px", () => {
+    const text = "Red before blue, and never the last wire.";
+    for (const w of [1280, 375]) {
+      const { ctx, ops } = recorder();
+      draw(ctx, { ...base([{ id: "S1", kind: "sign", pos: at(4.5, 1.5), shows: [], text }]), w });
+      const lines = ops.filter((o) => o.name === "fillText" && /\w/.test(String(o.args[0])));
+      expect(lines.map((o) => o.args[0]).join(" ")).toBe(text);
+      for (const o of lines)
+        expect(px((o as unknown as { font: unknown }).font)).toBeGreaterThanOrEqual(11);
+    }
+  });
+
+  it("draws a target card's lit lamps with rays and its hollow ones unfilled", () => {
+    const { ctx, ops } = recorder();
+    draw(ctx, base([{ id: "T1", kind: "card", pos: at(4.5, 2.5), card: [1, 0, 1, 0, 0, 1] }]));
+    expect(ops.filter((o) => o.name === "fill" && o.fillStyle === WORLD.lamp)).toHaveLength(3);
+    // every lamp is outlined, lit or hollow, so the hollow ones are drawn too
+    expect(ops.filter((o) => o.name === "arc").length).toBeGreaterThanOrEqual(6);
+  });
+
+  it("draws the motif on a station and a solved wing's symbol plate", () => {
+    const parts = [{ key: "anchor" as const, at: [at(5, 2)] }];
+    const plain: EntityView = {
+      id: "Q1",
+      kind: "station",
+      pos: at(5.5, 2.5),
+      station: { type: "radio", shows: [0], solved: false, parts },
+    };
+    const marked: EntityView = {
+      ...plain,
+      station: { type: "radio", shows: [0], solved: true, parts, motif: "moon", reveal: 2 },
+    };
+    const a = recorder();
+    draw(a.ctx, base([plain]));
+    const b = recorder();
+    draw(b.ctx, base([marked]));
+    const count = (ops: Op[]) => ops.filter((o) => o.name === "fill" || o.name === "stroke").length;
+    expect(count(b.ops)).toBeGreaterThan(count(a.ops) + 4);
+  });
+
+  it("lights the teaching safe's lamp only when shows[1] is 1", () => {
+    const parts = [{ key: "anchor" as const, at: [at(5, 2)] }];
+    const safe = (shows: number[]): EntityView => ({
+      id: "Q1",
+      kind: "station",
+      pos: at(5.5, 2.5),
+      station: { type: "dial", shows, solved: false, parts, teach: true },
+    });
+    const lit = recorder();
+    draw(lit.ctx, base([safe([4, 1])]));
+    const off = recorder();
+    draw(off.ctx, base([safe([3, 0])]));
+    const lamp = (ops: Op[]) => ops.filter((o) => o.name === "fill" && o.fillStyle === WORLD.lamp);
+    expect(lamp(lit.ops).length).toBe(1);
+    expect(lamp(off.ops).length).toBe(0);
+  });
+});
+
 // Label chips (DESIGN.md 4.6): each stays readable, never under another, however many crowd one edge.
 describe("label chips", () => {
   it("never draw one chip over another, even five crowded at the screen's right edge", () => {

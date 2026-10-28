@@ -229,3 +229,44 @@ describe("parseRoom: gear, hatch, bell, lamp and ink", () => {
     expect(() => parseRoom(text(grid))).toThrow(RoomFormatError);
   });
 });
+
+describe("parseRoom: clue keys (escape-room Task 11)", () => {
+  const grid = ["#########", "#1.Q.t..#", "#2.Q.Y..#", "#3......#", "#########"];
+  const head = (objects: Record<string, unknown>) =>
+    header(
+      `,${Object.entries(objects)
+        .map(([k, v]) => `"${k}":${JSON.stringify(v)}`)
+        .join(",")}`,
+    );
+  const SWITCHES = { type: "switches", buttons: [[2, 3]], cols: 1, lamps: [[4, 3]] };
+  const VAULT = { type: "vault", sockets: [[6, 3]], from: ["Q1"], symbols: "Y1" };
+
+  it("parses t as a target card and Y as an order clue, with their metadata", () => {
+    const room = parseRoom(
+      text(grid, head({ Q1: SWITCHES, Q2: VAULT, T1: { of: "Q1" }, Y1: { of: "Q2" } })),
+    );
+    const t = room.objects.find((o) => o.id === "T1");
+    expect(t?.kind).toBe("card");
+    expect(t?.params?.of).toBe("Q1");
+    expect(room.objects.find((o) => o.id === "Y1")?.kind).toBe("order");
+    expect(room.grid[1]).toBe("#.......#");
+  });
+
+  it("keeps teach, motif and slot on a station, and fails a motif it does not know", () => {
+    const room = parseRoom(
+      text(
+        grid,
+        head({
+          Q1: { ...SWITCHES, teach: true, motif: "moon" },
+          Q2: { ...VAULT, slot: { from: "Q1", at: 0 } },
+        }),
+      ),
+    );
+    const q1 = room.objects.find((o) => o.id === "Q1");
+    expect(q1?.params).toMatchObject({ teach: true, motif: "moon" });
+    expect(room.objects.find((o) => o.id === "Q2")?.params?.slot).toEqual({ from: "Q1", at: 0 });
+    expect(() =>
+      parseRoom(text(grid, head({ Q1: { ...SWITCHES, motif: "sun" }, Q2: VAULT }))),
+    ).toThrow(/Q1.*motif/);
+  });
+});

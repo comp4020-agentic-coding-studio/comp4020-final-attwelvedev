@@ -107,7 +107,7 @@ entities), not the sim.
 
 ## 5. Task breakdown
 
-### Task 11: Clue paths, motifs and teaching stations in the sim, view and drawing
+### Task 11: Clue paths, motifs and teaching stations in the sim, view and drawing ✅
 
 - **Description:** Overview §4.5's room-format keys and view fields, wired end to end: parse
   `teach`, `motif`, `slot`, `t` (card), `Y` (order); fix fed answers (`yields` → `slot`; vault

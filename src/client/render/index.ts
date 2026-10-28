@@ -17,9 +17,12 @@ import { type Camera, camera, LIVE, setRise, tileWindow, toScreen } from "./proj
 import { drawMist, inSight, lightPolygon, nightTile, seenOf } from "./sight.ts";
 import { drawBell, drawHatch, drawLampSwitch } from "./signals.ts";
 import {
+  drawOrder,
+  drawPlaque,
   drawStationFloor,
   drawStationPlates,
   drawStationStanding,
+  drawTargetCard,
   stationRows,
 } from "./stations.ts";
 
@@ -99,6 +102,8 @@ const STANDING: EntityView["kind"][] = [
   "gear",
   "bell",
   "lamp",
+  "card",
+  "order",
   "player",
   "stamp",
 ];
@@ -201,6 +206,8 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
           drawGear(ctx, e, cam, hatches.has(`${Math.floor(e.pos.x)},${Math.floor(e.pos.y)}`));
         else if (kind === "bell") drawBell(ctx, e, cam, scene);
         else if (kind === "lamp") drawLampSwitch(ctx, e, cam);
+        else if (kind === "card") drawTargetCard(ctx, e, cam);
+        else if (kind === "order") drawOrder(ctx, e, cam);
         else drawStanding(ctx, e, cam, scene);
       }
     }
@@ -229,6 +236,8 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
   // a chip's text starts with the thing's name ("Safe: ..."), which is the plate under it
   const chipped = new Set((scene.labels ?? []).map((l) => l.text.split(":")[0] ?? ""));
   for (const e of scene.entities) if (e.kind === "station") drawStationPlates(ctx, e, cam, chipped);
+  // a sign's own words (a plaque), over everything standing, like the names
+  for (const e of scene.entities) if (e.kind === "sign" && e.text) drawPlaque(ctx, e, cam);
   // the UV pool and its ink: the one bold effect, over the mist (it is only sent where it is seen)
   drawUv(ctx, scene, cam);
   // the outline of a figure a wall hides: the figure itself, outline only, over the wall

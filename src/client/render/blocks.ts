@@ -150,7 +150,8 @@ export function drawFlat(ctx: CanvasRenderingContext2D, e: EntityView, cam: Came
     ctx.strokeRect(p.x + s * 0.1, p.y + d * 0.1, s * 0.8, d * 0.8);
     ctx.setLineDash([]);
     ctx.globalAlpha = 1;
-  } else if (e.kind === "sign") {
+  } else if (e.kind === "sign" && (e.shows?.length || !e.text)) {
+    // a plaque (text, no plates) is drawn on the wall over its tile instead (stations.ts: drawPlaque)
     drawSign(ctx, e, toScreen(cam, e.pos.x, e.pos.y), s);
   }
   void scene;

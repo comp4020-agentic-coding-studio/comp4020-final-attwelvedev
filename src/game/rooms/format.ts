@@ -22,7 +22,9 @@ export type Tile =
   | "H"
   | "b"
   | "l"
-  | "u";
+  | "u"
+  | "t"
+  | "Y";
 
 export interface RoomObject {
   id: string; // "p1", "D1", "B2", "E1"
@@ -45,6 +47,8 @@ export interface RoomObject {
     | "hatch" // a wall with a sill: gear goes through, people and sound do not, sight does
     | "bell" // a rope: Act rings a bell the whole room hears
     | "lamp" // a switch: Act flashes a lamp in every sighted player's HUD
+    | "card" // a switches station's target card: `params.of` names the station
+    | "order" // a vault's order clue: the wings' motifs in socket order
     | "ink"; // hidden text (`params.text`) that shows only in a UV torch's light
   tiles: Vec[]; // integer tile coordinates
   visibleTo: Role[];
@@ -138,6 +142,8 @@ const TILES = new Set([
   "b", // a bell rope
   "l", // a lamp switch
   "u", // UV ink
+  "t", // a target card
+  "Y", // a vault's order clue
 ]);
 
 // Single-tile objects numbered in reading order: letter -> [kind, id prefix].
@@ -156,6 +162,8 @@ const NUMBERED: Record<string, [RoomObject["kind"], string]> = {
   b: ["bell", "b"],
   l: ["lamp", "l"],
   u: ["ink", "u"],
+  t: ["card", "T"],
+  Y: ["order", "Y"],
 };
 // Kinds whose metadata is kept whole as `params`.
 const PARAMS: Record<string, true> = {
@@ -170,6 +178,8 @@ const PARAMS: Record<string, true> = {
   station: true,
   gear: true,
   ink: true,
+  card: true,
+  order: true,
 };
 export const STATION_TYPES = [
   "dial",
@@ -182,6 +192,10 @@ export const STATION_TYPES = [
   "sync",
 ] as const;
 export const GEAR_ITEMS = ["earpiece", "goggles", "stethoscope", "uv"] as const;
+// A drawn symbol at both ends of a link (clues FR3): a station that yields and the one it feeds.
+export const MOTIFS = ["moon", "star", "wave", "key", "eye", "leaf"] as const;
+export type Motif = (typeof MOTIFS)[number];
+export const isMotif = (v: unknown): v is Motif => (MOTIFS as readonly unknown[]).includes(v);
 const DEFAULT_VISIBLE_TO: Role[] = ["deaf", "mute"];
 const ROLE_SET = new Set<string>(["blind", "deaf", "mute"]);
 
@@ -315,6 +329,12 @@ export function parseRoom(text: string): Room {
     if (kind === "station" && !(STATION_TYPES as readonly unknown[]).includes(ov.type)) {
       throw new RoomFormatError(
         `station ${id} needs a type, one of ${STATION_TYPES.join(", ")} (got ${JSON.stringify(ov.type)})`,
+        1,
+      );
+    }
+    if (ov.motif !== undefined && !isMotif(ov.motif)) {
+      throw new RoomFormatError(
+        `${id} has motif ${JSON.stringify(ov.motif)}, not one of ${MOTIFS.join(", ")}`,
         1,
       );
     }
