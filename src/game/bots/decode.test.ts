@@ -468,3 +468,94 @@ describe("the switches decoder", () => {
     expect(b.answer).toEqual([null]);
   });
 });
+
+// Gear (escape-room Task 22): no decoder of its own. A wire panel's plaque in UV ink reads through
+// the wires decoder once a torch lights it; switches' lamps in a dark zone are read by a sighted
+// bot wearing the goggles. Both only from what `viewFor` sends.
+describe("gear: a UV-ink plaque and lamps in the dark", () => {
+  it("the wires decoder reads a plaque in UV ink while the bot holds the torch, and never without it", () => {
+    // wires at (4..6,1), the ink plaque u1 on the floor at (2,3), round no corner
+    const GRID = ["#########", "#1..Q...#", "#2......#", "#3u....g#", "#########"];
+    const room = roomWith(GRID, {
+      Q1: {
+        type: "wires",
+        wires: [
+          [4, 1],
+          [5, 1],
+          [6, 1],
+        ],
+        plaque: "u1",
+      },
+      g1: { item: "uv" },
+      u1: { text: "" },
+    });
+    const q = room.objects.find((x) => x.id === "Q1");
+    if (!q) throw new Error("no Q1");
+    for (const seed of [1, 2, 3, 4]) {
+      const world = createWorld(room, seed);
+      const s = world.stations.Q1;
+      const torch = world.gear.find((g) => g.id === "g1");
+      if (!s || !torch) throw new Error("no Q1 or g1");
+      place(world, 1, { x: 3, y: 2 });
+      const dark = viewFor(world, 1, "deaf", false);
+      const without = beliefFrom(dark, [], q, emptyBelief());
+      DECODERS.wires?.(dark, [], without, q, dark.tick);
+      expect(without.answer).toEqual([null]);
+      Object.assign(torch, { heldBy: 1, at: null });
+      const lit = viewFor(world, 1, "deaf", false);
+      const b = beliefFrom(lit, [], q, without);
+      DECODERS.wires?.(lit, [], b, q, lit.tick);
+      expect(b.answer).toEqual([s.answer[0]]);
+    }
+  });
+
+  it("the switches decoder reads lamps in a dark zone through the goggles, and never without them", () => {
+    // buttons at (4..6,1..2), the lamps at (11..13,1..2) in a dark zone, the card T1 at (2,3)
+    const GRID = [
+      "################",
+      "#1.............#",
+      "#2.............#",
+      "#3t....Qg......#",
+      "################",
+    ];
+    const buttons = [1, 2].flatMap((y) => [4, 5, 6].map((x) => [x, y]));
+    const lamps = [1, 2].flatMap((y) => [11, 12, 13].map((x) => [x, y]));
+    const room = roomWith(
+      GRID,
+      {
+        Q1: { type: "switches", buttons, lamps, cols: 3 },
+        T1: { of: "Q1" },
+        g1: { item: "goggles" },
+      },
+      { flips: [{ kind: "dark", zone: [10, 1, 14, 3] }] },
+    );
+    const q = room.objects.find((x) => x.id === "Q1");
+    if (!q) throw new Error("no Q1");
+    for (const seed of [1, 2, 3, 4]) {
+      const world = createWorld(room, seed);
+      const s = world.stations.Q1;
+      const goggles = world.gear.find((g) => g.id === "g1");
+      if (!s || !goggles) throw new Error("no Q1 or g1");
+      place(world, 1, { x: 3, y: 2 }); // the card and, across the room, the dark lamps
+      const read = () => {
+        const view = viewFor(world, 1, "deaf", false);
+        const b = beliefFrom(view, [], q, emptyBelief());
+        linkedFrom(room, view, { Q1: b });
+        DECODERS.switches?.(view, [], b, q, view.tick);
+        return b;
+      };
+      const blind = read();
+      expect(blind.card).not.toBeNull();
+      expect(blind.answer).toEqual([null]);
+      Object.assign(goggles, { heldBy: 1, at: null });
+      for (let n = 0; n < 10 && !s.solved; n++) {
+        const i = read().answer[0];
+        expect(i).not.toBeNull();
+        s.input = toggled(s.input, i as number, 3);
+        if (s.input.join() === s.answer.join()) s.solved = true;
+        step(world, {}, TICK_MS);
+      }
+      expect(s.solved).toBe(true);
+    }
+  });
+});

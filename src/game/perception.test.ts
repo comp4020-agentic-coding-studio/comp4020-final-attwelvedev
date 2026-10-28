@@ -1061,6 +1061,31 @@ describe("viewFor: stations, gear and signals", () => {
     expect(viewFor(w, 0, "deaf", false).sounds).toEqual([]);
   });
 
+  it("a station whose display is in a dark zone shows its state only to a goggles wearer", () => {
+    // switches: buttons and anchor in the light, lamps at (9..10,1..2) in the dark
+    const grid = ["############", "#1.Q......g#", "#2.........#", "#3.........#", "############"];
+    const buttons = [
+      [3, 2],
+      [4, 2],
+    ];
+    const lamps = [
+      [9, 1],
+      [10, 1],
+      [9, 2],
+      [10, 2],
+    ].slice(0, 2);
+    const w = worldWith(
+      grid,
+      { Q1: { type: "switches", buttons, lamps, cols: 2 }, g1: { item: "goggles" } },
+      { flips: [{ kind: "dark", zone: [8, 1, 10, 3] }] },
+    );
+    const station = (seat: 1 | 2, role: "deaf" | "mute") =>
+      viewFor(w, seat, role, false).entities.find((e) => e.id === "Q1")?.station;
+    expect(station(2, "mute")?.shows).toEqual([]);
+    holdGear(w, "g1", 1);
+    expect(station(1, "deaf")?.shows.length).toBe(2);
+  });
+
   it("goggles let a sighted wearer see into a dark zone; a non-wearer still sees nothing there", () => {
     const grid = ["############", "#1.....$...#", "#2.........#", "#3....g....#", "############"];
     const w = worldWith(

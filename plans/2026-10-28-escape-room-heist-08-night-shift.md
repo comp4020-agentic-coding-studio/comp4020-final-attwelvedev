@@ -67,7 +67,7 @@ export function think(room: Room, view: RoleView, inbox: ChannelMessage[], memor
 
 ## 5. Task breakdown
 
-### Task 22: Bots solve UV torch; goggles from what they perceive
+### Task 22: Bots solve UV torch; goggles from what they perceive ✅ done 2026-10-29
 
 - **Description:** Per this file's §4: the decoder(s) (or, for gear, the job choice from the view)
   in `src/game/bots/decode.ts`, registered in `DECODERS`; bots send and read only P3's forms.

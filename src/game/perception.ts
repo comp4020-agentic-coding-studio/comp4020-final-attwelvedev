@@ -688,7 +688,13 @@ function sightInLight(world: World, e: EntityView, zones: Zone[]): EntityView | 
 // What a sighted role may be told of: itself, marks (they show wherever they land, even in
 // the dark), the lit tiles a hazard in the dark covers, and anything else only if its
 // tile is in line of sight. A laser keeps just the part of its beam that is seen.
-function inSight(world: World, entities: EntityView[], seat: Seat, seen: Visible): EntityView[] {
+function inSight(
+  world: World,
+  entities: EntityView[],
+  seat: Seat,
+  seen: Visible,
+  zones: Zone[],
+): EntityView[] {
   const out: EntityView[] = [];
   for (const e of entities) {
     if (e.kind === "stamp" || e.kind === "sight" || (e.kind === "player" && e.seat === seat)) {
@@ -696,9 +702,12 @@ function inSight(world: World, entities: EntityView[], seat: Seat, seen: Visible
     } else if (e.kind === "station") {
       // a station's state is seen where it shows it: its face, wires, keys or lamps (switches: the
       // lamps alone, never the panel by the buttons, so the pattern is told across the glass). Its
-      // furniture is drawn from any part in sight, with nothing of its state.
+      // furniture is drawn from any part in sight, with nothing of its state. A display in a dark
+      // zone shows nothing without the goggles (FR19), wherever the station's anchor stands.
       const o = world.room.objects.find((x) => x.id === e.id);
-      const shown = (o ? displayTiles(o) : []).some((t) => seen.has(t.x, t.y));
+      const shown = (o ? displayTiles(o) : []).some(
+        (t) => seen.has(t.x, t.y) && !inAny(zones, centre(t)),
+      );
       const parts = e.station?.parts ?? [];
       const furniture = parts.some((p) => p.at.some((t) => seen.has(t.x, t.y)));
       if (shown) out.push(e);
@@ -762,6 +771,7 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
         zones.length === 0 ? entitiesFor(world, seat, role) : darken(world, seat, role, zones),
         seat,
         seen,
+        zones,
       ),
       ...uvLight(world, role, seen, zones),
     ];
