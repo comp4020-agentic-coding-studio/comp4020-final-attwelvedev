@@ -300,3 +300,54 @@ describe("flag jobs", () => {
     expect(hintsOf(roomWith({ jobs: [{ beat: 1, goTo: "K4" }] }))).toEqual([]);
   });
 });
+
+describe("jobs for stations, gear and hands (escape-room Task 4)", () => {
+  const GRID = ["############", "#1..Q...#..#", "#2..g...H..#", "#3......#.E#", "############"];
+  const r = parseRoom(
+    `${JSON.stringify({
+      id: "t",
+      name: "T",
+      beats: [{ name: "b", x: [0, 11], intent: { blind: "b", deaf: "d", mute: "m" } }],
+      objects: {
+        Q1: {
+          type: "dial",
+          pads: [
+            [3, 1],
+            [5, 1],
+          ],
+          back: [4, 3],
+        },
+        g1: { item: "stethoscope" },
+      },
+    })}\n---\n${GRID.join("\n")}\n`,
+  );
+  const job = (j: Record<string, unknown>) => parseJob(r, { beat: 1, ...j }, 0);
+
+  it("parses a station, take, give, sill and tow job", () => {
+    expect((job({ station: "Q1" }) as Job).target).toEqual({ kind: "station", id: "Q1" });
+    expect((job({ take: "g1" }) as Job).target).toEqual({ kind: "take", gear: "g1" });
+    expect((job({ give: "g1", to: "deaf" }) as Job).target).toEqual({
+      kind: "give",
+      gear: "g1",
+      to: "deaf",
+    });
+    expect((job({ sill: "g1", hatch: "H1" }) as Job).target).toEqual({
+      kind: "sill",
+      gear: "g1",
+      hatch: "H1",
+    });
+    expect((job({ tow: "blind", to: [6, 3] }) as Job).target).toEqual({
+      kind: "tow",
+      role: "blind",
+      to: { x: 6, y: 3 },
+    });
+  });
+
+  it("says what is wrong with an unknown id, for the linter", () => {
+    expect(job({ station: "Q9" })).toMatch(/Q9.*not a station/);
+    expect(job({ take: "g9" })).toMatch(/g9.*not gear/);
+    expect(job({ give: "g1", to: "ghost" })).toMatch(/not a role/);
+    expect(job({ sill: "g1", hatch: "H9" })).toMatch(/H9.*not a hatch/);
+    expect(job({ tow: "blind", to: [0, 0] })).toMatch(/not floor/);
+  });
+});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeGame, lobbyKey } from "./gameLog.ts";
+import { describeGame, gameLinesFor, lobbyKey } from "./gameLog.ts";
 
 const NOW = Date.parse("2026-10-08T03:00:00Z");
 
@@ -63,5 +63,33 @@ describe("lobbyKey", () => {
     expect(lobbyKey("ABCD", 1000)).toBe(key);
     expect(lobbyKey("ABCD", 2000)).not.toBe(key);
     expect(key.toLowerCase()).not.toContain("abcd");
+  });
+});
+
+describe("gameLinesFor: the sim's station, gear, hold and signal events", () => {
+  it("logs the kind of thing only, never an answer, a key or an id", () => {
+    const lines = gameLinesFor([
+      { kind: "station", id: "Q1", result: "press", n: 7, at: { x: 1, y: 1 } },
+      { kind: "station", id: "Q1", result: "solved", at: { x: 1, y: 1 } },
+      { kind: "station", id: "Q2", result: "wrong", at: { x: 1, y: 1 } },
+      { kind: "gear", id: "g1", action: "give", seat: 0, at: { x: 1, y: 1 } },
+      { kind: "hold", seat: 1, leader: 0 },
+      { kind: "hold", seat: 1, leader: null },
+      { kind: "bell", id: "b1", at: { x: 1, y: 1 } },
+      { kind: "lamp", id: "l1", seat: 2 },
+    ]);
+    expect(lines).toEqual([
+      { event: "station", detail: { kind: "solved" } },
+      { event: "station", detail: { kind: "wrong" } },
+      { event: "gear", detail: { kind: "give" } },
+      { event: "hold", detail: { kind: "on" } },
+      { event: "hold", detail: { kind: "off" } },
+      { event: "signal", detail: { kind: "bell" } },
+      { event: "signal", detail: { kind: "lamp" } },
+    ]);
+    const redacted = lines.map((l) => describeGame({ event: l.event, detail: l.detail }));
+    // what reaches the log beyond the event name: never a station, gear or signal id, or a key
+    const details = JSON.stringify(redacted.map((l) => l.detail));
+    expect(details).not.toMatch(/Q1|Q2|g1|b1|l1|"n"|7/);
   });
 });

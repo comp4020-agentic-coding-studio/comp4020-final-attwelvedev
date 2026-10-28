@@ -3,7 +3,7 @@ import { viewFor } from "../perception.ts";
 import type { Room } from "../rooms/format.ts";
 import type { World } from "../sim/world.ts";
 import type { Method, PlayerInput, Role, Seat } from "../types.ts";
-import { type BotMemory, think } from "./brain.ts";
+import { type BotMemory, hiddenOf, think } from "./brain.ts";
 
 // The bots of one game: a memory and an inbox each. The inbox holds what the seat's
 // role was sent since it last thought.
@@ -32,7 +32,6 @@ export function botsAct(
   now: number,
   nickname: (seat: Seat) => string,
   full: ReadonlySet<Seat> = new Set(),
-  muted?: Seat, // the lead-role harness: this seat's sends are dropped before they are routed
 ): { inputs: Partial<Record<Seat, PlayerInput>>; sent: BotSent[]; refused: number } {
   const inputs: Partial<Record<Seat, PlayerInput>> = {};
   const sent: BotSent[] = [];
@@ -43,9 +42,12 @@ export function botsAct(
   for (const seat of order) {
     const bot = bots[seat] as BotSeat;
     const view = viewFor(world, seat, roles[seat], full.has(seat));
-    const turn = think(room, view, bot.inbox.splice(0), bot.memory, now);
+    // FR3: in a station room each bot is handed the answers (the one hidden read, brain.ts: Hidden)
+    const hidden =
+      Object.keys(world.stations).length + world.gear.length > 0 ? hiddenOf(world) : null;
+    const turn = think(room, view, bot.inbox.splice(0), bot.memory, now, hidden);
     inputs[seat] = turn.input;
-    if (!turn.send || seat === muted) continue;
+    if (!turn.send) continue;
     const result = route(roles as [Role, Role, Role], seat, turn.send, cooldowns, now);
     if (!result.ok) {
       refused++;

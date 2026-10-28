@@ -21,10 +21,8 @@ export function solveRoom(
   roles: readonly [Role, Role, Role],
   budgetS = 600,
   humans: ReadonlySet<Seat> = new Set(),
-  opts: { mute?: Role } = {}, // drop every send from the seat holding this role (FR14)
 ): SolveResult {
   const world = createWorld(room);
-  const muted = opts.mute === undefined ? undefined : (roles.indexOf(opts.mute) as Seat);
   const sentBy: [number, number, number] = [0, 0, 0];
   const cooldowns = { until: {} };
   const bots: Partial<Record<Seat, BotSeat>> = {};
@@ -38,7 +36,7 @@ export function solveRoom(
   while (world.tick < budget && world.status !== "cleared") {
     const now = world.tick * TICK_MS;
     const full = world.tick === 0 ? new Set<Seat>([0, 1, 2]) : new Set<Seat>();
-    const turn = botsAct(room, world, roles, bots, cooldowns, now, (s) => `Bot ${s}`, full, muted);
+    const turn = botsAct(room, world, roles, bots, cooldowns, now, (s) => `Bot ${s}`, full);
     refused += turn.refused;
     messages += turn.sent.length;
     for (const s of turn.sent) sentBy[s.from]++;

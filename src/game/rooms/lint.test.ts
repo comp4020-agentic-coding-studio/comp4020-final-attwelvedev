@@ -342,7 +342,7 @@ describe("the draft rooms", () => {
   // in rooms/. Kept apart from spec/fixtures/rooms, which the heist specs run a server on.
   it("load and pass the linter", () => {
     const rooms = loadRooms("./spec/fixtures/drafts");
-    expect(rooms.map((r) => r.id)).toEqual(["02-blackout-draft"]);
+    expect(rooms.map((r) => r.id)).toEqual(["00-stations-draft", "02-blackout-draft"]);
     for (const r of rooms) expect(lintRoom(r)).toEqual([]);
   });
 });
@@ -439,9 +439,9 @@ describe("lintRoom: line-of-sight rules", () => {
   });
 });
 
-describe("lintRoom: glass and vents are walls for walking", () => {
-  it("flags an exit behind a vent or glass wall as unreachable", () => {
-    for (const ch of ["%", "="]) {
+describe("lintRoom: glass, vents and hatches are walls for walking", () => {
+  it("flags an exit behind a vent, glass or hatch wall as unreachable", () => {
+    for (const ch of ["%", "=", "H"]) {
       const walled = [...GOOD];
       walled[1] = `#1.#.........D${ch}..E.#`;
       walled[2] = `#2.#....p....D${ch}....#`;

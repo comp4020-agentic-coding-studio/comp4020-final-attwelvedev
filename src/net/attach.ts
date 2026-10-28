@@ -10,7 +10,7 @@ import { DEFAULT_SETUP } from "../game/setup.ts";
 import { TICK_MS } from "../game/sim/world.ts";
 import type { Role, Seat } from "../game/types.ts";
 import { db } from "../lib/db.ts";
-import { type GameEvent, lobbyKey, logGame } from "../lib/gameLog.ts";
+import { type GameEvent, gameLinesFor, lobbyKey, logGame } from "../lib/gameLog.ts";
 import { sharedPresence } from "../lib/presence.ts";
 import { anon } from "../lib/requestLog.ts";
 import { saveRun } from "../lib/runs.ts";
@@ -305,6 +305,9 @@ function tick(code: string): void {
     if (event.kind === "caught") {
       record("caught", null, lobby, { room: running.game.world.room.id, reason: event.by });
     }
+  }
+  for (const line of gameLinesFor(running.game.world.events)) {
+    record(line.event, null, lobby, { room: running.game.world.room.id, ...line.detail });
   }
   for (const [seat, view] of views) {
     const who = lobby.seats[seat]?.who;

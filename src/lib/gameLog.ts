@@ -1,3 +1,4 @@
+import type { WorldEvent } from "../game/sim/world.ts";
 import { type Detail, redact, stdoutSink } from "./log.ts";
 import { anon } from "./requestLog.ts";
 import { sharedStats } from "./stats.ts";
@@ -28,7 +29,11 @@ export type GameEvent =
   | "pause" // a person's connection dropped mid-room and the game paused for them
   | "bot.takeover" // the host let a bot take a dropped seat
   | "run.saved" // a room or heist run was written to the leaderboard
-  | "voice.latency"; // a receiver's voice latency over the last few seconds (numbers only)
+  | "voice.latency" // a receiver's voice latency over the last few seconds (numbers only)
+  | "station" // a station solved or answered wrong (detail kind only: never the answer)
+  | "gear" // gear taken, given, dropped or put on a sill (detail kind)
+  | "hold" // two players took or let go of hands (detail kind: on/off)
+  | "signal"; // the bell rung or the lamp flashed (detail kind: bell/lamp)
 
 // One line per discrete thing a player did: never per tick. `who` is a device
 // hash and `lobby` a hash of the lobby's code and age, so neither leads back to
@@ -69,4 +74,26 @@ export function logGame(input: Parameters<typeof describeGame>[0]): void {
   const line = describeGame(input);
   sharedStats().recordGame(line);
   stdoutSink(line);
+}
+
+// The game lines a tick's world events make: one per discrete thing done, with the kind of
+// thing only. A station's turns and presses are not logged (one line per press would be a
+// line per tick when someone mashes Act); its result is.
+export interface EventLine {
+  event: GameEvent;
+  detail: { kind: string };
+}
+
+export function gameLinesFor(events: readonly WorldEvent[]): EventLine[] {
+  return events.flatMap((e): EventLine[] => {
+    if (e.kind === "station" && (e.result === "solved" || e.result === "wrong")) {
+      return [{ event: "station", detail: { kind: e.result } }];
+    }
+    if (e.kind === "gear") return [{ event: "gear", detail: { kind: e.action } }];
+    if (e.kind === "hold")
+      return [{ event: "hold", detail: { kind: e.leader === null ? "off" : "on" } }];
+    if (e.kind === "bell" || e.kind === "lamp")
+      return [{ event: "signal", detail: { kind: e.kind } }];
+    return [];
+  });
 }

@@ -57,7 +57,7 @@ export function tilesOf(v: unknown): Vec[] {
 }
 
 // Lights-out (FR11): pressing button i toggles lamp i and its grid neighbours.
-function toggled(lamps: number[], i: number, cols: number): number[] {
+export function toggled(lamps: number[], i: number, cols: number): number[] {
   const out = [...lamps];
   const flip = (j: number) => {
     if (j >= 0 && j < out.length) out[j] = 1 - (out[j] as number);

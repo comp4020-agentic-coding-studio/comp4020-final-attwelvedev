@@ -3,7 +3,15 @@ import type { EntityView, RoleView, SoundCue } from "../perception.ts";
 import type { Room } from "../rooms/format.ts";
 import { blockedAt } from "../sim/collide.ts";
 import { laserBeam } from "../sim/hazards.ts";
-import { createWorld, SPEED_TPS, TICK_MS, type World } from "../sim/world.ts";
+import { tilesOf, toggled } from "../sim/stations.ts";
+import {
+  createWorld,
+  type GearState,
+  SPEED_TPS,
+  type StationState,
+  TICK_MS,
+  type World,
+} from "../sim/world.ts";
 import { type PlayerInput, ROLES, type Role, type Seat, type Vec } from "../types.ts";
 import { type AlarmWindow, forecastFor } from "./forecast.ts";
 import {
@@ -22,8 +30,23 @@ import { pickPhrase, type Situation } from "./phrases.ts";
 
 // A bot thinks once per tick from its own role's view and the messages its role
 // received, and answers with an input and at most one message. It reads nothing
-// else about the live world (ADR 0007). What it also holds is the room's static
-// plan: the grid, the hints, and the hazards' timing (FR24).
+// else about the live world (ADR 0007), with one exception: in a station room it
+// is handed `Hidden`, the stations' answers and where the gear is (escape-room
+// spec FR3), so a room test proves a station room can be cleared. What it also
+// holds is the room's static plan: the grid, the hints, and the hazards' timing (FR24).
+
+// The one place bots read hidden state (FR3): taken from the world by `botsAct`.
+export interface Hidden {
+  stations: Record<string, StationState>;
+  gear: GearState[];
+  holding: Partial<Record<Seat, Seat>>;
+}
+
+export const hiddenOf = (world: World): Hidden => ({
+  stations: world.stations,
+  gear: world.gear,
+  holding: world.holding,
+});
 export interface BotMemory {
   seat: Seat;
   tiles: string[] | null;
@@ -51,6 +74,10 @@ export interface BotMemory {
   celebrated: boolean;
   model: World | null;
   lastPos: Vec | null; // where the bot was last tick: a jump is the team being sent back
+  hidden: Hidden | null; // this tick's stations and gear (FR3), when the room has any
+  bodies: Partial<Record<Seat, Vec>>; // where it last saw each player
+  actWas: boolean; // pressed Act last tick: a press needs a release before the next
+  gearWas: boolean;
 }
 export interface BotTurn {
   input: PlayerInput;
@@ -86,6 +113,10 @@ interface Guide {
   bumped: Vec | null; // a person pushed at something here: until they are clear of it, line them up first
   tapAt: number; // when the guide last asked a person for a tap
 }
+
+// Jobs a seat works where it stands (Act on a part, the gear, a hand): a guide on one parks the
+// Can't-see seat rather than steering it.
+const WORK_KINDS = new Set<Job["target"]["kind"]>(["station", "take", "give", "sill", "tow"]);
 
 const PERCEIVED_TICKS = 40; // a hazard seen or heard in the last 2 s is planned around (A3)
 
@@ -161,6 +192,10 @@ export function createBotMemory(
     celebrated: false,
     model: null,
     lastPos: null,
+    hidden: null,
+    bodies: {},
+    actWas: false,
+    gearWas: false,
   };
 }
 
@@ -183,8 +218,10 @@ export function think(
   inbox: ChannelMessage[],
   memory: BotMemory,
   now: number,
+  hidden: Hidden | null = null,
 ): BotTurn {
   memory.seq++;
+  memory.hidden = hidden;
   if (view.tiles) memory.tiles = view.tiles;
   if (view.role === "blind") return thinkBlind(view, inbox, memory, now);
   return thinkSighted(room, view, memory, now);
@@ -245,6 +282,18 @@ function ensureKnown(room: Room, m: BotMemory): Known {
   return known;
 }
 
+// Stations solved, where the gear is and who holds whose hand: read from the simulation (FR3).
+function readHidden(m: BotMemory, known: Known, own: Role): void {
+  const h = m.hidden;
+  if (!h) return;
+  known.solved = Object.fromEntries(Object.values(h.stations).map((s) => [s.id, s.solved]));
+  known.gear = Object.fromEntries(
+    h.gear.map((g) => [g.id, { at: g.at, heldBy: g.heldBy, sill: g.sill }]),
+  );
+  known.holding = { ...h.holding };
+  known.roles = rolesOf(m, own);
+}
+
 const HEARD_KIND: Partial<Record<SoundCue["kind"], "guard" | "camera" | "laser">> = {
   guard: "guard",
   camera: "camera",
@@ -302,6 +351,7 @@ function hearHazards(room: Room, view: RoleView, known: Known): void {
 
 function observe(room: Room, view: RoleView, m: BotMemory): Known {
   const known = ensureKnown(room, m);
+  readHidden(m, known, view.role);
   hearHazards(room, view, known);
   for (const e of view.entities) {
     if (e.kind === "door") known.doorOpen[e.id] = e.state === "open";
@@ -389,7 +439,7 @@ function blockedFor(room: Room, known: Known, goal: Vec) {
   const crates = new Set(Object.values(known.crates).map(key));
   return (x: number, y: number): boolean => {
     const ch = room.grid[y]?.[x];
-    if (ch === undefined || ch === "#" || ch === "=" || ch === "%") return true;
+    if (ch === undefined || ch === "#" || ch === "=" || ch === "%" || ch === "H") return true;
     const k = `${x},${y}`;
     if (ch === "D" && known.doorOpen[doorAt.get(k) ?? ""] !== true) return true;
     if (crates.has(k)) return true;
@@ -517,12 +567,18 @@ function goalFor(
   // a job is behind a seat once it is done, or once a later one is (a bot that takes over
   // late has no business walking back to a waypoint the team passed long ago)
   const behind = (i: number) =>
-    isDone(room, queue[i] as Job, known, at) ||
+    isDone(room, queue[i] as Job, known, at, seat) ||
     (queue[i]?.target.kind === "tile" &&
-      queue.slice(i + 1).some((j) => j.target.kind !== "exit" && isDone(room, j, known, at)));
+      queue.slice(i + 1).some((j) => j.target.kind !== "exit" && isDone(room, j, known, at, seat)));
   while (m.ptr[seat] < queue.length && behind(m.ptr[seat])) m.ptr[seat]++;
   const queued = queue[m.ptr[seat]] ?? null;
   if (!queued) return { goal: exitTile(room, seat), job: queued };
+  // gear passes hand to hand in the hints' order: a gear job waits for every earlier one to be done
+  if (GEAR_KINDS.has(queued.target.kind) && !gearTurn(room, m, queued, known, own)) {
+    return { goal: from, job: null };
+  }
+  const worked = workGoal(room, m, queued, known, seat);
+  if (worked) return { goal: worked, job: queued };
   let job: Job = queued;
   if (queued.target.kind === "plate" && queued.target.clue) {
     // a clue job's plate is the one the chime heard names; until one is heard, stay put and listen
@@ -566,6 +622,136 @@ function goalFor(
   return { goal, job };
 }
 
+const GEAR_KINDS = new Set<Job["target"]["kind"]>(["take", "give", "sill"]);
+
+// Is it this gear job's turn? Gear passes hand to hand in the hints' order: a job on an item waits
+// until the one before it on the same item has happened (a take, once the item has left where
+// it lay; a give or a sill, once it is where that job put it).
+function gearTurn(room: Room, m: BotMemory, job: Job, known: Known, own: Role): boolean {
+  const item = (j: Job) =>
+    GEAR_KINDS.has(j.target.kind) ? (j.target as { gear: string }).gear : null;
+  const before = ([0, 1, 2] as const)
+    .flatMap((s) => queuesOf(room, m, own)[s].map((j) => ({ j, s })))
+    .filter(({ j }) => j.index < job.index && item(j) === item(job))
+    .sort((a, b) => b.j.index - a.j.index)[0];
+  if (!before) return true;
+  if (before.j.target.kind !== "take") return isDone(room, before.j, known, undefined, before.s);
+  const g = known.gear?.[item(job) as string];
+  const start = room.objects.find((o) => o.id === item(job))?.tiles[0];
+  return g !== undefined && !(g.at && start && g.at.x === start.x && g.at.y === start.y);
+}
+
+// Where a station, gear or tow job sends its seat: the tile of the part to press next, the gear
+// (or its holder, or the sill), the teammate to take by the hand, or the tow's end.
+function workGoal(room: Room, m: BotMemory, job: Job, known: Known, seat: Seat): Vec | null {
+  const t = job.target;
+  if (t.kind === "station") return stationStep(room, m, t.id)?.tile ?? null;
+  if (t.kind === "take" || t.kind === "give" || t.kind === "sill") {
+    const g = known.gear?.[t.gear];
+    if (!g) return null;
+    if (g.heldBy !== null && g.heldBy !== seat) return m.lastPos ? tileOf(m.lastPos) : null; // wait for it
+    if (g.heldBy !== seat || t.kind === "take") {
+      if (g.at) return g.at;
+      const hatch = g.sill ? room.objects.find((o) => o.id === g.sill)?.tiles[0] : undefined;
+      return hatch ? besideOf(room, known, hatch, m.lastPos) : null;
+    }
+    if (t.kind === "give") {
+      const to = known.roles?.indexOf(t.to) ?? -1;
+      const p = to >= 0 ? m.bodies[to as Seat] : undefined;
+      return p ? besideOf(room, known, tileOf(p), m.lastPos) : null;
+    }
+    const hatch = room.objects.find((o) => o.id === t.hatch)?.tiles[0];
+    return hatch ? besideOf(room, known, hatch, m.lastPos) : null;
+  }
+  if (t.kind === "tow") {
+    const towed = known.roles?.indexOf(t.role) ?? -1;
+    if (towed < 0) return null;
+    if (known.holding?.[towed as Seat] === seat) return t.to;
+    const p = m.bodies[towed as Seat];
+    return p ? besideOf(room, known, tileOf(p), m.lastPos) : null;
+  }
+  return null;
+}
+
+// The floor tile next to `tile` nearest `from` (west first on a tie): where to stand to reach it.
+function besideOf(room: Room, known: Known, tile: Vec, from: Vec | null): Vec | null {
+  const blocked = blockedFor(room, known, tile);
+  const options = [
+    { x: tile.x - 1, y: tile.y },
+    { x: tile.x, y: tile.y - 1 },
+    { x: tile.x, y: tile.y + 1 },
+    { x: tile.x + 1, y: tile.y },
+  ].filter((t) => !blocked(t.x, t.y));
+  if (!from) return options[0] ?? null;
+  const d = (t: Vec) => Math.hypot(t.x + 0.5 - from.x, t.y + 0.5 - from.y);
+  return options.reduce<Vec | null>((a, b) => (a === null || d(b) < d(a) ? b : a), null);
+}
+
+// The next press a station needs, from its answer (FR3): which tile to stand on. A dial turns
+// the short way to the next digit, then presses the anchor; a radio turns to its setting; wires
+// cut the one the rule names; a keypad or music box presses the next key or bell; switches press
+// the buttons that reach the target from where the lamps are; a vault steps each socket, then
+// presses the anchor; a sync lock is turned by every seat that has a key (one each).
+interface Press {
+  tile: Vec;
+}
+function stationStep(room: Room, m: BotMemory, id: string): Press | null {
+  const s = m.hidden?.stations[id];
+  const o = room.objects.find((x) => x.id === id);
+  if (!s || !o || s.solved) return null;
+  const p = o.params ?? {};
+  const anchor = o.tiles[0] as Vec;
+  const part = (k: string, i: number): Press | null => {
+    const t = tilesOf(p[k])[i];
+    return t ? { tile: t } : null;
+  };
+  switch (s.type) {
+    case "dial":
+    case "radio": {
+      const range = typeof p.range === "number" ? p.range : 10;
+      const want = s.answer[s.type === "radio" ? 0 : s.input.length - 1] as number;
+      const now = s.input.at(-1) ?? 0;
+      if (now === want) return s.type === "dial" ? { tile: anchor } : null;
+      const up = (want - now + range) % range;
+      return part("pads", up <= range - up ? 1 : 0);
+    }
+    case "wires":
+      return part("wires", s.answer[0] as number);
+    case "keypad":
+      return part("keys", s.answer[s.input.length] as number);
+    case "bells":
+      return part("bells", s.answer[s.input.length] as number);
+    case "switches": {
+      const cols = typeof p.cols === "number" ? p.cols : 3;
+      const i = switchPress(s.input, s.answer, cols);
+      return i === null ? null : part("buttons", i);
+    }
+    case "vault": {
+      const i = s.input.findIndex((v, k) => v !== s.answer[k]);
+      return i >= 0 ? part("sockets", i) : { tile: anchor };
+    }
+    case "sync": {
+      const order = (m.roles ?? ["blind", "deaf", "mute"])
+        .map((role, seat) => ({ role, seat }))
+        .filter((x) => x.role !== "blind");
+      const mine = order.findIndex((x) => x.seat === m.seat);
+      return mine >= 0 ? part("keys", mine) : null;
+    }
+  }
+}
+
+// The first button whose press is part of a solution from `lamps` to `target` (lights-out is
+// solved by trying each subset of buttons; the grids are at most 3x3, so 512 at most).
+function switchPress(lamps: number[], target: number[], cols: number): number | null {
+  const n = lamps.length;
+  for (let mask = 1; mask < 1 << n; mask++) {
+    let at = lamps;
+    for (let i = 0; i < n; i++) if (mask & (1 << i)) at = toggled(at, i, cols);
+    if (at.join() === target.join()) return Math.log2(mask & -mask);
+  }
+  return null;
+}
+
 // The team was caught and sent back: every plan, step under way and belief about where
 // the Can't-see seat is, is about a place nobody is in any more.
 function forgetPlans(m: BotMemory): void {
@@ -607,10 +793,67 @@ function thinkSighted(room: Room, view: RoleView, m: BotMemory, now: number): Bo
     return { input: idle(m), send: stamp(m, send, now) };
   }
 
-  const input = view.alarm ? idle(m) : moveSelf(room, view, m, known, pos);
+  for (const e of view.entities)
+    if (e.kind === "player" && e.seat !== undefined) m.bodies[e.seat] = e.pos;
+  const input = view.alarm
+    ? idle(m)
+    : press(room, view, m, known, pos, moveSelf(room, view, m, known, pos));
   if (view.role === "deaf") send = guideBlind(room, view, m, known, now);
   else if (view.role === "mute") send = muteClip(room, view, m, now);
   return { input, send: stamp(m, send, now) };
+}
+
+// Act or G, pressed once a seat stands where its station, gear or tow job wants it, and let go
+// the tick after (the simulation acts on the press). A sync key is turned only when every key
+// is stood on, and on a tick all the key holders agree on, so the turns land together.
+function press(
+  room: Room,
+  view: RoleView,
+  m: BotMemory,
+  known: Known,
+  pos: Vec,
+  input: PlayerInput,
+): PlayerInput {
+  const job = queuesOf(room, m, view.role)[m.seat][m.ptr[m.seat]];
+  const tile = tileOf(pos);
+  const centred = Math.hypot(pos.x - (tile.x + 0.5), pos.y - (tile.y + 0.5)) < 0.15;
+  const goal = job && m.hidden ? workGoal(room, m, job, known, m.seat) : null;
+  const here = centred && goal !== null && goal.x === tile.x && goal.y === tile.y;
+  const button = job && here ? pressFor(room, m, known, job, view.tick) : null;
+  const was = button === "act" ? m.actWas : button === "gear" ? m.gearWas : false;
+  m.actWas = button === "act" && !was;
+  m.gearWas = button === "gear" && !was;
+  if (button === "wait") return idle(m);
+  if (!button) return input;
+  return was ? idle(m) : { ...idle(m), [button]: true };
+}
+
+// Which button a job wants pressed by a seat standing where it should: "wait" holds still.
+function pressFor(
+  room: Room,
+  m: BotMemory,
+  known: Known,
+  job: Job,
+  tick: number,
+): "act" | "gear" | "wait" | null {
+  const t = job.target;
+  if (t.kind === "station") {
+    if (m.hidden?.stations[t.id]?.type !== "sync") return "act";
+    const keys = tilesOf(room.objects.find((x) => x.id === t.id)?.params?.keys);
+    const stood = keys.every((k) =>
+      Object.values(m.bodies).some((b) => b && tileOf(b).x === k.x && tileOf(b).y === k.y),
+    );
+    return stood && tick % 4 === 0 ? "act" : "wait";
+  }
+  if (t.kind === "take" || t.kind === "give" || t.kind === "sill") {
+    const g = known.gear?.[t.gear];
+    if (!g) return null;
+    if (g.heldBy === null) return "act"; // take it: it lies here, or on the sill beside
+    if (g.heldBy !== m.seat) return "wait"; // someone else has it
+    return t.kind === "give" ? "gear" : t.kind === "sill" ? "act" : null;
+  }
+  if (t.kind === "tow") return "act"; // take their hand beside them, or let go at the end
+  return null;
 }
 
 function stamp(m: BotMemory, send: Outgoing | null, now: number): Outgoing | null {
@@ -626,8 +869,10 @@ function moveSelf(room: Room, view: RoleView, m: BotMemory, known: Known, pos: V
   const { goal, job } = goalFor(room, m, seat, view.role, pos, known, tile, view);
 
   // The guide steers by sight: when the Can't-see seat drops out of view it goes back to
-  // where it last reckoned them to be, before doing anything of its own.
-  const lost = view.role === "deaf" && m.guide.est ? blindOutOfSight(view, m) : null;
+  // where it last reckoned them to be, before doing anything of its own, unless its own job is a
+  // station or gear job (it parks the Can't-see seat while it works one: guideBlind).
+  const busy = job !== null && WORK_KINDS.has(job.target.kind);
+  const lost = view.role === "deaf" && m.guide.est && !busy ? blindOutOfSight(view, m) : null;
   if (lost) return follow(room, view, m, known, pos, centreOf(tileOf(lost)));
 
   // pushing: stand behind the crate and walk into it until it is where it belongs
@@ -747,7 +992,12 @@ function guideBlind(
   }
 
   const tile = tileOf(p);
-  const { goal, job } = goalFor(room, m, b as Seat, "blind", p, known, tile, view);
+  // while the guide works a station or gear job of its own, the Can't-see seat waits where it is
+  const mine = queuesOf(room, m, view.role)[m.seat][m.ptr[m.seat]];
+  const parked = mine !== undefined && WORK_KINDS.has(mine.target.kind);
+  const { goal, job } = parked
+    ? { goal: tile, job: null }
+    : goalFor(room, m, b as Seat, "blind", p, known, tile, view);
   let callout: Callout | null = null;
   let tap: string | null = null;
 
@@ -894,7 +1144,7 @@ function tight(room: Room, tile: Vec, step: Step): boolean {
   const side = step === "left" || step === "right" ? { x: 0, y: 1 } : { x: 1, y: 0 };
   const wall = (t: Vec) => {
     const ch = room.grid[t.y]?.[t.x];
-    return ch === undefined || ch === "#" || ch === "D" || ch === "=" || ch === "%";
+    return ch === undefined || ch === "#" || ch === "D" || ch === "=" || ch === "%" || ch === "H";
   };
   return [tile, next].some(
     (t) => wall({ x: t.x + side.x, y: t.y + side.y }) || wall({ x: t.x - side.x, y: t.y - side.y }),

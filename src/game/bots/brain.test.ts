@@ -782,3 +782,94 @@ describe("steering a person who cannot see", () => {
     }
   });
 });
+
+// FR3: in station rooms the bots read each station's answer from the simulation, so a room test
+// proves the room can be cleared, not that a role is needed (the presence linter carries that).
+describe("a bot on a station job (escape-room Task 4)", () => {
+  const GRID = [
+    "##############",
+    "#1...........#",
+    "#2...Q...g...#",
+    "#3...........#",
+    "##############",
+  ];
+  const DIAL = {
+    type: "dial",
+    pads: [
+      [4, 1],
+      [6, 1],
+    ],
+    back: [5, 3],
+    digits: 2,
+    range: 10,
+  };
+  const r = roomWith(
+    GRID,
+    { Q1: DIAL, g1: { item: "stethoscope" } },
+    {
+      beats: [{ name: "b", x: [0, 13], intent: { blind: "b", deaf: "d", mute: "m" } }],
+      hints: {
+        jobs: [
+          { beat: 1, station: "Q1", prefer: "deaf" },
+          { beat: 1, take: "g1", prefer: "mute" },
+        ],
+      },
+    },
+  );
+  const run = (seat: Seat, role: Role, ticks: number) => {
+    const world = createWorld(r, 5);
+    const bots: Partial<Record<Seat, BotSeat>> = {
+      [seat]: { memory: createBotMemory(seat, new Set(), ROLES3), inbox: [] },
+    };
+    const roles: [Role, Role, Role] = ["blind", "deaf", "mute"];
+    roles[seat] = role;
+    for (let i = 0; i < ticks && !world.stations.Q1?.solved; i++) {
+      const out = botsAct(r, world, roles, bots, { until: {} }, world.tick * TICK_MS, () => "Bot");
+      step(world, out.inputs, TICK_MS);
+    }
+    return world;
+  };
+
+  it("walks to the pads and dials in the answer it reads from the world", () => {
+    const world = run(1, "deaf", 1200);
+    expect(world.stations.Q1?.solved).toBe(true);
+    expect(world.attempt).toBe(0); // never a wrong number: no dye, no reset
+  });
+
+  it("takes the gear on a take job", () => {
+    const world = createWorld(r, 5);
+    const bots: Partial<Record<Seat, BotSeat>> = {
+      2: { memory: createBotMemory(2, new Set(), ROLES3), inbox: [] },
+    };
+    for (let i = 0; i < 400 && world.gear[0]?.heldBy !== 2; i++) {
+      const out = botsAct(r, world, ROLES3, bots, { until: {} }, world.tick * TICK_MS, () => "Bot");
+      step(world, out.inputs, TICK_MS);
+    }
+    expect(world.gear[0]?.heldBy).toBe(2);
+  });
+});
+
+describe("a seeing bot never plans a way through a hatch (escape-room Task 4)", () => {
+  // the only way from the spawns to the flag is round by the top row; straight east is a hatch
+  const GRID = ["##########", "#1.......#", "#2.#H#####", "#3.#..K..#", "##########"];
+  const r = roomWith(
+    GRID,
+    {},
+    {
+      beats: [{ name: "b", x: [0, 9], intent: { blind: "b", deaf: "d", mute: "m" } }],
+      hints: { jobs: [{ beat: 1, goTo: [5, 3], prefer: "deaf" }] },
+    },
+  );
+  it("does not walk into the hatch: it stops short, since nothing else leads there", () => {
+    const world = createWorld(r);
+    const memory = createBotMemory(1, new Set(), ROLES3);
+    world.players[1].pos = { x: 4.5, y: 1.5 };
+    for (let i = 0; i < 200; i++) {
+      const turn = think(r, viewFor(world, 1, "deaf", i === 0), [], memory, world.tick * TICK_MS);
+      step(world, { 1: turn.input }, TICK_MS);
+    }
+    // the plan it made goes nowhere near the hatch tile
+    expect(Math.floor(world.players[1].pos.y)).toBe(1);
+    expect(memory.nav.plan).not.toContain("down");
+  });
+});

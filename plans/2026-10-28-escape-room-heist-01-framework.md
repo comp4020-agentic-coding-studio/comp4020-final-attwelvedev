@@ -290,6 +290,15 @@ to a station elsewhere via `yields`; sync: keys ≥3 tiles apart).
 
 ### Task 4: Bots that work stations, carry gear and tow; logging
 
+- **Status:** done (2026-10-28). Bots get `Hidden` (stations, gear, holding) from `botsAct` as a
+  `think` argument: the one hidden read, commented as FR3. A guide on a station or gear job parks
+  Can't see instead of steering it; gear jobs on one item wait for the job before it in the
+  hints. Station, gear and tow jobs are sighted-only (like push). Logging is a pure
+  `gameLinesFor(events)` in `gameLog.ts`, called from `attach.ts`. Bug found and fixed with
+  failing tests first: the bots' path grid and the linter's reachability treated `H` as floor.
+  `spec/rooms.test.ts` needed no edit (the drafts loop picks up the fixture; the lead describe
+  went in Task 1); `lint.test.ts`'s draft list names the fixture.
+
 - **Description:** New job targets so the room solver clears station rooms
   (bots read answers from the world: FR3), and `logGame` lines for the new
   events.
