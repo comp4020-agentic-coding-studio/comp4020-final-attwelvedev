@@ -36,6 +36,7 @@ const blindView = (tick: number, sounds: RoleView["sounds"] = []): RoleView => (
   loot: 0,
   alarm: false,
   dark: false,
+  gear: null,
 });
 
 describe("a Can't-see bot", () => {

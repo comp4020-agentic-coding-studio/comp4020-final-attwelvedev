@@ -4,7 +4,7 @@ import type { World } from "./world.ts";
 
 const SAMPLE = 0.1; // tiles between line-of-sight samples
 
-// Walls, vents and closed doors stop sight; glass, crates and players do not. A hide spot
+// Walls, vents and closed doors stop sight; glass, hatches, crates and players do not. A hide spot
 // (low cover) stops a hazard's sight only: you can see a teammate crouched behind one.
 export function blocksSight(world: World, tx: number, ty: number, forHazard = false): boolean {
   const ch = world.room.grid[ty]?.[tx];
@@ -15,10 +15,10 @@ export function blocksSight(world: World, tx: number, ty: number, forHazard = fa
   return !id || !world.doorOpen[id];
 }
 
-// Walls, glass and closed doors stop sound; a vent and an open door let it through.
+// Walls, glass, hatches and closed doors stop sound; a vent and an open door let it through.
 export function blocksSound(world: World, tx: number, ty: number): boolean {
   const ch = world.room.grid[ty]?.[tx];
-  if (ch === undefined || ch === "#" || ch === "=") return true;
+  if (ch === undefined || ch === "#" || ch === "=" || ch === "H") return true;
   if (ch !== "D") return false;
   const id = indexOf(world.room).doorAt.get(tileKey(tx, ty));
   return !id || !world.doorOpen[id];

@@ -246,6 +246,13 @@ to a station elsewhere via `yields`; sync: keys ≥3 tiles apart).
 
 ### Task 3: Gear, holding hands, hatch, bell and lamp, and what each role perceives
 
+- **Status:** done (2026-10-28). Beyond the file list: `src/client/hud.ts` `CUE_WORD` gets the
+  14 new kinds with Task 9's words (the typecheck and the parity caption test need them);
+  `stations.ts` gains `partAt` (shared by the sim and the Act hint), the keypad clue tune and
+  `stationShows`; `RoleView.you.hand` (own state) says whose hand you hold (spec FR22; §4.2 had no
+  field for it). Tumbler range is 1.5 tiles (at 1 an adjacent tile hears nothing). The hold hint
+  says "Hold hands" (the sim has no nicknames). Crates on a sill are not built (no test asks).
+
 - **Description:** Sim for gear (take, give, drop, sill, reset like loot),
   holding (tow, release, release on reset), hatch, bell, lamp; perception of
   stations, gear, UV pool and ink, goggles in the dark, bell, lamp, Act hint,

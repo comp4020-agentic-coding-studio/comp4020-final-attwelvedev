@@ -967,3 +967,174 @@ describe("viewFor: the clue sound", () => {
     expect(viewFor(w, 0, "blind", false).sounds.map((s) => s.kind)).not.toContain("clue");
   });
 });
+
+// Stations, gear and signals: what each role perceives of them (escape-room phase 01, Task 3).
+describe("viewFor: stations, gear and signals", () => {
+  const pressAct = (w: ReturnType<typeof worldWith>, seat: 0 | 1 | 2) => {
+    step(w, { [seat]: { seq: 0, move: { x: 0, y: 0 }, act: true } }, TICK_MS);
+  };
+  const holdGear = (w: ReturnType<typeof worldWith>, id: string, seat: 0 | 1 | 2) => {
+    const g = w.gear.find((x) => x.id === id);
+    if (!g) throw new Error(`no gear ${id}`);
+    Object.assign(g, { heldBy: seat, at: null });
+  };
+  const WIRES = {
+    Q1: {
+      type: "wires",
+      wires: [
+        [3, 2],
+        [4, 2],
+        [5, 2],
+      ],
+    },
+  };
+  const wiresWorld = () =>
+    worldWith(["##########", "#1..Q....#", "#2.......#", "#3.......#", "##########"], WIRES);
+
+  it("a sighted viewer sees wire colours in sight; Can't see is shown no station at all", () => {
+    const w = wiresWorld();
+    const colours = w.stations.Q1?.answer.slice(2);
+    const q = viewFor(w, 1, "deaf", false).entities.find((e) => e.id === "Q1");
+    expect(q?.kind).toBe("station");
+    expect(q?.station).toEqual({ type: "wires", shows: colours, solved: false });
+    const blind = viewFor(w, 0, "blind", false);
+    expect(blind.entities).toEqual([]);
+    expect(JSON.stringify(blind)).not.toContain("shows");
+  });
+
+  it("the tumbler reaches only a hearing holder of the stethoscope beside the back", () => {
+    const grid = ["############", "#1.....Q...#", "#2.........#", "#3....g....#", "############"];
+    const dial = {
+      type: "dial",
+      pads: [
+        [6, 1],
+        [8, 1],
+      ],
+      back: [7, 3],
+      digits: 1,
+    };
+    const turnRight = (w: ReturnType<typeof worldWith>) => {
+      const s = w.stations.Q1;
+      if (!s) throw new Error("no Q1");
+      s.input[0] = ((s.answer[0] as number) + 9) % 10; // one notch short of the answer
+      place(w, 2, { x: 8, y: 1 });
+      pressAct(w, 2);
+    };
+    const heard = (w: ReturnType<typeof worldWith>, seat: 0 | 1 | 2, role: "blind" | "mute") =>
+      viewFor(w, seat, role, false).sounds.some((s) => s.kind === "tumbler");
+
+    const w = worldWith(grid, { Q1: dial, g1: { item: "stethoscope" } });
+    holdGear(w, "g1", 0);
+    place(w, 0, { x: 6, y: 3 });
+    place(w, 1, { x: 8, y: 3 }); // beside the back too, but no stethoscope
+    turnRight(w);
+    expect(heard(w, 0, "blind")).toBe(true);
+    expect(heard(w, 0, "mute")).toBe(true);
+    expect(heard(w, 1, "blind")).toBe(false);
+    expect(viewFor(w, 0, "deaf", false).sounds).toEqual([]);
+
+    const far = worldWith(grid, { Q1: dial, g1: { item: "stethoscope" } });
+    holdGear(far, "g1", 0);
+    place(far, 0, { x: 2, y: 3 });
+    turnRight(far);
+    expect(heard(far, 0, "blind")).toBe(false);
+  });
+
+  it("the earpiece plays only to its hearing holder", () => {
+    const grid = ["##########", "#1..Q....#", "#2.......#", "#3..g....#", "##########"];
+    const keys = [0, 1, 2].flatMap((y) => [0, 1, 2].map((x) => [5 + x, 1 + y]));
+    const w = worldWith(grid, {
+      Q1: { type: "keypad", keys, clue: "g1", length: 3 },
+      g1: { item: "earpiece" },
+    });
+    holdGear(w, "g1", 0);
+    place(w, 2, { x: 1, y: 2 }); // right beside the holder
+    w.tick = 59; // the next tick starts the tune
+    step(w, {}, TICK_MS);
+    const mine = viewFor(w, 0, "blind", false).sounds.filter((s) => s.kind === "earpiece");
+    expect(mine).toHaveLength(1);
+    expect(mine[0]?.n).toBe(w.stations.Q1?.answer[0]);
+    expect(viewFor(w, 2, "mute", false).sounds.some((s) => s.kind === "earpiece")).toBe(false);
+    expect(viewFor(w, 0, "deaf", false).sounds).toEqual([]);
+  });
+
+  it("goggles let a sighted wearer see into a dark zone; a non-wearer still sees nothing there", () => {
+    const grid = ["############", "#1.....$...#", "#2.........#", "#3....g....#", "############"];
+    const w = worldWith(
+      grid,
+      { g1: { item: "goggles" } },
+      {
+        flips: [{ kind: "dark", zone: [5, 1, 10, 3] }],
+      },
+    );
+    holdGear(w, "g1", 1);
+    const wearer = viewFor(w, 1, "deaf", true);
+    expect(wearer.entities.some((e) => e.id === "$1")).toBe(true);
+    expect(wearer.tiles?.[1]).not.toContain(" ");
+    expect(wearer.gear).toBe("goggles");
+    const other = viewFor(w, 2, "mute", true);
+    expect(other.entities.some((e) => e.id === "$1")).toBe(false);
+    expect(other.tiles?.[1]).toContain(" ");
+  });
+
+  it("ink shows to the sighted only inside the UV pool and in their sight, never to Can't see", () => {
+    const grid = [
+      "##############",
+      "#1....u..#...#",
+      "#2.......#...#",
+      "#3..g....#...#",
+      "##############",
+    ];
+    const w = worldWith(grid, { g1: { item: "uv" }, u1: { text: "4 7 1" } });
+    holdGear(w, "g1", 2);
+    place(w, 2, { x: 4, y: 1 }); // 2 tiles from the ink
+    const ink = (seat: 0 | 1 | 2, role: "deaf" | "mute" | "blind") =>
+      viewFor(w, seat, role, false).entities.find((e) => e.id === "u1");
+    expect(ink(1, "deaf")).toMatchObject({ kind: "ink", text: "4 7 1" });
+    expect(viewFor(w, 1, "deaf", false).entities.some((e) => e.kind === "uv")).toBe(true);
+    expect(ink(0, "blind")).toBeUndefined();
+    place(w, 1, { x: 11, y: 2 }); // behind the wall
+    expect(ink(1, "deaf")).toBeUndefined();
+    place(w, 1, { x: 1, y: 2 });
+    place(w, 2, { x: 1, y: 3 }); // the torch is too far from the ink
+    expect(ink(1, "deaf")).toBeUndefined();
+  });
+
+  it("the lamp flashes for the sighted, and is absent for Can't see", () => {
+    const w = worldWith(["##########", "#1..l....#", "#2.......#", "#3.......#", "##########"]);
+    place(w, 2, { x: 4, y: 1 });
+    pressAct(w, 2);
+    expect(viewFor(w, 1, "deaf", false).lamp).toEqual({ seat: 2, tick: w.tick });
+    expect(viewFor(w, 2, "mute", false).lamp).toEqual({ seat: 2, tick: w.tick });
+    expect(viewFor(w, 0, "blind", false).lamp).toBeUndefined();
+  });
+
+  it("Can't see's Act hint never names a colour; a sighted one may", () => {
+    const w = wiresWorld();
+    const colourWord = /red|blue|yellow|green|white|black/;
+    for (const x of [3, 4, 5]) {
+      place(w, 0, { x, y: 2 });
+      const hint = viewFor(w, 0, "blind", false).act;
+      expect(hint).toBe(`Cut wire ${x - 2}`);
+      expect(hint).not.toMatch(colourWord);
+    }
+    place(w, 1, { x: 3, y: 2 });
+    expect(viewFor(w, 1, "deaf", false).act).toMatch(colourWord);
+  });
+
+  it("a teammate's gear and whose hand they hold are seen by the sighted in sight", () => {
+    const w = worldWith(["##########", "#1..g....#", "#2.......#", "#3.......#", "##########"], {
+      g1: { item: "uv" },
+    });
+    holdGear(w, "g1", 2);
+    place(w, 0, { x: 4, y: 3 });
+    place(w, 2, { x: 5, y: 3 });
+    pressAct(w, 0);
+    expect(w.holding).toEqual({ 2: 0 });
+    const seen = viewFor(w, 1, "deaf", false).entities;
+    expect(seen.find((e) => e.id === "P2")).toMatchObject({ item: "uv", heldBy: 0 });
+    expect(seen.find((e) => e.id === "P0")).toMatchObject({ holding: 2 });
+    expect(viewFor(w, 2, "mute", false).gear).toBe("uv");
+    expect(viewFor(w, 0, "blind", false).gear).toBeNull();
+  });
+});

@@ -32,6 +32,15 @@ describe("createInput", () => {
     expect(source.read().act).toBe(false);
   });
 
+  it("reads G as gear", () => {
+    source = createInput(document.body);
+    expect(source.read().gear).toBe(false);
+    key("keydown", "g");
+    expect(source.read().gear).toBe(true);
+    key("keyup", "g");
+    expect(source.read().gear).toBe(false);
+  });
+
   it("cancels opposite keys and is not case sensitive", () => {
     source = createInput(document.body);
     key("keydown", "A");

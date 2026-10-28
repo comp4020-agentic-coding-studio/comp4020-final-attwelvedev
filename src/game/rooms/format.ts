@@ -17,7 +17,12 @@ export type Tile =
   | "K"
   | "$"
   | "S"
-  | "Q";
+  | "Q"
+  | "g"
+  | "H"
+  | "b"
+  | "l"
+  | "u";
 
 export interface RoomObject {
   id: string; // "p1", "D1", "B2", "E1"
@@ -35,7 +40,12 @@ export interface RoomObject {
     | "loot"
     | "sign"
     | "clue" // a chime with no picture (A2): `n` of 1 to 3 every `everyS` seconds
-    | "station"; // a puzzle's anchor: `params.type` and the tiles of its parts (src/game/sim/stations.ts)
+    | "station" // a puzzle's anchor: `params.type` and the tiles of its parts (src/game/sim/stations.ts)
+    | "gear" // something one person can carry: `params.item` (src/game/sim/gear.ts)
+    | "hatch" // a wall with a sill: gear goes through, people and sound do not, sight does
+    | "bell" // a rope: Act rings a bell the whole room hears
+    | "lamp" // a switch: Act flashes a lamp in every sighted player's HUD
+    | "ink"; // hidden text (`params.text`) that shows only in a UV torch's light
   tiles: Vec[]; // integer tile coordinates
   visibleTo: Role[];
   audibleTo: Role[];
@@ -58,7 +68,7 @@ export interface Room {
   version: number;
   width: number;
   height: number;
-  grid: string[]; // rows; object letters replaced by "." except "#" and "D"
+  grid: string[]; // rows; object letters replaced by "." except "#", "D", "=", "%" and "H"
   objects: RoomObject[];
   beats: Beat[];
   meta: Record<string, unknown>; // the raw JSON, for later phases' keys
@@ -125,6 +135,11 @@ const TILES = new Set([
   "%", // vent: sound passes, sight and bodies don't
   "c", // a clue: a chime nobody can see
   "Q", // a station's anchor
+  "g", // gear
+  "H", // a hatch: kept in the grid, like glass
+  "b", // a bell rope
+  "l", // a lamp switch
+  "u", // UV ink
 ]);
 
 // Single-tile objects numbered in reading order: letter -> [kind, id prefix].
@@ -138,6 +153,11 @@ const NUMBERED: Record<string, [RoomObject["kind"], string]> = {
   S: ["sign", "S"],
   c: ["clue", "c"],
   Q: ["station", "Q"],
+  g: ["gear", "g"],
+  H: ["hatch", "H"],
+  b: ["bell", "b"],
+  l: ["lamp", "l"],
+  u: ["ink", "u"],
 };
 // Kinds whose metadata is kept whole as `params`.
 const PARAMS: Record<string, true> = {
@@ -150,6 +170,8 @@ const PARAMS: Record<string, true> = {
   sign: true,
   clue: true,
   station: true,
+  gear: true,
+  ink: true,
 };
 export const STATION_TYPES = [
   "dial",
@@ -161,6 +183,7 @@ export const STATION_TYPES = [
   "vault",
   "sync",
 ] as const;
+export const GEAR_ITEMS = ["earpiece", "goggles", "stethoscope", "uv"] as const;
 const DEFAULT_VISIBLE_TO: Role[] = ["deaf", "mute"];
 const ROLE_SET = new Set<string>(["blind", "deaf", "mute"]);
 
@@ -298,6 +321,12 @@ export function parseRoom(text: string): Room {
         1,
       );
     }
+    if (kind === "gear" && !(GEAR_ITEMS as readonly unknown[]).includes(ov.item)) {
+      throw new RoomFormatError(
+        `gear ${id} needs an item, one of ${GEAR_ITEMS.join(", ")} (got ${JSON.stringify(ov.item)})`,
+        1,
+      );
+    }
     objects.push(object);
   };
 
@@ -321,7 +350,7 @@ export function parseRoom(text: string): Room {
   for (const [i, tiles] of components(raw, "D").entries()) add(`D${i + 1}`, "door", tiles);
   for (const [i, tiles] of components(raw, "E").entries()) add(`E${i + 1}`, "exit", tiles);
 
-  const grid = raw.map((row) => row.replace(/[^#D=%]/g, "."));
+  const grid = raw.map((row) => row.replace(/[^#D=%H]/g, "."));
   return {
     id: meta.id,
     name: meta.name,

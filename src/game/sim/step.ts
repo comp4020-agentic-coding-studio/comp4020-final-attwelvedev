@@ -1,11 +1,20 @@
 import { flipsOf } from "../rooms/format.ts";
 import type { PlayerInput, Seat, Vec } from "../types.ts";
 import { blockedAt, circleHitsTile, crateAt, crateTouching, indexOf, tileKey } from "./collide.ts";
+import { actOn, gearPress, releaseAll, tow } from "./gear.ts";
 import { alarmOn, type Catch, findCatch, guardParams, tileOf } from "./hazards.ts";
-import { DYE_MS, drawStations, solved, updateStations } from "./stations.ts";
+import {
+  DYE_MS,
+  drawStations,
+  solved,
+  stationNaming,
+  tuneNote,
+  updateStations,
+} from "./stations.ts";
 import {
   ALARM_GUARD_SPEEDUP,
   CHECKPOINT_RADIUS,
+  copyGear,
   lootValue,
   type PlayerState,
   patrolOf,
@@ -204,10 +213,17 @@ function updateFlags(world: World) {
   }
 }
 
-// A clue chimes `n` (1 to 3) every `everyS` seconds (default 2): a sound with no picture.
+// A clue chimes `n` (1 to 3) every `everyS` seconds (default 2): a sound with no picture. A clue a
+// keypad names (its `clue`) plays that keypad's code instead, one key (n = key + 1) a note (FR9).
 function updateClues(world: World) {
   for (const o of world.room.objects) {
     if (o.kind !== "clue") continue;
+    const note = tuneNote(world, o.id);
+    if (note !== undefined) {
+      world.events.push({ kind: "clue", id: o.id, n: note + 1, at: tileCentre(o.tiles[0] as Vec) });
+      continue;
+    }
+    if (stationNaming(world, o.id)) continue;
     const every = Math.max(1, Math.round(((Number(o.params?.everyS) || 2) * 1000) / TICK_MS));
     if (world.tick % every !== 0) continue;
     const n = Math.max(1, Math.min(3, Math.round(Number(o.params?.n) || 1)));
@@ -303,7 +319,7 @@ function updateCheckpoints(world: World) {
       players: spots.slice(0, 3).map((t) => tileCentre(t)),
       crates: world.crates.map((c) => ({ id: c.id, tile: { ...c.tile } })),
       lootTaken: [...world.lootTaken],
-      gear: world.gear.map((g) => ({ ...g, at: g.at && { ...g.at } })),
+      gear: copyGear(world.gear),
       sideJobsDone: [...world.sideJobsDone],
     };
     world.events.push({ kind: "checkpoint", index });
@@ -321,8 +337,8 @@ function updateLoot(world: World) {
   }
 }
 
-// The whole team goes back to the last checkpoint: players, crates and loot as
-// they were when it was reached. Unsolved stations get new answers (FR5).
+// The whole team goes back to the last checkpoint: players, crates, loot and gear as
+// they were when it was reached, hands let go. Unsolved stations get new answers (FR5).
 function sendBack(world: World, caught: Catch) {
   const { snapshot } = world;
   world.players.forEach((p, i) => {
@@ -334,6 +350,8 @@ function sendBack(world: World, caught: Catch) {
   });
   world.crates = snapshot.crates.map((c) => ({ id: c.id, tile: { ...c.tile } }));
   world.lootTaken = [...snapshot.lootTaken];
+  world.gear = copyGear(snapshot.gear);
+  releaseAll(world);
   world.loot = world.room.objects
     .filter((o) => o.kind === "loot" && world.lootTaken.includes(o.id))
     .reduce((sum, o) => sum + lootValue(o.params), 0);
@@ -345,7 +363,7 @@ function sendBack(world: World, caught: Catch) {
   drawStations(world);
 }
 
-// Act is an edge: the seats that pressed it this tick, in seat order.
+// Act and G are edges: the seats that pressed them this tick, in seat order.
 function actEdges(world: World, inputs: Partial<Record<Seat, PlayerInput>>): Seat[] {
   const out: Seat[] = [];
   for (const p of world.players) {
@@ -354,6 +372,21 @@ function actEdges(world: World, inputs: Partial<Record<Seat, PlayerInput>>): Sea
     p.actHeld = held;
   }
   return out;
+}
+
+function gearEdges(world: World, inputs: Partial<Record<Seat, PlayerInput>>): Seat[] {
+  const out: Seat[] = [];
+  for (const p of world.players) {
+    const held = inputs[p.seat]?.gear === true;
+    if (held && !p.gearHeld) out.push(p.seat);
+    p.gearHeld = held;
+  }
+  return out;
+}
+
+// A towed player's own move is ignored (FR22): the leader walks for both.
+function ownMove(world: World, seat: Seat, input: PlayerInput | undefined) {
+  return input && world.holding[seat] !== undefined ? { ...input, move: { x: 0, y: 0 } } : input;
 }
 
 function updateExit(world: World) {
@@ -380,16 +413,28 @@ export function step(
   world.events = [];
   world.tick++;
   for (const p of world.players) {
-    const input = inputs[p.seat];
+    const input = ownMove(world, p.seat, inputs[p.seat]);
     movePlayer(world, p, input, dtMs);
     pushCrate(world, p, input, dtMs);
   }
+  tow(world);
   updatePlates(world);
   updateSequences(world);
   for (const e of world.events) {
     if (e.kind === "plate" && e.pressed) triggerAlarm(world, (t) => t === e.id);
   }
-  const wrong = updateStations(world, actEdges(world, inputs));
+  // Act: a towed player's lets go; otherwise a station part under you comes first (gear.ts: actOn)
+  const acts = actEdges(world, inputs);
+  const used = new Set<Seat>(acts.filter((s) => world.holding[s] !== undefined));
+  const wrong = updateStations(
+    world,
+    acts.filter((s) => !used.has(s)),
+    used,
+  );
+  for (const seat of acts) {
+    if (world.holding[seat] !== undefined || !used.has(seat)) actOn(world, seat);
+  }
+  for (const seat of gearEdges(world, inputs)) gearPress(world, seat);
   updateDoors(world);
   moveGuards(world, dtMs);
   updateHide(world);

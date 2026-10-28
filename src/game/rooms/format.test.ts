@@ -213,3 +213,27 @@ describe("parseRoom: stations", () => {
     expect(() => parseRoom(text(grid, withQ({})))).toThrow(/station Q1/);
   });
 });
+
+describe("parseRoom: gear, hatch, bell, lamp and ink", () => {
+  const grid = ["#########", "#1.g.#..#", "#2..bH.l#", "#3.u.#..#", "#########"];
+  const head = (objects: Record<string, unknown>) =>
+    header(
+      `,${Object.entries(objects)
+        .map(([k, v]) => `"${k}":${JSON.stringify(v)}`)
+        .join(",")}`,
+    );
+
+  it("numbers g, H, b, l and u, keeps H in the grid and the others as floor", () => {
+    const room = parseRoom(text(grid, head({ g1: { item: "goggles" }, u1: { text: "4 7" } })));
+    const kinds = Object.fromEntries(room.objects.map((o) => [o.id, o.kind]));
+    expect(kinds).toMatchObject({ g1: "gear", H1: "hatch", b1: "bell", l1: "lamp", u1: "ink" });
+    expect(room.objects.find((o) => o.id === "g1")?.params?.item).toBe("goggles");
+    expect(room.objects.find((o) => o.id === "u1")?.params?.text).toBe("4 7");
+    expect(room.grid[2]).toBe("#....H..#");
+  });
+
+  it("fails gear with no item or an unknown one", () => {
+    expect(() => parseRoom(text(grid, head({ g1: { item: "jetpack" } })))).toThrow(/gear g1/);
+    expect(() => parseRoom(text(grid))).toThrow(RoomFormatError);
+  });
+});

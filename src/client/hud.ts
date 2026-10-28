@@ -92,10 +92,33 @@ export const CUE_WORD: Record<SoundCue["kind"], string> = {
   hide: "rustle",
   clue: "chime",
   cleared: "room cleared",
+  // stations, gear and signals: Task 9 of the escape-room plan gives them their sounds
+  tick: "Tick",
+  tumbler: "Tumbler",
+  key: "Key",
+  snap: "Snap",
+  static: "Static",
+  tone: "Tone",
+  pip: "Pip",
+  clunk: "Clunk",
+  bellnote: "Bell note",
+  bell: "Bell",
+  dye: "Dye pack",
+  earpiece: "Earpiece",
+  gear: "Gear",
+  solved: "Solved",
 };
 
 // Heard by the whole team from nowhere in particular, so no side is named.
-const EVERYWHERE = new Set<SoundCue["kind"]>(["checkpoint", "caught", "alarm", "bump", "cleared"]);
+const EVERYWHERE = new Set<SoundCue["kind"]>([
+  "checkpoint",
+  "caught",
+  "alarm",
+  "bump",
+  "cleared",
+  "dye",
+  "earpiece",
+]);
 
 // Some sounds carry a count: how many are at the flag or the exit, how many plates are done.
 function word(s: SoundCue): string {

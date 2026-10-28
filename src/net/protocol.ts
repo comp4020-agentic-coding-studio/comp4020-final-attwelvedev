@@ -223,8 +223,15 @@ export function parseClientMsg(raw: string): ClientMsg | null {
       if (!Number.isInteger(m.seq) || (m.seq as number) < 0) return null;
       if (typeof x !== "number" || typeof y !== "number") return null;
       if (!Number.isFinite(x) || !Number.isFinite(y) || typeof m.act !== "boolean") return null;
+      if (m.gear !== undefined && typeof m.gear !== "boolean") return null;
       const clamp = (n: number) => Math.max(-1, Math.min(1, n));
-      return { t: "input", seq: m.seq as number, move: { x: clamp(x), y: clamp(y) }, act: m.act };
+      return {
+        t: "input",
+        seq: m.seq as number,
+        move: { x: clamp(x), y: clamp(y) },
+        act: m.act,
+        ...(m.gear === undefined ? {} : { gear: m.gear }),
+      };
     }
     case "send": {
       const msg = parseSendRequest(m.msg);

@@ -87,6 +87,18 @@ describe("parseClientMsg game messages", () => {
     });
   });
 
+  it("carries gear (G pressed) when it is a boolean", () => {
+    expect(
+      parseClientMsg('{"t":"input","seq":4,"move":{"x":0,"y":0},"act":false,"gear":true}'),
+    ).toEqual({ t: "input", seq: 4, move: { x: 0, y: 0 }, act: false, gear: true });
+    expect(parseClientMsg('{"t":"input","seq":4,"move":{"x":0,"y":0},"act":false}')).toEqual({
+      t: "input",
+      seq: 4,
+      move: { x: 0, y: 0 },
+      act: false,
+    });
+  });
+
   it("clamps move components to [-1, 1]", () => {
     expect(parseClientMsg('{"t":"input","seq":1,"move":{"x":9,"y":-9},"act":false}')).toEqual({
       t: "input",
@@ -101,6 +113,7 @@ describe("parseClientMsg game messages", () => {
     ["a string seq", '{"t":"input","seq":"1","move":{"x":0,"y":0},"act":false}'],
     ["a negative seq", '{"t":"input","seq":-1,"move":{"x":0,"y":0},"act":false}'],
     ["a non-boolean act", '{"t":"input","seq":1,"move":{"x":0,"y":0},"act":1}'],
+    ["a non-boolean gear", '{"t":"input","seq":1,"move":{"x":0,"y":0},"act":false,"gear":"yes"}'],
     ["a non-numeric move", '{"t":"input","seq":1,"move":{"x":"1","y":0},"act":false}'],
   ])("returns null for an input with %s", (_name, raw) => {
     expect(parseClientMsg(raw)).toBeNull();

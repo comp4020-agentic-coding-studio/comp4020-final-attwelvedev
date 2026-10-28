@@ -16,6 +16,9 @@ import { TICK_MS, type World, type WorldEvent } from "./sim/world.ts";
 // whole room. Distance changes how far a sound goes, never whether it has a sight.
 // The one deliberate exception is the alarm, which silences every other cue for
 // the roles that hear: that is its whole point, and the sighted still see it all.
+// Sounds with no picture by design are rows marked `exempt` with the reason: the clue chime,
+// the tumbler and the earpiece. UV ink and goggle sight are pictures with no sound: they change
+// only what a holder sees, and perception.test.ts checks that both are gated by the gear.
 
 type Scenario = {
   world: World;
@@ -69,7 +72,204 @@ const press = (w: World, x: number, seat: 0 | 1 | 2 = 0) => {
 };
 const sign = (v: RoleView) => ent(v, "S1");
 
+// Stations, gear and signals (escape-room phase 01). The listener stands at (2, 2), the station's
+// parts lie east of it in the open room, and DEAF stands in sight at the spawn.
+const stationAt = (q: Record<string, unknown>, cells: [number, number, string][] = [], more = {}) =>
+  worldWith(put([6, 1, "Q"], ...cells), { Q1: q, ...more });
+const actBy = (w: World, seat: 0 | 1 | 2, tile: { x: number; y: number }) => {
+  place(w, seat, tile);
+  step(w, { [seat]: input(0, 0, true) }, TICK_MS);
+};
+const shows = (v: RoleView, id = "Q1") => ent(v, id)?.station?.shows;
+const solvedIn = (v: RoleView) => ent(v, "Q1")?.station?.solved === true;
+const PADS = [
+  [5, 1],
+  [7, 1],
+];
+const KEYS = [0, 1, 2].flatMap((y) => [0, 1, 2].map((x) => [8 + x, 1 + y]));
+const MUTE = 2;
+
 const PARITY: Record<SoundCue["kind"], Scenario> = {
+  tick: (() => {
+    const world = stationAt({ type: "dial", pads: PADS, back: [6, 3], digits: 1 });
+    place(world, BLIND, { x: 4, y: 2 });
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 7, y: 1 }),
+      sees: (b, a) => shows(b)?.[0] !== shows(a)?.[0],
+    };
+  })(),
+  tumbler: (() => {
+    const world = stationAt({ type: "dial", pads: PADS, back: [6, 3], digits: 1 }, [[6, 2, "g"]], {
+      g1: { item: "stethoscope" },
+    });
+    Object.assign(world.gear[0] as object, { heldBy: BLIND, at: null });
+    place(world, BLIND, { x: 6, y: 2 });
+    const s = world.stations.Q1;
+    if (s) s.input[0] = ((s.answer[0] as number) + 9) % 10;
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 7, y: 1 }),
+      sees: () => true,
+      exempt:
+        "The tumbler is a sound with no picture by design (spec FR6, FR20): only a stethoscope at the safe's back hears the right number, like the clue chime.",
+    };
+  })(),
+  key: (() => {
+    const world = stationAt({ type: "keypad", keys: KEYS, length: 3 });
+    const first = KEYS[world.stations.Q1?.answer[0] as number] as number[]; // the right key: no dye
+    place(world, BLIND, { x: 6, y: 2 });
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: first[0] as number, y: first[1] as number }),
+      sees: (b, a) => (shows(a)?.length ?? 0) > (shows(b)?.length ?? 0),
+    };
+  })(),
+  snap: (() => {
+    const world = stationAt({
+      type: "wires",
+      wires: [
+        [8, 1],
+        [9, 1],
+        [10, 1],
+      ],
+    });
+    const right = world.stations.Q1?.answer[0] as number;
+    place(world, BLIND, { x: 6, y: 2 });
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 8 + right, y: 1 }),
+      sees: (b, a) => !solvedIn(b) && solvedIn(a),
+    };
+  })(),
+  static: (() => {
+    const world = stationAt({ type: "radio", pads: PADS, range: 10 });
+    place(world, BLIND, { x: 4, y: 2 });
+    return {
+      world,
+      act: () => go(world),
+      sees: (_b, a) => !solvedIn(a) && shows(a)?.[0] === 0,
+    };
+  })(),
+  tone: (() => {
+    const world = stationAt({ type: "radio", pads: PADS, range: 10 });
+    const s = world.stations.Q1;
+    if (s) s.input[0] = (s.answer[0] as number) - 1;
+    place(world, BLIND, { x: 4, y: 2 });
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 7, y: 1 }),
+      sees: (_b, a) => solvedIn(a),
+    };
+  })(),
+  pip: (() => {
+    const world = stationAt({ type: "radio", pads: PADS, range: 10 });
+    const s = world.stations.Q1;
+    if (s) s.solved = true;
+    world.tick = 39; // the next tick pips
+    place(world, BLIND, { x: 4, y: 2 });
+    return {
+      world,
+      act: () => go(world),
+      sees: (_b, a) => shows(a)?.length === 2, // the light blinks the digit
+    };
+  })(),
+  clunk: (() => {
+    const world = stationAt({
+      type: "switches",
+      buttons: KEYS.slice(0, 6),
+      lamps: [
+        [14, 1],
+        [15, 1],
+        [16, 1],
+        [14, 2],
+        [15, 2],
+        [16, 2],
+      ],
+    });
+    place(world, BLIND, { x: 6, y: 2 });
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 8, y: 1 }),
+      sees: (b, a) => shows(b)?.join() !== shows(a)?.join(),
+    };
+  })(),
+  bellnote: (() => {
+    const world = stationAt({
+      type: "bells",
+      bells: [
+        [8, 1],
+        [9, 1],
+        [10, 1],
+        [11, 1],
+      ],
+      tune: [6, 3],
+    });
+    const first = world.stations.Q1?.answer[0] as number; // the right bell: no dye
+    place(world, BLIND, { x: 6, y: 2 });
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 8 + first, y: 1 }),
+      sees: (b, a) => (shows(a)?.length ?? 0) > (shows(b)?.length ?? 0),
+    };
+  })(),
+  bell: (() => {
+    const world = worldWith(put([12, 1, "b"]));
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 12, y: 1 }),
+      sees: (b, a) => ent(b, "b1")?.state !== "on" && ent(a, "b1")?.state === "on",
+    };
+  })(),
+  dye: (() => {
+    const world = stationAt({
+      type: "wires",
+      wires: [
+        [8, 1],
+        [9, 1],
+        [10, 1],
+      ],
+    });
+    const wrong = ((world.stations.Q1?.answer[0] as number) + 1) % 3;
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 8 + wrong, y: 1 }),
+      sees: (_b, a) => ent(a, "P1")?.dyed === true,
+    };
+  })(),
+  earpiece: (() => {
+    const world = stationAt({ type: "keypad", keys: KEYS, clue: "g1", length: 3 }, [[3, 3, "g"]], {
+      g1: { item: "earpiece" },
+    });
+    Object.assign(world.gear[0] as object, { heldBy: BLIND, at: null });
+    world.tick = 59; // the next tick starts the tune
+    return {
+      world,
+      act: () => go(world),
+      sees: () => true,
+      exempt:
+        "The earpiece is a private tone feed with no picture by design (spec FR17): only its holder hears it, like the clue chime.",
+    };
+  })(),
+  gear: (() => {
+    const world = worldWith(put([4, 2, "g"]), { g1: { item: "uv" } });
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 4, y: 2 }),
+      sees: (b, a) => ent(b, "g1") !== undefined && ent(a, "P2")?.item === "uv",
+    };
+  })(),
+  solved: (() => {
+    const world = stationAt({ type: "radio", pads: PADS, range: 10 });
+    const s = world.stations.Q1;
+    if (s) s.input[0] = (s.answer[0] as number) - 1;
+    place(world, BLIND, { x: 25, y: 2 });
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 7, y: 1 }),
+      sees: (b, a) => !solvedIn(b) && solvedIn(a),
+    };
+  })(),
   footsteps: (() => {
     const world = worldWith(BASE);
     place(world, 0, { x: 5, y: 1 });

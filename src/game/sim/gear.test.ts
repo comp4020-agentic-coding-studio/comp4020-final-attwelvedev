@@ -1,0 +1,206 @@
+import { describe, expect, it } from "vitest";
+import type { Seat, Vec } from "../types.ts";
+import { blockedAt } from "./collide.ts";
+import { step } from "./step.ts";
+import { gather, input, place, worldWith } from "./testing.ts";
+import type { GearState, World, WorldEvent } from "./world.ts";
+
+// g1 (3,2) a stethoscope, g2 (4,3) a UV torch, a wall at x = 6 with the hatch H1 at (6,2), the flag
+// K1 (9,1), bell rope b1 (8,3), lamp switch l1 (10,3), and a wire panel Q1 (12,1) with three wires.
+const GRID = [
+  "##############",
+  "#1....#..K..Q#",
+  "#2.g..H......#",
+  "#3..g.#.b.l..#",
+  "##############",
+];
+const OBJECTS = {
+  g1: { item: "stethoscope" },
+  g2: { item: "uv" },
+  Q1: {
+    type: "wires",
+    wires: [
+      [11, 2],
+      [12, 2],
+      [12, 3],
+    ],
+  },
+};
+const fresh = () => worldWith(GRID, OBJECTS);
+const gearOf = (w: World, id: string) => w.gear.find((g) => g.id === id) as GearState;
+const kinds = (events: WorldEvent[]) => events.map((e) => e.kind);
+
+// Presses a button for one tick and lets go for one (Act and G work on the press).
+function press(w: World, seat: Seat, button: "act" | "gear" = "act"): WorldEvent[] {
+  const down = { seq: 0, move: { x: 0, y: 0 }, act: button === "act", gear: button === "gear" };
+  step(w, { [seat]: down });
+  const events = [...w.events];
+  step(w, { [seat]: input(0, 0) });
+  return [...events, ...w.events];
+}
+const at = (w: World, seat: Seat, tile: Vec) => place(w, seat, tile);
+
+describe("gear: take, give, drop", () => {
+  it("lies where the room puts it, held by nobody", () => {
+    expect(fresh().gear).toEqual([
+      { id: "g1", item: "stethoscope", at: { x: 3, y: 2 }, heldBy: null, sill: null },
+      { id: "g2", item: "uv", at: { x: 4, y: 3 }, heldBy: null, sill: null },
+    ]);
+  });
+
+  it("Act on gear takes it into an empty slot, and never a second", () => {
+    const w = fresh();
+    at(w, 0, { x: 3, y: 2 });
+    const events = press(w, 0);
+    expect(gearOf(w, "g1")).toMatchObject({ heldBy: 0, at: null });
+    expect(events).toContainEqual(
+      expect.objectContaining({ kind: "gear", id: "g1", action: "take", seat: 0 }),
+    );
+    at(w, 0, { x: 4, y: 3 });
+    expect(kinds(press(w, 0))).not.toContain("gear");
+    expect(gearOf(w, "g2")).toMatchObject({ heldBy: null, at: { x: 4, y: 3 } });
+  });
+
+  it("G gives to an adjacent teammate with an empty slot, else drops it on your tile", () => {
+    const w = fresh();
+    at(w, 0, { x: 3, y: 2 });
+    press(w, 0);
+    at(w, 1, { x: 4, y: 2 });
+    expect(press(w, 0, "gear")).toContainEqual(
+      expect.objectContaining({ kind: "gear", id: "g1", action: "give", seat: 0 }),
+    );
+    expect(gearOf(w, "g1").heldBy).toBe(1);
+    // seat 0 takes the torch; seat 1 (full) stands beside it, so G drops it
+    at(w, 0, { x: 4, y: 3 });
+    press(w, 0);
+    at(w, 1, { x: 5, y: 3 });
+    expect(press(w, 0, "gear")).toContainEqual(
+      expect.objectContaining({ kind: "gear", id: "g2", action: "drop", seat: 0 }),
+    );
+    expect(gearOf(w, "g2")).toMatchObject({ heldBy: null, at: { x: 4, y: 3 } });
+    expect(gearOf(w, "g1").heldBy).toBe(1);
+  });
+});
+
+describe("gear: the hatch sill", () => {
+  it("an item put on a sill is taken from the other side", () => {
+    const w = fresh();
+    at(w, 0, { x: 3, y: 2 });
+    press(w, 0);
+    at(w, 0, { x: 5, y: 2 });
+    expect(press(w, 0)).toContainEqual(
+      expect.objectContaining({ kind: "gear", id: "g1", action: "sill" }),
+    );
+    expect(gearOf(w, "g1")).toMatchObject({ heldBy: null, at: null, sill: "H1" });
+    at(w, 1, { x: 7, y: 2 });
+    press(w, 1);
+    expect(gearOf(w, "g1")).toMatchObject({ heldBy: 1, at: null, sill: null });
+  });
+
+  it("is a wall to bodies", () => {
+    const w = fresh();
+    expect(blockedAt(w, { x: 6.5, y: 2.5 })).toBe(true);
+  });
+});
+
+describe("gear: a checkpoint reset", () => {
+  it("puts gear back where it lay when the checkpoint was reached", () => {
+    const w = fresh();
+    at(w, 0, { x: 3, y: 2 });
+    press(w, 0);
+    at(w, 0, { x: 8, y: 1 });
+    press(w, 0, "gear"); // nobody beside: dropped at (8, 1)
+    gather(w, { x: 9, y: 1 });
+    step(w, {});
+    expect(w.checkpoint).toBe(1);
+    at(w, 1, { x: 7, y: 1 });
+    at(w, 2, { x: 7, y: 3 });
+    at(w, 0, { x: 8, y: 1 });
+    press(w, 0); // picked up again
+    expect(gearOf(w, "g1").heldBy).toBe(0);
+    const station = w.stations.Q1;
+    const wrongWire = [0, 1, 2].find((i) => i !== station?.answer[0]) as number;
+    const tiles = [
+      { x: 11, y: 2 },
+      { x: 12, y: 2 },
+      { x: 12, y: 3 },
+    ];
+    at(w, 0, tiles[wrongWire] as Vec);
+    expect(kinds(press(w, 0))).toContain("caught");
+    expect(gearOf(w, "g1")).toMatchObject({ heldBy: null, at: { x: 8, y: 1 } });
+  });
+});
+
+describe("holding hands", () => {
+  const holding = () => {
+    const w = fresh();
+    at(w, 0, { x: 2, y: 1 });
+    at(w, 1, { x: 3, y: 1 });
+    at(w, 2, { x: 9, y: 3 });
+    return w;
+  };
+
+  it("Act on an adjacent teammate holds their hand: the actor leads", () => {
+    const w = holding();
+    expect(press(w, 0)).toContainEqual({ kind: "hold", seat: 1, leader: 0 });
+    expect(w.holding).toEqual({ 1: 0 });
+  });
+
+  it("the towed seat's input is ignored and it follows behind the leader, never in a wall", () => {
+    const w = holding();
+    press(w, 0);
+    for (let i = 0; i < 20; i++) {
+      step(w, { 0: input(1, 0), 1: input(0, 1) });
+      expect(blockedAt(w, w.players[1].pos)).toBe(false);
+    }
+    const [lead, towed] = [w.players[0].pos, w.players[1].pos];
+    expect(towed.x).toBeLessThan(lead.x);
+    expect(Math.hypot(lead.x - towed.x, lead.y - towed.y)).toBeLessThan(1.2);
+    // turned to walk away from a wall: straight behind is in the wall, so it stands beside
+    for (let i = 0; i < 30; i++) {
+      step(w, { 0: input(-1, 0) });
+      expect(blockedAt(w, w.players[1].pos)).toBe(false);
+    }
+    w.players[0].facing = { x: 1, y: 0 };
+    step(w, { 0: input(1, 0) });
+    expect(blockedAt(w, w.players[1].pos)).toBe(false);
+  });
+
+  it("either of the two Acting lets go", () => {
+    const w = holding();
+    press(w, 0);
+    expect(press(w, 1)).toContainEqual({ kind: "hold", seat: 1, leader: null });
+    expect(w.holding).toEqual({});
+    press(w, 0);
+    expect(w.holding).toEqual({ 1: 0 });
+    expect(press(w, 0)).toContainEqual({ kind: "hold", seat: 1, leader: null });
+    expect(w.holding).toEqual({});
+  });
+
+  it("a checkpoint reset lets go", () => {
+    const w = holding();
+    at(w, 2, { x: 11, y: 2 });
+    press(w, 0);
+    expect(w.holding).toEqual({ 1: 0 });
+    const station = w.stations.Q1;
+    const tiles = [
+      { x: 11, y: 2 },
+      { x: 12, y: 2 },
+      { x: 12, y: 3 },
+    ];
+    const wrongWire = [0, 1, 2].find((i) => i !== station?.answer[0]) as number;
+    at(w, 2, tiles[wrongWire] as Vec);
+    expect(kinds(press(w, 2))).toContain("caught");
+    expect(w.holding).toEqual({});
+  });
+});
+
+describe("bell and lamp", () => {
+  it("Act on the rope rings the bell; Act on the switch flashes the lamp", () => {
+    const w = fresh();
+    at(w, 0, { x: 8, y: 3 });
+    expect(press(w, 0)).toContainEqual({ kind: "bell", id: "b1", at: { x: 8.5, y: 3.5 } });
+    at(w, 0, { x: 10, y: 3 });
+    expect(press(w, 0)).toContainEqual({ kind: "lamp", id: "l1", seat: 0 });
+  });
+});

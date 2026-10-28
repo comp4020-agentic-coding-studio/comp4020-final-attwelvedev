@@ -9,7 +9,8 @@ const LEFT = ["a", "arrowleft"];
 const RIGHT = ["d", "arrowright"];
 const UP = ["w", "arrowup"];
 const DOWN = ["s", "arrowdown"];
-const GAME_KEYS = new Set([...LEFT, ...RIGHT, ...UP, ...DOWN, " "]);
+const GEAR = "g"; // give your gear to a teammate beside you, or drop it
+const GAME_KEYS = new Set([...LEFT, ...RIGHT, ...UP, ...DOWN, " ", GEAR]);
 const DEAD_ZONE = 0.2;
 const STICK_PX = 48; // how far the knob travels from the centre
 
@@ -21,7 +22,7 @@ const typing = (target: EventTarget | null): boolean => {
   );
 };
 
-// Keyboard (WASD or arrows, Space) and a touch joystick, merged into one
+// Keyboard (WASD or arrows, Space, G) and a touch joystick, merged into one
 // PlayerInput. The joystick and Act button are the elements in `root` marked
 // data-joystick and data-act, if there are any (touch devices only render them).
 export function createInput(root: HTMLElement): InputSource {
@@ -132,6 +133,7 @@ export function createInput(root: HTMLElement): InputSource {
           y: clamp(axis(UP, DOWN) + stick.y) + 0,
         },
         act: keys.has(" ") || actHeld,
+        gear: keys.has(GEAR),
       };
     },
     dispose() {

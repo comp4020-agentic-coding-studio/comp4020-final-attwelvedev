@@ -1,5 +1,5 @@
 import { STAMP_LIFE_MS, type Stamp } from "../channels.ts";
-import type { Room, STATION_TYPES } from "../rooms/format.ts";
+import type { GEAR_ITEMS, Room, STATION_TYPES } from "../rooms/format.ts";
 import type { PlayerInput, Seat, Vec } from "../types.ts";
 import { drawStations } from "./stations.ts";
 
@@ -23,10 +23,11 @@ export interface PlayerState {
   blocked: boolean; // holding a direction but getting almost nowhere: a wall, a door, a crate
   hidden: boolean; // standing on a hide spot: guards and cameras cannot see you
   actHeld: boolean; // Act was held last tick: Act works on the press, not while held
+  gearHeld: boolean; // G was held last tick: likewise
 }
 
 export type StationType = (typeof STATION_TYPES)[number];
-export type GearItem = "earpiece" | "goggles" | "stethoscope" | "uv";
+export type GearItem = (typeof GEAR_ITEMS)[number];
 
 // A puzzle (spec FR5-FR14). `answer` is the secret, re-drawn per attempt and never sent to a
 // client as-is; `input` is what the team has entered so far (a dial's setting is its last entry).
@@ -167,6 +168,7 @@ export function createWorld(room: Room, seed = 1): World {
       blocked: false,
       hidden: false,
       actHeld: false,
+      gearHeld: false,
     };
   };
   const doorOpen: Record<string, boolean> = {};
@@ -180,6 +182,15 @@ export function createWorld(room: Room, seed = 1): World {
     .filter((o) => o.kind === "crate")
     .map((o) => ({ id: o.id, tile: { ...(o.tiles[0] as Vec) } }));
   const loot = room.objects.filter((o) => o.kind === "loot");
+  const gear: GearState[] = room.objects
+    .filter((o) => o.kind === "gear")
+    .map((o) => ({
+      id: o.id,
+      item: o.params?.item as GearItem,
+      at: { ...(o.tiles[0] as Vec) },
+      heldBy: null,
+      sill: null,
+    }));
   const world: World = {
     room,
     tick: 0,
@@ -212,7 +223,7 @@ export function createWorld(room: Room, seed = 1): World {
       players: players.map((p) => ({ ...p.pos })),
       crates: crates.map((c) => ({ id: c.id, tile: { ...c.tile } })),
       lootTaken: [],
-      gear: [],
+      gear: copyGear(gear),
       sideJobsDone: [],
     },
     seqProgress: {},
@@ -227,7 +238,7 @@ export function createWorld(room: Room, seed = 1): World {
     status: "playing",
     events: [],
     stations: {},
-    gear: [],
+    gear,
     holding: {},
     seed,
     attempt: 0,
@@ -238,6 +249,9 @@ export function createWorld(room: Room, seed = 1): World {
   drawStations(world);
   return world;
 }
+
+export const copyGear = (gear: GearState[]): GearState[] =>
+  gear.map((g) => ({ ...g, at: g.at && { ...g.at } }));
 
 export function addStamp(world: World, id: Stamp, pos: Vec): void {
   world.stamps.push({ key: `S${world.nextStamp++}`, id, pos: { ...pos }, ageMs: 0 });

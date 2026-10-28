@@ -2,6 +2,7 @@ import type { Stamp } from "./channels.ts";
 import { subtractRects } from "./clip.ts";
 import { visiblePolygon } from "./cone.ts";
 import { flipsOf } from "./rooms/format.ts";
+import { beside, carried, gearOn, hatchBeside, objectOn, onSill, partner } from "./sim/gear.ts";
 import {
   cameraApex,
   cameraCone,
@@ -13,13 +14,25 @@ import {
   laserOn,
   laserParams,
 } from "./sim/hazards.ts";
-import { blocksSight, soundReaches } from "./sim/sight.ts";
+import { blocksSight, lineOfSight, soundReaches } from "./sim/sight.ts";
+import {
+  displayTiles,
+  noteOf,
+  PIP_TICKS,
+  partAt,
+  plaqueText,
+  stationShows,
+  tuneNote,
+  WIRE_COLOURS,
+} from "./sim/stations.ts";
 import { encodeSeen, type Visible, visibleFrom } from "./sim/visibility.ts";
 import {
   CHECKPOINT_RADIUS,
+  type GearItem,
   patrolOf,
   type RoomStatus,
   SEQUENCE_GAP_MS,
+  type StationType,
   TICK_MS,
   type World,
 } from "./sim/world.ts";
@@ -41,7 +54,15 @@ export interface EntityView {
     | "checkpoint"
     | "loot"
     | "sign"
-    | "sight"; // the lit tiles a hazard in the dark can see: all that reaches out of it
+    | "sight" // the lit tiles a hazard in the dark can see: all that reaches out of it
+    | "station"
+    | "gear" // gear lying on the floor or on a hatch sill (carried gear is the player's `item`)
+    | "hatch"
+    | "bell"
+    | "lamp"
+    | "ink" // UV ink, sent only while a torch lights it
+    | "sidejob"
+    | "uv"; // a UV torch's pool of light: `polys`
   pos: Vec;
   // a stamp's state is which stamp it is; a camera is watching or idle, a laser
   // on or off, a checkpoint reached or up
@@ -73,6 +94,12 @@ export interface EntityView {
   facing?: Vec;
   moving?: boolean; // a player: walked this tick
   blocked?: boolean; // a player: holding a direction against a wall, door or crate
+  station?: { type: StationType; shows: number[]; solved: boolean }; // what a sighted viewer sees of it (stations.ts: stationShows)
+  item?: GearItem; // gear, or what a player carries
+  heldBy?: Seat; // a player being towed: whose hand they hold
+  holding?: Seat; // a player leading: whose hand they hold
+  text?: string; // ink, or a wire panel's plaque
+  dyed?: boolean; // a player splattered by the dye pack
 }
 
 export interface SoundCue {
@@ -99,13 +126,27 @@ export interface SoundCue {
     | "clue" // a chime with no picture (A2): `n` of them, heard only nearby
     | "cleared" // the room is cleared
     | "step" // your own footstep: centred, softer, and never the same cue as someone else's
-    | "bump"; // you are pushing at a wall, door or crate and getting nowhere
+    | "bump" // you are pushing at a wall, door or crate and getting nowhere
+    | "tick" // a dial turned a notch
+    | "tumbler" // a dial reached the right number: only with the stethoscope, at the safe's back
+    | "key" // a keypad key; `n` is which, and sets the pitch
+    | "snap" // a wire cut
+    | "static" // a radio not yet tuned
+    | "tone" // a tuned radio
+    | "pip" // a tuned radio's digit; `n` of them
+    | "clunk" // a switch, socket, vault handle or sync key
+    | "bellnote" // a music-box bell struck or played; `n` is which
+    | "bell" // the bell rope: the whole room hears it
+    | "dye" // the dye pack: a wrong answer, heard by the team
+    | "earpiece" // the earpiece's private tune: `n` is the note; only its holder hears it
+    | "gear" // gear picked up, handed over, dropped or put on a sill
+    | "solved"; // a station solved: heard by the team
   pan: number;
   gain: number;
   // unit vector from the listener to the source, rounded to 0.01, for a sound that comes from
   // somewhere: what a caption's arrow points along. Absent for your own and team-wide sounds.
   dir?: Vec;
-  n?: number; // flag, exit and seq-ok: a count that sets the pitch and the caption
+  n?: number; // flag, exit, seq-ok, pip: a count; key, bellnote, earpiece: which note
 }
 
 export interface RoleView {
@@ -116,7 +157,13 @@ export interface RoleView {
   full: boolean; // true when tiles are included
   // motion: this seat's own walking and pushing, sent to every role (Can't see hears both already, so
   // it learns nothing it can't perceive). It reads only this seat's state, never another player's.
-  you: { seat: Seat; pos?: Vec; motion?: { moving: boolean; blocked: boolean } };
+  // hand: whose hand this seat holds (FR22: Can't see's own screen says who), from its own state only
+  you: {
+    seat: Seat;
+    pos?: Vec;
+    motion?: { moving: boolean; blocked: boolean };
+    hand?: Seat;
+  };
   tiles?: string[];
   // The tiles in your line of sight, one string per row ("y:x0-x1,x2-x3"), for the sighted
   // only: the client draws mist outside them. Absent for Can't see.
@@ -128,6 +175,10 @@ export interface RoleView {
   loot: number; // what the team has taken in this room: they hear every chime, so it is no secret
   alarm: boolean; // the alarm is on: deaf and mute see it, blind only ever hears it
   dark: boolean; // you are standing in a dark zone
+  gear: GearItem | null; // your own gear slot: every role knows what it carries
+  sideJob?: { id: string; text: string; done: boolean }; // your own side job (phase 05)
+  lamp?: { seat: Seat; tick: number }; // the lamp flashed this tick: for the sighted only
+  act?: string; // what Act would do here, phrased from what this role perceives
 }
 
 // Sounds the world makes fade with distance, so Can't see learns what is near them
@@ -141,7 +192,19 @@ const RANGE: Partial<Record<SoundCue["kind"], number>> = {
   "plate-up": 6,
   hide: 6,
   clue: 8,
+  tick: 6,
+  tumbler: 1.5, // touch range: beside the safe's back
+  key: 6,
+  snap: 6,
+  static: 6,
+  tone: 6,
+  pip: 6,
+  clunk: 6,
+  bellnote: 8,
+  gear: 6,
 };
+const UV_RADIUS = 2.5; // tiles a UV torch lights around its holder
+const UV_RAYS = 48;
 const PAN_RANGE = 8;
 const LASER_HUM_RANGE = 3;
 const SIGHT_RAYS = 32; // rays in a cone sent from the dark: fine enough to look smooth
@@ -170,8 +233,17 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
     e.moving = p.moving;
     e.blocked = p.blocked;
     if (p.hidden) e.state = "hidden";
+    const item = carried(world, p.seat)?.item;
+    if (item) e.item = item;
+    const leader = world.holding[p.seat];
+    if (leader !== undefined) e.heldBy = leader;
+    const mate = partner(world, p.seat);
+    if (mate !== undefined && leader === undefined) e.holding = mate;
+    if (world.tick < world.dyedUntil) e.dyed = true;
     return e;
   });
+  const rung = (kind: "bell" | "lamp", id: string) =>
+    world.events.some((e) => e.kind === kind && e.id === id);
   for (const o of world.room.objects) {
     if (!o.visibleTo.includes(role)) continue;
     if (o.kind === "crate") {
@@ -254,12 +326,37 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
       const shows = Array.isArray(o.params?.shows)
         ? o.params.shows.filter((v): v is string => typeof v === "string")
         : [];
+      const text = plaqueText(world, o.id);
       out.push({
         id: o.id,
         kind: "sign",
         pos: centre(o.tiles[0] as Vec),
         shows,
         ...signProgress(world, shows),
+        ...(text ? { text } : {}),
+      });
+    } else if (o.kind === "station") {
+      const s = world.stations[o.id];
+      if (!s) continue;
+      out.push({
+        id: o.id,
+        kind: "station",
+        pos: centre(o.tiles[0] as Vec),
+        station: { type: s.type, shows: stationShows(world, s), solved: s.solved },
+      });
+    } else if (o.kind === "gear") {
+      const g = world.gear.find((x) => x.id === o.id);
+      const hatch = g?.sill ? world.room.objects.find((h) => h.id === g.sill) : undefined;
+      const at = g?.at ?? hatch?.tiles[0];
+      if (g && at) out.push({ id: g.id, kind: "gear", pos: centre(at), item: g.item });
+    } else if (o.kind === "hatch") {
+      for (const t of o.tiles) out.push({ id: o.id, kind: "hatch", pos: centre(t) });
+    } else if (o.kind === "bell" || o.kind === "lamp") {
+      out.push({
+        id: o.id,
+        kind: o.kind,
+        pos: centre(o.tiles[0] as Vec),
+        ...(rung(o.kind, o.id) ? { state: "on" as const } : {}),
       });
     }
   }
@@ -376,10 +473,87 @@ function soundsFor(world: World, seat: Seat): SoundCue[] {
       if (c) out.push(c);
     } else if (e.kind === "cleared") {
       out.push({ kind: "cleared", pan: 0, gain: 1 });
+    } else if (e.kind === "station") {
+      stationSound(world, seat, e, out);
+    } else if (e.kind === "gear") {
+      const c = cue(world, "gear", e.at, me);
+      if (c) out.push(c);
+    } else if (e.kind === "bell") {
+      out.push({ kind: "bell", pan: panOf(e.at, me), gain: 1, ...dirTo(e.at, me) }); // the whole room hears it
+    } else if (e.kind === "dye") {
+      out.push({ kind: "dye", pan: 0, gain: 1 });
     }
   }
+  stationAmbience(world, seat, out);
   hazardSounds(world, me, out);
   return out;
+}
+
+const STATION_CLICK: Partial<Record<StationType, SoundCue["kind"]>> = {
+  dial: "tick",
+  radio: "tick",
+  wires: "snap",
+  keypad: "key",
+  bells: "bellnote",
+  switches: "clunk",
+  vault: "clunk",
+  sync: "clunk",
+};
+
+// A station worked: its click where it was worked, the tumbler for a stethoscope at the safe's
+// back when a dial reaches the right number, and the whole team hears it solved.
+function stationSound(
+  world: World,
+  seat: Seat,
+  e: Extract<World["events"][number], { kind: "station" }>,
+  out: SoundCue[],
+): void {
+  const me = world.players[seat].pos;
+  const s = world.stations[e.id];
+  if (!s) return;
+  if (e.result === "solved") {
+    out.push({ kind: "solved", pan: panOf(e.at, me), gain: 1, ...dirTo(e.at, me) });
+    return;
+  }
+  if (e.result === "wrong") return; // the dye pack says it
+  const kind = e.result === "press" && s.type === "dial" ? "clunk" : STATION_CLICK[s.type];
+  const c = kind ? cue(world, kind, e.at, me) : null;
+  const pitched = kind === "key" || kind === "bellnote";
+  if (c) out.push(pitched && e.n !== undefined ? { ...c, n: e.n } : c);
+  if (s.type === "dial" && e.result === "turn" && e.n === s.answer[s.input.length - 1]) {
+    const back = world.room.objects.find((o) => o.id === e.id)?.params?.back;
+    const at = Array.isArray(back) ? centre({ x: Number(back[0]), y: Number(back[1]) }) : null;
+    const t =
+      at && carried(world, seat)?.item === "stethoscope" ? cue(world, "tumbler", at, me) : null;
+    if (t) out.push(t);
+  }
+}
+
+// What stations sound like while nothing is done to them: a radio's static (or, tuned, its tone
+// and every PIP_TICKS its digit in pips), a music box playing its tune, and the earpiece's tune
+// for its holder alone (FR17: a sound with no picture, like the clue chime).
+function stationAmbience(world: World, seat: Seat, out: SoundCue[]): void {
+  const me = world.players[seat].pos;
+  for (const o of world.room.objects) {
+    if (o.kind !== "station") continue;
+    const s = world.stations[o.id];
+    const at = centre(o.tiles[0] as Vec);
+    if (s?.type === "radio") {
+      const c = cue(world, s.solved ? "tone" : "static", at, me);
+      if (c) out.push(c);
+      const pip = s.solved && world.tick % PIP_TICKS === 0 ? cue(world, "pip", at, me) : null;
+      if (pip) out.push({ ...pip, n: s.answer[1] });
+    } else if (s?.type === "bells" && !s.solved) {
+      const note = noteOf(world, s);
+      const tune = o.params?.tune;
+      const from = Array.isArray(tune) ? centre({ x: Number(tune[0]), y: Number(tune[1]) }) : at;
+      const c = note === undefined ? null : cue(world, "bellnote", from, me);
+      if (c) out.push({ ...c, n: note });
+    }
+  }
+  const mine = carried(world, seat);
+  const note = mine?.item === "earpiece" ? tuneNote(world, mine.id) : undefined;
+  if (note !== undefined) out.push({ kind: "earpiece", pan: 0, gain: 1, n: note });
 }
 
 // Guards' footsteps while they patrol, a servo whir the tick a camera starts
@@ -474,11 +648,16 @@ function sightInLight(world: World, e: EntityView, zones: Zone[]): EntityView | 
 // What a sighted role may be told of: itself, marks (they show wherever they land, even in
 // the dark), the lit tiles a hazard in the dark covers, and anything else only if its
 // tile is in line of sight. A laser keeps just the part of its beam that is seen.
-function inSight(entities: EntityView[], seat: Seat, seen: Visible): EntityView[] {
+function inSight(world: World, entities: EntityView[], seat: Seat, seen: Visible): EntityView[] {
   const out: EntityView[] = [];
   for (const e of entities) {
     if (e.kind === "stamp" || e.kind === "sight" || (e.kind === "player" && e.seat === seat)) {
       out.push(e);
+    } else if (e.kind === "station") {
+      // a station is seen where it shows its state: its face, wires, keys or lamps
+      const o = world.room.objects.find((x) => x.id === e.id);
+      const tiles = o ? [o.tiles[0] as Vec, ...displayTiles(o)] : [];
+      if (tiles.some((t) => seen.has(t.x, t.y))) out.push(e);
     } else if (e.beam) {
       const beam = e.beam.filter((t) => seen.has(Math.floor(t.x), Math.floor(t.y)));
       if (seen.has(Math.floor(e.pos.x), Math.floor(e.pos.y)) || beam.length > 0) {
@@ -514,22 +693,36 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
     loot: world.loot,
     alarm: false,
     dark: false,
+    gear: carried(world, seat)?.item ?? null, // own state: each role knows what it carries
   };
+  const hand = partner(world, seat);
+  if (hand !== undefined) view.you.hand = hand; // own state (FR22)
+  const hint = actHint(world, seat, role);
+  if (hint) view.act = hint; // phrased per role: never a colour for Can't see
   const alarm = world.tick < world.alarmUntil;
   if (role !== "blind") {
     const me = world.players[seat].pos;
     view.you.pos = rounded(me);
-    const zones = darkZones(world);
-    view.dark = inAny(zones, me);
+    // goggles (FR19): the wearer sees into dark zones under the normal line-of-sight rules
+    const dark = darkZones(world);
+    const zones = carried(world, seat)?.item === "goggles" ? [] : dark;
+    view.dark = inAny(dark, me);
     view.alarm = alarm;
     const seen = visibleFrom(world, me);
     view.seen = encodeSeen(seen.tiles);
-    view.entities = inSight(
-      zones.length === 0 ? entitiesFor(world, seat, role) : darken(world, seat, role, zones),
-      seat,
-      seen,
-    );
+    view.entities = [
+      ...inSight(
+        world,
+        zones.length === 0 ? entitiesFor(world, seat, role) : darken(world, seat, role, zones),
+        seat,
+        seen,
+      ),
+      ...uvLight(world, role, seen, zones),
+    ];
     if (full) view.tiles = zones.length === 0 ? world.room.grid : maskTiles(world.room.grid, zones);
+    // the lamp (FR25) is a light: for the sighted only
+    const lamp = world.events.find((e) => e.kind === "lamp");
+    if (lamp?.kind === "lamp") view.lamp = { seat: lamp.seat, tick: world.tick };
   }
   if (role !== "deaf")
     view.sounds = alarm ? [{ kind: "alarm", pan: 0, gain: 1 }] : soundsFor(world, seat);
@@ -570,7 +763,94 @@ export function spectatorView(
     loot: world.loot,
     alarm: role === "deaf" ? false : alarm,
     dark: false,
+    gear: follow === null ? null : (carried(world, seat)?.item ?? null),
   };
   if (full) view.tiles = world.room.grid;
   return view;
+}
+
+// UV torches (FR18), for a sighted viewer: each pool of light they can see any of, and the ink
+// inside a pool that is in their sight and not in a dark zone they cannot see into.
+function uvLight(world: World, role: Role, seen: Visible, zones: Zone[]): EntityView[] {
+  const out: EntityView[] = [];
+  const torches = world.gear.flatMap((g) =>
+    g.item === "uv" && g.heldBy !== null ? [world.players[g.heldBy].pos] : [],
+  );
+  for (const [i, from] of torches.entries()) {
+    const poly = visiblePolygon(
+      { origin: from, facing: { x: 1, y: 0 }, fovDeg: 360, range: UV_RADIUS },
+      (tx, ty) => blocksSight(world, tx, ty),
+      UV_RAYS,
+    ).map((p) => ({ x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100 }));
+    const r = Math.ceil(UV_RADIUS);
+    const lit = (tx: number, ty: number) =>
+      Math.hypot(tx + 0.5 - from.x, ty + 0.5 - from.y) <= UV_RADIUS &&
+      lineOfSight(world, from, centre({ x: tx, y: ty }), false);
+    let visible = false;
+    for (let dy = -r; dy <= r && !visible; dy++) {
+      for (let dx = -r; dx <= r && !visible; dx++) {
+        const t = { x: Math.floor(from.x) + dx, y: Math.floor(from.y) + dy };
+        visible = seen.has(t.x, t.y) && lit(t.x, t.y) && !inAny(zones, centre(t));
+      }
+    }
+    if (visible) out.push({ id: `uv${i}`, kind: "uv", pos: rounded(from), polys: [poly] });
+    for (const o of world.room.objects) {
+      const t = o.tiles[0] as Vec;
+      if (o.kind !== "ink" || !o.visibleTo.includes(role) || out.some((e) => e.id === o.id))
+        continue;
+      if (!lit(t.x, t.y) || !seen.has(t.x, t.y) || inAny(zones, centre(t))) continue;
+      const text = plaqueText(world, o.id) ?? String(o.params?.text ?? "");
+      out.push({ id: o.id, kind: "ink", pos: centre(t), text });
+    }
+  }
+  return out;
+}
+
+const GEAR_NAME: Record<GearItem, string> = {
+  earpiece: "earpiece",
+  goggles: "goggles",
+  stethoscope: "stethoscope",
+  uv: "UV torch",
+};
+
+// The Act hint: what Act would do here, in the order the simulation tries it (gear.ts: actOn).
+// Built from what this role perceives: a wire's colour only for those who can see it.
+function actHint(world: World, seat: Seat, role: Role): string | undefined {
+  if (world.holding[seat] !== undefined) return "Let go";
+  const tile = {
+    x: Math.floor(world.players[seat].pos.x),
+    y: Math.floor(world.players[seat].pos.y),
+  };
+  const part = partAt(world, tile);
+  if (part) {
+    const n = part.index + 1;
+    const { type } = part.station;
+    if (part.key === "pads") {
+      const way = part.index === 0 ? "left" : "right";
+      return type === "dial" ? `Turn the dial ${way}` : `Turn the knob ${way}`;
+    }
+    if (part.key === "anchor") return type === "dial" ? "Enter the number" : "Open the vault";
+    if (part.key === "wires") {
+      const colour = WIRE_COLOURS[part.station.answer[2 + part.index] as number];
+      return role === "blind" ? `Cut wire ${n}` : `Cut the ${colour} wire`;
+    }
+    if (part.key === "keys") return type === "sync" ? `Turn key ${n}` : `Press key ${n}`;
+    if (part.key === "bells") return `Strike bell ${n}`;
+    if (part.key === "buttons") return `Press button ${n}`;
+    return `Turn socket ${n}`;
+  }
+  const mine = carried(world, seat);
+  const lying = gearOn(world, tile);
+  if (!mine && lying) return `Take the ${GEAR_NAME[lying.item]}`;
+  const hatch = hatchBeside(world, tile);
+  const sill = hatch && onSill(world, hatch.id);
+  if (hatch && mine && !sill) return `Put the ${GEAR_NAME[mine.item]} on the sill`;
+  if (sill && !mine) return `Take the ${GEAR_NAME[sill.item]} from the sill`;
+  const near = beside(world, seat);
+  const mate = partner(world, seat);
+  if (mate !== undefined && near.includes(mate)) return "Let go";
+  if (mate === undefined && near.some((s) => partner(world, s) === undefined)) return "Hold hands";
+  if (objectOn(world, "bell", tile)) return "Ring the bell";
+  if (objectOn(world, "lamp", tile)) return "Flash the lamp";
+  return undefined;
 }

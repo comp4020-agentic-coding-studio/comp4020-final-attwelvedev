@@ -158,6 +158,45 @@ export interface Wrong {
   seat: Seat;
 }
 
+// The station part under `tile` that an Act would work, by the same rules as `act`: an unsolved
+// station, and a wire not yet cut. `index` is the part's place in its list (-1 for the anchor).
+export interface Part {
+  station: StationState;
+  object: RoomObject;
+  key: "pads" | "wires" | "keys" | "bells" | "buttons" | "sockets" | "anchor";
+  index: number;
+}
+
+const PART_KEYS: Record<StationType, Part["key"][]> = {
+  dial: ["pads", "anchor"],
+  radio: ["pads"],
+  wires: ["wires"],
+  keypad: ["keys"],
+  bells: ["bells"],
+  switches: ["buttons"],
+  vault: ["sockets", "anchor"],
+  sync: ["keys"],
+};
+
+export function partAt(world: World, tile: Vec): Part | null {
+  for (const object of stationObjects(world)) {
+    const station = world.stations[object.id];
+    if (!station || station.solved) continue;
+    for (const key of PART_KEYS[station.type]) {
+      const index =
+        key === "anchor"
+          ? same(object.tiles[0] as Vec, tile)
+            ? -1
+            : -2
+          : tilesOf(object.params?.[key]).findIndex((t) => same(t, tile));
+      if (index === -2 || (key !== "anchor" && index < 0)) continue;
+      if (station.type === "wires" && station.input.includes(index)) continue;
+      return { station, object, key, index };
+    }
+  }
+  return null;
+}
+
 // One Act by `seat` on `tile`, for the first station with a part there. Returns true if a station
 // took it. A wrong answer is recorded in `wrong` (the first one this tick wins).
 function act(
@@ -284,20 +323,87 @@ function expireSync(world: World): void {
 }
 
 // The Acts pressed this tick (seats in order) worked on the stations under them. Returns the first
-// wrong answer, for `step` to send the team back.
-export function updateStations(world: World, acts: Seat[]): Wrong | null {
+// wrong answer, for `step` to send the team back; the seats a station took are added to `used`.
+export function updateStations(
+  world: World,
+  acts: Seat[],
+  used: Set<Seat> = new Set(),
+): Wrong | null {
   expireSync(world);
   const wrong: { w: Wrong | null } = { w: null };
   for (const seat of acts) {
     const pos = world.players[seat].pos;
     const tile = { x: Math.floor(pos.x), y: Math.floor(pos.y) };
     for (const o of stationObjects(world)) {
-      if (act(world, o, tile, seat, wrong)) break;
+      if (act(world, o, tile, seat, wrong)) {
+        used.add(seat);
+        break;
+      }
     }
   }
   return wrong.w;
 }
 
 export const solved = (world: World, id: string): boolean => world.stations[id]?.solved === true;
+
+// A code played as a tune: one note every NOTE_TICKS, the whole tune again every TUNE_TICKS.
+export const TUNE_TICKS = 60;
+export const NOTE_TICKS = 8;
+export const PIP_TICKS = 40; // a tuned radio pips its digit this often
+
+// The unsolved station whose clue (`clue`, or a music box's `tune` tile) is `id`.
+export function stationNaming(world: World, id: string): StationState | undefined {
+  const o = stationObjects(world).find((s) => s.params?.clue === id);
+  const s = o && world.stations[o.id];
+  return s && !s.solved ? s : undefined;
+}
+
+// The note of `station`'s code that plays this tick, if one does.
+export function noteOf(world: World, station: StationState): number | undefined {
+  const t = world.tick % TUNE_TICKS;
+  return t % NOTE_TICKS === 0 ? station.answer[t / NOTE_TICKS] : undefined;
+}
+
+// The note of the code a clue or an earpiece plays this tick, if one does.
+export function tuneNote(world: World, id: string): number | undefined {
+  const s = stationNaming(world, id);
+  return s && noteOf(world, s);
+}
+
+// The tiles that show a station's state to someone who can see them: the dial or radio face,
+// the wires, the keys, the lamps, the bells and the music box, the sockets.
+export function displayTiles(o: RoomObject): Vec[] {
+  const p = o.params ?? {};
+  const anchor = o.tiles[0] as Vec;
+  switch (p.type as StationType) {
+    case "dial":
+    case "radio":
+      return [anchor];
+    case "wires":
+      return tilesOf(p.wires);
+    case "keypad":
+    case "sync":
+      return tilesOf(p.keys);
+    case "switches":
+      return tilesOf(p.lamps);
+    case "bells":
+      return [...tilesOf(p.bells), ...tilesOf([p.tune])];
+    case "vault":
+      return tilesOf(p.sockets);
+  }
+}
+
+// What a station shows someone who can see it: dial and radio, the setting (and, on a radio's
+// pip, the digit after it); wires, their colours; switches, the lamps; vault, the sockets; keypad,
+// bells and sync, what has been entered (a music box first: 1 while a note of its tune plays).
+export function stationShows(world: World, s: StationState): number[] {
+  if (s.type === "wires") return s.answer.slice(2);
+  if (s.type === "radio") {
+    const pip = s.solved && world.tick % PIP_TICKS === 0;
+    return pip ? [s.input[0] ?? 0, s.answer[1] as number] : [s.input[0] ?? 0];
+  }
+  if (s.type === "bells") return [!s.solved && noteOf(world, s) !== undefined ? 1 : 0, ...s.input];
+  return [...s.input];
+}
 
 export type { StationState };
