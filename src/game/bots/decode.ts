@@ -1,7 +1,7 @@
 import type { ChannelMessage } from "../channels.ts";
 import type { RoleView } from "../perception.ts";
-import type { RoomObject } from "../rooms/format.ts";
-import { NOTE_TICKS, stationParts, tilesOf, WIRE_RULES } from "../sim/stations.ts";
+import type { Room, RoomObject } from "../rooms/format.ts";
+import { NOTE_TICKS, stationParts, tilesOf, toggled, WIRE_RULES } from "../sim/stations.ts";
 import type { StationType } from "../sim/world.ts";
 import type { Vec } from "../types.ts";
 
@@ -18,6 +18,10 @@ export interface StationBelief {
   changedAt: number; // the tick `shows` last changed while in sight (a dial's turner waits on it)
   rule: number | null; // a wire panel's plaque, read: which of WIRE_RULES it says
   heard: { tick: number; n: number }[]; // a keypad's code notes heard (n: the key), latest last
+  shownAt: number; // the tick the station's state was last in sight
+  card: number[] | null; // a switches station's target card, read where it stands
+  fed: number | null; // a keypad slot's digit, from the radio with the same motif (as worked out)
+  used: number; // how many of `marked` this bot has pressed (switches: one press a mark)
 }
 
 export type Decoder = (
@@ -38,6 +42,10 @@ export const emptyBelief = (): StationBelief => ({
   changedAt: Number.NEGATIVE_INFINITY,
   rule: null,
   heard: [],
+  shownAt: Number.NEGATIVE_INFINITY,
+  card: null,
+  fed: null,
+  used: 0,
 });
 
 // The only text a bot reads (P3): a single digit.
@@ -71,15 +79,18 @@ export function beliefFrom(
         if (prior.shows.length > 0 && o.params?.type === "wires") b.rule = null; // drawn again
       }
       b.shows = [...e.station.shows];
+      b.shownAt = view.tick;
     }
   }
   const parts = stationParts(o)
     .filter((p) => p.key !== "anchor" || o.params?.type === "dial" || o.params?.type === "vault")
     .flatMap((p) => p.at);
+  // switches take their marks as a queue, one press a mark (a button may be marked again later)
+  const queue = o.params?.type === "switches";
   for (const m of inbox) {
     if (m.method === "mark" && m.id === "x") {
       const tile = { x: Math.floor(m.at.x), y: Math.floor(m.at.y) };
-      if (parts.some((t) => same(t, tile)) && !b.marked.some((t) => same(t, tile)))
+      if (parts.some((t) => same(t, tile)) && (queue || !b.marked.some((t) => same(t, tile))))
         b.marked.push(tile);
     } else if (m.method === "text") {
       const n = readNumber(m.text);
@@ -139,20 +150,38 @@ const wires: Decoder = (view, _inbox, b, o) => {
 // --- The keypad -------------------------------------------------------------------------------
 // Its code plays at its clue, one note a key (a `clue` chime with n = key + 1), every note
 // NOTE_TICKS after the last, then a pause. A hearing bot takes the code once it has heard the same
-// whole tune twice running: the first may have been caught half-way through.
-const keypad: Decoder = (view, _inbox, b, _o, now) => {
+// whole tune twice running: the first may have been caught half-way through. A slot fed by a radio
+// (clues FR3) rests in the tune: its key is the radio's digit d (key d, the (d - 1)th), worked out
+// by this bot or sent to it as text.
+const TUNE_GAP = 2 * NOTE_TICKS; // a rest in the tune is one note long; the pause between tunes longer
+
+export function slotOf(o: RoomObject): number | null {
+  const slot = o.params?.slot as { at?: unknown } | undefined;
+  return typeof slot?.at === "number" ? slot.at : null;
+}
+
+const keypad: Decoder = (view, _inbox, b, o, now) => {
   for (const s of view.sounds)
     if (s.kind === "clue" && s.n !== undefined) b.heard.push({ tick: view.tick, n: s.n - 1 });
   const tunes: number[][] = [];
   b.heard.forEach((h, i) => {
     const before = b.heard[i - 1];
-    if (!before || h.tick - before.tick > NOTE_TICKS) tunes.push([]);
+    if (!before || h.tick - before.tick > TUNE_GAP) tunes.push([]);
     tunes.at(-1)?.push(h.n);
   });
   const last = b.heard.at(-1);
-  if (last && now - last.tick <= NOTE_TICKS) tunes.pop(); // still playing
+  if (last && now - last.tick <= TUNE_GAP) tunes.pop(); // still playing
   const [a, c] = tunes.slice(-2);
-  if (a && c && a.join() === c.join()) b.answer = [...c];
+  const slot = slotOf(o);
+  if (a && c && a.join() === c.join()) {
+    const code: (number | null)[] = [...c];
+    if (slot !== null) code.splice(slot, 0, null);
+    b.answer = code;
+  }
+  if (slot !== null && b.answer.length > slot) {
+    const d = b.fed ?? b.numbers.at(-1);
+    b.answer[slot] = d === undefined || d === null ? null : d - 1;
+  }
   b.heard = b.heard.slice(-12);
 };
 
@@ -164,6 +193,91 @@ export function keypadStep(o: RoomObject, b: StationBelief): Vec | null {
   return tilesOf(o.params?.keys)[key] ?? null;
 }
 
+// --- The radio --------------------------------------------------------------------------------
+// Turned until it is tuned (seen solved, or its static heard giving way to a tone); a turn is never a
+// wrong answer, so the turner searches. Once tuned, every PIP_TICKS it gives its digit: on its face
+// for the sighted (shows[1]) and as `n` pips for hearers, from where it stands.
+const radio: Decoder = (view, _inbox, b, o) => {
+  if (b.shows.length === 2) b.answer = [b.shows[1] as number];
+  const me = view.you.pos;
+  const at = o.tiles[0] as Vec;
+  for (const s of view.sounds) {
+    if (s.kind !== "pip" || s.n === undefined || !me) continue;
+    const to = { x: at.x + 0.5 - me.x, y: at.y + 0.5 - me.y };
+    const d = Math.hypot(to.x, to.y);
+    const towards = d < 1.5 || (s.dir !== undefined && (s.dir.x * to.x + s.dir.y * to.y) / d > 0.9);
+    if (towards) b.answer = [s.n];
+  }
+};
+
+// The pip count of a radio, once known, is sent as a digit by a seat that can text it to the one at
+// the keypad (P3); a radio whose digit feeds nothing is never told.
+export function radioToTell(o: RoomObject, b: StationBelief): number | null {
+  const d = b.answer[0];
+  if (o.params?.type !== "radio" || typeof o.params.yields !== "string") return null;
+  return d === null || d === undefined || b.told.has(0) ? null : d;
+}
+
+// --- Switches, their lamps and the target card -------------------------------------------------
+// The card (lit and hollow lamps) is read where it stands and remembered; the lamps are behind
+// glass elsewhere. With both, the buttons that turn the lamps into the card are a lights-out
+// search; a bot that sees the lamps now presses (or marks) the first of them.
+export function lightsOut(lamps: number[], target: number[], cols: number): number[] | null {
+  const n = lamps.length;
+  let best: number[] | null = null;
+  for (let mask = 0; mask < 1 << n; mask++) {
+    const set = Array.from({ length: n }, (_, i) => i).filter((i) => mask & (1 << i));
+    if (best && set.length >= best.length) continue;
+    let at = lamps;
+    for (const i of set) at = toggled(at, i, cols);
+    if (at.join() === target.join()) best = set;
+  }
+  return best;
+}
+
+export const colsOf = (o: RoomObject): number =>
+  typeof o.params?.cols === "number" ? o.params.cols : 3;
+
+// The buttons still to press from the lamps as seen this tick, or null while the lamps or the card
+// are not known.
+export function switchesLeft(o: RoomObject, b: StationBelief, tick: number): number[] | null {
+  if (b.shownAt !== tick || !b.card || b.shows.length !== b.card.length) return null;
+  return lightsOut(b.shows, b.card, colsOf(o));
+}
+
+const switches: Decoder = (view, _inbox, b, o) => {
+  b.answer = [switchesLeft(o, b, view.tick)?.[0] ?? null];
+};
+
+// What a station learns from another object of the room (what the bot holds of the room's static
+// plan says which): a switches station's card, read where it stands; a keypad slot's digit, from
+// the radio drawn with the same motif.
+export function linkedFrom(room: Room, view: RoleView, stations: Record<string, StationBelief>) {
+  for (const o of room.objects) {
+    const b = stations[o.id];
+    if (o.kind !== "station" || !b) continue;
+    if (o.params?.type === "switches") {
+      const cards = room.objects.filter((c) => c.kind === "card" && c.params?.of === o.id);
+      const seen = view.entities.find((e) => e.kind === "card" && cards.some((c) => c.id === e.id));
+      if (seen?.card) b.card = [...seen.card];
+    }
+    if (slotOf(o) !== null) {
+      const from = room.objects.find(
+        (r) =>
+          r.kind === "station" && r.params?.type === "radio" && r.params.motif === o.params?.motif,
+      );
+      const d = from ? stations[from.id]?.answer[0] : undefined;
+      if (d !== undefined && d !== null) b.fed = d;
+    }
+  }
+}
+
 // One decoder per station type, added with the room that first needs it. A bot does not work a
 // station whose type has none.
-export const DECODERS: Partial<Record<StationType, Decoder>> = { dial, wires, keypad };
+export const DECODERS: Partial<Record<StationType, Decoder>> = {
+  dial,
+  wires,
+  keypad,
+  radio,
+  switches,
+};

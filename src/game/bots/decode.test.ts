@@ -1,10 +1,21 @@
 import { describe, expect, it } from "vitest";
 import type { ChannelMessage, Outgoing } from "../channels.ts";
 import { type RoleView, viewFor } from "../perception.ts";
+import { toggled } from "../sim/stations.ts";
 import { step } from "../sim/step.ts";
 import { place, roomWith } from "../sim/testing.ts";
 import { createWorld, TICK_MS } from "../sim/world.ts";
-import { beliefFrom, DECODERS, dialStep, emptyBelief, keypadStep, readNumber } from "./decode.ts";
+import {
+  beliefFrom,
+  DECODERS,
+  dialStep,
+  emptyBelief,
+  keypadStep,
+  linkedFrom,
+  radioToTell,
+  readNumber,
+  type StationBelief,
+} from "./decode.ts";
 
 // A bot's belief about one station (clues FR5): only what its own view shows and what teammates
 // send, in the two forms bots use (P3): an `x` mark on a part's tile, or a one-digit text.
@@ -88,8 +99,8 @@ describe("beliefFrom", () => {
 });
 
 describe("DECODERS", () => {
-  it("has the safe's from phase 05 and the wires' and keypad's from 06; 07 to 10 add theirs", () => {
-    expect(Object.keys(DECODERS)).toEqual(["dial", "wires", "keypad"]);
+  it("has the safe's from 05, the wires' and keypad's from 06, radio's and switches' from 07", () => {
+    expect(Object.keys(DECODERS)).toEqual(["dial", "wires", "keypad", "radio", "switches"]);
   });
 });
 
@@ -311,5 +322,149 @@ describe("the keypad decoder", () => {
     const { b } = listen(2, "mute", { x: 10, y: 2 });
     expect(b.answer).toEqual([]);
     expect(keypadStep(q, b)).toBeNull();
+  });
+});
+
+// Radio and switches (escape-room Task 20): from views a role really gets, through `viewFor`.
+describe("the radio decoder", () => {
+  // the radio Q1 at (4,1), its pads either side; a keypad Q2 behind a wall at x=9 shares its motif
+  const GRID = [
+    "###############",
+    "#1.Q.....#....#",
+    "#2.......#..Q.#",
+    "#3.......#....#",
+    "###############",
+  ];
+  const keys = [0, 1, 2].flatMap((y) => [0, 1, 2].map((x) => [10 + x, 1 + y]));
+  const room = roomWith(GRID, {
+    Q1: {
+      type: "radio",
+      pads: [
+        [2, 2],
+        [4, 2],
+      ],
+      range: 6,
+      yields: "Q2",
+      motif: "moon",
+    },
+    Q2: { type: "keypad", keys, length: 3, motif: "moon", slot: { from: "Q1", at: 0 } },
+  });
+  const q = (id: string) => {
+    const x = room.objects.find((o) => o.id === id);
+    if (!x) throw new Error(`no ${id}`);
+    return x;
+  };
+  // seat `seat` as `role` at `at` watches the tuned radio for a while
+  const watch = (role: "deaf" | "mute", at: { x: number; y: number }, ticks = 90) => {
+    const world = createWorld(room, 4);
+    const s = world.stations.Q1;
+    if (!s) throw new Error("no Q1");
+    s.input = [s.answer[0] as number];
+    s.solved = true;
+    place(world, 1, at);
+    const stations: Record<string, StationBelief> = { Q1: emptyBelief(), Q2: emptyBelief() };
+    for (let t = 0; t < ticks; t++) {
+      step(world, {}, TICK_MS);
+      const view = viewFor(world, 1, role, false);
+      for (const id of ["Q1", "Q2"]) {
+        const b = beliefFrom(view, [], q(id), stations[id] as StationBelief);
+        DECODERS[id === "Q1" ? "radio" : "keypad"]?.(view, [], b, q(id), view.tick);
+        stations[id] = b;
+      }
+      linkedFrom(room, view, stations);
+    }
+    return { world, stations };
+  };
+
+  it("a sighted bot reads the digit off the face as it pips, and tells it once", () => {
+    const { world, stations } = watch("deaf", { x: 5, y: 2 });
+    const digit = world.stations.Q1?.answer[1];
+    const b = stations.Q1 as StationBelief;
+    expect(b.answer).toEqual([digit]);
+    expect(radioToTell(q("Q1"), b)).toBe(digit);
+    b.told.add(0);
+    expect(radioToTell(q("Q1"), b)).toBeNull();
+  });
+
+  it("a hearing bot counts the pips from the radio", () => {
+    const { world, stations } = watch("mute", { x: 6, y: 3 });
+    expect(stations.Q1?.answer).toEqual([world.stations.Q1?.answer[1]]);
+  });
+
+  it("the keypad slot with the same motif takes the digit; without it, the slot is never pressed", () => {
+    const heard = emptyBelief();
+    heard.answer = [null, 4, 7];
+    DECODERS.keypad?.({ ...view(false), sounds: [] }, [], heard, q("Q2"), 1);
+    expect(keypadStep(q("Q2"), heard)).toBeNull();
+    const told = beliefFrom(view(false), [msg({ method: "text", text: "3" })], q("Q2"), heard);
+    DECODERS.keypad?.({ ...view(false), sounds: [] }, [], told, q("Q2"), 1);
+    expect(told.answer).toEqual([2, 4, 7]);
+    expect(keypadStep(q("Q2"), told)).toEqual({ x: 12, y: 1 });
+    // a bot that worked the digit out itself fills the slot from the radio with the same motif
+    const { world, stations } = watch("deaf", { x: 5, y: 2 });
+    const k = stations.Q2 as StationBelief;
+    expect(k.fed).toBe(world.stations.Q1?.answer[1]);
+  });
+
+  it("out of sight and earshot of the radio, it never learns a digit", () => {
+    const { stations } = watch("mute", { x: 12, y: 3 });
+    expect(stations.Q1?.answer).toEqual([]);
+    expect(stations.Q2?.fed).toBeNull();
+  });
+});
+
+describe("the switches decoder", () => {
+  // buttons at (4..6,1..2), lamps behind glass at (11..13,1..2), the card T1 at (2,3)
+  const GRID = [
+    "################",
+    "#1.......=.....#",
+    "#2.......=.....#",
+    "#3.....Q.=.....#",
+    "####.###########",
+    "####t###########",
+    "################",
+  ];
+  const buttons = [1, 2].flatMap((y) => [4, 5, 6].map((x) => [x, y]));
+  const lamps = [1, 2].flatMap((y) => [11, 12, 13].map((x) => [x, y]));
+  const room = roomWith(GRID, {
+    Q1: { type: "switches", buttons, lamps, cols: 3 },
+    T1: { of: "Q1" },
+  });
+  const q = room.objects.find((o) => o.id === "Q1");
+  if (!q) throw new Error("no Q1");
+
+  it("reads the card, sees the lamps, and presses the buttons that match them", () => {
+    for (const seed of [1, 2, 3, 4]) {
+      const world = createWorld(room, seed);
+      const s = world.stations.Q1;
+      if (!s) throw new Error("no Q1");
+      place(world, 1, { x: 4, y: 3 }); // the card below and, through the glass, the lamps
+      const stations: Record<string, StationBelief> = { Q1: emptyBelief() };
+      for (let n = 0; n < 10 && !s.solved; n++) {
+        const view = viewFor(world, 1, "deaf", false);
+        const b = beliefFrom(view, [], q, stations.Q1 as StationBelief);
+        linkedFrom(room, view, { Q1: b });
+        DECODERS.switches?.(view, [], b, q, view.tick);
+        stations.Q1 = b;
+        const i = b.answer[0];
+        expect(i).not.toBeNull();
+        s.input = toggled(s.input, i as number, 3);
+        if (s.input.join() === s.answer.join()) s.solved = true;
+        step(world, {}, TICK_MS);
+      }
+      expect(s.solved).toBe(true);
+    }
+  });
+
+  it("with the card out of sight, it never presses a button", () => {
+    const world = createWorld(room, 2);
+    place(world, 1, { x: 8, y: 1 });
+    const view = viewFor(world, 1, "deaf", false);
+    expect(view.entities.some((e) => e.kind === "card")).toBe(false);
+    const b = beliefFrom(view, [], q, emptyBelief());
+    linkedFrom(room, view, { Q1: b });
+    DECODERS.switches?.(view, [], b, q, view.tick);
+    expect(b.shows.length).toBe(6);
+    expect(b.answer).toEqual([null]);
   });
 });

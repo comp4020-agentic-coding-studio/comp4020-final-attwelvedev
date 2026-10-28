@@ -15,6 +15,9 @@ export type JobTarget =
   // heard), stood on until the answer is worked out; a keypad's code is heard, so `hearing`
   | { kind: "station"; id: string; at?: Vec; hearing?: true }
   | { kind: "listen"; station: string; tile: Vec } // stand here (at a safe's back) until it is solved
+  // read a switches station's card, then stand where its lamps are seen and mark each button to press
+  // (`read`: where its card is read first, when it is not in sight from `tile`)
+  | { kind: "watch"; station: string; tile: Vec; read?: Vec }
   | { kind: "take"; gear: string } // pick up a piece of gear
   | { kind: "give"; gear: string; to: Role } // hand it to the seat with this role
   | { kind: "sill"; gear: string; hatch: string } // put it on a hatch sill
@@ -99,6 +102,23 @@ export function parseJob(room: Room, j: unknown, index: number): Job | string {
       return `hint job ${index + 1} listens at ${JSON.stringify(j.at)}, which is not floor`;
     }
     target = { kind: "listen", station: j.listen, tile: { x: j.at[0], y: j.at[1] } };
+  } else if (typeof j.watch === "string") {
+    const o = room.objects.find((x) => x.id === j.watch && x.kind === "station");
+    if (o?.params?.type !== "switches") {
+      return `hint job ${index + 1} watches ${j.watch}, which is not a switches station in this room`;
+    }
+    if (!isTile(j.at) || room.grid[j.at[1]]?.[j.at[0]] !== ".") {
+      return `hint job ${index + 1} watches from ${JSON.stringify(j.at)}, which is not floor`;
+    }
+    if (j.read !== undefined && (!isTile(j.read) || room.grid[j.read[1]]?.[j.read[0]] !== ".")) {
+      return `hint job ${index + 1} reads a card from ${JSON.stringify(j.read)}, which is not floor`;
+    }
+    target = {
+      kind: "watch",
+      station: j.watch,
+      tile: { x: j.at[0], y: j.at[1] },
+      ...(isTile(j.read) ? { read: { x: j.read[0], y: j.read[1] } } : {}),
+    };
   } else if (typeof j.take === "string") {
     const gear = gearId(j.take);
     if (!gear) return `hint job ${index + 1} takes ${j.take}, which is not gear in this room`;
@@ -184,7 +204,7 @@ export function parseJob(room: Room, j: unknown, index: number): Job | string {
       return `hint job ${index + 1} goes to (${x},${y}), which is not floor`;
     target = { kind: "tile", tile: { x, y } };
   } else {
-    return `hint job ${index + 1} needs "goTo" (a plate id, "E" or [x, y]), "push", "station", "listen", "take", "give", "sill" or "tow"`;
+    return `hint job ${index + 1} needs "goTo" (a plate id, "E" or [x, y]), "push", "station", "listen", "watch", "take", "give", "sill" or "tow"`;
   }
   const job: Job = { index, beat: j.beat, target, all: j.all === true };
   if (j.prefer !== undefined) {
@@ -237,6 +257,7 @@ export function jobTile(room: Room, job: Job, seat: Seat): Vec {
     case "flag":
     case "tile":
     case "listen":
+    case "watch":
       return job.target.tile;
     case "exit":
       return exitTile(room, seat);
@@ -266,9 +287,17 @@ export function exitTile(room: Room, seat: Seat): Vec {
   return tiles[seat % Math.max(1, tiles.length)] ?? { x: 0, y: 0 };
 }
 
-// Blind never pushes or works the stations, gear and hands (it steers by callouts alone), and
-// Can't hear never gets a clue job, a listen job or a keypad: it could not learn the number.
-const SIGHTED_ONLY = new Set<JobTarget["kind"]>(["push", "station", "take", "give", "sill", "tow"]);
+// Blind never pushes, watches or works the stations, gear and hands (it steers by callouts alone),
+// and Can't hear never gets a clue job, a listen job or a keypad: it could not learn the number.
+const SIGHTED_ONLY = new Set<JobTarget["kind"]>([
+  "push",
+  "station",
+  "watch",
+  "take",
+  "give",
+  "sill",
+  "tow",
+]);
 const eligible = (role: Role, job: Job) =>
   !(role === "blind" && SIGHTED_ONLY.has(job.target.kind)) &&
   !(role === "deaf" && job.target.kind === "plate" && job.target.clue !== undefined) &&
@@ -353,9 +382,17 @@ export function isDone(
       );
     case "exit":
       return false;
-    case "station":
-      return known.stations[job.target.id]?.solved === true;
+    case "station": {
+      // a radio that feeds another station is done once its digit is known too, to be passed on
+      const id = job.target.id;
+      const b = known.stations[id];
+      const p = room.objects.find((o) => o.id === id)?.params;
+      const digit = p?.type !== "radio" || typeof p.yields !== "string" || b?.answer[0] != null;
+      return b?.solved === true && digit;
+    }
     case "listen":
+      return known.stations[job.target.station]?.solved === true;
+    case "watch":
       return known.stations[job.target.station]?.solved === true;
     case "take": {
       const by = known.gear?.[job.target.gear]?.heldBy;

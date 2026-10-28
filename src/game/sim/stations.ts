@@ -407,10 +407,15 @@ export function stationNaming(world: World, id: string): StationState | undefine
   return s && !s.solved ? s : undefined;
 }
 
-// The note of `station`'s code that plays this tick, if one does.
+// The note of `station`'s code that plays this tick, if one does. A keypad's slot (clues FR3)
+// rests: its note is the digit of the radio that feeds it, found there and nowhere else.
 export function noteOf(world: World, station: StationState): number | undefined {
   const t = world.tick % TUNE_TICKS;
-  return t % NOTE_TICKS === 0 ? station.answer[t / NOTE_TICKS] : undefined;
+  if (t % NOTE_TICKS !== 0) return undefined;
+  const slot = world.room.objects.find((o) => o.id === station.id)?.params?.slot as
+    | { at?: unknown }
+    | undefined;
+  return slot?.at === t / NOTE_TICKS ? undefined : station.answer[t / NOTE_TICKS];
 }
 
 // The note of the code a clue or an earpiece plays this tick, if one does.

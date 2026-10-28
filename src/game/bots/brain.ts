@@ -1,4 +1,4 @@
-import type { Callout, ChannelMessage, Outgoing } from "../channels.ts";
+import { type Callout, type ChannelMessage, COOLDOWN_MS, type Outgoing } from "../channels.ts";
 import type { EntityView, RoleView, SoundCue } from "../perception.ts";
 import type { Room } from "../rooms/format.ts";
 import { blockedAt } from "../sim/collide.ts";
@@ -6,13 +6,17 @@ import { laserBeam } from "../sim/hazards.ts";
 import { stationParts, tilesOf } from "../sim/stations.ts";
 import { decodeSeen } from "../sim/visibility.ts";
 import { createWorld, SPEED_TPS, type StationType, TICK_MS, type World } from "../sim/world.ts";
-import { type PlayerInput, ROLES, type Role, type Seat, type Vec } from "../types.ts";
+import { canSend, type PlayerInput, ROLES, type Role, type Seat, type Vec } from "../types.ts";
 import {
   beliefFrom,
   DECODERS,
   dialStep,
   emptyBelief,
   keypadStep,
+  linkedFrom,
+  radioToTell,
+  type StationBelief,
+  switchesLeft,
   TURN_WAIT_TICKS,
 } from "./decode.ts";
 import { type AlarmWindow, forecastFor } from "./forecast.ts";
@@ -66,6 +70,8 @@ export interface BotMemory {
   bodies: Partial<Record<Seat, Vec>>; // where it last saw each player
   actWas: boolean; // pressed Act last tick: a press needs a release before the next
   gearWas: boolean;
+  markedFor: string | null; // a switches watcher: the lamps (as seen) it last marked a button for
+  lastMarkAt: number; // when it last sent a mark (game ms): marks have a cooldown
 }
 export interface BotTurn {
   input: PlayerInput;
@@ -104,7 +110,14 @@ interface Guide {
 
 // Jobs a seat works where it stands (Act on a part, the gear, a hand): a guide on one parks the
 // Can't-see seat rather than steering it.
-const WORK_KINDS = new Set<Job["target"]["kind"]>(["station", "take", "give", "sill", "tow"]);
+const WORK_KINDS = new Set<Job["target"]["kind"]>([
+  "station",
+  "watch",
+  "take",
+  "give",
+  "sill",
+  "tow",
+]);
 
 const PERCEIVED_TICKS = 40; // a hazard seen or heard in the last 2 s is planned around (A3)
 
@@ -183,6 +196,8 @@ export function createBotMemory(
     bodies: {},
     actWas: false,
     gearWas: false,
+    markedFor: null,
+    lastMarkAt: Number.NEGATIVE_INFINITY,
   };
 }
 
@@ -288,12 +303,15 @@ function readStations(
   known: Known,
 ): void {
   known.roles = rolesOf(m, view.role);
-  for (const o of room.objects) {
-    if (o.kind !== "station") continue;
-    const b = beliefFrom(view, inbox, o, known.stations[o.id] ?? emptyBelief());
+  const stations = room.objects.filter((o) => o.kind === "station");
+  for (const o of stations)
+    known.stations[o.id] = beliefFrom(view, inbox, o, known.stations[o.id] ?? emptyBelief());
+  linkedFrom(room, view, known.stations);
+  for (const o of stations) {
+    const b = known.stations[o.id] as StationBelief;
     DECODERS[o.params?.type as StationType]?.(view, inbox, b, o, view.tick);
-    known.stations[o.id] = b;
   }
+  linkedFrom(room, view, known.stations);
   if (view.sounds.some((c) => c.kind === "caught")) known.holding = {};
   const figures = view.entities.filter((e) => e.kind === "player" && e.seat !== undefined);
   for (const f of figures) {
@@ -679,6 +697,7 @@ function workGoal(room: Room, m: BotMemory, job: Job, known: Known, seat: Seat):
   const t = job.target;
   if (t.kind === "station") return stationStep(room, m, known, t.id)?.tile ?? null;
   if (t.kind === "listen") return t.tile;
+  if (t.kind === "watch") return known.stations[t.station]?.card ? t.tile : (t.read ?? t.tile);
   if (t.kind === "take" || t.kind === "give" || t.kind === "sill") {
     const g = known.gear?.[t.gear];
     if (!g) return null;
@@ -762,6 +781,18 @@ function stationStep(room: Room, m: BotMemory, known: Known, id: string): Press 
     const t = type === "dial" ? dialStep(o, b) : keypadStep(o, b);
     return t ? { tile: t } : null;
   }
+  // a radio is turned on its right-hand pad until it is tuned; then its digit is watched for
+  if (type === "radio") {
+    const t = tilesOf(p.pads)[1];
+    return t ? { tile: t } : null;
+  }
+  // switches: the button its own reading names (the lamps and the card both known), else the next
+  // button a watcher marked
+  if (type === "switches") {
+    const own = b.answer[0];
+    const t = own !== null && own !== undefined ? tilesOf(p.buttons)[own] : b.marked[b.used];
+    return t ? { tile: t } : null;
+  }
   const marked = b.marked[0];
   if (marked) return { tile: marked };
   // the plaque read but the wires not yet seen: the panel's anchor, where an Act cuts nothing
@@ -803,6 +834,7 @@ function thinkSighted(
     const last = m.lastPos;
     if (last && Math.hypot(view.you.pos.x - last.x, view.you.pos.y - last.y) > 1.5) {
       forgetPlans(m);
+      m.markedFor = null;
       // sent back: every unsolved station has a fresh answer, so what was heard of it is stale
       for (const b of Object.values(known.stations)) {
         if (b.solved) continue;
@@ -810,6 +842,9 @@ function thinkSighted(
         b.heard = [];
         b.rule = null;
         b.shows = [];
+        b.card = null; // switches are drawn again with a new card, from dark
+        b.marked = [];
+        b.used = 0;
       }
     }
     m.lastPos = view.you.pos;
@@ -835,9 +870,48 @@ function thinkSighted(
   const input = view.alarm
     ? idle(m)
     : press(room, view, m, known, pos, moveSelf(room, view, m, known, pos));
+  send = workSend(room, view, m, known, pos);
+  if (send) return { input, send: stamp(m, send, now) };
   if (view.role === "deaf") send = guideBlind(room, view, m, known, now);
   else if (view.role === "mute") send = muteClip(room, view, m, now);
   return { input, send: stamp(m, send, now) };
+}
+
+// What a seat's work has it tell the others (P3): a radio's digit, as text, once (a radio that
+// feeds a station; Can't speak, who cannot text, keeps it); and a switches watcher's next button, an
+// `x` on it, each time the lamps it sees have changed since its last mark.
+function workSend(
+  room: Room,
+  view: RoleView,
+  m: BotMemory,
+  known: Known,
+  pos: Vec,
+): Outgoing | null {
+  if (canSend(view.role, "text")) {
+    for (const o of room.objects) {
+      const b = known.stations[o.id];
+      const d = o.kind === "station" && b ? radioToTell(o, b) : null;
+      if (d === null || !b) continue;
+      b.told.add(0);
+      return { method: "text", text: String(d) };
+    }
+  }
+  const job = queuesOf(room, m, view.role)[m.seat][m.ptr[m.seat]];
+  if (job?.target.kind !== "watch" || !canSend(view.role, "mark")) return null;
+  const o = room.objects.find((x) => x.id === (job.target as { station: string }).station);
+  const b = o && known.stations[o.id];
+  if (!o || !b || b.solved) return null;
+  const tile = tileOf(pos);
+  if (tile.x !== job.target.tile.x || tile.y !== job.target.tile.y) return null;
+  const left = switchesLeft(o, b, view.tick);
+  const next = left?.[0];
+  const lamps = b.shows.join();
+  if (next === undefined || m.markedFor === lamps) return null;
+  const at = tilesOf(o.params?.buttons)[next];
+  if (!at || view.tick * TICK_MS - m.lastMarkAt < COOLDOWN_MS.mark) return null;
+  m.markedFor = lamps;
+  m.lastMarkAt = view.tick * TICK_MS;
+  return { method: "mark", id: "x", at: centreOf(at) };
 }
 
 // Act or G, pressed once a seat stands where its station, gear or tow job wants it, and let go
@@ -860,6 +934,12 @@ function press(
   const was = button === "act" ? m.actWas : button === "gear" ? m.gearWas : false;
   m.actWas = button === "act" && !was;
   m.gearWas = button === "gear" && !was;
+  if (m.actWas && job?.target.kind === "station") {
+    // a switches button pressed for a watcher's mark: that mark is used
+    const b = known.stations[job.target.id];
+    const mark = b?.marked[b.used];
+    if (b && mark && mark.x === tile.x && mark.y === tile.y && b.answer[0] == null) b.used++;
+  }
   if (button === "wait") return idle(m);
   if (!button) return input;
   return was ? idle(m) : { ...idle(m), [button]: true };

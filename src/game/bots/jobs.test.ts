@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { parseRoom, type Room } from "../rooms/format.ts";
+import { loadRooms } from "../rooms/load.ts";
 import type { Role, Seat } from "../types.ts";
+import { emptyBelief } from "./decode.ts";
 import {
   claimJobs,
   clueTarget,
@@ -405,5 +407,33 @@ describe("station jobs that perceive the clue from a tile (escape-room Task 18)"
     expect(j.target).toMatchObject({ hearing: true });
     const queues = claimJobs(r, [j], seats());
     expect(queues[1]).toEqual([]);
+  });
+});
+
+// A switches watcher (escape-room Task 20): reads the card at `read`, then marks buttons from `at`.
+describe("a watch job", () => {
+  const room = loadRooms("./spec/fixtures/rooms-bots").find((x) => x.id === "06-switches");
+  if (!room) throw new Error("no 06-switches fixture");
+  const job = (j: Record<string, unknown>) => parseJob(room, { beat: 1, ...j }, 0);
+
+  it("names a switches station, a floor tile to watch from and one to read the card at", () => {
+    const j = job({ watch: "Q1", at: [8, 4], read: [14, 4] }) as Job;
+    expect(j.target).toEqual({
+      kind: "watch",
+      station: "Q1",
+      tile: { x: 8, y: 4 },
+      read: { x: 14, y: 4 },
+    });
+    expect(job({ watch: "Q1", at: [0, 0] })).toMatch(/not floor/);
+    expect(job({ watch: "D1", at: [8, 4] })).toMatch(/not a switches station/);
+  });
+
+  it("never goes to Can't see, and is done once the station is seen solved", () => {
+    const j = job({ watch: "Q1", at: [8, 4] }) as Job;
+    expect(claimJobs(room, [j], seats())[0]).toEqual([]);
+    const known = {
+      stations: { Q1: { ...emptyBelief(), solved: true } },
+    } as unknown as Known;
+    expect(isDone(room, j, known, undefined)).toBe(true);
   });
 });

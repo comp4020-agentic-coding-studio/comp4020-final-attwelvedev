@@ -3,9 +3,12 @@ import type { Seat, Vec } from "../types.ts";
 import { rng } from "./rng.ts";
 import {
   drawAnswer,
+  NOTE_TICKS,
+  noteOf,
   plaqueText,
   ruleFor,
   stationShows,
+  TUNE_TICKS,
   WIRE_COLOURS,
   WIRE_RULES,
 } from "./stations.ts";
@@ -448,6 +451,19 @@ describe("clue paths: answers that feed, and teaching stations (escape-room Task
       press(w, { x: k[0], y: k[1] });
       expect(w.attempt).toBe(1);
       expect(st(w, "Q2").answer[0]).toBe(digit - 1);
+    }
+  });
+
+  it("a keypad's code rests on its slot: that note is the radio's digit, never played", () => {
+    for (const seed of [1, 2, 3]) {
+      const w = stationWorld({ Q1: RADIO, Q2: KEYPAD }, seed);
+      const played: number[] = [];
+      for (let t = 0; t < TUNE_TICKS; t++) {
+        w.tick = t;
+        const n = noteOf(w, st(w, "Q2"));
+        if (n !== undefined) played.push(t / NOTE_TICKS);
+      }
+      expect(played).toEqual([1, 2]);
     }
   });
 
