@@ -259,3 +259,49 @@
   the vault's sockets and handle, both hatches with their labels. On the phone the keys and hatch
   labels sit close at the start (the label cap's usual crowding). The wings are out of sight from
   the spawn, as intended. Bots clear it in about 39 s in every rotation, never caught. Now 9 rooms.
+
+## Phase 12, Tasks 33 to 40: fixes from the human review of phases 02 to 10 (reviews batched at the phase's end, at your request)
+
+Task 33 (the crate plate) you accepted on 2026-10-31. The other seven are built and committed (one
+commit each, `pnpm check` green on a fresh server) and wait for you. Three are by ear with your eyes
+closed, which I cannot do for you.
+
+- **Start locally:** `lsof -ti tcp:8080 -sTCP:LISTEN | xargs kill; pnpm build && pnpm start`, open
+  `http://localhost:8080` in three tabs (one at 375 px wide), create a lobby, join from the other
+  two, Start, Ready. One room alone: `mkdir -p /tmp/rN && cp rooms/<room>.room /tmp/rN/ &&
+  ROOMS_DIR=/tmp/rN PORT=8091 node server.ts`. (If `pnpm start:check` dies with EADDRINUSE, an old
+  dev server is on :8080: use another PORT and `APP_URL`, or the specs run against the wrong app.)
+- **Task 34, labels (play rooms 3, 5 and 7):** is a camera, glass or vent labelled when you first
+  meet it, even with other things near? Does a chip ever sit on a plaque's words? The range (9 tiles)
+  is my number. Screenshots: none of its own; `spec/layout/labels.test.ts` measures it.
+- **Task 35, plaques and wires (rooms 4, 5, 8):** `review/12-task35-links-1280.png`, `-375.png`,
+  `-room8-1280.png`, `-room4-375.png`. Does the faint dashed wire read as a link, not clutter? Rooms
+  8 and 9 have pairs with no wall route, which get a straight line (your ruling). At 375 the chips
+  cover most of it. Does room 8's keypad now look right without its lone box?
+- **Task 36, chimes (BY EAR, eyes closed, rooms 5, 6 and 8, no subtitles):** can you count the chimes
+  in a group, hear the gap between groups, and tell two codes apart? The 150 ms, 600 ms and 2 s are
+  my numbers, as is the pentatonic climb. Bots now take 34 s in room 5 and 44 s in room 8 (were
+  27 to 29 and 37).
+- **Task 37, room 7:** `review/12-task37-night-shift-1280.png`, `-375.png`. Is the torch worth
+  finding (it is in the pocket at the west, round a corner from the spawn)? Do the lamps open when
+  the wires are cut? Does the ink read? Known limit: a long rule can lose the start of its first
+  line where a wall cuts the pool ("o red wires" in the 1280 shot); the second line always reads.
+  Is that acceptable, or should the ink be shorter or the pool bigger?
+- **Task 38, practice lever (BY EAR, eyes closed, room 8):** `review/12-task38-practice-1280.png`,
+  `-375.png`, `-off-1280.png`. Is the practice sound clearly not a solve, and the lever's clunk
+  clearly a lever? Does the 45 % dimming read as "not counting"? Both sounds are my synths.
+- **Task 39, HUD:** `review/12-task39-hud-1280.png`, `-375.png`. The dock is at the bottom right. Note
+  the plan's premise was partly off: the chat box and touch controls were never under it.
+- **Task 40, hand-holding (play room 2 with a person as the towed seat):** `review/12-task40-tug-1280.png`,
+  `-375.png`. Can the towed person steer? Does a tug of war read by ear and caption, and does room 2's
+  "one leads another" still land? **ADR 0019 is `proposed` and needs your approval**; spec FR22 got
+  one italic line pointing at it (revert it if you disagree).
+- **Judged:** every task renders at both widths and its specs pass. What I did not see: the three
+  strain ticks on the taut hold (too small at 1280, drawn per the unit test); anything by ear; room 2
+  with a real person towed.
+- **Flaky under load (a judgement, not a proof):** `pnpm check:flaky 4` had 0 failures in runs 1 to 3
+  and 5 in run 4 (under load), in `spec/layout/wheel.test.ts` and the reveal spec, each in 1 of 4.
+  Six more loaded runs of those two files: one failure, in the reveal spec. Not a repeat offender
+  and the reveal screen has no dock, so I believe it is the machine, but a clean control was not
+  possible (old tree 4 of 4 passes, new tree 3 of 4, within noise). Worth a look when you are
+  fresh: the wheel's 1000 to 1500 ms waits under load.

@@ -889,3 +889,32 @@ the schedule changed. They now derive the number from the schedule (`3 * TUNE_MA
 And one of mine: I started a 5-minute full check straight after running `pnpm lint` without reading
 its output, and it failed on a lint error in the test I had just written. Read the cheap gate's
 result before launching the expensive one.
+
+## 2026-11-01 — Phase 12: a plan's premises checked against the code, and a test that could not fail
+
+(commits cited at the phase close)
+
+Nine tasks, and in five of them the plan's description of the code was wrong in a way that would
+have shipped a different thing: "Cut wire n" was the Act hint and not the ink (shortening the ink
+would have given the puzzle's answer away); the HUD never touched the chat box; the wires had no
+wall route in two rooms; a keypad's `clue` is a chime id and not a tile; and the door I proposed for
+room 7 broke the linter's two-open-stations rule. Each time the decision was handed back with the
+data (a route search, a measured layout, a linter run), not made silently, and the ruling went into
+the plan's corrections log.
+
+The sensory-split note the phase's Definition of Done asks for: no visual pip anywhere; the practice
+lever's dimming has a sound twin (`practice`, `lever`) and the sounds have pictures; a tug of war is
+heard by the two holders only and drawn on both figures; Can't see gets the sound and no flag
+(`station.practice` is gated by sight, so it never reaches that role).
+
+The method lesson, from Task 40: a test passes for the wrong reason more easily than it fails for
+the right one. A bot test sent a callout, "west", that does not exist; the bot ignored it and the
+test passed. It only became a test when I printed what the bot actually sent (a move of zero), fixed
+the name ("left"), and watched it fail with the person moving 0 tiles of 40 ticks: a real bug (a bot
+told left and then taken by the hand held a person still), which every room spec had missed because
+in those rooms a bot only ever leads. The same afternoon: a spec I wrote whose assertions could not
+fail (deleted), a search-and-replace that matched nothing after the formatter reflowed the text
+(twice), and two doors numbered the wrong way round. The sensor that would have caught most of them
+is "break it and watch it go red", which I did for each test from Task 34 on; making that a rule
+for a test written after the code is the candidate for CLAUDE.md, left for you to decide.
+
