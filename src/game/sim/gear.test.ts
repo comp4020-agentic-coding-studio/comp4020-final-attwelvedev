@@ -48,7 +48,7 @@ describe("gear: take, give, drop", () => {
     ]);
   });
 
-  it("Act on gear takes it into an empty slot, and never a second", () => {
+  it("Act on gear takes it into an empty slot, and never holds a second (a full slot swaps, Task 32)", () => {
     const w = fresh();
     at(w, 0, { x: 3, y: 2 });
     const events = press(w, 0);
@@ -57,8 +57,10 @@ describe("gear: take, give, drop", () => {
       expect.objectContaining({ kind: "gear", id: "g1", action: "take", seat: 0 }),
     );
     at(w, 0, { x: 4, y: 3 });
-    expect(kinds(press(w, 0))).not.toContain("gear");
-    expect(gearOf(w, "g2")).toMatchObject({ heldBy: null, at: { x: 4, y: 3 } });
+    press(w, 0);
+    expect(w.gear.filter((g) => g.heldBy === 0)).toHaveLength(1);
+    expect(gearOf(w, "g2")).toMatchObject({ heldBy: 0, at: null });
+    expect(gearOf(w, "g1")).toMatchObject({ heldBy: null, at: { x: 4, y: 3 } });
   });
 
   it("G gives to an adjacent teammate with an empty slot, else drops it on your tile", () => {
@@ -79,6 +81,74 @@ describe("gear: take, give, drop", () => {
     );
     expect(gearOf(w, "g2")).toMatchObject({ heldBy: null, at: { x: 4, y: 3 } });
     expect(gearOf(w, "g1").heldBy).toBe(1);
+  });
+});
+
+describe("gear: swap", () => {
+  it("G with a full slot on other gear swaps: the old one lands under you, the new is in hand", () => {
+    const w = fresh();
+    at(w, 0, { x: 3, y: 2 });
+    press(w, 0); // holds g1
+    at(w, 0, { x: 4, y: 3 }); // g2 lies here
+    const events = press(w, 0, "gear");
+    expect(gearOf(w, "g1")).toMatchObject({ heldBy: null, at: { x: 4, y: 3 } });
+    expect(gearOf(w, "g2")).toMatchObject({ heldBy: 0, at: null });
+    expect(events.filter((e) => e.kind === "gear")).toEqual([
+      expect.objectContaining({ id: "g1", action: "drop", seat: 0 }),
+      expect.objectContaining({ id: "g2", action: "take", seat: 0 }),
+    ]);
+  });
+
+  it("G with an empty slot on gear takes it", () => {
+    const w = fresh();
+    at(w, 0, { x: 3, y: 2 });
+    press(w, 0, "gear");
+    expect(gearOf(w, "g1")).toMatchObject({ heldBy: 0, at: null });
+  });
+
+  it("G gives before it swaps when a teammate with a free slot is beside you", () => {
+    const w = fresh();
+    at(w, 0, { x: 3, y: 2 });
+    press(w, 0);
+    at(w, 0, { x: 4, y: 3 });
+    at(w, 1, { x: 5, y: 3 });
+    press(w, 0, "gear");
+    expect(gearOf(w, "g1").heldBy).toBe(1);
+    expect(gearOf(w, "g2")).toMatchObject({ heldBy: null, at: { x: 4, y: 3 } });
+  });
+
+  it("Space swaps with a full slot on other gear", () => {
+    const w = fresh();
+    at(w, 0, { x: 3, y: 2 });
+    press(w, 0);
+    at(w, 0, { x: 4, y: 3 });
+    press(w, 0);
+    expect(gearOf(w, "g1")).toMatchObject({ heldBy: null, at: { x: 4, y: 3 } });
+    expect(gearOf(w, "g2").heldBy).toBe(0);
+  });
+
+  it("Space swaps last: a hatch sill beside you, or a teammate to hold, wins", () => {
+    // sill: full slot, gear underfoot, hatch beside: the item goes on the sill, nothing swaps
+    const a = fresh();
+    at(a, 0, { x: 3, y: 2 });
+    press(a, 0);
+    a.gear.push({ id: "g3", item: "uv", at: { x: 5, y: 2 }, heldBy: null, sill: null });
+    at(a, 0, { x: 5, y: 2 });
+    press(a, 0);
+    expect(gearOf(a, "g1")).toMatchObject({ heldBy: null, sill: "H1" });
+    expect(gearOf(a, "g3")).toMatchObject({ heldBy: null, at: { x: 5, y: 2 } });
+    // hands: full slot, gear underfoot, a teammate beside: you hold hands, nothing swaps
+    const b = fresh();
+    at(b, 0, { x: 3, y: 2 });
+    press(b, 0);
+    at(b, 0, { x: 4, y: 3 });
+    at(b, 1, { x: 5, y: 3 });
+    // seat 1 is full, so G cannot give; Space holds
+    Object.assign(gearOf(b, "g2"), { heldBy: 1, at: null });
+    b.gear.push({ id: "g3", item: "uv", at: { x: 4, y: 3 }, heldBy: null, sill: null });
+    press(b, 0);
+    expect(b.holding).toEqual({ 1: 0 });
+    expect(gearOf(b, "g1").heldBy).toBe(0);
   });
 });
 

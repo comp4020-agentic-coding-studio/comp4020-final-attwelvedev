@@ -68,7 +68,7 @@ import {
   startLobby,
   uniqueNickname,
 } from "./lobbies.ts";
-import { type ClientMsg, parseClientMsg, type ServerMsg } from "./protocol.ts";
+import { type ClientMsg, inputOf, parseClientMsg, type ServerMsg } from "./protocol.ts";
 import { type RealLife, realLifeFor } from "./realLife.ts";
 import {
   createRateLimiter,
@@ -1078,7 +1078,7 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         const running = code ? games.get(code) : undefined;
         const seat = code ? seatOfDevice(code, who) : null;
         if (!running || seat === null) return;
-        applyInput(running.game, seat, { seq: msg.seq, move: msg.move, act: msg.act });
+        applyInput(running.game, seat, inputOf(msg));
         return;
       }
     }

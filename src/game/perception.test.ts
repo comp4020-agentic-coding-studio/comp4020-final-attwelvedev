@@ -1150,6 +1150,20 @@ describe("viewFor: stations, gear and signals", () => {
     expect(viewFor(w, 1, "deaf", false).act).toMatch(colourWord);
   });
 
+  it("Act hint says Swap when a full slot stands on other gear, and only after the nearer actions", () => {
+    const w = worldWith(["##########", "#1..gg...#", "#2.......#", "#3.......#", "##########"], {
+      g1: { item: "uv" },
+      g2: { item: "goggles" },
+    });
+    place(w, 0, { x: 4, y: 1 });
+    step(w, { 0: { seq: 1, move: { x: 0, y: 0 }, act: true } }, TICK_MS); // takes the torch
+    expect(viewFor(w, 0, "deaf", false).act).toBeUndefined(); // holding the torch, nothing under it
+    place(w, 0, { x: 5, y: 1 });
+    expect(viewFor(w, 0, "deaf", false).act).toBe("Swap the UV torch for the goggles");
+    place(w, 1, { x: 5, y: 2 }); // a teammate beside: Space holds hands, so the hint says that
+    expect(viewFor(w, 0, "deaf", false).act).toBe("Hold hands");
+  });
+
   it("a teammate's gear and whose hand they hold are seen by the sighted in sight", () => {
     const w = worldWith(["##########", "#1..g....#", "#2.......#", "#3.......#", "##########"], {
       g1: { item: "uv" },

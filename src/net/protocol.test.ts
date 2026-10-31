@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseClientMsg, type ServerMsg } from "./protocol.ts";
+import { inputOf, parseClientMsg, type ServerMsg } from "./protocol.ts";
 
 describe("parseClientMsg", () => {
   it("returns the message for a ping", () => {
@@ -97,6 +97,14 @@ describe("parseClientMsg game messages", () => {
       move: { x: 0, y: 0 },
       act: false,
     });
+  });
+
+  it("inputOf hands the sim everything the client sent, G included (it was dropped in attach.ts)", () => {
+    const msg = parseClientMsg(
+      '{"t":"input","seq":4,"move":{"x":1,"y":0},"act":false,"gear":true}',
+    );
+    if (msg?.t !== "input") throw new Error("not an input");
+    expect(inputOf(msg)).toEqual({ seq: 4, move: { x: 1, y: 0 }, act: false, gear: true });
   });
 
   it("clamps move components to [-1, 1]", () => {

@@ -145,6 +145,12 @@ export const LOBBY_CODE_LENGTH = 4;
 
 // Anything malformed, unknown or oversized is null: the caller drops it and
 // keeps the socket open, so one bad frame never ends a game.
+// What the sim needs from an input message: every field the client sent (G was once dropped here).
+export function inputOf(msg: { t: "input" } & PlayerInput): PlayerInput {
+  const { t: _t, ...input } = msg;
+  return input;
+}
+
 export function parseClientMsg(raw: string): ClientMsg | null {
   if (raw.length > MAX_FRAME) return null;
   let body: unknown;

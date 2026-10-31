@@ -25,6 +25,7 @@ Files in the set:
 | `…-09-music-room.md` | 09 room 8 Music Room (music box, earpiece) |
 | `…-10-vault.md` | 10 room 9 The Vault (vault, sync lock) |
 | `…-11-wrap-up.md` | 11 side jobs, credited results, comms map, leaderboard edition, docs |
+| `…-12-review-fixes.md` | 12 fixes from the human review of phases 02 to 10 |
 
 A session reads this overview plus exactly one phase file. Task numbers are global (Task 1 to 31
 across files). Tick a phase in §5 only when its phase Definition of Done is met. Run each phase
@@ -298,6 +299,7 @@ matching `/^\d$/`, or `"stop"` as a callout for a dial; bots read only those two
 | 09 | `…-09-music-room.md` | 24–25 | 08 | music box and earpiece decoders; room 8; **human review** | [x] |
 | 10 | `…-10-vault.md` | 26–27 | 09 | vault and sync decoders; room 9; old rooms removed; **human review** | [x] |
 | 11 | `…-11-wrap-up.md` | 28–31 | 10 | side jobs, credits, comms map, edition 2, docs, ADRs; **human review** | [ ] |
+| 12 | `…-12-review-fixes.md` | 32–40 | 10 | fixes from the human review of phases 02 to 10 (G, crate plate, labels, links, chimes, room 7, practice lever, HUD, hand-holding); **human review** | [ ] |
 
 ## 6. Feature-level Definition of Done
 

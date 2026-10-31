@@ -908,5 +908,6 @@ function actHint(world: World, seat: Seat, role: Role): string | undefined {
   if (mate === undefined && near.some((s) => partner(world, s) === undefined)) return "Hold hands";
   if (objectOn(world, "bell", tile)) return "Ring the bell";
   if (objectOn(world, "lamp", tile)) return "Flash the lamp";
+  if (mine && lying) return `Swap the ${GEAR_NAME[mine.item]} for the ${GEAR_NAME[lying.item]}`;
   return undefined;
 }

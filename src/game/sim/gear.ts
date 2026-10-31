@@ -64,9 +64,24 @@ export function releaseAll(world: World): void {
   for (const towed of Object.keys(world.holding)) release(world, Number(towed) as Seat);
 }
 
+// Pick up the gear under you; with a full slot the one you hold lands there instead (a swap).
+function takeUnder(world: World, seat: Seat, tile: Vec): boolean {
+  const lying = gearOn(world, tile);
+  if (!lying) return false;
+  const mine = carried(world, seat);
+  if (mine) {
+    Object.assign(mine, { heldBy: null, at: tile });
+    world.events.push({ kind: "gear", id: mine.id, action: "drop", seat, at: centre(tile) });
+  }
+  Object.assign(lying, { at: null, heldBy: seat });
+  world.events.push({ kind: "gear", id: lying.id, action: "take", seat, at: centre(tile) });
+  return true;
+}
+
 // What Act does when no station took it, in order: let go (when towed), take the gear you stand
-// on, put on or take from a hatch sill beside you, hold or let go of a teammate beside you, ring
-// the bell or flash the lamp you stand on.
+// on into an empty slot, put on or take from a hatch sill beside you, hold or let go of a teammate
+// beside you, ring the bell or flash the lamp you stand on, and last swap your gear for the gear
+// you stand on (so Space never swaps when a hand, a sill or a rope was meant).
 export function actOn(world: World, seat: Seat): void {
   const p = world.players[seat];
   const tile = tileOf(p.pos);
@@ -76,12 +91,7 @@ export function actOn(world: World, seat: Seat): void {
     return;
   }
   const mine = carried(world, seat);
-  const lying = gearOn(world, tile);
-  if (!mine && lying) {
-    Object.assign(lying, { at: null, heldBy: seat });
-    world.events.push({ kind: "gear", id: lying.id, action: "take", seat, at: centre(tile) });
-    return;
-  }
+  if (!mine && takeUnder(world, seat, tile)) return;
   const hatch = hatchBeside(world, tile);
   if (hatch) {
     const sill = onSill(world, hatch.id);
@@ -115,20 +125,29 @@ export function actOn(world: World, seat: Seat): void {
     return;
   }
   const lamp = objectOn(world, "lamp", tile);
-  if (lamp) world.events.push({ kind: "lamp", id: lamp.id, seat });
+  if (lamp) {
+    world.events.push({ kind: "lamp", id: lamp.id, seat });
+    return;
+  }
+  takeUnder(world, seat, tile);
 }
 
-// G: hand your gear to the nearest teammate beside you with an empty slot, or else drop it here.
+// G: take the gear under you into an empty slot; else hand yours to the nearest teammate beside
+// you with an empty slot; else swap it for the gear under you; else drop it here.
 export function gearPress(world: World, seat: Seat): void {
   const mine = carried(world, seat);
-  if (!mine) return;
   const tile = tileOf(world.players[seat].pos);
+  if (!mine) {
+    takeUnder(world, seat, tile);
+    return;
+  }
   const to = beside(world, seat).find((s) => !carried(world, s));
   if (to !== undefined) {
     mine.heldBy = to;
     world.events.push({ kind: "gear", id: mine.id, action: "give", seat, at: centre(tile) });
     return;
   }
+  if (takeUnder(world, seat, tile)) return;
   Object.assign(mine, { heldBy: null, at: tile });
   world.events.push({ kind: "gear", id: mine.id, action: "drop", seat, at: centre(tile) });
 }
