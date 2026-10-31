@@ -146,7 +146,7 @@ group's length the count.
   door); mockup shows the full ink at 1280 and 375. A solved station stays solved on a reset.
 - **Human review:** play room 7: the torch needs finding, the ink reads clean.
 
-### Task 38: Practice lever in room 8  [ ]  (demo 8)
+### Task 38: Practice lever in room 8  [x]  (demo 8; by-ear review deferred to the end of the phase)
 
 - **Sim:** a `lever` object (new tile letter or station param; prefer a `Q` param
   `"practice":"L1"` plus a one-tile `l`-style object, read the letters table in `format.ts` first)
@@ -253,3 +253,14 @@ the pair stalls; one idle means the other leads at full speed.
   expected, and did not grep for the constants it was replacing. (5) My own slip, not the plan's:
   I launched the full check straight after `pnpm lint` without reading its output, and it failed on
   a lint error in my new test; it cost one 5-minute run.
+- 2026-11-01, Task 38 practice lever. Plan said: a lever "new tile letter or station param", a
+  `practice` sound and "the lever clunks" (one cue row each). Built: tile `v` (the only free letter
+  that read as a lever), a `lever` kind, `levers` in the world, and a station's `practice` param
+  naming its lever. Chose two cue kinds (`practice`, `lever`) over reusing `key` and `clunk`, so a
+  practice press can never be taken for a note of the real tune; each has a synth, a caption, a
+  range and a parity row. The view carries `station.practice`, gated like `teach` (a station reaches
+  a role only where it is in sight), so Can't see gets the sound and no flag. Two of my own slips:
+  a screenshot script grabbed hands instead of flipping the lever (Space takes hold-hands before a
+  lever, by the priority order; fixed by keeping the seats apart), and a render test picked the
+  wrong `lineTo` and passed or failed for the wrong reason (fixed by finding the handle from its
+  pivot, then checked by breaking the handle and the dimming and watching each go red).

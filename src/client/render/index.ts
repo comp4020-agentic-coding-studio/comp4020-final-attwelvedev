@@ -15,7 +15,7 @@ import { figureCover, wallAlpha } from "./occlusion.ts";
 import { drawEdgePills, drawPops } from "./pops.ts";
 import { type Camera, camera, LIVE, setRise, tileWindow, toScreen } from "./project.ts";
 import { drawMist, inSight, lightPolygon, nightTile, seenOf } from "./sight.ts";
-import { drawBell, drawHatch, drawLampSwitch } from "./signals.ts";
+import { drawBell, drawHatch, drawLampSwitch, drawLever } from "./signals.ts";
 import {
   drawOrder,
   drawPlaque,
@@ -112,6 +112,7 @@ const STANDING: EntityView["kind"][] = [
   "gear",
   "bell",
   "lamp",
+  "lever",
   "card",
   "order",
   "player",
@@ -216,6 +217,7 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
           drawGear(ctx, e, cam, hatches.has(`${Math.floor(e.pos.x)},${Math.floor(e.pos.y)}`));
         else if (kind === "bell") drawBell(ctx, e, cam, scene);
         else if (kind === "lamp") drawLampSwitch(ctx, e, cam);
+        else if (kind === "lever") drawLever(ctx, e, cam);
         else if (kind === "card") drawTargetCard(ctx, e, cam);
         else if (kind === "order") drawOrder(ctx, e, cam);
         else drawStanding(ctx, e, cam, scene);

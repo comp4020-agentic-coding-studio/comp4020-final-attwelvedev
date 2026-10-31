@@ -65,6 +65,7 @@ export interface EntityView {
     | "ink" // UV ink, sent only while a torch lights it
     | "sidejob"
     | "card" // a switches station's target card: `card`
+    | "lever" // a practice lever: `state` is "on" while it is flipped
     | "order" // a vault's order clue: `motifs`, its wings' motifs in socket order
     | "uv"; // a UV torch's pool of light: `polys`
   pos: Vec;
@@ -108,6 +109,7 @@ export interface EntityView {
     parts: { key: StationPartKey; at: Vec[] }[];
     furniture?: true; // only its parts are in sight, not where it shows its state: `shows` is empty
     teach?: true; // a teaching station (clues FR7)
+    practice?: true; // its practice lever is on: dimmed, and its keys and bells only play (Task 38)
     motif?: Motif; // drawn on it, and on the station it feeds or is fed by (clues FR3)
     reveal?: number; // a solved wing's symbol, for the vault (clues FR2)
   };
@@ -153,6 +155,8 @@ export interface SoundCue {
     | "tone" // a tuned radio
     | "pip" // a tuned radio's digit; `n` of them
     | "clunk" // a switch, socket, vault handle or sync key
+    | "practice" // a key or bell pressed while its practice lever is on: it plays, it counts for nothing
+    | "lever" // a practice lever flipped: the whole room hears it
     | "bellnote" // a music-box bell struck or played; `n` is which
     | "bell" // the bell rope: the whole room hears it
     | "dye" // the dye pack: a wrong answer, heard by the team
@@ -218,6 +222,7 @@ const RANGE: Partial<Record<SoundCue["kind"], number>> = {
   tone: 6,
   pip: 6,
   clunk: 6,
+  practice: 6,
   bellnote: 8,
   gear: 6,
 };
@@ -373,6 +378,9 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
           solved: s.solved,
           parts: stationParts(o),
           ...(o.params?.teach === true ? { teach: true as const } : {}),
+          ...(typeof o.params?.practice === "string" && world.levers[o.params.practice]
+            ? { practice: true as const }
+            : {}),
           ...(isMotif(o.params?.motif) ? { motif: o.params.motif } : {}),
           ...(s.solved && s.reveal !== undefined ? { reveal: s.reveal } : {}),
         },
@@ -398,6 +406,13 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
       if (g && at) out.push({ id: g.id, kind: "gear", pos: centre(at), item: g.item });
     } else if (o.kind === "hatch") {
       for (const t of o.tiles) out.push({ id: o.id, kind: "hatch", pos: centre(t) });
+    } else if (o.kind === "lever") {
+      out.push({
+        id: o.id,
+        kind: "lever",
+        pos: centre(o.tiles[0] as Vec),
+        ...(world.levers[o.id] ? { state: "on" as const } : {}),
+      });
     } else if (o.kind === "bell" || o.kind === "lamp") {
       out.push({
         id: o.id,
@@ -525,6 +540,8 @@ function soundsFor(world: World, seat: Seat): SoundCue[] {
     } else if (e.kind === "gear") {
       const c = cue(world, "gear", e.at, me);
       if (c) out.push(c);
+    } else if (e.kind === "lever") {
+      out.push({ kind: "lever", pan: panOf(e.at, me), gain: 1, ...dirTo(e.at, me) }); // the whole room hears it
     } else if (e.kind === "bell") {
       out.push({ kind: "bell", pan: panOf(e.at, me), gain: 1, ...dirTo(e.at, me) }); // the whole room hears it
     } else if (e.kind === "dye") {
@@ -563,6 +580,12 @@ function stationSound(
     return;
   }
   if (e.result === "wrong") return; // the dye pack says it
+  if (e.practice) {
+    // a practice press: its own sound, never the key's or the bell's, so it is never taken for a solve
+    const p = cue(world, "practice", e.at, me);
+    if (p) out.push(p);
+    return;
+  }
   const kind = e.result === "press" && s.type === "dial" ? "clunk" : STATION_CLICK[s.type];
   const c = kind ? cue(world, kind, e.at, me) : null;
   const pitched = kind === "key" || kind === "bellnote";
@@ -915,6 +938,8 @@ function actHint(world: World, seat: Seat, role: Role): string | undefined {
   if (mate === undefined && near.some((s) => partner(world, s) === undefined)) return "Hold hands";
   if (objectOn(world, "bell", tile)) return "Ring the bell";
   if (objectOn(world, "lamp", tile)) return "Flash the lamp";
+  const lever = objectOn(world, "lever", tile);
+  if (lever) return world.levers[lever.id] ? "Switch practice off" : "Switch practice on";
   if (mine && lying) return `Swap the ${GEAR_NAME[mine.item]} for the ${GEAR_NAME[lying.item]}`;
   return undefined;
 }

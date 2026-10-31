@@ -7,9 +7,9 @@
   {"name":"The real tune","x":[19,29],"intent":{"blind":"hears the bells ring","deaf":"strikes each bell Can't speak marks","mute":"listens to the big music box through the glass and marks its bells in order"}},
   {"name":"Out","x":[30,34],"intent":{"blind":"walks out","deaf":"walks out","mute":"walks out"}}],
  "objects":{
-  "Q1":{"type":"bells","bells":[[5,1],[6,1]],"tune":[5,5],"teach":true},
-  "Q2":{"type":"keypad","keys":[[13,1],[14,1],[15,1],[13,2],[14,2],[15,2],[13,3],[14,3],[15,3]],"clue":"g1","length":3},
-  "Q3":{"type":"bells","bells":[[22,1],[23,1],[24,1],[25,1]],"tune":[24,5]},
+  "Q1":{"type":"bells","bells":[[5,1],[6,1]],"tune":[5,5],"teach":true,"practice":"v1"},
+  "Q2":{"type":"keypad","keys":[[13,1],[14,1],[15,1],[13,2],[14,2],[15,2],[13,3],[14,3],[15,3]],"clue":"g1","length":3,"practice":"v2"},
+  "Q3":{"type":"bells","bells":[[22,1],[23,1],[24,1],[25,1]],"tune":[24,5],"practice":"v3"},
   "g1":{"item":"earpiece"},
   "g2":{"item":"goggles"},
   "D1":{"opensWhen":["Q1","Q2","Q3"]}},
@@ -27,7 +27,7 @@
 ---
 ###################################
 #1......Q#.Q.......#.......Q.######
-#2.g.....#.........#.........######
+#2.g...v.#.v.......#.......v.######
 #3..g....#.........#.........######
 #..#==####..#######.##====#..######
 #..................K...........D.E#

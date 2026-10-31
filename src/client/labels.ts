@@ -37,6 +37,7 @@ export const LABEL_COPY: Record<string, string> = {
   bell: "Bell: pull the rope; everyone who can hear, hears it",
   lamp: "Lamp: flips a light on every sighted teammate's screen",
   gear: "Gear: walk over it and press Act to pick it up",
+  lever: "Lever: while on, keys and bells only play",
   hands: "Hold hands: press Act next to a teammate",
 };
 
@@ -55,6 +56,7 @@ export const ESCAPE_KINDS = new Set([
   "hatch",
   "bell",
   "lamp",
+  "lever",
   "gear",
   "hands",
 ]);
@@ -90,6 +92,7 @@ const KIND_OF: Partial<Record<EntityView["kind"], string>> = {
   hatch: "hatch",
   bell: "bell",
   lamp: "lamp",
+  lever: "lever",
   ink: "plaque",
 };
 

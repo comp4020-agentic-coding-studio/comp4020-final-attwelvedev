@@ -44,6 +44,11 @@ function clearEveryRotation(title: string, set: typeof rooms, minimum: number) {
           expect(result.world.checkpoint).toBe(flags);
           // a bot keeps its own cooldowns: the router never has to turn one away
           expect(result.refused).toBe(0);
+          // practice levers are for people: no bot flips one, so they are all off at the end (Task 38)
+          expect(
+            Object.entries(result.world.levers).filter(([, on]) => on),
+            "a lever was left on",
+          ).toEqual([]);
         });
       }
     }

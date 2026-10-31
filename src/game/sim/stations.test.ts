@@ -12,7 +12,7 @@ import {
   WIRE_RULES,
 } from "./stations.ts";
 import { step } from "./step.ts";
-import { input, place, stationWorld } from "./testing.ts";
+import { input, place, stationWorld, worldWith } from "./testing.ts";
 import type { StationState, World, WorldEvent } from "./world.ts";
 
 // Seat 0 walks onto `tile` and presses Act for one tick, then lets go for one (Act is an edge).
@@ -288,6 +288,62 @@ describe("bells", () => {
     const v = stationWorld({ Q1: BELLS }, 6);
     const e = press(v, { x: 6 + (((tune[0] as number) + 1) % 4), y: 1 });
     expect(kinds(e)).toContain("dye");
+  });
+});
+
+describe("a practice lever (Task 38)", () => {
+  // a keypad whose practice lever v1 stands at (3, 2); the keys at (6..8, 1..3)
+  const keys = [0, 1, 2].flatMap((y) => [0, 1, 2].map((x) => [6 + x, 1 + y]));
+  const GRID = ["###########", "#1...Q....#", "#2.v......#", "#3........#", "###########"];
+  const lever = () =>
+    worldWith(GRID, { Q1: { type: "keypad", keys, clue: "c9", length: 3, practice: "v1" } }, {});
+  const flip = (w: World) => press(w, { x: 3, y: 2 });
+  const keyTile = (k: number) => ({ x: 6 + (k % 3), y: 1 + Math.floor(k / 3) });
+
+  it("is off to start, and Act on it toggles it, with a clunk each time", () => {
+    const w = lever();
+    expect(w.levers.v1).toBe(false);
+    expect(flip(w).map((e) => e.kind)).toContain("lever");
+    expect(w.levers.v1).toBe(true);
+    flip(w);
+    expect(w.levers.v1).toBe(false);
+  });
+
+  it("while on, the right keys sound and do not count: nothing solved, no wrong answer", () => {
+    const w = lever();
+    flip(w);
+    const code = [...st(w).answer];
+    const heard: WorldEvent[] = [];
+    for (const k of code) heard.push(...press(w, keyTile(k)));
+    expect(st(w).solved).toBe(false);
+    expect(st(w).input).toEqual([]);
+    expect(heard.filter((e) => e.kind === "station")).toEqual(
+      code.map((n) => expect.objectContaining({ result: "press", n })),
+    );
+    // a wrong key is no wrong answer either: no dye, nobody caught
+    const wrong = press(w, keyTile((code[0] as number) + 1 > 8 ? 0 : (code[0] as number) + 1));
+    expect(kinds(wrong)).not.toContain("dye");
+    expect(kinds(wrong)).not.toContain("caught");
+  });
+
+  it("turned off again, the same keys count and solve it", () => {
+    const w = lever();
+    flip(w);
+    for (const k of st(w).answer) press(w, keyTile(k));
+    flip(w);
+    for (const k of st(w).answer) press(w, keyTile(k));
+    expect(st(w).solved).toBe(true);
+  });
+
+  it("a practice press says it is practice, so the client can sound it apart from a real one", () => {
+    const w = lever();
+    flip(w);
+    const e = press(w, keyTile(st(w).answer[0] as number)).find((x) => x.kind === "station");
+    expect(e).toMatchObject({ result: "press", practice: true });
+    flip(w);
+    const real = press(w, keyTile(st(w).answer[0] as number)).find((x) => x.kind === "station");
+    expect(real).toMatchObject({ result: "press" });
+    expect(real).not.toHaveProperty("practice");
   });
 });
 

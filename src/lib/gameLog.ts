@@ -33,7 +33,8 @@ export type GameEvent =
   | "station" // a station solved or answered wrong (detail kind only: never the answer)
   | "gear" // gear taken, given, dropped or put on a sill (detail kind)
   | "hold" // two players took or let go of hands (detail kind: on/off)
-  | "signal"; // the bell rung or the lamp flashed (detail kind: bell/lamp)
+  | "signal" // the bell rung or the lamp flashed (detail kind: bell/lamp)
+  | "practice"; // a practice lever flipped (detail kind: on/off; never which lever)
 
 // One line per discrete thing a player did: never per tick. `who` is a device
 // hash and `lobby` a hash of the lobby's code and age, so neither leads back to
@@ -94,6 +95,7 @@ export function gameLinesFor(events: readonly WorldEvent[]): EventLine[] {
       return [{ event: "hold", detail: { kind: e.leader === null ? "off" : "on" } }];
     if (e.kind === "bell" || e.kind === "lamp")
       return [{ event: "signal", detail: { kind: e.kind } }];
+    if (e.kind === "lever") return [{ event: "practice", detail: { kind: e.on ? "on" : "off" } }];
     return [];
   });
 }

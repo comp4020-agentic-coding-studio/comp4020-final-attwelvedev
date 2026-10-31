@@ -89,6 +89,7 @@ export interface World {
   nextStamp: number;
   doorOpen: Record<string, boolean>;
   pressed: Record<string, boolean>;
+  levers: Record<string, boolean>; // a practice lever: on while its stations only play (Task 38)
   status: RoomStatus;
   events: WorldEvent[]; // emitted this tick only, cleared at the start of step
   guards: GuardState[];
@@ -130,8 +131,10 @@ export type WorldEvent =
       id: string;
       result: "turn" | "press" | "cut" | "solved" | "wrong";
       n?: number;
+      practice?: true; // a press while its practice lever is on: it plays and counts for nothing
       at: Vec;
     }
+  | { kind: "lever"; id: string; on: boolean; at: Vec } // a practice lever flipped
   | { kind: "gear"; id: string; action: "take" | "drop" | "give" | "sill"; seat: Seat; at: Vec }
   | { kind: "hold"; seat: Seat; leader: Seat | null }
   | { kind: "bell"; id: string; at: Vec }
@@ -174,7 +177,9 @@ export function createWorld(room: Room, seed = 1): World {
   };
   const doorOpen: Record<string, boolean> = {};
   const pressed: Record<string, boolean> = {};
+  const levers: Record<string, boolean> = {};
   for (const o of room.objects) {
+    if (o.kind === "lever") levers[o.id] = false;
     if (o.kind === "door") doorOpen[o.id] = false;
     if (o.kind === "plate") pressed[o.id] = false;
   }
@@ -236,6 +241,7 @@ export function createWorld(room: Room, seed = 1): World {
     nextStamp: 1,
     doorOpen,
     pressed,
+    levers,
     status: "playing",
     events: [],
     stations: {},

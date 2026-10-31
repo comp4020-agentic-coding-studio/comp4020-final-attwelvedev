@@ -379,6 +379,7 @@ const NAME: Record<Station["type"], string> = {
   vault: "Vault",
   sync: "Keys",
 };
+const PRACTICE_ALPHA = 0.45; // a station whose practice lever is on is drawn this faint
 const PLATE_MIN_PX = 11; // the plate's text never drops below this, however small the tiles
 
 // A name plate centred at (cx, cy): brass, outlined, the name in the HUD's condensed weight.
@@ -582,8 +583,11 @@ export function drawStationFloor(
     turnPad(ctx, cam, t, i === 0 ? -1 : 1, standingOn(scene, t));
   if (st.type === "keypad") {
     const pressed = new Set(st.shows);
+    ctx.save();
+    if (st.practice) ctx.globalAlpha = PRACTICE_ALPHA; // practising: dimmed, and it counts for nothing
     for (const [i, t] of partsOf(st, "keys").entries())
       floorKey(ctx, cam, t, String(i + 1), standingOn(scene, t), pressed.has(i), (i % 3) + 1);
+    ctx.restore();
   } else if (st.type === "switches") {
     for (const [i, t] of partsOf(st, "buttons").entries())
       floorKey(ctx, cam, t, String(i + 1), standingOn(scene, t), false);
@@ -719,6 +723,7 @@ export function drawStationStanding(
       const c = toScreen(cam, t.x + 0.5, t.y + 0.5, LIVE.block * 0.8);
       const tilt = !st.furniture && last === i && !scene.reducedMotion ? 0.2 : 0;
       ctx.save();
+      if (st.practice) ctx.globalAlpha = PRACTICE_ALPHA; // practising: dimmed, and it counts for nothing
       ctx.translate(c.x, c.y);
       ctx.rotate(tilt);
       // a bell in its code colour, with a pattern band, and its number under it
@@ -735,11 +740,14 @@ export function drawStationStanding(
       codeSwatch(ctx, i, -s * 0.18, -s * 0.02, s * 0.36, s * 0.1);
       ctx.restore();
       const f = toScreen(cam, t.x + 0.5, t.y + 0.9);
+      ctx.save();
+      if (st.practice) ctx.globalAlpha = PRACTICE_ALPHA;
       ctx.fillStyle = WORLD.line;
       ctx.font = `700 ${Math.max(PLATE_MIN_PX, Math.round(s * 0.3))}px Archivo, system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(String(i + 1), f.x, f.y);
+      ctx.restore();
     });
     for (const t of partsOf(st, "tune")) {
       if (!inRow(t)) continue;

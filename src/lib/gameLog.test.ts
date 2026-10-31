@@ -77,6 +77,8 @@ describe("gameLinesFor: the sim's station, gear, hold and signal events", () => 
       { kind: "hold", seat: 1, leader: null },
       { kind: "bell", id: "b1", at: { x: 1, y: 1 } },
       { kind: "lamp", id: "l1", seat: 2 },
+      { kind: "lever", id: "v1", on: true, at: { x: 1, y: 1 } },
+      { kind: "lever", id: "v1", on: false, at: { x: 1, y: 1 } },
     ]);
     expect(lines).toEqual([
       { event: "station", detail: { kind: "solved" } },
@@ -86,10 +88,12 @@ describe("gameLinesFor: the sim's station, gear, hold and signal events", () => 
       { event: "hold", detail: { kind: "off" } },
       { event: "signal", detail: { kind: "bell" } },
       { event: "signal", detail: { kind: "lamp" } },
+      { event: "practice", detail: { kind: "on" } },
+      { event: "practice", detail: { kind: "off" } },
     ]);
     const redacted = lines.map((l) => describeGame({ event: l.event, detail: l.detail }));
     // what reaches the log beyond the event name: never a station, gear or signal id, or a key
     const details = JSON.stringify(redacted.map((l) => l.detail));
-    expect(details).not.toMatch(/Q1|Q2|g1|b1|l1|"n"|7/);
+    expect(details).not.toMatch(/Q1|Q2|g1|b1|l1|v1|"n"|7/);
   });
 });

@@ -179,6 +179,16 @@ describe("parseRoom: stations", () => {
   const grid = ["#######", "#1.Q..#", "#2....#", "#3....#", "#######"];
   const withQ = (q: unknown) => header(`,"Q1":${JSON.stringify(q)}`);
 
+  it("parses v as a lever with its metadata, and a station's practice lever (Task 38)", () => {
+    const room = parseRoom(
+      `${JSON.stringify({ id: "t", name: "T", version: 1, beats: [], objects: { Q1: { type: "bells", bells: [[3, 1]], tune: [5, 1], practice: "v1" } } })}\n---\n#######\n#1.Qv.#\n#2....#\n#3....#\n#######\n`,
+    );
+    const lever = room.objects.find((o) => o.id === "v1");
+    expect(lever?.kind).toBe("lever");
+    expect(lever?.tiles).toEqual([{ x: 4, y: 1 }]);
+    expect(room.objects.find((o) => o.id === "Q1")?.params?.practice).toBe("v1");
+  });
+
   it("keeps a plate's crateOnly flag as a param (Task 33)", () => {
     const room = parseRoom(
       `${JSON.stringify({ id: "t", name: "T", version: 1, beats: [], objects: { p1: { crateOnly: true } } })}\n---\n#####\n#1.p#\n#2..#\n#3..#\n#####\n`,

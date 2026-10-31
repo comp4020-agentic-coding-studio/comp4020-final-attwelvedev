@@ -1164,6 +1164,37 @@ describe("viewFor: stations, gear and signals", () => {
     }
   });
 
+  it("a station's practice field reaches only roles that perceive the station (Task 38)", () => {
+    const grid = ["##########", "#1.Q.v...#", "#2.......#", "#3.......#", "##########"];
+    const w = worldWith(grid, {
+      Q1: {
+        type: "keypad",
+        keys: [
+          [6, 1],
+          [7, 1],
+          [8, 1],
+        ],
+        length: 3,
+        practice: "v1",
+      },
+    });
+    place(w, 2, { x: 5, y: 1 });
+    step(w, { 2: { seq: 1, move: { x: 0, y: 0 }, act: true } }, TICK_MS); // the mute seat flips it
+    step(w, {}, TICK_MS);
+    expect(w.levers.v1).toBe(true);
+    const station = (role: "deaf" | "mute", seat: 1 | 2) =>
+      viewFor(w, seat, role, false).entities.find((e) => e.id === "Q1")?.station;
+    expect(station("deaf", 1)?.practice).toBe(true);
+    expect(station("mute", 2)?.practice).toBe(true);
+    // Can't see gets no entities at all, so no flag: it is told by the sound, not the dimming
+    const blind = viewFor(w, 0, "blind", false);
+    expect(blind.entities).toEqual([]);
+    expect(JSON.stringify(blind)).not.toContain("practice");
+    // and a station with the lever off carries no field at all
+    w.levers.v1 = false;
+    expect(station("deaf", 1)).not.toHaveProperty("practice");
+  });
+
   it("Act hint says Swap when a full slot stands on other gear, and only after the nearer actions", () => {
     const w = worldWith(["##########", "#1..gg...#", "#2.......#", "#3.......#", "##########"], {
       g1: { item: "uv" },

@@ -294,7 +294,16 @@ export function createAudio(): GameAudio {
           for (let i = 0; i < Math.max(1, Math.min(9, s.n ?? 1)); i++)
             tone(c, s, "sine", 880, 880, 0.08, 0.25, i * 0.16);
         } else if (s.kind === "clunk") tone(c, s, "square", 150, 110, 0.1, 0.25);
-        else if (s.kind === "bell")
+        else if (s.kind === "practice") {
+          // a dry, unpitched tap of filtered noise with a low thud: nothing like a key's rising chimes
+          // or a bell's ring, so a practice press is never taken for a note of the real tune
+          burst(c, s, "bandpass", 900, 0.5, 4);
+          tone(c, s, "sine", 110, 80, 0.07, 0.3);
+        } else if (s.kind === "lever") {
+          // a heavy two-part clunk: the handle thrown, then the stop (lower and longer than a switch)
+          tone(c, s, "square", 90, 60, 0.12, 0.3);
+          tone(c, s, "square", 70, 45, 0.1, 0.3, 0.09);
+        } else if (s.kind === "bell")
           bellTone(c, s, 330, 1.4, 0.35); // the rope: long, low, room-wide
         else if (s.kind === "dye") {
           // a soft pomf: low filtered noise and a falling thump, a toy and never a siren

@@ -24,6 +24,7 @@ export type Tile =
   | "l"
   | "u"
   | "t"
+  | "v"
   | "Y";
 
 export interface RoomObject {
@@ -48,6 +49,7 @@ export interface RoomObject {
     | "bell" // a rope: Act rings a bell the whole room hears
     | "lamp" // a switch: Act flashes a lamp in every sighted player's HUD
     | "card" // a switches station's target card: `params.of` names the station
+    | "lever" // a practice lever: Act flips it; a station that names it (`practice`) only plays
     | "order" // a vault's order clue: the wings' motifs in socket order
     | "ink"; // hidden text (`params.text`) that shows only in a UV torch's light
   tiles: Vec[]; // integer tile coordinates
@@ -143,6 +145,7 @@ const TILES = new Set([
   "l", // a lamp switch
   "u", // UV ink
   "t", // a target card
+  "v", // a practice lever
   "Y", // a vault's order clue
 ]);
 
@@ -163,6 +166,7 @@ const NUMBERED: Record<string, [RoomObject["kind"], string]> = {
   l: ["lamp", "l"],
   u: ["ink", "u"],
   t: ["card", "T"],
+  v: ["lever", "v"],
   Y: ["order", "Y"],
 };
 // Kinds whose metadata is kept whole as `params`.
@@ -181,6 +185,7 @@ const PARAMS: Record<string, true> = {
   ink: true,
   card: true,
   order: true,
+  lever: true,
 };
 export const STATION_TYPES = [
   "dial",

@@ -102,6 +102,8 @@ export const CUE_WORD: Record<SoundCue["kind"], string> = {
   tone: "Tone",
   pip: "Pip",
   clunk: "Clunk",
+  practice: "Practice",
+  lever: "Lever",
   bellnote: "Bell note",
   bell: "Bell",
   dye: "Dye pack",

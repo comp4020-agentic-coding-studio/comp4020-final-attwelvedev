@@ -126,6 +126,27 @@ const PARITY: Record<SoundCue["kind"], Scenario> = {
       sees: (b, a) => (shows(a)?.length ?? 0) > (shows(b)?.length ?? 0),
     };
   })(),
+  practice: (() => {
+    // a keypad with its practice lever on: the right key sounds as "practice", never as a real key,
+    // and Can't hear sees the keypad dimmed (the station's `practice` field)
+    const world = worldWith(put([6, 1, "Q"], [4, 3, "v"]), {
+      Q1: { type: "keypad", keys: KEYS, length: 3, practice: "v1" },
+    });
+    actBy(world, MUTE, { x: 4, y: 3 }); // the lever on
+    go(world);
+    const first = KEYS[world.stations.Q1?.answer[0] as number] as number[];
+    place(world, BLIND, { x: 6, y: 2 });
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: first[0] as number, y: first[1] as number }),
+      // the keypad is drawn dimmed before and after (the lever is on the whole time): what the
+      // sighted see of a practice press is that nothing counts: the pad shows no key pressed
+      sees: (b, a) =>
+        ent(b, "Q1")?.station?.practice === true &&
+        ent(a, "Q1")?.station?.practice === true &&
+        (shows(a)?.length ?? 0) === 0,
+    };
+  })(),
   snap: (() => {
     const world = stationAt({
       type: "wires",
@@ -250,6 +271,14 @@ const PARITY: Record<SoundCue["kind"], Scenario> = {
       sees: () => true,
       exempt:
         "The earpiece is a private tone feed with no picture by design (spec FR17): only its holder hears it, like the clue chime.",
+    };
+  })(),
+  lever: (() => {
+    const world = worldWith(put([12, 1, "v"]), {});
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 12, y: 1 }),
+      sees: (b, a) => ent(b, "v1")?.state !== "on" && ent(a, "v1")?.state === "on",
     };
   })(),
   gear: (() => {

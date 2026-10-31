@@ -129,6 +129,13 @@ export function actOn(world: World, seat: Seat): void {
     world.events.push({ kind: "lamp", id: lamp.id, seat });
     return;
   }
+  const lever = objectOn(world, "lever", tile);
+  if (lever) {
+    const on = !world.levers[lever.id];
+    world.levers[lever.id] = on;
+    world.events.push({ kind: "lever", id: lever.id, on, at: centre(tile) });
+    return;
+  }
   takeUnder(world, seat, tile);
 }
 

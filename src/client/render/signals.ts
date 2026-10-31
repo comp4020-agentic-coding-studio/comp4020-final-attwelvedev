@@ -103,3 +103,36 @@ export function drawLampSwitch(ctx: CanvasRenderingContext2D, e: EntityView, cam
   ctx.fill();
   ctx.stroke();
 }
+
+// The practice lever (Task 38): a wide steel plate on the floor with a long handle thrown to the
+// left (off) or the right (on) and left there, so it never reads as the lamp switch's short post.
+// Its word sits on the plate, so the state is never told by the handle's side alone.
+export function drawLever(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera) {
+  const s = cam.scale;
+  const on = e.state === "on";
+  block(
+    ctx,
+    cam,
+    { x: e.pos.x - 0.4, y: e.pos.y - 0.2, w: 0.8, d: 0.4, h: LIVE.block * 0.25 },
+    WORLD.steel,
+    WORLD.steelFront,
+  );
+  const pivot = toScreen(cam, e.pos.x, e.pos.y, LIVE.block * 0.25);
+  ctx.strokeStyle = WORLD.line;
+  ctx.lineWidth = Math.max(3, s * 0.08);
+  ctx.beginPath();
+  ctx.moveTo(pivot.x, pivot.y);
+  ctx.lineTo(pivot.x + (on ? s * 0.32 : -s * 0.32), pivot.y - s * 0.3);
+  ctx.stroke();
+  ctx.fillStyle = on ? WORLD.lamp : COLOR.ui;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(pivot.x + (on ? s * 0.32 : -s * 0.32), pivot.y - s * 0.3, s * 0.07, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = WORLD.line;
+  ctx.font = `700 ${Math.max(11, Math.round(s * 0.2))}px Archivo, system-ui, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(on ? "Practice" : "Real", pivot.x, pivot.y + s * 0.1);
+}

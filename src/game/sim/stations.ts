@@ -257,6 +257,22 @@ function act(
   if (!s || s.solved) return false;
   const p = o.params ?? {};
   const anchor = o.tiles[0] as Vec;
+  // While its practice lever is on a station only plays (Task 38): a keypad key or a bell sounds as
+  // it always does, and nothing counts: no input kept, nothing solved, no wrong answer.
+  const practising = typeof p.practice === "string" && world.levers[p.practice] === true;
+  if (practising && (s.type === "keypad" || s.type === "bells")) {
+    const i = tilesOf(p[s.type === "keypad" ? "keys" : "bells"]).findIndex((t) => same(t, tile));
+    if (i < 0) return false;
+    world.events.push({
+      kind: "station",
+      id: o.id,
+      result: "press",
+      n: i,
+      practice: true,
+      at: centre(tile),
+    });
+    return true;
+  }
   const say = (result: "turn" | "press" | "cut" | "solved" | "wrong", n?: number) =>
     world.events.push({
       kind: "station",

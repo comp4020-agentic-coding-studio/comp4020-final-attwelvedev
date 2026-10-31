@@ -1438,6 +1438,58 @@ describe("stations, gear and signals", () => {
     }
   });
 
+  it("draws a practice lever thrown one way or the other, and dims its station while it is on (Task 38)", () => {
+    // not room(): that one always draws the shared list of every kind, whatever it is given
+    const own = (over: Partial<Scene>) =>
+      scene({ tiles: ROOM2, self: { x: 3.5, y: 3.5 }, nowMs: 1234, w: 1280, h: 600, ...over });
+    const keypad = (practice: boolean): EntityView => {
+      const e = station(
+        "Q2",
+        "keypad",
+        at(1.5, 1.5),
+        [],
+        [
+          { key: "anchor", at: [at(1, 1)] },
+          { key: "keys", at: [at(5, 1), at(6, 1), at(7, 1)] },
+        ],
+      );
+      if (practice && e.station) e.station.practice = true;
+      return e;
+    };
+    const lever = (on: boolean): EntityView => ({
+      id: "v1",
+      kind: "lever",
+      pos: at(3.5, 3.5),
+      ...(on ? { state: "on" as const } : {}),
+    });
+    const handle = (on: boolean) => {
+      const { ctx, ops } = recorder();
+      draw(ctx, own({ entities: [lever(on), player(1, 2.5, 2.5)] }));
+      // the handle is the stroked line out of the lever's pivot (its moveTo), thrown to the left
+      // (off) or the right (on); the figure drawn after it makes lines of its own
+      const i = ops.findIndex(
+        (o, k) => o.name === "moveTo" && ops[k + 1]?.name === "lineTo" && o.lineWidth >= 3,
+      );
+      const pivot = ops[i]?.args as number[];
+      const end = ops[i + 1]?.args as number[];
+      return [(end[0] as number) - (pivot[0] as number)];
+    };
+    const off = handle(false);
+    const on = handle(true);
+    expect(off, "the lever is drawn off").toBeDefined();
+    expect(on, "the lever is drawn on").toBeDefined();
+    expect(on[0]).toBeGreaterThan(off[0] as number); // thrown the other way
+
+    const keyFills = (practice: boolean) => {
+      const { ctx, ops } = recorder();
+      draw(ctx, own({ entities: [keypad(practice), player(1, 3.5, 3.5)] }));
+      return ops.filter((o) => o.name === "fillRect" && o.fillStyle === WORLD.steel);
+    };
+    const alphas = (practice: boolean) => keyFills(practice).map((o) => o.globalAlpha);
+    expect(Math.max(...alphas(false))).toBe(1);
+    expect(Math.max(...alphas(true)), "while practising the keys are dimmed").toBeLessThan(1);
+  });
+
   it("draws a keypad's keys alone: its anchor is not a box (Task 35, room 8's stray box)", () => {
     // the anchor is only where the station is named; it stands apart from the keys, as room 8's does
     const keypad = station(
