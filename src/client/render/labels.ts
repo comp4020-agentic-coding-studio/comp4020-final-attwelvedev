@@ -1,4 +1,5 @@
 import { COLOR, WORLD } from "../tokens.ts";
+import { inkBox } from "./gear.ts";
 import type { Scene } from "./index.ts";
 import { type Camera, LIVE, toScreen } from "./project.ts";
 import { plaqueBox } from "./stations.ts";
@@ -45,20 +46,18 @@ export function drawLabels(ctx: CanvasRenderingContext2D, scene: Scene, cam: Cam
   const placed: Rect[] = [];
   if (scene.report) scene.report = { chips: [], plaques: [] };
   for (const e of scene.entities) {
-    let b: Rect | null = e.kind === "sign" ? plaqueBox(ctx, e, cam, scene) : null;
-    if (e.kind === "ink" && e.text) {
-      // UV ink in a torch's light (gear.ts: drawUv): its words centred on its tile
-      const c = toScreen(cam, e.pos.x, e.pos.y);
-      const px = Math.round(cam.scale * 0.42);
-      ctx.save();
-      ctx.font = `700 ${px}px Archivo, system-ui, sans-serif`;
-      const w = ctx.measureText(e.text).width;
-      ctx.restore();
-      b = { x: c.x - w / 2, y: c.y - px / 2, w, h: px };
+    const boxes: Rect[] = [];
+    if (e.kind === "sign") {
+      const b = plaqueBox(ctx, e, cam, scene);
+      if (b) boxes.push({ x: b.x, y: b.y, w: b.w, h: b.h });
+    } else if (e.kind === "ink") {
+      // UV ink in a torch's light: one box a wrapped line (gear.ts: inkBox)
+      boxes.push(...(inkBox(ctx, e, cam)?.boxes ?? []));
     }
-    if (!b) continue;
-    placed.push({ x: b.x, y: b.y, w: b.w, h: b.h });
-    scene.report?.plaques.push({ x: b.x, y: b.y, w: b.w, h: b.h });
+    for (const b of boxes) {
+      placed.push({ x: b.x, y: b.y, w: b.w, h: b.h });
+      scene.report?.plaques.push({ x: b.x, y: b.y, w: b.w, h: b.h });
+    }
   }
   for (const label of scene.labels ?? []) {
     const target = toScreen(cam, label.at.x, label.at.y, LIVE.block * 0.5);

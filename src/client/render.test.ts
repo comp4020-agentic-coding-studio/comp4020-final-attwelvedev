@@ -1584,6 +1584,139 @@ describe("clues drawn (escape-room Task 11)", () => {
     }
   });
 
+  it("wraps UV ink to the light it sits in, at a readable size, so no line is cut by the rim (Task 37)", () => {
+    const text = "More than one yellow wire: cut the first yellow wire.";
+    for (const w of [1280, 375]) {
+      const { ctx, ops } = recorder();
+      // a recorder whose text is as wide as text is: 0.56 of the font size a character
+      const font = () =>
+        Number(
+          /(\d+(?:\.\d+)?)px/.exec(String((ctx as unknown as { font: string }).font))?.[1] ?? 0,
+        );
+      (ctx as unknown as { measureText: (t: string) => { width: number } }).measureText = (t) => ({
+        width: t.length * 0.56 * font(),
+      });
+      const scn = base([
+        { id: "u1", kind: "ink", pos: at(4.5, 2.5), text },
+        {
+          id: "uv0",
+          kind: "uv",
+          pos: at(4.5, 2.5),
+          polys: [[at(2, 0), at(7, 0), at(7, 5), at(2, 5)]],
+        },
+      ]);
+      draw(ctx, { ...scn, w });
+      const cam = camera({ ...scn, w });
+      const lines = ops.filter(
+        (o) => o.name === "fillText" && /\w/.test(String(o.args[0])) && o.fillStyle === WORLD.uvInk,
+      );
+      expect(lines.map((o) => o.args[0]).join(" "), `${w}: every word is still there`).toBe(text);
+      const pool = 5 * cam.scale; // the lit pool is at most 5 tiles across
+      for (const o of lines) {
+        const px = Number(
+          /(\d+(?:\.\d+)?)px/.exec(String((o as unknown as { font: string }).font))?.[1] ?? 0,
+        );
+        expect(px, `${w}: not below the plate minimum`).toBeGreaterThanOrEqual(11);
+        expect(
+          String(o.args[0]).length * 0.56 * px,
+          `${w}: "${o.args[0]}" fits the pool`,
+        ).toBeLessThanOrEqual(pool);
+      }
+    }
+  });
+
+  it("puts UV ink on the wall's face, inside the lit pool and not on its edge (Task 37)", () => {
+    // the ink is on a wall tile (3, 3): the pool the server casts is floor only, so it ends at the
+    // wall's top edge, y = 3. Every line of the ink must sit above that edge on screen.
+    const text = "No red wires: cut the second wire.";
+    for (const w of [1280, 375]) {
+      const { ctx, ops } = recorder();
+      const font = () =>
+        Number(
+          /(\d+(?:\.\d+)?)px/.exec(String((ctx as unknown as { font: string }).font))?.[1] ?? 0,
+        );
+      (ctx as unknown as { measureText: (t: string) => { width: number } }).measureText = (t) => ({
+        width: t.length * 0.56 * font(),
+      });
+      const scn = {
+        ...base([
+          { id: "u1", kind: "ink", pos: at(2.5, 3.5), text },
+          {
+            id: "uv0",
+            kind: "uv",
+            pos: at(2.5, 2.5),
+            polys: [[at(0.5, 0.5), at(4.5, 0.5), at(4.5, 3), at(0.5, 3)]],
+          },
+        ]),
+        tiles: ["#######", "#.....#", "#.....#", "#######"],
+        w,
+      };
+      draw(ctx, scn);
+      const cam = camera(scn);
+      const edge = toScreen(cam, 0, 3).y; // the pool's lower edge, on screen
+      const lines = ops.filter((o) => o.name === "fillText" && o.fillStyle === WORLD.uvInk);
+      expect(lines.length, `${w}: the ink is drawn`).toBeGreaterThan(0);
+      for (const o of lines) {
+        const px = Number(
+          /(\d+(?:\.\d+)?)px/.exec(String((o as unknown as { font: string }).font))?.[1] ?? 0,
+        );
+        // a line is drawn centred on its y, so its bottom is half its height below that
+        expect(
+          (o.args[2] as number) + px / 2,
+          `${w}: "${o.args[0]}" ends above the pool's edge`,
+        ).toBeLessThanOrEqual(edge);
+      }
+    }
+  });
+
+  it("keeps a label chip off UV ink where the ink is drawn: wrapped, on the wall's face (Task 37)", () => {
+    const text = "More than one yellow wire: cut the first yellow wire.";
+    for (const w of [1280, 375]) {
+      const { ctx, ops } = recorder();
+      const font = () =>
+        Number(
+          /(\d+(?:\.\d+)?)px/.exec(String((ctx as unknown as { font: string }).font))?.[1] ?? 0,
+        );
+      (ctx as unknown as { measureText: (t: string) => { width: number } }).measureText = (t) => ({
+        width: t.length * 0.56 * font(),
+      });
+      const scn = {
+        ...base([
+          { id: "u1", kind: "ink", pos: at(2.5, 3.5), text },
+          {
+            id: "uv0",
+            kind: "uv",
+            pos: at(2.5, 2.5),
+            polys: [[at(0.5, 0.5), at(4.5, 0.5), at(4.5, 3), at(0.5, 3)]],
+          },
+        ]),
+        tiles: ["#######", "#.....#", "#.....#", "#######"],
+        // a chip pointing at the ink, as the Plaque label does
+        labels: [
+          { text: "Plaque: a rule for another room. Some are only in UV ink", at: at(2.5, 3.5) },
+        ],
+        w,
+      };
+      draw(ctx, scn);
+      const lines = ops.filter((o) => o.name === "fillText" && o.fillStyle === WORLD.uvInk);
+      const chips = ops
+        .filter((o) => o.name === "roundRect" && (o.args[4] as number) === 8)
+        .map((o) => o.args as [number, number, number, number]);
+      expect(chips.length, `${w}: the chip is drawn`).toBe(1);
+      const [cx, cy, cw, ch] = chips[0] as [number, number, number, number];
+      for (const o of lines) {
+        const px = Number(
+          /(\d+(?:\.\d+)?)px/.exec(String((o as unknown as { font: string }).font))?.[1] ?? 0,
+        );
+        const width = String(o.args[0]).length * 0.56 * px;
+        const x = (o.args[1] as number) - width / 2;
+        const y = (o.args[2] as number) - px / 2;
+        const apart = x + width <= cx || cx + cw <= x || y + px <= cy || cy + ch <= y;
+        expect(apart, `${w}: chip ${[cx, cy, cw, ch]} on ink "${o.args[0]}"`).toBe(true);
+      }
+    }
+  });
+
   it("draws a target card's lit lamps with rays and its hollow ones unfilled", () => {
     const { ctx, ops } = recorder();
     draw(ctx, base([{ id: "T1", kind: "card", pos: at(4.5, 2.5), card: [1, 0, 1, 0, 0, 1] }]));

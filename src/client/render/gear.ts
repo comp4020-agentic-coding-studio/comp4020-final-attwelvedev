@@ -172,12 +172,53 @@ const tracePoly = (ctx: CanvasRenderingContext2D, cam: Camera, poly: Vec[]) => {
 // The UV pool: a blue-violet wash at 30 % with a dashed rim, clipped by walls (the polygon is the
 // server's, cast with the walls), and the ink in it, clipped to the pool so letters cut at the rim.
 // High contrast: no wash, a 3 px dashed white rim, yellow ink outlined black.
+const INK_MIN_PX = 11; // the same floor as a plaque's text
+const UV_POOL_TILES = 5; // a torch lights 2.5 tiles each side of its holder (perception.ts: UV_RADIUS)
+
+// Words broken into lines no wider than `max` px at the context's current font.
+function wrapInk(ctx: CanvasRenderingContext2D, text: string, max: number): string[] {
+  const lines: string[] = [];
+  let line = "";
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const next = line ? `${line} ${word}` : word;
+    if (line && ctx.measureText(next).width > max) {
+      lines.push(line);
+      line = word;
+    } else line = next;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+// Where a piece of UV ink is drawn: its words wrapped to the light they sit in (a pool is at most
+// UV_POOL_TILES across, so the rim never cuts a line), never below INK_MIN_PX, written on the wall's
+// face: the pool is cast over floor only and ends at the wall tile's top edge, so the block's last
+// line ends there and the rest stand above it over the lit floor, however many it wraps to. Both the
+// drawing and the label chips (which keep off it) read the lines from here.
+export function inkBox(ctx: CanvasRenderingContext2D, ink: EntityView, cam: Camera) {
+  if (!ink.text) return null;
+  const s = cam.scale;
+  const px = Math.max(INK_MIN_PX, Math.round(s * 0.42));
+  ctx.save();
+  ctx.font = `700 ${px}px Archivo, system-ui, sans-serif`;
+  const lines = wrapInk(ctx, ink.text, UV_POOL_TILES * s * 0.9);
+  const step = px * 1.25;
+  const x = toScreen(cam, ink.pos.x, ink.pos.y).x;
+  const edge = toScreen(cam, ink.pos.x, Math.floor(ink.pos.y)).y;
+  const placed = lines.map((text, i) => {
+    const y = edge - px / 2 - (lines.length - 1 - i) * step;
+    const w = ctx.measureText(text).width;
+    return { text, x, y, box: { x: x - w / 2, y: y - px / 2, w, h: px } };
+  });
+  ctx.restore();
+  return { px, lines: placed, boxes: placed.map((l) => l.box) };
+}
+
 export function drawUv(ctx: CanvasRenderingContext2D, scene: Scene, cam: Camera) {
   const high = !OVERLAY.wash;
   const pools = scene.entities.filter((e) => e.kind === "uv" && e.polys);
   if (pools.length === 0) return;
   const inks = scene.entities.filter((e) => e.kind === "ink" && e.text);
-  const s = cam.scale;
   for (const pool of pools) {
     ctx.save();
     ctx.beginPath();
@@ -195,15 +236,18 @@ export function drawUv(ctx: CanvasRenderingContext2D, scene: Scene, cam: Camera)
     ctx.setLineDash([]);
     ctx.clip();
     for (const ink of inks) {
-      const c = toScreen(cam, ink.pos.x, ink.pos.y);
-      ctx.font = `700 ${Math.round(s * 0.42)}px Archivo, system-ui, sans-serif`;
+      const b = inkBox(ctx, ink, cam);
+      if (!b) continue;
+      ctx.font = `700 ${b.px}px Archivo, system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.lineWidth = 3;
       ctx.strokeStyle = high ? COLOR.ink : COLOR.ui;
-      ctx.strokeText(ink.text as string, c.x, c.y);
       ctx.fillStyle = WORLD.uvInk;
-      ctx.fillText(ink.text as string, c.x, c.y);
+      for (const line of b.lines) {
+        ctx.strokeText(line.text, line.x, line.y);
+        ctx.fillText(line.text, line.x, line.y);
+      }
     }
     ctx.restore();
   }

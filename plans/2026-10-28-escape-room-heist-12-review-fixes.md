@@ -132,7 +132,7 @@ group's length the count.
   the Captions text still names the count. **Human review:** eyes closed in rooms 5, 6, 8, count
   the chimes without subtitles.
 
-### Task 37: Room 7 door, short ink, hidden torch  [ ]  (demo 7)
+### Task 37: Room 7 door, short ink, hidden torch  [x]  (demo 7; human review deferred to the end of the phase)
 
 - **Red first:** `rooms/07-night-shift.room` lint (`pnpm lint:rooms`): the lights nook cannot be
   reached before the wires are cut (add a door `D3` with `"opensWhen":["Q1"]` between the wires and
@@ -276,3 +276,20 @@ the pair stalls; one idle means the other leads at full speed.
   drop" into DESIGN.md while the slot still said "G give or drop": Task 32 changed G and the plan
   said to update this copy; fixed in the component, the phone button's label, the spec and the type
   comment. Checked by putting the dock back on the left and watching the spec go red.
+- 2026-11-01, Task 37 room 7. Plan said: a door `D3` "between the wires and the switches/lights
+  corridor", a second door for the real pair, and shorten the ink to a wire number from
+  `plaqueText`'s "Cut wire n". Found: (1) the doors as I proposed them put both switch stations
+  behind a door, which the linter's FR2 rule (two stations open from the start and from each
+  checkpoint) forbids; (2) `plaqueText` returns a rule sentence, and "Cut wire n" is the Act hint, so
+  shortening would have given the answer away; the ink was clipped because it was 7 to 12 tiles
+  wide against a 5-tile pool. User chose: doors over the lamps only (the glass in front of each lamp
+  bank becomes a door that opens when its wires are cut; the buttons stay reachable), and wrap the
+  ink. Built both, plus the torch out of the spawn's sight (the pocket at (1,6), round a corner).
+  Found while looking at the render: wrapping was not enough, the ink sat on the pool's edge
+  (the pool is cast over floor only and the ink is on a wall tile), so it is now written on the
+  wall's face, and the label chips read the same box (`inkBox`) so none sits on it. Not done: the
+  plan's "mockup shows the full ink": `mockup.ts` knows nothing of ink text; the render is the check.
+  Still true: a long rule can lose the start of its first line where a wall cuts the pool.
+  Slips of mine: the door numbers (scan order puts the exit before the mid door, so I had the two
+  swapped and the bots stalled), the gear ids (moving the torch to a later row swapped g1 and g2),
+  and a search-and-replace that matched nothing after the formatter reflowed the text.
