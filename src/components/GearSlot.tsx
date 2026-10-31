@@ -1,8 +1,9 @@
 import type { GearItem } from "../game/sim/world.ts";
 import { GEAR_NAME, GearGlyph } from "./GearGlyph.tsx";
 
-// Your own gear slot: what you carry, and how to give or drop it. On a phone it is a 48 px button
-// (createInput wires data-gear: held, it gives or drops); on a keyboard it names the G key.
+// Your own gear slot: what you carry, and what G does with it. On a phone it is a 48 px button
+// (createInput wires data-gear: held, it gives, swaps or drops, and it is off while the slot is empty);
+// on a keyboard it names the G key (take, give, swap or drop).
 export function GearSlot({
   gear,
   touch,
@@ -20,7 +21,7 @@ export function GearSlot({
         class="gear-slot gear-btn"
         data-gear
         disabled={disabled || !gear}
-        aria-label={gear ? `${name}: give or drop` : "Gear: none"}
+        aria-label={gear ? `${name}: give, swap or drop` : "Gear: none"}
         onContextMenu={(e) => e.preventDefault()}
       >
         {gear ? (
@@ -37,7 +38,7 @@ export function GearSlot({
         {gear ? <GearGlyph item={gear} /> : <span class="gear-empty" aria-hidden="true" />}
         {name}
       </span>
-      {gear && <span class="gear-key">G give or drop</span>}
+      {gear && <span class="gear-key">G take, give, swap or drop</span>}
     </section>
   );
 }

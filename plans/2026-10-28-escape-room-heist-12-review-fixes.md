@@ -165,7 +165,7 @@ group's length the count.
   `review/12-task38-practice-{1280,375}.png`. **Human review:** the practice sound is clearly not a
   solve, by ear with eyes closed. **Depends on:** 36 (shares the cue schedule).
 
-### Task 39: HUD to the bottom right  [ ]  (demo 9)
+### Task 39: HUD to the bottom right  [x]  (demo 9; human review deferred to the end of the phase)
 
 `.hud-dock` (`src/styles/game.css:1436`) sits bottom-left over `.talk-bar` and the chat. Move it to
 the bottom right on desktop; on a phone the gear stays a 48 px button clear of the joystick (left)
@@ -264,3 +264,15 @@ the pair stalls; one idle means the other leads at full speed.
   lever, by the priority order; fixed by keeping the seats apart), and a render test picked the
   wrong `lineTo` and passed or failed for the wrong reason (fixed by finding the handle from its
   pivot, then checked by breaking the handle and the dimming and watching each go red).
+- 2026-11-01, Task 39 HUD. Plan said: the dock sits over the talk bar and the chat, so move it to
+  the bottom right and make it "never touch the chat box". Found, by measuring every role first:
+  the talk bar and the touch controls are below the frame and the dock is inside it, so they never
+  touched; the one real neighbour was the captions. The move is a CSS change (`right`, row-reversed);
+  the spec measures the dock against the frame, the captions, the talk bar and the touch controls.
+  Two slips of mine: (1) my spec first resized every page to both widths, so a desktop seat at 375
+  px (a layout the game never has: touch comes from the device, not the width) failed the
+  phone rule at a fixed 109 px; I first blamed a stale layout, wrong, a fixed number means a real
+  difference, and the fix was to judge each page by what it is. (2) I wrote "G take, give, swap or
+  drop" into DESIGN.md while the slot still said "G give or drop": Task 32 changed G and the plan
+  said to update this copy; fixed in the component, the phone button's label, the spec and the type
+  comment. Checked by putting the dock back on the left and watching the spec go red.

@@ -121,7 +121,7 @@ describe("the gear slot", () => {
     } finally {
       await mute.keyboard.up(" ");
     }
-    expect(await mute.locator(".gear-slot").textContent()).toContain("G give or drop");
+    expect(await mute.locator(".gear-slot").textContent()).toContain("G take, give, swap or drop");
     // the crew row shows it on Can't speak's own chip, on every page that can see them
     await expect
       .poll(() => mute.locator(".hud-crew li.you .hud-gear").count(), { timeout: 3000 })
@@ -137,6 +137,69 @@ describe("the gear slot", () => {
       expect(overlaps(slot, await box(phone.locator(other))), other).toBe(false);
     }
   });
+});
+
+// Task 39: the gear slot and the Act hint sit at the world's bottom right. The dock is measured
+// against the frame it sits in (its right edge is the frame's, less one gap) and against everything
+// it must never cover: the captions along the frame's bottom, the chat box below it, and on a phone
+// the joystick, the comms buttons and Act. A HUD target is never under 48 px.
+describe("the gear slot and Act hint at the bottom right (Task 39)", () => {
+  it.each([
+    ["desktop", DESKTOP],
+    ["phone", PHONE],
+  ] as const)(
+    "sit at the frame's right, clear of the chat box and the controls (%s)",
+    async (_, vp) => {
+      for (const page of table.pages) {
+        await page.setViewportSize(vp);
+        const frame = await box(page.locator(".frame"));
+        const dock = page.locator(".hud-dock");
+        expect(await dock.count(), "the dock is on screen").toBe(1);
+        const d = await box(dock);
+        // right-aligned: the dock's right edge is the frame's, less at most 24 px of gap
+        expect(frame.x + frame.width - (d.x + d.width), "right edge").toBeGreaterThanOrEqual(0);
+        expect(frame.x + frame.width - (d.x + d.width), "right edge").toBeLessThanOrEqual(24);
+        // inside the frame, so it never reaches the chat box or the touch controls below it
+        expect(d.y).toBeGreaterThanOrEqual(frame.y);
+        expect(d.y + d.height).toBeLessThanOrEqual(frame.y + frame.height);
+        for (const other of [".talk-bar", ".touch-zone", ".joystick", "[data-act]", ".notch"]) {
+          const el = page.locator(other).first();
+          if ((await el.count()) === 0 || !(await el.boundingBox())) continue;
+          expect(overlaps(d, await box(el)), `${other} at ${vp.width}`).toBe(false);
+        }
+        // the captions run along the frame's bottom: the dock sits above them, never over a line
+        const captions = page.locator(".captions");
+        if ((await captions.count()) > 0 && (await captions.boundingBox())) {
+          const c = await box(captions);
+          if (c.height > 0)
+            expect(d.y + d.height, "above the captions").toBeLessThanOrEqual(c.y + 1);
+        }
+        // a touch page (the phone) has a 48 px button alone, in the right half; a page with a pointer
+        // has the slot and the hint, wider, and the width only matters for it not to overflow
+        const touch = (await page.locator(".gear-btn").count()) > 0;
+        if (touch) {
+          expect(d.x, "the gear button is in the right half").toBeGreaterThan(
+            frame.x + frame.width / 2,
+          );
+          for (const target of await page.locator(".hud-dock button").all()) {
+            const t = await box(target);
+            expect(t.width).toBeGreaterThanOrEqual(48);
+            expect(t.height).toBeGreaterThanOrEqual(48);
+          }
+        } else if (vp.width >= 720) {
+          expect(d.x, "the gear and hint are in the right half").toBeGreaterThan(
+            frame.x + frame.width / 2,
+          );
+        }
+      }
+      for (const [page, own] of [
+        [table.byRole.blind, DESKTOP],
+        [table.byRole.deaf, PHONE],
+        [table.byRole.mute, DESKTOP],
+      ] as const)
+        await page.setViewportSize(own);
+    },
+  );
 });
 
 describe("the HUD at both widths, for every role", () => {
