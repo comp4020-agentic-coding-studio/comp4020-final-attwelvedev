@@ -217,6 +217,9 @@ export function createBotMemory(
 }
 
 const idle = (m: BotMemory, move: Vec = ZERO): PlayerInput => ({ seq: m.seq, move, act: false });
+// A bot led by another's hand walks nowhere of its own: the leader walks for both (ADR 0019).
+const towedWalk = (led: boolean, walk: PlayerInput): PlayerInput =>
+  led ? { ...walk, move: ZERO } : walk;
 const tileOf = (p: Vec): Vec => ({ x: Math.floor(p.x), y: Math.floor(p.y) });
 const centreOf = (t: Vec): Vec => ({ x: t.x + 0.5, y: t.y + 0.5 });
 const key = (t: Vec) => `${t.x},${t.y}`;
@@ -282,7 +285,11 @@ function thinkBlind(view: RoleView, inbox: ChannelMessage[], m: BotMemory, now: 
     : digit !== undefined
       ? { method: "text", text: String(digit) }
       : null;
-  return { input: idle(m, m.holding ? ZERO : m.heading), send };
+  // Led by the hand (a Can't-see bot never takes one: that is a sighted bot's `tow` job), the person
+  // leading walks for both and both steer (ADR 0019): the heading it was last told would only pull
+  // against them, so it adds nothing while it holds a hand, and keeps the heading for after.
+  const led = view.you.hand !== undefined;
+  return { input: idle(m, m.holding || led ? ZERO : m.heading), send };
 }
 
 // --- Seeing roles ------------------------------------------------------------
@@ -898,9 +905,13 @@ function thinkSighted(
 
   for (const e of view.entities)
     if (e.kind === "player" && e.seat !== undefined) m.bodies[e.seat] = e.pos;
+  // Led by another's hand (a person took it: a bot only ever leads, in a `tow` job), the leader
+  // walks for both and both steer (ADR 0019): a bot's own walk would only pull against them, so it
+  // adds nothing to the pair's step. Its presses still work.
+  const led = view.you.hand !== undefined && known.holding[view.you.seat] !== undefined;
   const input = view.alarm
     ? idle(m)
-    : press(room, view, m, known, pos, moveSelf(room, view, m, known, pos));
+    : press(room, view, m, known, pos, towedWalk(led, moveSelf(room, view, m, known, pos)));
   send = workSend(room, view, m, known, pos);
   if (send) return { input, send: stamp(m, send, now) };
   if (view.role === "deaf") send = guideBlind(room, view, m, known, now);

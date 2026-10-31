@@ -66,6 +66,23 @@ describe("lobbyKey", () => {
   });
 });
 
+describe("gameLinesFor: a tug of war (Task 40)", () => {
+  it("logs one line a pull with the kind of thing only, never which seats", () => {
+    const lines = gameLinesFor([
+      { kind: "pull", leader: 0, towed: 2, at: { x: 3.5, y: 1.5 } },
+      { kind: "pull", leader: 1, towed: 0, at: { x: 9.5, y: 4.5 } },
+    ]);
+    expect(lines).toEqual([
+      { event: "pull", detail: { kind: "tug" } },
+      { event: "pull", detail: { kind: "tug" } },
+    ]);
+    const details = JSON.stringify(
+      lines.map((l) => describeGame({ event: l.event, detail: l.detail }).detail),
+    );
+    expect(details).not.toMatch(/leader|towed|seat|3\.5|9\.5|[0-9]/);
+  });
+});
+
 describe("gameLinesFor: the sim's station, gear, hold and signal events", () => {
   it("logs the kind of thing only, never an answer, a key or an id", () => {
     const lines = gameLinesFor([

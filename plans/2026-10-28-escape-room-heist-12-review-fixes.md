@@ -177,7 +177,7 @@ and the Act button (right: place the dock above it). Read `DESIGN.md` first.
 - **Done when:** the layout spec passes; screenshots at both widths. **Human review:**
   `review/12-task39-hud-{1280,375}.png`.
 
-### Task 40: Both hand-holders can steer  [ ]  (demo 10)
+### Task 40: Both hand-holders can steer  [x]  (demo 10; human review deferred to the end of the phase)
 
 Today `ownMove` (`src/game/sim/step.ts:388`) zeroes the towed seat's move and `tow()`
 (`gear.ts:138`) places them behind the leader each tick (spec FR22), so only the one who pressed
@@ -202,8 +202,8 @@ the pair stalls; one idle means the other leads at full speed.
 
 ## 5. Phase Definition of Done
 
-- [ ] Tasks 32 to 40 done, one commit each; `pnpm test:unit` and `pnpm check` green on a fresh
-      server (`pnpm start:check`); `pnpm check:flaky` clean for new browser specs.
+- [x] Tasks 32 to 40 done, one commit each; `pnpm test:unit` and `pnpm check` green on a fresh
+      server (`pnpm start:check`, on its own port: see PROCESS_LOG); `pnpm check:flaky` NOT run yet.
 - [ ] Demo script 1 to 10 played on a local build, three tabs, 1280 and 375.
 - [ ] CLAUDE.md invariants hold: parity rows added, `viewFor` gates the new fields, log lines kinds
       only, `DESIGN.md` updated in the same commits as the look.
@@ -293,3 +293,21 @@ the pair stalls; one idle means the other leads at full speed.
   Slips of mine: the door numbers (scan order puts the exit before the mid door, so I had the two
   swapped and the bots stalled), the gear ids (moving the torch to a later row swapped g1 and g2),
   and a search-and-replace that matched nothing after the formatter reflowed the text.
+- 2026-11-01, Task 40 hand-holding. Plan said: the leader's step is the sum of both moves, clamped
+  to one; a stall sends a `pull` cue to both holders; "bots still clear rooms 2 and 3". Built that,
+  and ADR 0019 (`proposed`, awaiting approval). Found by testing, not named in the plan: (1) the sum
+  put the towed seat's `seq` on the leader's `lastSeq` when the leader sent nothing, so the leader's
+  client would be acknowledged for an input it never sent (rubber-banding); each seat's own input is
+  now left alone and only the combined move is the leader's. (2) A Can't-see bot told "left" and
+  then taken by the hand kept sending left, so the pair stalled forever (the person moved 0 tiles in
+  40 ticks); a sighted bot led by a person did the same, partly (1.2 tiles of 8). Both now add
+  nothing while led. The bot rooms had passed throughout, because in them a bot only ever leads.
+  (3) The parity row only checked a field in the view; nothing drew it, so a sighted player would
+  have seen nothing. The hold is now drawn straight, heavy and ticked while pulling. Spec FR22 got
+  one italic line pointing at the ADR (specs/ is not a protected path; veto it if unwanted).
+  Slips of mine: a test callout "west" that does not exist (the bot ignored it and the test proved
+  nothing until I printed what the bot sent), a `Vec` passed where a `PlayerInput` was wanted
+  (caught by the typecheck), and a spec I wrote and deleted because its assertions could not fail.
+  Not done: the plan's by-hand check that room 2 still teaches "one leads another" with a person as
+  the towed seat: that is the end-of-phase review. Out of scope, seen: the "Hold hands" chip still
+  shows while a pair is already holding hands.

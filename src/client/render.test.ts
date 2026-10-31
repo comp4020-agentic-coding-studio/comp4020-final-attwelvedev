@@ -1717,6 +1717,33 @@ describe("clues drawn (escape-room Task 11)", () => {
     }
   });
 
+  it("draws a tug of war as a taut, thicker line with strain ticks, not the slack arc (Task 40)", () => {
+    const pair = (pulling: boolean): EntityView[] => [
+      { ...player(0, 4.5, 2.5), holding: 1, ...(pulling ? { pulling: true } : {}) },
+      { ...player(1, 3.5, 2.5), heldBy: 0, ...(pulling ? { pulling: true } : {}) },
+    ];
+    const draws = (pulling: boolean) => {
+      const { ctx, ops } = recorder();
+      draw(ctx, own({ entities: pair(pulling) }));
+      // the hold is drawn in the UI colour: its stroke and its width, and whether it bends
+      const strokes = ops.filter((o) => o.name === "stroke" && o.strokeStyle === COLOR.ui);
+      const curved = ops.some((o) => o.name === "quadraticCurveTo");
+      // another 4 px UI stroke is the figure's own ring and is in both pictures: it is the number of
+      // them that a tug changes, by one (the taut line itself)
+      const thick = strokes.filter((o) => o.lineWidth >= 4).length;
+      const ticks = ops.filter((o) => o.name === "lineTo" && o.strokeStyle === COLOR.ui).length;
+      return { curved, thick, ticks };
+    };
+    const own = (over: Partial<Scene>) =>
+      scene({ tiles: ROOM3, self: { x: 3.5, y: 3.5 }, nowMs: 1234, w: 1280, h: 600, ...over });
+    const slack = draws(false);
+    const taut = draws(true);
+    expect(slack.curved, "a held hand is a slack arc").toBe(true);
+    expect(taut.curved, "a tug is straight").toBe(false);
+    expect(taut.thick, "and thicker: one more heavy stroke, the taut line").toBe(slack.thick + 1);
+    expect(taut.ticks, "with strain ticks across it").toBeGreaterThan(slack.ticks);
+  });
+
   it("draws a target card's lit lamps with rays and its hollow ones unfilled", () => {
     const { ctx, ops } = recorder();
     draw(ctx, base([{ id: "T1", kind: "card", pos: at(4.5, 2.5), card: [1, 0, 1, 0, 0, 1] }]));

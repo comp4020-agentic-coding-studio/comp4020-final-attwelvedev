@@ -100,6 +100,7 @@ export interface EntityView {
   facing?: Vec;
   moving?: boolean; // a player: walked this tick
   blocked?: boolean; // a player: holding a direction against a wall, door or crate
+  pulling?: boolean; // a player in a hand-holding pair that is in a tug of war: both figures strain
   // what a sighted viewer sees of it (stations.ts: stationShows), and where its parts stand: the
   // furniture is drawn from any of them, the state only where the station shows it
   station?: {
@@ -157,6 +158,7 @@ export interface SoundCue {
     | "clunk" // a switch, socket, vault handle or sync key
     | "practice" // a key or bell pressed while its practice lever is on: it plays, it counts for nothing
     | "lever" // a practice lever flipped: the whole room hears it
+    | "pull" // a tug of war between two hand-holders: only those two hear it
     | "bellnote" // a music-box bell struck or played; `n` is which
     | "bell" // the bell rope: the whole room hears it
     | "dye" // the dye pack: a wrong answer, heard by the team
@@ -262,6 +264,9 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
     if (leader !== undefined) e.heldBy = leader;
     const mate = partner(world, p.seat);
     if (mate !== undefined && leader === undefined) e.holding = mate;
+    // both ends of a pair in a tug of war strain: the picture of what the pair hears (ADR 0019)
+    if (mate !== undefined && world.pulling[leader !== undefined ? p.seat : (mate as Seat)])
+      e.pulling = true;
     if (world.tick < world.dyedUntil) e.dyed = true;
     return e;
   });
@@ -540,6 +545,10 @@ function soundsFor(world: World, seat: Seat): SoundCue[] {
     } else if (e.kind === "gear") {
       const c = cue(world, "gear", e.at, me);
       if (c) out.push(c);
+    } else if (e.kind === "pull") {
+      // a strain between the two who hold hands: it is theirs alone, centred in their heads like the
+      // earpiece, and nobody else in the room hears it
+      if (seat === e.leader || seat === e.towed) out.push({ kind: "pull", pan: 0, gain: 1 });
     } else if (e.kind === "lever") {
       out.push({ kind: "lever", pan: panOf(e.at, me), gain: 1, ...dirTo(e.at, me) }); // the whole room hears it
     } else if (e.kind === "bell") {

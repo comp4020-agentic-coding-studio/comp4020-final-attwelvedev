@@ -216,11 +216,14 @@ describe("holding hands", () => {
     expect(w.holding).toEqual({ 1: 0 });
   });
 
-  it("the towed seat's input is ignored and it follows behind the leader, never in a wall", () => {
+  // Rewritten, not deleted (Task 40; spec FR22 changes, ADR 0019): the towed seat's input is no
+  // longer ignored, because both hand-holders steer. What stays true is the other half of this
+  // test: the towed seat follows behind the leader within reach and is never put in a wall.
+  it("the towed seat follows behind the leader within reach, never in a wall", () => {
     const w = holding();
     press(w, 0);
     for (let i = 0; i < 20; i++) {
-      step(w, { 0: input(1, 0), 1: input(0, 1) });
+      step(w, { 0: input(1, 0), 1: input(1, 0) });
       expect(blockedAt(w, w.players[1].pos)).toBe(false);
     }
     const [lead, towed] = [w.players[0].pos, w.players[1].pos];
@@ -228,12 +231,186 @@ describe("holding hands", () => {
     expect(Math.hypot(lead.x - towed.x, lead.y - towed.y)).toBeLessThan(1.2);
     // turned to walk away from a wall: straight behind is in the wall, so it stands beside
     for (let i = 0; i < 30; i++) {
-      step(w, { 0: input(-1, 0) });
+      step(w, { 0: input(-1, 0), 1: input(-1, 0) });
       expect(blockedAt(w, w.players[1].pos)).toBe(false);
     }
     w.players[0].facing = { x: 1, y: 0 };
-    step(w, { 0: input(1, 0) });
+    step(w, { 0: input(1, 0), 1: input(1, 0) });
     expect(blockedAt(w, w.players[1].pos)).toBe(false);
+  });
+
+  describe("both hand-holders steer (Task 40, ADR 0019)", () => {
+    // seat 0 leads seat 1, in the open at the west of the room, row 1
+    const pair = () => {
+      const w = holding();
+      press(w, 0);
+      return w;
+    };
+    const moved = (w: World, seat: Seat, ticks: number, inputs: Parameters<typeof step>[1]) => {
+      const from = { ...w.players[seat].pos };
+      for (let i = 0; i < ticks; i++) step(w, inputs);
+      return { dx: w.players[seat].pos.x - from.x, dy: w.players[seat].pos.y - from.y };
+    };
+    const STEP = (ticks: number) => (4 * 50 * ticks) / 1000; // SPEED_TPS tiles a second
+
+    it("the towed seat pushing alone moves the pair", () => {
+      const w = pair();
+      const lead = moved(w, 0, 5, { 1: input(1, 0) });
+      expect(lead.dx).toBeGreaterThan(STEP(5) * 0.9);
+      expect(w.players[1].pos.x).toBeGreaterThan(2); // and the towed seat came with them
+    });
+
+    it("both pushing the same way moves at one step, not two", () => {
+      const w = pair();
+      const both = moved(w, 0, 5, { 0: input(1, 0), 1: input(1, 0) });
+      const w2 = pair();
+      const alone = moved(w2, 0, 5, { 0: input(1, 0) });
+      expect(both.dx).toBeCloseTo(alone.dx, 6);
+      expect(both.dx).toBeLessThanOrEqual(STEP(5) + 1e-9);
+    });
+
+    it("one idle means the other leads, at full speed, from either seat", () => {
+      for (const who of [0, 1] as const) {
+        const w = pair();
+        const lead = moved(w, 0, 5, { [who]: input(1, 0) });
+        expect(lead.dx, `seat ${who} alone`).toBeGreaterThan(STEP(5) * 0.9);
+      }
+    });
+
+    it("opposite pushes cancel: the pair stays where it is", () => {
+      const w = pair();
+      const before = [{ ...w.players[0].pos }, { ...w.players[1].pos }];
+      for (let i = 0; i < 10; i++) step(w, { 0: input(1, 0), 1: input(-1, 0) });
+      expect(w.players[0].pos.x).toBeCloseTo(before[0]?.x ?? 0, 6);
+      expect(w.players[1].pos.x).toBeCloseTo(before[1]?.x ?? 0, 6);
+    });
+
+    it("pushes at right angles go diagonally, and still no faster than one step", () => {
+      const w = pair();
+      const lead = moved(w, 0, 5, { 0: input(1, 0), 1: input(0, 1) });
+      expect(lead.dx).toBeGreaterThan(0);
+      expect(lead.dy).toBeGreaterThan(0);
+      expect(Math.hypot(lead.dx, lead.dy)).toBeLessThanOrEqual(STEP(5) + 1e-9);
+    });
+
+    it("a blocked combined step stops both, and the towed seat is still never in a wall", () => {
+      const w = pair();
+      for (let i = 0; i < 60; i++) {
+        step(w, { 0: input(-1, 0), 1: input(-1, 0) }); // into the west wall
+        expect(blockedAt(w, w.players[0].pos)).toBe(false);
+        expect(blockedAt(w, w.players[1].pos)).toBe(false);
+      }
+      expect(w.players[0].blocked).toBe(true);
+    });
+
+    it("each seat's own input sequence is what is acknowledged to it, whoever walks the pair", () => {
+      // `ack` (lastSeq) is how a client reconciles its predicted position: a counter of its own
+      // inputs. The towed seat's number must never land on the leader, or the leader's client is
+      // told it is acknowledged for an input it never sent.
+      const w = pair();
+      step(w, {
+        0: { seq: 101, move: { x: 0, y: 0 }, act: false },
+        1: { seq: 907, move: { x: 1, y: 0 }, act: false },
+      });
+      expect(w.players[0].lastSeq, "the leader's own counter").toBe(101);
+      expect(w.players[1].lastSeq, "the towed seat's own counter").toBe(907);
+      // and with the leader sending nothing at all, its counter is left as it was
+      const v = pair();
+      step(v, { 1: { seq: 55, move: { x: 1, y: 0 }, act: false } });
+      expect(
+        v.players[0].lastSeq,
+        "no input from the leader: not the towed seat's number",
+      ).not.toBe(55);
+      expect(v.players[1].lastSeq).toBe(55);
+    });
+
+    it("a tug of war is one 'pull' event when it starts, never one a tick, and again after a rest", () => {
+      const w = pair();
+      const pulls = (inputs: Parameters<typeof step>[1], ticks: number) => {
+        let n = 0;
+        for (let i = 0; i < ticks; i++) {
+          step(w, inputs);
+          n += w.events.filter((e) => e.kind === "pull").length;
+        }
+        return n;
+      };
+      expect(pulls({ 0: input(1, 0), 1: input(-1, 0) }, 30), "30 ticks of tug: one event").toBe(1);
+      expect(pulls({}, 3), "let go: none").toBe(0);
+      expect(pulls({ 0: input(1, 0), 1: input(-1, 0) }, 10), "a second tug: a second event").toBe(
+        1,
+      );
+    });
+
+    it("only a deliberate tug is a pull: one idle, one pushing, or both the same way, never", () => {
+      for (const inputs of [
+        { 0: input(1, 0) },
+        { 1: input(1, 0) },
+        { 0: input(1, 0), 1: input(1, 0) },
+        { 0: input(1, 0), 1: input(0, 1) },
+        { 0: input(0, 0), 1: input(0, 0) },
+      ] as const) {
+        const w = pair();
+        let n = 0;
+        for (let i = 0; i < 10; i++) {
+          step(w, inputs);
+          n += w.events.filter((e) => e.kind === "pull").length;
+        }
+        expect(n, JSON.stringify(inputs)).toBe(0);
+      }
+    });
+
+    it("a pull names the two holders, and letting go in the middle of a tug ends it", () => {
+      const w = pair();
+      step(w, { 0: input(1, 0), 1: input(-1, 0) });
+      expect(w.events.find((e) => e.kind === "pull")).toMatchObject({ leader: 0, towed: 1 });
+      expect(w.pulling).toEqual({ 1: true });
+      press(w, 0); // Act lets go
+      expect(w.pulling).toEqual({});
+    });
+
+    it("a checkpoint reset in the middle of a tug lets go, and leaves nothing pulling", () => {
+      const w = holding();
+      at(w, 2, { x: 11, y: 2 });
+      press(w, 0);
+      step(w, { 0: input(1, 0), 1: input(-1, 0) });
+      expect(w.pulling).toEqual({ 1: true });
+      // seat 2 cuts a wrong wire: the team is caught and sent back, and hands are let go
+      const station = w.stations.Q1;
+      const tiles = [
+        { x: 11, y: 2 },
+        { x: 12, y: 2 },
+        { x: 12, y: 3 },
+      ];
+      const wrongWire = [0, 1, 2].find((i) => i !== station?.answer[0]) as number;
+      at(w, 2, tiles[wrongWire] as Vec);
+      expect(kinds(press(w, 2))).toContain("caught");
+      expect(w.holding).toEqual({});
+      expect(w.pulling, "nobody is pulling once they are let go").toEqual({});
+    });
+
+    it("a let-go clears the pull in that very tick, not the next", () => {
+      const w = pair();
+      step(w, { 0: input(1, 0), 1: input(-1, 0) });
+      expect(w.pulling).toEqual({ 1: true });
+      // Act lets go: look at the world straight after that one step, without another
+      step(w, { 0: input(0, 0, true) });
+      expect(w.holding).toEqual({});
+      expect(w.pulling).toEqual({});
+    });
+
+    it("a held bot (idle input) never stalls the human who leads", () => {
+      const w = pair();
+      // seat 1 is a bot with no input at all (undefined), seat 0 is the human
+      const lead = moved(w, 0, 5, { 0: input(1, 0) });
+      expect(lead.dx).toBeGreaterThan(STEP(5) * 0.9);
+      // and the other way: the bot leads (seat 1 holds seat 0), the human is towed and steers
+      const v = holding();
+      at(v, 1, { x: 3, y: 1 });
+      press(v, 1); // seat 1 leads seat 0
+      expect(v.holding).toEqual({ 0: 1 });
+      const led = moved(v, 1, 5, { 0: input(1, 0) });
+      expect(led.dx).toBeGreaterThan(STEP(5) * 0.9);
+    });
   });
 
   it("either of the two Acting lets go", () => {

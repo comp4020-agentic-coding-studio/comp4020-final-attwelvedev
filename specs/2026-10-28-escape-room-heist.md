@@ -114,7 +114,9 @@ table, ADR 0011)
 
 22. **Hold hands:** Act on an adjacent teammate grabs their hand; the leader
     tows. Any role can lead or be towed; either can let go (Act again). Can't
-    see's own screen says who they are holding.
+    see's own screen says who they are holding. *Both steer (ADR 0019,
+    proposed): the pair's step is the sum of both seats' moves, clamped to one;
+    opposite pushes stall it, and the two hear and see it.*
 23. **Hatch** (`passThrough` in code): a wall tile with a sill that passes gear
     and crates but not people.
 24. **Bell:** a rope pull rings a bell every hearer in the room hears; the

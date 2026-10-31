@@ -273,6 +273,20 @@ const PARITY: Record<SoundCue["kind"], Scenario> = {
         "The earpiece is a private tone feed with no picture by design (spec FR17): only its holder hears it, like the clue chime.",
     };
   })(),
+  pull: (() => {
+    // two hand-holders pushing opposite ways: both hear a short strain, and Can't hear sees both
+    // figures straining (`pulling`), in the same tick
+    const world = worldWith(put([5, 2, "."]), {});
+    place(world, BLIND, { x: 4, y: 2 });
+    place(world, MUTE, { x: 5, y: 2 });
+    actBy(world, MUTE, { x: 5, y: 2 }); // Act beside a teammate: hold hands, the actor leads
+    go(world);
+    return {
+      world,
+      act: () => step(world, { [MUTE]: input(1, 0), [BLIND]: input(-1, 0) }, TICK_MS),
+      sees: (_b, a) => ent(a, "P0")?.pulling === true && ent(a, "P2")?.pulling === true,
+    };
+  })(),
   lever: (() => {
     const world = worldWith(put([12, 1, "v"]), {});
     return {

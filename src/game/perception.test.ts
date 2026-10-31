@@ -1195,6 +1195,37 @@ describe("viewFor: stations, gear and signals", () => {
     expect(station("deaf", 1)).not.toHaveProperty("practice");
   });
 
+  it("a tug of war is heard by the two hand-holders and by nobody else (Task 40)", () => {
+    const w = worldWith(["##########", "#1.......#", "#2.......#", "#3.......#", "##########"], {});
+    place(w, 0, { x: 3, y: 1 });
+    place(w, 1, { x: 4, y: 1 });
+    place(w, 2, { x: 7, y: 3 }); // the third player is well away, but a pull is a sound of the pair
+    step(w, { 0: { seq: 1, move: { x: 0, y: 0 }, act: true } }, TICK_MS);
+    step(w, {}, TICK_MS);
+    expect(w.holding).toEqual({ 1: 0 });
+    step(
+      w,
+      {
+        0: { seq: 2, move: { x: 1, y: 0 }, act: false },
+        1: { seq: 3, move: { x: -1, y: 0 }, act: false },
+      },
+      TICK_MS,
+    );
+    const heard = (seat: 0 | 1 | 2, role: "blind" | "deaf" | "mute") =>
+      viewFor(w, seat, role, false).sounds.some((s) => s.kind === "pull");
+    expect(heard(0, "blind"), "the leader (Can't see) hears it").toBe(true);
+    expect(heard(2, "mute"), "a third player does not").toBe(false);
+    // Can't hear is one of the holders here: a view never carries sound for it, but it sees it
+    const view = viewFor(w, 2, "mute", false);
+    expect(view.entities.find((e) => e.id === "P0")?.pulling).toBe(true);
+    expect(view.entities.find((e) => e.id === "P1")?.pulling).toBe(true);
+    // a tug that is over is not pulled any more
+    step(w, {}, TICK_MS);
+    expect(
+      viewFor(w, 2, "mute", false).entities.find((e) => e.id === "P0")?.pulling,
+    ).toBeUndefined();
+  });
+
   it("Act hint says Swap when a full slot stands on other gear, and only after the nearer actions", () => {
     const w = worldWith(["##########", "#1..gg...#", "#2.......#", "#3.......#", "##########"], {
       g1: { item: "uv" },

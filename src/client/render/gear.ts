@@ -129,10 +129,45 @@ export function drawCarried(
 
 // Holding hands: a 2 px arc between the two hands with a bead at each end and an arrowhead
 // toward the leader.
-export function drawHold(ctx: CanvasRenderingContext2D, cam: Camera, towed: Vec, leader: Vec) {
+export function drawHold(
+  ctx: CanvasRenderingContext2D,
+  cam: Camera,
+  towed: Vec,
+  leader: Vec,
+  pulling = false,
+) {
   const s = cam.scale;
   const a = toScreen(cam, towed.x, towed.y, 0.45);
   const b = toScreen(cam, leader.x, leader.y, 0.45);
+  if (pulling) {
+    // a tug of war (ADR 0019): the slack arc pulled straight and thicker, with short strain ticks
+    // across it, so it is never told by colour alone
+    ctx.save();
+    ctx.strokeStyle = COLOR.ui;
+    ctx.fillStyle = COLOR.ui;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const n = { x: -(b.y - a.y) / len, y: (b.x - a.x) / len }; // across the line
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (const f of [0.3, 0.5, 0.7]) {
+      const p = { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
+      ctx.moveTo(p.x - n.x * s * 0.1, p.y - n.y * s * 0.1);
+      ctx.lineTo(p.x + n.x * s * 0.1, p.y + n.y * s * 0.1);
+    }
+    ctx.stroke();
+    for (const p of [a, b]) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, s * 0.07, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+    return;
+  }
   const mid = { x: (a.x + b.x) / 2, y: Math.min(a.y, b.y) - s * 0.25 };
   ctx.save();
   ctx.strokeStyle = COLOR.ui;

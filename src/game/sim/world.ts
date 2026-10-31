@@ -90,6 +90,7 @@ export interface World {
   doorOpen: Record<string, boolean>;
   pressed: Record<string, boolean>;
   levers: Record<string, boolean>; // a practice lever: on while its stations only play (Task 38)
+  pulling: Record<number, boolean>; // by towed seat: the pair is in a tug of war (ADR 0019)
   status: RoomStatus;
   events: WorldEvent[]; // emitted this tick only, cleared at the start of step
   guards: GuardState[];
@@ -137,6 +138,7 @@ export type WorldEvent =
   | { kind: "lever"; id: string; on: boolean; at: Vec } // a practice lever flipped
   | { kind: "gear"; id: string; action: "take" | "drop" | "give" | "sill"; seat: Seat; at: Vec }
   | { kind: "hold"; seat: Seat; leader: Seat | null }
+  | { kind: "pull"; leader: Seat; towed: Seat; at: Vec } // a tug of war began between two hand-holders
   | { kind: "bell"; id: string; at: Vec }
   | { kind: "lamp"; id: string; seat: Seat }
   | { kind: "dye"; station: string }
@@ -242,6 +244,7 @@ export function createWorld(room: Room, seed = 1): World {
     doorOpen,
     pressed,
     levers,
+    pulling: {},
     status: "playing",
     events: [],
     stations: {},

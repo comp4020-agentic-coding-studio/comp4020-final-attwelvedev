@@ -104,6 +104,7 @@ export const CUE_WORD: Record<SoundCue["kind"], string> = {
   clunk: "Clunk",
   practice: "Practice",
   lever: "Lever",
+  pull: "Pulled",
   bellnote: "Bell note",
   bell: "Bell",
   dye: "Dye pack",
@@ -121,6 +122,7 @@ const EVERYWHERE = new Set<SoundCue["kind"]>([
   "cleared",
   "dye",
   "earpiece",
+  "pull", // a strain in the pair's own heads: no side to name
 ]);
 
 // Some sounds carry a count: how many are at the flag or the exit, how many plates are done.

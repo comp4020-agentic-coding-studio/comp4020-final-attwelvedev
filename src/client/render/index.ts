@@ -257,7 +257,7 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
   // held hands: an arc from each towed figure to its leader
   for (const f of figures) {
     const leader = figures.find((g) => g.seat === f.heldBy);
-    if (f.heldBy !== undefined && leader) drawHold(ctx, cam, f.pos, leader.pos);
+    if (f.heldBy !== undefined && leader) drawHold(ctx, cam, f.pos, leader.pos, f.pulling === true);
   }
   void block;
   drawFx(ctx, scene, cam);

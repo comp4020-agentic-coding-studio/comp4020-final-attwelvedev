@@ -386,9 +386,41 @@ function gearEdges(world: World, inputs: Partial<Record<Seat, PlayerInput>>): Se
   return out;
 }
 
-// A towed player's own move is ignored (FR22): the leader walks for both.
-function ownMove(world: World, seat: Seat, input: PlayerInput | undefined) {
-  return input && world.holding[seat] !== undefined ? { ...input, move: { x: 0, y: 0 } } : input;
+// Both hand-holders steer (ADR 0019, which changes spec FR22): the leader walks for both, and the
+// step is the sum of their two moves, clamped to length 1. Pushing the same way is one step, not
+// two; opposite ways cancel and the pair stalls; one idle means the other leads at full speed. The
+// towed seat's own body is never moved by its input (`tow` places it behind the leader), so there
+// is no second walk to keep in step. A seat with no input (a bot, a dropped connection) adds nothing.
+// Returns the move each seat walks this tick; a seat's own input (and its `seq`, which is what is
+// acknowledged to its client) is never swapped for another's.
+function pairMoves(
+  world: World,
+  inputs: Partial<Record<Seat, PlayerInput>>,
+): Partial<Record<Seat, Vec>> {
+  const out: Partial<Record<Seat, Vec>> = {};
+  for (const [key, lead] of Object.entries(world.holding)) {
+    const towed = Number(key) as Seat;
+    const a = inputs[lead as Seat]?.move;
+    const b = inputs[towed]?.move;
+    const sum = { x: (a?.x ?? 0) + (b?.x ?? 0), y: (a?.y ?? 0) + (b?.y ?? 0) };
+    const len = Math.hypot(sum.x, sum.y);
+    out[lead as Seat] = len > 1 ? { x: sum.x / len, y: sum.y / len } : sum;
+    out[towed] = { x: 0, y: 0 }; // the leader's step carries it
+    // A tug of war: both push and the pushes cancel. One idle, or both going the same way, is not.
+    const pushing = (m?: Vec) => m !== undefined && (m.x !== 0 || m.y !== 0);
+    const tug = pushing(a) && pushing(b) && len < 1e-9;
+    if (tug && !world.pulling[towed]) {
+      const at = world.players[lead as Seat].pos;
+      world.events.push({ kind: "pull", leader: lead as Seat, towed, at: { ...at } });
+    }
+    if (tug) world.pulling[towed] = true;
+    else delete world.pulling[towed];
+  }
+  // a pair that no longer exists (they let go, or a reset) is no longer pulling
+  for (const key of Object.keys(world.pulling)) {
+    if (world.holding[Number(key) as Seat] === undefined) delete world.pulling[Number(key)];
+  }
+  return out;
 }
 
 function updateExit(world: World) {
@@ -414,8 +446,12 @@ export function step(
 ): World {
   world.events = [];
   world.tick++;
+  const moves = pairMoves(world, inputs);
   for (const p of world.players) {
-    const input = ownMove(world, p.seat, inputs[p.seat]);
+    const own = inputs[p.seat];
+    const pair = moves[p.seat];
+    // a seat in a pair walks the pair's step; its own input still carries its seq
+    const input = pair ? { ...(own ?? { seq: p.lastSeq, act: false }), move: pair } : own;
     movePlayer(world, p, input, dtMs);
     pushCrate(world, p, input, dtMs);
   }

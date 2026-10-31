@@ -46,6 +46,92 @@ const blindView = (tick: number, sounds: RoleView["sounds"] = []): RoleView => (
   gear: null,
 });
 
+// Task 40 (ADR 0019): both hand-holders steer, so a bot led by a person must not fight them. A
+// Can't-see bot walks the way it was last told until it hears stop; once a person takes its hand and
+// leads, that old heading must not become a tug of war against the person's own steering.
+describe("a bot led by the hand never fights the person leading it (Task 40)", () => {
+  const GRID = [
+    "##############",
+    "#1...........#",
+    "#2...........#",
+    "#3...........#",
+    "##############",
+  ];
+  it("a Can't-see bot with an old heading, led by a person walking the other way, is stopped by the pair and starts no tug", () => {
+    const world = createWorld(roomWith(GRID, {}), 1);
+    const roles: [Role, Role, Role] = ["blind", "deaf", "mute"];
+    const humans = new Set<Seat>([1, 2]);
+    const bot: BotSeat = { memory: createBotMemory(0, humans, roles), inbox: [] };
+    // it was told "left" (west) a moment ago, and has not been told to stop
+    bot.inbox.push(callout("left", 1));
+    // the person (seat 1) takes the bot's hand and leads it east
+    world.players[0].pos = { x: 6.5, y: 2.5 };
+    world.players[1].pos = { x: 7.5, y: 2.5 };
+    world.holding[0] = 1; // seat 0 is towed by seat 1
+    let pulls = 0;
+    const x0 = world.players[1].pos.x;
+    for (let t = 0; t < 40; t++) {
+      const turn = botsAct(
+        world.room,
+        world,
+        roles,
+        { 0: bot },
+        { until: {} },
+        t * TICK_MS,
+        (s) => `Bot ${s}`,
+      );
+      step(world, { ...turn.inputs, 1: { seq: t + 1, move: { x: 1, y: 0 }, act: false } }, TICK_MS);
+      pulls += world.events.filter((e) => e.kind === "pull").length;
+    }
+    expect(world.players[1].pos.x - x0, "the person leads east, at speed").toBeGreaterThan(3);
+    expect(pulls, "no tug of war with a bot that was only told west earlier").toBe(0);
+  });
+});
+
+describe("a sighted bot led by the hand never fights the person leading it (Task 40)", () => {
+  // Can't hear is a sighted role: with a job somewhere else it walks to it, and a person who took its
+  // hand and leads the other way must not meet a bot that pulls the way its plan says.
+  const GRID = [
+    "##########################",
+    "#1.......................#",
+    "#2.......................#",
+    "#3.......................#",
+    "##########################",
+  ];
+  it("a bot walking east to a plate, led west by a person, adds nothing to the pair's step", () => {
+    const rm = roomWith(GRID, { D1: { opensWhen: ["p1"] } });
+    const world = createWorld(rm, 1);
+    const roles: [Role, Role, Role] = ["blind", "deaf", "mute"];
+    const humans = new Set<Seat>([0, 2]);
+    const bot: BotSeat = { memory: createBotMemory(1, humans, roles), inbox: [] };
+    // seat 1 (Can't hear, a sighted bot) is led by seat 0, a person, who walks west
+    world.players[1].pos = { x: 12.5, y: 2.5 };
+    world.players[0].pos = { x: 13.5, y: 2.5 };
+    world.holding[1] = 0;
+    let pulls = 0;
+    const x0 = world.players[0].pos.x;
+    for (let t = 0; t < 40; t++) {
+      const turn = botsAct(
+        world.room,
+        world,
+        roles,
+        { 1: bot },
+        { until: {} },
+        t * TICK_MS,
+        (s) => `Bot ${s}`,
+      );
+      step(
+        world,
+        { ...turn.inputs, 0: { seq: t + 1, move: { x: -1, y: 0 }, act: false } },
+        TICK_MS,
+      );
+      pulls += world.events.filter((e) => e.kind === "pull").length;
+    }
+    expect(x0 - world.players[0].pos.x, "the person leads west, at speed").toBeGreaterThan(3);
+    expect(pulls, "and the bot does not pull back").toBe(0);
+  });
+});
+
 describe("a Can't-see bot", () => {
   const r = room("01-first-job");
 
