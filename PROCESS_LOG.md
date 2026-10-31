@@ -867,3 +867,25 @@ held :8080, so `pnpm start:check` died with EADDRINUSE and the specs ran against
 long-cache headers, slower); then a reused server hit its 40-lobby cap. The fix to the method: run
 the check server on its own port (`PORT=8099`, `APP_URL`) and restart it between runs. Candidate
 sensor, not yet built: `spec/global-setup.ts` could refuse a server that is not the built one.
+
+## 2026-11-01 — A cycle that only shows when a file loads first, and a check launched on unread output
+
+(commit cited at the next phase close)
+
+Task 36 (chimes you can count) replaced a fixed 60-tick tune with groups of chimes whose length is
+the note. The new `chimes.ts` read `TICK_MS` from `world.ts`, which imports `stations.ts`, which now
+imports `chimes.ts`: a cycle. Nothing failed in the sim, because `world.ts` loads first there. It
+failed only in a test file that imported `chimes.ts` before `world.ts`, where `TICK_MS` was undefined
+and every tick count was `NaN` (`tick: null` in the printed array, `period: null`). I did not guess:
+I printed the values from inside the failing test, which showed `NaN`, then traced it to the load
+order. The fix keeps a local constant and adds a test that it equals `TICK_MS`, so a change to either
+fails loudly.
+
+The same task showed a second kind of miss: tests with a magic number from the old design (a 200-tick
+listen window, `tick = 59` for "the tick before a tune") passed or failed for the wrong reason once
+the schedule changed. They now derive the number from the schedule (`3 * TUNE_MAX_TICKS`,
+`tuneGroups(code).period - 1`).
+
+And one of mine: I started a 5-minute full check straight after running `pnpm lint` without reading
+its output, and it failed on a lint error in the test I had just written. Read the cheap gate's
+result before launching the expensive one.

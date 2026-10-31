@@ -115,7 +115,7 @@ filter or the cap sorting by distance alone), and write the failing case.
   5 and 8. **Human review:** the wire reads as a link, not clutter. **Depends on:** 34 (labels
   must not hide it).
 
-### Task 36: Chimes you can count  [ ]  (demo 6)
+### Task 36: Chimes you can count  [x]  (demo 6; by-ear review deferred to the end of the phase)
 
 A `clue` event carries `n`; `audio.ts` plays "key" and "bellnote" notes one at a time on a 60-tick
 loop (`TUNE_TICKS`, `NOTE_TICKS` in `src/game/sim/stations.ts:398`), so rounds sound alike. Group
@@ -240,3 +240,16 @@ the pair stalls; one idle means the other leads at full speed.
   route where one exists, else a straight line. Built that (a wall route over twice the Manhattan
   distance also falls back to straight); a keypad gets no wire. Why the plan missed: it was
   written without running a route search over the real rooms.
+- 2026-11-01, Task 36 chimes. Plan said: bots keep clearing rooms 5, 6 and 8 and only the sim, audio
+  and decoder change. Found, in this order: (1) `chimes.ts` importing `TICK_MS` from `world.ts`
+  made a cycle (`world.ts` > `stations.ts` > `chimes.ts`), so `TICK_MS` was undefined, every tick
+  count `NaN` and the decoder tests failed only when `chimes.ts` loaded first; fixed by a local
+  `CHIME_TICK_MS` plus a test that the two agree. (2) The decoder tests listened a fixed 200
+  ticks, three tunes of the old 60-tick schedule; a tune is now up to 172 ticks, so they listen
+  `3 * TUNE_MAX_TICKS`. (3) A tune is longer in play: bots clear room 5 in 34 s (was 27 to 29) and
+  room 8 in 44 s (was 37), inside the 240 s budgets. (4) The plan's `NOTE_TICKS`/`TUNE_TICKS` had
+  four more consumers than it named: the linter's cycle length, the decoder, the parity row for the
+  earpiece (`tick = 59`) and a perception test. Why the plan missed: it named the files it
+  expected, and did not grep for the constants it was replacing. (5) My own slip, not the plan's:
+  I launched the full check straight after `pnpm lint` without reading its output, and it failed on
+  a lint error in my new test; it cost one 5-minute run.

@@ -3,6 +3,7 @@
 // team back (FR15). Each type's parts are tiles named in the station's metadata.
 import type { RoomObject } from "../rooms/format.ts";
 import type { Seat, Vec } from "../types.ts";
+import { groupStartingOn, tuneGroups } from "./chimes.ts";
 import { rng } from "./rng.ts";
 import { type StationState, type StationType, TICK_MS, type World } from "./world.ts";
 
@@ -395,9 +396,7 @@ export function updateStations(
 
 export const solved = (world: World, id: string): boolean => world.stations[id]?.solved === true;
 
-// A code played as a tune: one note every NOTE_TICKS, the whole tune again every TUNE_TICKS.
-export const TUNE_TICKS = 60;
-export const NOTE_TICKS = 8;
+// A code played as a tune: a group of chimes a note (chimes.ts), the whole tune again after a pause.
 export const PIP_TICKS = 40; // a tuned radio pips its digit this often
 
 // The unsolved station whose clue (`clue`, or a music box's `tune` tile) is `id`.
@@ -407,15 +406,14 @@ export function stationNaming(world: World, id: string): StationState | undefine
   return s && !s.solved ? s : undefined;
 }
 
-// The note of `station`'s code that plays this tick, if one does. A keypad's slot (clues FR3)
-// rests: its note is the digit of the radio that feeds it, found there and nowhere else.
+// The note of `station`'s code whose group of chimes starts this tick, if one does. A keypad's slot
+// (clues FR3) rests: its note is the digit of the radio that feeds it, found there and nowhere else.
 export function noteOf(world: World, station: StationState): number | undefined {
-  const t = world.tick % TUNE_TICKS;
-  if (t % NOTE_TICKS !== 0) return undefined;
   const slot = world.room.objects.find((o) => o.id === station.id)?.params?.slot as
     | { at?: unknown }
     | undefined;
-  return slot?.at === t / NOTE_TICKS ? undefined : station.answer[t / NOTE_TICKS];
+  const rest = typeof slot?.at === "number" ? slot.at : null;
+  return groupStartingOn(world.tick, tuneGroups(station.answer, rest))?.note;
 }
 
 // The note of the code a clue or an earpiece plays this tick, if one does.

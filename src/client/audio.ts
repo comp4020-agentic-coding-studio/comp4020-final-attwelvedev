@@ -1,4 +1,5 @@
 import type { SoundCue } from "../net/protocol.ts";
+import { chimePlan, isChimeCue } from "./chimeSound.ts";
 
 export interface GameAudio {
   resume(): Promise<void>; // call from a tap or key press: browsers keep audio off until then
@@ -15,8 +16,6 @@ const OWN_STEP_GAP_MS = 290; // slower and deeper than other players' ticks, so 
 const BUMP_GAP_MS = 380;
 const HUM_HZ = 110;
 const RADIO_GAP_MS = 250; // static and a tuned tone are sent every tick in range: played four times a second
-// C major pentatonic over two octaves: nine keys, nine notes no two alike, and none of them sour
-const PENTATONIC = [262, 294, 330, 392, 440, 523, 587, 659, 784];
 
 // The cues are made here rather than loaded, so there is nothing to download
 // or credit: a soft tick for footsteps, a steady hum on a plate, a click for a
@@ -184,10 +183,17 @@ export function createAudio(): GameAudio {
   };
 
   // a struck bell: a sine and two inharmonic partials, ringing out
-  const bellTone = (c: AudioContext, cue: SoundCue, hz: number, secs: number, level: number) => {
-    tone(c, cue, "sine", hz, hz, secs, level);
-    tone(c, cue, "sine", hz * 2.76, hz * 2.76, secs * 0.5, level * 0.35);
-    tone(c, cue, "sine", hz * 5.4, hz * 5.4, secs * 0.25, level * 0.15);
+  const bellTone = (
+    c: AudioContext,
+    cue: SoundCue,
+    hz: number,
+    secs: number,
+    level: number,
+    delay = 0,
+  ) => {
+    tone(c, cue, "sine", hz, hz, secs, level, delay);
+    tone(c, cue, "sine", hz * 2.76, hz * 2.76, secs * 0.5, level * 0.35, delay);
+    tone(c, cue, "sine", hz * 5.4, hz * 5.4, secs * 0.25, level * 0.15, delay);
   };
 
   const progress = (
@@ -274,9 +280,13 @@ export function createAudio(): GameAudio {
           // lower and duller than the tick, and doubled: the click of a pin dropping
           tone(c, s, "triangle", 420, 300, 0.07, 0.45);
           tone(c, s, "triangle", 380, 260, 0.06, 0.3, 0.05);
-        } else if (s.kind === "key") {
-          const hz = PENTATONIC[Math.max(0, Math.min(8, s.n ?? 0))] as number;
-          tone(c, s, "triangle", hz, hz, 0.22, 0.3);
+        } else if (isChimeCue(s)) {
+          // a group of chimes, n + 1 of them rising: the note is the count (chimeSound.ts)
+          const cue = s.kind === "earpiece" ? { ...s, pan: 0 } : s; // the earpiece is in the holder's head
+          for (const ch of chimePlan(s.kind, s.n)) {
+            if (ch.voice === "bell") bellTone(c, cue, ch.hz, ch.secs, ch.level, ch.at);
+            else tone(c, cue, ch.voice, ch.hz, ch.hz, ch.secs, ch.level, ch.at);
+          }
         } else if (s.kind === "snap")
           burst(c, s, "highpass", 3000, 0.9); // a wire cut
         else if (s.kind === "pip") {
@@ -284,19 +294,12 @@ export function createAudio(): GameAudio {
           for (let i = 0; i < Math.max(1, Math.min(9, s.n ?? 1)); i++)
             tone(c, s, "sine", 880, 880, 0.08, 0.25, i * 0.16);
         } else if (s.kind === "clunk") tone(c, s, "square", 150, 110, 0.1, 0.25);
-        else if (s.kind === "bellnote") {
-          const hz = PENTATONIC[Math.max(0, Math.min(8, 2 + (s.n ?? 0)))] as number;
-          bellTone(c, s, hz * 2, 0.6, 0.28);
-        } else if (s.kind === "bell")
+        else if (s.kind === "bell")
           bellTone(c, s, 330, 1.4, 0.35); // the rope: long, low, room-wide
         else if (s.kind === "dye") {
           // a soft pomf: low filtered noise and a falling thump, a toy and never a siren
           burst(c, s, "lowpass", 500, 1.2);
           tone(c, s, "sine", 180, 70, 0.25, 0.4);
-        } else if (s.kind === "earpiece") {
-          // the earpiece's tune, in the holder's head: always centred
-          const hz = PENTATONIC[Math.max(0, Math.min(8, s.n ?? 0))] as number;
-          tone(c, { ...s, pan: 0 }, "sine", hz, hz, 0.3, 0.3);
         } else if (s.kind === "gear") {
           tone(c, s, "square", 1200, 1200, 0.02, 0.18);
           tone(c, s, "square", 900, 900, 0.02, 0.18, 0.07);

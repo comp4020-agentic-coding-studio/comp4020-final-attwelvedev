@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { spectatorView, viewFor } from "./perception.ts";
 import type { RoomObject } from "./rooms/format.ts";
 import { loadRooms } from "./rooms/load.ts";
+import { tuneGroups } from "./sim/chimes.ts";
 import { caughtBy } from "./sim/hazards.ts";
 import { stationParts } from "./sim/stations.ts";
 import { step } from "./sim/step.ts";
@@ -1052,7 +1053,7 @@ describe("viewFor: stations, gear and signals", () => {
     });
     holdGear(w, "g1", 0);
     place(w, 2, { x: 1, y: 2 }); // right beside the holder
-    w.tick = 59; // the next tick starts the tune
+    w.tick = tuneGroups(w.stations.Q1?.answer ?? []).period - 1; // the next tick starts the tune
     step(w, {}, TICK_MS);
     const mine = viewFor(w, 0, "blind", false).sounds.filter((s) => s.kind === "earpiece");
     expect(mine).toHaveLength(1);

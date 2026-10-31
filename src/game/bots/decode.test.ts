@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ChannelMessage, Outgoing } from "../channels.ts";
 import { type RoleView, viewFor } from "../perception.ts";
+import { TUNE_MAX_TICKS, tuneGroups } from "../sim/chimes.ts";
 import { toggled } from "../sim/stations.ts";
 import { step } from "../sim/step.ts";
 import { place, roomWith } from "../sim/testing.ts";
@@ -21,6 +22,7 @@ import {
   readNumber,
   type StationBelief,
   syncGo,
+  tuneOf,
   vaultStep,
 } from "./decode.ts";
 
@@ -290,6 +292,57 @@ describe("the wires decoder", () => {
   });
 });
 
+// How long a bot must listen to be sure of a code: it hears one tune, a second complete one, and the
+// pause that ends it, so three periods of the longest tune a code can have (nine-chime groups: the
+// worst case is 4 x 9 chimes). The old fixed 200 ticks was three tunes of the old 60-tick schedule.
+const LISTEN_TICKS = 3 * TUNE_MAX_TICKS;
+
+describe("tuneOf: a tune is groups of chimes (Task 36)", () => {
+  // one entry per group, at its first tick, n = the note: a group of n + 1 chimes 3 ticks apart
+  const play = (code: number[], from: number, rest: number | null = null) => {
+    const heard: { tick: number; n: number }[] = [];
+    for (const g of tuneGroups(code, rest).groups) heard.push({ tick: from + g.at, n: g.note });
+    return { heard, period: tuneGroups(code, rest).period };
+  };
+
+  it("takes a tune heard twice running, whatever the group lengths", () => {
+    for (const code of [
+      [0, 0, 0],
+      [8, 0, 8, 0],
+      [3, 1, 4],
+    ]) {
+      const a = play(code, 0);
+      const b = play(code, a.period);
+      const heard = [...a.heard, ...b.heard];
+      const end = b.heard.at(-1)?.tick ?? 0;
+      expect(tuneOf(heard, end + 200), code.join()).toEqual(code);
+    }
+  });
+
+  it("does not take a tune still playing, or heard only once", () => {
+    const a = play([2, 5, 1], 0);
+    const b = play([2, 5, 1], a.period);
+    expect(tuneOf(a.heard, (a.heard.at(-1)?.tick ?? 0) + 200)).toBeNull();
+    // the second is still playing: its last group's chimes have not finished
+    const mid = (b.heard.at(-1)?.tick ?? 0) + 2;
+    expect(tuneOf([...a.heard, ...b.heard], mid)).toBeNull();
+  });
+
+  it("keeps a rest inside the tune, and a pause between tunes apart", () => {
+    const a = play([4, 6, 2], 0, 1);
+    const b = play([4, 6, 2], a.period, 1);
+    const end = b.heard.at(-1)?.tick ?? 0;
+    expect(tuneOf([...a.heard, ...b.heard], end + 200)).toEqual([4, 2]);
+  });
+
+  it("splits two different tunes, so the last two must match", () => {
+    const a = play([1, 2, 3], 0);
+    const b = play([3, 2, 1], a.period);
+    const end = b.heard.at(-1)?.tick ?? 0;
+    expect(tuneOf([...a.heard, ...b.heard], end + 200)).toBeNull();
+  });
+});
+
 describe("the keypad decoder", () => {
   // the clue c1 at (2,2); a wall at x=8 keeps the sound from the far room
   const GRID = [
@@ -310,7 +363,7 @@ describe("the keypad decoder", () => {
     const world = createWorld(room, 5);
     place(world, seat, at);
     let b = emptyBelief();
-    for (let t = 0; t < 200; t++) {
+    for (let t = 0; t < LISTEN_TICKS; t++) {
       step(world, {}, TICK_MS);
       const view = viewFor(world, seat, role, false);
       b = beliefFrom(view, [], q, b);
@@ -600,7 +653,7 @@ describe("the music box decoder", () => {
     const world = createWorld(room, seed);
     place(world, 1, at);
     let b = emptyBelief();
-    for (let t = 0; t < 200; t++) {
+    for (let t = 0; t < LISTEN_TICKS; t++) {
       step(world, {}, TICK_MS);
       const view = viewFor(world, 1, role, false);
       b = beliefFrom(view, [], q, b);
@@ -686,14 +739,14 @@ describe("the earpiece", () => {
       const world = createWorld(room, seed);
       const ear = emptyEar();
       const without: number[] = [];
-      for (let t = 0; t < 200; t++) {
+      for (let t = 0; t < LISTEN_TICKS; t++) {
         step(world, {}, TICK_MS);
         without.push(...earStep(viewFor(world, 0, "blind", false), ear));
       }
       expect(without).toEqual([]); // nobody holds it: nothing heard, nothing told
       Object.assign(world.gear[0] as object, { heldBy: 0, at: null });
       const told: number[] = [];
-      for (let t = 0; t < 200; t++) {
+      for (let t = 0; t < LISTEN_TICKS; t++) {
         step(world, {}, TICK_MS);
         told.push(...earStep(viewFor(world, 0, "blind", false), ear));
       }
@@ -737,7 +790,7 @@ describe("the music box decoder, with two boxes playing", () => {
       const world = createWorld(room, seed);
       place(world, 1, { x: 2, y: 2 });
       const b: Record<string, StationBelief> = { Q1: emptyBelief(), Q2: emptyBelief() };
-      for (let t = 0; t < 200; t++) {
+      for (let t = 0; t < LISTEN_TICKS; t++) {
         step(world, {}, TICK_MS);
         const view = viewFor(world, 1, "mute", false);
         for (const id of ["Q1", "Q2"]) {

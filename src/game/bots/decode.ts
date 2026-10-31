@@ -1,7 +1,8 @@
 import type { ChannelMessage } from "../channels.ts";
 import type { RoleView } from "../perception.ts";
 import type { Room, RoomObject } from "../rooms/format.ts";
-import { NOTE_TICKS, stationParts, tilesOf, toggled, WIRE_RULES } from "../sim/stations.ts";
+import { CHIME_TICKS, GROUP_GAP_TICKS, TUNE_PAUSE_TICKS } from "../sim/chimes.ts";
+import { stationParts, tilesOf, toggled, WIRE_RULES } from "../sim/stations.ts";
 import type { StationType } from "../sim/world.ts";
 import type { Vec } from "../types.ts";
 
@@ -153,29 +154,37 @@ const wires: Decoder = (view, _inbox, b, o) => {
 };
 
 // --- The keypad -------------------------------------------------------------------------------
-// Its code plays at its clue, one note a key (a `clue` chime with n = key + 1), every note
-// NOTE_TICKS after the last, then a pause. A hearing bot takes the code once it has heard the same
-// whole tune twice running: the first may have been caught half-way through. A slot fed by a radio
+// Its code plays at its clue as groups of chimes, one group a key (a `clue` cue with n = key + 1 on
+// the group's first chime), a gap between groups, then a longer pause before the tune starts again.
+// A hearing bot takes the code once it has heard the same whole tune twice running: the first may
+// have been caught half-way through. A slot fed by a radio
 // (clues FR3) rests in the tune: its key is the radio's digit d (key d, the (d - 1)th), worked out
 // by this bot or sent to it as text.
-const TUNE_GAP = 2 * NOTE_TICKS; // a rest in the tune is one note long; the pause between tunes longer
+// From a group's first chime to the next group's: the group's own length (note chimes after the
+// first), a gap, and a rest's second gap. A new tune starts the pause later instead. Both depend on
+// the group just heard, so the line between "same tune" and "new tune" is drawn from that group's
+// note: halfway between the longest same-tune gap (a rest) and the new-tune gap.
+const sameTuneMax = (note: number) => note * CHIME_TICKS + 2 * GROUP_GAP_TICKS;
+const newTuneFrom = (note: number) => note * CHIME_TICKS + TUNE_PAUSE_TICKS;
+const tuneBreak = (note: number) => Math.round((sameTuneMax(note) + newTuneFrom(note)) / 2);
 
 export function slotOf(o: RoomObject): number | null {
   const slot = o.params?.slot as { at?: unknown } | undefined;
   return typeof slot?.at === "number" ? slot.at : null;
 }
 
-// The tune last heard twice running in `heard` (notes NOTE_TICKS apart, tunes a longer pause apart),
-// or null: the first may have been caught half-way through, and one still playing is not over.
+// The tune last heard twice running in `heard` (one entry a group, at the tick its first chime
+// sounded; groups at most TUNE_GAP apart, tunes a longer pause apart), or null: the first may have
+// been caught half-way through, and one still playing is not over.
 export function tuneOf(heard: { tick: number; n: number }[], now: number): number[] | null {
   const tunes: number[][] = [];
   heard.forEach((h, i) => {
     const before = heard[i - 1];
-    if (!before || h.tick - before.tick > TUNE_GAP) tunes.push([]);
+    if (!before || h.tick - before.tick > tuneBreak(before.n)) tunes.push([]);
     tunes.at(-1)?.push(h.n);
   });
   const last = heard.at(-1);
-  if (last && now - last.tick <= TUNE_GAP) tunes.pop(); // still playing
+  if (last && now - last.tick <= tuneBreak(last.n)) tunes.pop(); // still playing
   const [a, c] = tunes.slice(-2);
   return a && c && a.join() === c.join() ? c : null;
 }

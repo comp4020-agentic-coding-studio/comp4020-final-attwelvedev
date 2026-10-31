@@ -128,8 +128,9 @@ function word(s: SoundCue): string {
   if (s.kind === "clue") return `${CUE_WORD[s.kind]} ×${s.n ?? 1}`;
   // a key or a bell says which (it is on the object for all to see); a pip says how many. The
   // earpiece's note is the puzzle itself, heard and never written
+  // and, being a group of that many chimes (chimeSound.ts), says the count a listener hears
   if ((s.kind === "key" || s.kind === "bellnote") && s.n !== undefined)
-    return `${CUE_WORD[s.kind]} ${s.n + 1}`;
+    return `${CUE_WORD[s.kind]} ${s.n + 1} (${s.n + 1} chimes)`;
   if (s.kind === "pip") return `${CUE_WORD[s.kind]} ×${s.n ?? 1}`;
   return CUE_WORD[s.kind];
 }

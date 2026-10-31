@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { cueCaptions } from "../client/hud.ts";
 import { type EntityView, type RoleView, type SoundCue, viewFor } from "./perception.ts";
+import { tuneGroups } from "./sim/chimes.ts";
 import { step } from "./sim/step.ts";
 import { gather, hold, input, place, worldWith } from "./sim/testing.ts";
 import { TICK_MS, type World, type WorldEvent } from "./sim/world.ts";
@@ -242,7 +243,7 @@ const PARITY: Record<SoundCue["kind"], Scenario> = {
       g1: { item: "earpiece" },
     });
     Object.assign(world.gear[0] as object, { heldBy: BLIND, at: null });
-    world.tick = 59; // the next tick starts the tune
+    world.tick = tuneGroups(world.stations.Q1?.answer ?? []).period - 1; // the next tick starts the tune
     return {
       world,
       act: () => go(world),

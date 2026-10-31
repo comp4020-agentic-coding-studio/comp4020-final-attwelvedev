@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { Seat, Vec } from "../types.ts";
+import { tuneGroups } from "./chimes.ts";
 import { rng } from "./rng.ts";
 import {
   drawAnswer,
-  NOTE_TICKS,
   noteOf,
   plaqueText,
   ruleFor,
   stationShows,
-  TUNE_TICKS,
   WIRE_COLOURS,
   WIRE_RULES,
 } from "./stations.ts";
@@ -458,12 +457,14 @@ describe("clue paths: answers that feed, and teaching stations (escape-room Task
     for (const seed of [1, 2, 3]) {
       const w = stationWorld({ Q1: RADIO, Q2: KEYPAD }, seed);
       const played: number[] = [];
-      for (let t = 0; t < TUNE_TICKS; t++) {
+      const answer = st(w, "Q2").answer;
+      for (let t = 0; t < tuneGroups(answer, 0).period; t++) {
         w.tick = t;
         const n = noteOf(w, st(w, "Q2"));
-        if (n !== undefined) played.push(t / NOTE_TICKS);
+        if (n !== undefined) played.push(n);
       }
-      expect(played).toEqual([1, 2]);
+      // slot 0 rests: only keys 1 and 2 of the code are played, in order
+      expect(played).toEqual([answer[1], answer[2]]);
     }
   });
 

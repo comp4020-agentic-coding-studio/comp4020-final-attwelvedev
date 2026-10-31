@@ -1,7 +1,8 @@
 import { parseJob, rawJobs } from "../bots/jobs.ts";
 import { type RoleView, viewFor } from "../perception.ts";
+import { TUNE_MAX_TICKS } from "../sim/chimes.ts";
 import { cameraParams, laserBeam, laserParams } from "../sim/hazards.ts";
-import { NOTE_TICKS, PIP_TICKS, TUNE_TICKS, tilesOf } from "../sim/stations.ts";
+import { PIP_TICKS, tilesOf } from "../sim/stations.ts";
 import { step } from "../sim/step.ts";
 import { type GearItem, patrolOf, TICK_MS } from "../sim/world.ts";
 import type { Role, Vec } from "../types.ts";
@@ -294,7 +295,7 @@ const STATION_SOUNDS: Record<string, string[]> = {
   vault: ["clunk"],
   sync: ["clunk", "solved"],
 };
-const CYCLE_TICKS = Math.max(TUNE_TICKS, PIP_TICKS) + NOTE_TICKS; // long enough for a tune or a pip
+const CYCLE_TICKS = Math.max(TUNE_MAX_TICKS, PIP_TICKS) + 20; // long enough for any tune (the first group may start late) or a pip
 
 const at = (o: RoomObject): Vec => o.tiles[0] as Vec;
 

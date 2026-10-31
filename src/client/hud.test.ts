@@ -189,7 +189,17 @@ describe("cueCaptions", () => {
       { kind: "bellnote", n: 2, pan: 0, gain: 1 },
       { kind: "pip", n: 3, pan: 0, gain: 1 },
     ]).map((c) => c.text);
-    expect(said).toEqual(["Key 5", "Bell note 3", "Pip ×3"]);
+    expect(said).toEqual(["Key 5 (5 chimes)", "Bell note 3 (3 chimes)", "Pip ×3"]);
+    // a note is a group of that many chimes, rising: the caption says the count too (Task 36)
+    const counted = cueCaptions([
+      { kind: "key", n: 4, pan: 0, gain: 1 },
+      { kind: "bellnote", n: 2, pan: 0, gain: 1 },
+      { kind: "earpiece", n: 7, pan: 0, gain: 1 },
+    ]).map((c) => c.text);
+    expect(counted[0]).toBe("Key 5 (5 chimes)");
+    expect(counted[1]).toBe("Bell note 3 (3 chimes)");
+    // the earpiece's note is the puzzle: heard by its holder, never written, so no count either
+    expect(counted[2]).toBe("Earpiece");
   });
 
   it("never writes left, right or ahead", () => {
