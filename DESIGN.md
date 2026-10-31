@@ -82,7 +82,7 @@ by room (never lilac); the room's `hue` meta picks it, defaulting to rose.
 | `--w-wall-top`, `--w-wall-front`, `--w-wall-shade` | Wall top, front and shade | built |
 | `--w-crate`, `--w-crate-front`, `--w-crate-brace` | Crates | built |
 | `--w-door`, `--w-door-front`, `--w-door-seam` | Doors, which slide into the floor | built |
-| `--w-plate`, `--w-plate-pressed` | Plates; pressed ones sink 3 px | built |
+| `--w-plate`, `--w-plate-pressed` | Plates; pressed ones sink 3 px. A crate-only plate (`crateOnly`) is a near full-tile square in a `--w-crate-brace` frame with a crate's X brace and no number | built |
 | `--w-glass`, `--w-glass-front` | Glass: translucent, two glints | built |
 | `--w-vent`, `--w-vent-front`, `--w-vent-slat` | Vents: slatted | built |
 | `--w-mist` | The veil over tiles outside line of sight | built |

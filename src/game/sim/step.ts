@@ -109,9 +109,11 @@ function updatePlates(world: World) {
   for (const plate of room.objects.filter((o) => o.kind === "plate")) {
     const tile = plate.tiles[0];
     if (!tile) continue;
-    const pressed =
-      world.players.some((p) => Math.floor(p.pos.x) === tile.x && Math.floor(p.pos.y) === tile.y) ||
-      crateAt(world, tile.x, tile.y);
+    // a crate-only plate (room file `crateOnly`) is held by a crate's weight and never by a person
+    const byPerson =
+      plate.params?.crateOnly !== true &&
+      world.players.some((p) => Math.floor(p.pos.x) === tile.x && Math.floor(p.pos.y) === tile.y);
+    const pressed = byPerson || crateAt(world, tile.x, tile.y);
     if (pressed !== world.pressed[plate.id]) {
       world.pressed[plate.id] = pressed;
       world.events.push({ kind: "plate", id: plate.id, pressed, at: tileCentre(tile) });

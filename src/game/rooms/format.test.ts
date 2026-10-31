@@ -179,6 +179,13 @@ describe("parseRoom: stations", () => {
   const grid = ["#######", "#1.Q..#", "#2....#", "#3....#", "#######"];
   const withQ = (q: unknown) => header(`,"Q1":${JSON.stringify(q)}`);
 
+  it("keeps a plate's crateOnly flag as a param (Task 33)", () => {
+    const room = parseRoom(
+      `${JSON.stringify({ id: "t", name: "T", version: 1, beats: [], objects: { p1: { crateOnly: true } } })}\n---\n#####\n#1.p#\n#2..#\n#3..#\n#####\n`,
+    );
+    expect(room.objects.find((o) => o.id === "p1")?.params).toMatchObject({ crateOnly: true });
+  });
+
   it("parses Q as a station with its metadata as params", () => {
     const room = parseRoom(
       text(

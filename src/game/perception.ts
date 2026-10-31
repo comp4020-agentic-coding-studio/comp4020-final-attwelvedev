@@ -87,6 +87,7 @@ export interface EntityView {
   cone?: { fovDeg: number; range: number; from?: Vec }; // a hazard's sight; `from` when it sees from somewhere other than `pos` (a camera, from the wall)
   beam?: Vec[]; // a laser's tile centres
   polys?: Vec[][]; // a sight: the parts of a hazard's cone that are in the light, as polygons
+  crateOnly?: boolean; // a plate: only a crate holds it, so it is drawn as a crate's seat
   shows?: string[]; // a sign's plate ids, in order
   flash?: "ok" | "wrong"; // a sign: the result of the last plate, for a moment
   progress?: number; // a sign: how many of them have been pressed in order so far
@@ -269,7 +270,13 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
     } else if (o.kind === "plate") {
       for (const t of o.tiles) {
         const state = world.pressed[o.id] ? "pressed" : "up";
-        out.push({ id: o.id, kind: "plate", pos: centre(t), state });
+        out.push({
+          id: o.id,
+          kind: "plate",
+          pos: centre(t),
+          state,
+          ...(o.params?.crateOnly === true ? { crateOnly: true } : {}),
+        });
       }
     } else if (o.kind === "door") {
       for (const t of o.tiles) {

@@ -5,6 +5,7 @@
   {"name":"Three plates","x":[19,27],"intent":{"blind":"steps onto the plate it is led to and holds it","deaf":"stands on a plate and calls the last one free","mute":"signals the moment all three are down"}}
  ],
  "objects":{
+  "p1":{"crateOnly":true},
   "D1":{"opensWhen":["p1"]},
   "D2":{"opensWhen":["p2","p3","p4"]}},
  "hints":{"jobs":[

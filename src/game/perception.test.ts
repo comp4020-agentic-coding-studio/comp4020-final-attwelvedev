@@ -1150,6 +1150,19 @@ describe("viewFor: stations, gear and signals", () => {
     expect(viewFor(w, 1, "deaf", false).act).toMatch(colourWord);
   });
 
+  it("a plate's crateOnly flag is in the view, for everyone who sees the plate (Task 33)", () => {
+    const w = worldWith(["##########", "#1..p....#", "#2.......#", "#3...p...#", "##########"], {
+      p1: { crateOnly: true },
+    });
+    for (const role of ["deaf", "mute"] as const) {
+      const plates = viewFor(w, role === "deaf" ? 1 : 2, role, false).entities.filter(
+        (e) => e.kind === "plate",
+      );
+      expect(plates.find((e) => e.id === "p1")?.crateOnly).toBe(true);
+      expect(plates.find((e) => e.id === "p2")?.crateOnly).toBeUndefined();
+    }
+  });
+
   it("Act hint says Swap when a full slot stands on other gear, and only after the nearer actions", () => {
     const w = worldWith(["##########", "#1..gg...#", "#2.......#", "#3.......#", "##########"], {
       g1: { item: "uv" },

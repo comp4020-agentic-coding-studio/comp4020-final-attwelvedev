@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Seat } from "../types.ts";
 import { step } from "./step.ts";
-import { hold, input, place, stationWorld, worldFrom, worldWith } from "./testing.ts";
+import { gather, hold, input, place, stationWorld, worldFrom, worldWith } from "./testing.ts";
 import { createWorld, RADIUS, TICK_MS, type World } from "./world.ts";
 
 const OPEN = [
@@ -257,6 +257,35 @@ describe("plates and doors", () => {
     hold(w, {}, 1);
     expect(w.pressed).toEqual({ p1: true, p2: true });
     expect(w.doorOpen.D1).toBe(true);
+  });
+
+  it("a crate-only plate ignores people, and a crate on it presses it (Task 33)", () => {
+    const w = worldWith(["##########", "#1..pD..E#", "#2.....BE#", "#3......E#", "##########"], {
+      p1: { crateOnly: true },
+      D1: { opensWhen: ["p1"] },
+    });
+    gather(w, { x: 4, y: 1 });
+    hold(w, {}, 3);
+    expect(w.pressed.p1).toBe(false);
+    expect(w.doorOpen.D1).toBe(false);
+    place(w, 0, { x: 2, y: 2 });
+    place(w, 1, { x: 2, y: 2 });
+    place(w, 2, { x: 2, y: 2 });
+    const crate = w.crates[0];
+    if (!crate) throw new Error("fixture has a crate");
+    crate.tile = { x: 4, y: 1 };
+    hold(w, {}, 1);
+    expect(w.pressed.p1).toBe(true);
+    expect(w.doorOpen.D1).toBe(true);
+  });
+
+  it("a plate without the flag is still pressed by a person", () => {
+    const w = worldWith(["##########", "#1..pD..E#", "#2.......#", "#3.......#", "##########"], {
+      D1: { opensWhen: ["p1"] },
+    });
+    place(w, 0, { x: 4, y: 1 });
+    hold(w, {}, 1);
+    expect(w.pressed.p1).toBe(true);
   });
 
   it("lets one player through alone after it has opened, and back again", () => {

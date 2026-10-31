@@ -105,7 +105,27 @@ export function drawFlat(ctx: CanvasRenderingContext2D, e: EntityView, cam: Came
   const s = cam.scale;
   const p = toScreen(cam, e.pos.x - 0.5, e.pos.y - 0.5);
   const d = s * LIVE.depth;
-  if (e.kind === "plate") {
+  if (e.kind === "plate" && e.crateOnly) {
+    // a crate's seat: a near full-tile square in a crate-brown frame with a crate's X brace, so it
+    // never reads as the person's plate. It sinks when a crate holds it. No number: no sign names it.
+    const x = p.x + s * 0.06;
+    const sunk = e.state === "pressed" ? 3 : 0;
+    const y = p.y + d * 0.06 + sunk;
+    const w = s * 0.88;
+    const h = d * 0.88 - sunk * 0.5;
+    ctx.fillStyle = e.state === "pressed" ? WORLD.platePressed : WORLD.plate;
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = WORLD.crateBrace;
+    ctx.lineWidth = 4;
+    ctx.strokeRect(x, y, w, h);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x + w * 0.2, y + h * 0.2);
+    ctx.lineTo(x + w * 0.8, y + h * 0.8);
+    ctx.moveTo(x + w * 0.8, y + h * 0.2);
+    ctx.lineTo(x + w * 0.2, y + h * 0.8);
+    ctx.stroke();
+  } else if (e.kind === "plate") {
     const inset = MAP.plateInset;
     const sunk = e.state === "pressed" ? 3 : 0;
     ctx.fillStyle = e.state === "pressed" ? WORLD.platePressed : WORLD.plate;

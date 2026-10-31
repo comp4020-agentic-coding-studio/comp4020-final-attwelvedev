@@ -3,6 +3,12 @@ import type { EntityView } from "../game/perception.ts";
 import { LABEL_CAP, LABEL_COPY, labelsFor } from "./labels.ts";
 
 const plate: EntityView = { id: "p1", kind: "plate", pos: { x: 3.5, y: 4.5 } };
+const cratePlate: EntityView = {
+  id: "p1",
+  kind: "plate",
+  pos: { x: 3.5, y: 4.5 },
+  crateOnly: true,
+};
 const plate2: EntityView = { id: "p2", kind: "plate", pos: { x: 9.5, y: 4.5 } };
 const crate: EntityView = { id: "B1", kind: "crate", pos: { x: 5.5, y: 4.5 } };
 const door: EntityView = { id: "D1", kind: "door", pos: { x: 8.5, y: 4.5 }, state: "closed" };
@@ -15,6 +21,14 @@ describe("labelsFor", () => {
     expect(first.map((l) => l.kind).sort()).toEqual(["crate", "door", "plate"]);
     expect(first.find((l) => l.kind === "plate")?.text).toBe(LABEL_COPY.plate);
     expect(labelsFor([plate, crate, door], undefined, me, true)).toEqual(first);
+  });
+
+  it("labels a crate-only plate as its own kind, apart from a person's plate (Task 33)", () => {
+    const got = labelsFor([cratePlate, plate2], undefined, me, true);
+    expect(got.map((l) => l.kind).sort()).toEqual(["cratePlate", "plate"]);
+    expect(got.find((l) => l.kind === "cratePlate")?.text).toBe(
+      "Crate plate: only a crate's weight holds it",
+    );
   });
 
   it("gives one chip per kind, on the nearest one in sight", () => {

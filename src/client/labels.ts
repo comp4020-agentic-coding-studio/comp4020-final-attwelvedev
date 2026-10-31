@@ -14,6 +14,7 @@ export const LABEL_COPY: Record<string, string> = {
   plate: "Plate: one person on each opens the door",
   glass: "Glass: see through it, sound doesn't pass",
   vent: "Vent: sound passes, you can't see through",
+  cratePlate: "Crate plate: only a crate's weight holds it",
   crate: "Crate: lean on it to push it, and it can sit on a plate",
   door: "Door: opens while its plates are held",
   loot: "Loot: walk over it to take it",
@@ -94,6 +95,7 @@ const KIND_OF: Partial<Record<EntityView["kind"], string>> = {
 function kindOf(e: EntityView): string | undefined {
   if (e.kind === "station" && e.station) return STATION_KIND[e.station.type];
   if (e.kind === "sign" && e.text) return "plaque";
+  if (e.kind === "plate" && e.crateOnly) return "cratePlate";
   if (e.kind === "player")
     return e.holding !== undefined || e.heldBy !== undefined ? "hands" : undefined;
   return KIND_OF[e.kind];

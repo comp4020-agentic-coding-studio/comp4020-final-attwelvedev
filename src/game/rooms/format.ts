@@ -175,6 +175,7 @@ const PARAMS: Record<string, true> = {
   loot: true,
   sign: true,
   clue: true,
+  plate: true, // `crateOnly`: only a crate's weight holds it
   station: true,
   gear: true,
   ink: true,

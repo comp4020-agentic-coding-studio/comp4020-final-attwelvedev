@@ -852,3 +852,18 @@ tested, with label chips capped at three (two on a phone).
 
 How I'll know: the draft's faults each fail the new linter rule, perception-only bots clear each
 new room, and I play each room before it ships.
+
+## 2026-10-31 — Human reviews batched to the end of the phase, and a dev server that passed for the app
+
+(commit cited at the next phase close)
+
+Phase 12 has seven tasks with a `Human review:` line. The skill stops after each one. After the first (the crate
+plate) I asked for the rest to be deferred and done at once at the end of the phase: a review needs
+me looking at the build, and seven separate stops is seven context switches for the same build.
+The cost is that a rejection comes later, so a fix is a follow-up commit.
+
+Separately, `pnpm check` went red twice for reasons that were not the code: a leftover `astro dev` server
+held :8080, so `pnpm start:check` died with EADDRINUSE and the specs ran against the dev server (no
+long-cache headers, slower); then a reused server hit its 40-lobby cap. The fix to the method: run
+the check server on its own port (`PORT=8099`, `APP_URL`) and restart it between runs. Candidate
+sensor, not yet built: `spec/global-setup.ts` could refuse a server that is not the built one.

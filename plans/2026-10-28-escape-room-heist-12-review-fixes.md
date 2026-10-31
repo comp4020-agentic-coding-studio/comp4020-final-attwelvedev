@@ -66,7 +66,7 @@ move, act })` and drops `msg.gear`, so the sim never sees G. `gearPress` is test
   it names G.
 - **Done when:** the three tests pass and a three-tab check shows drop, give and swap.
 
-### Task 33: Crate-only plate in room 2  [ ]  (demo 2)
+### Task 33: Crate-only plate in room 2  [x]  (demo 2)
 
 Today `updatePlates` (`src/game/sim/step.ts:106`) presses a plate for a player or a crate. Add a
 plate kind pressed by a crate only. New tile letter or `p` metadata: choose the smaller change
@@ -227,4 +227,10 @@ the pair stalls; one idle means the other leads at full speed.
 
 ## 7. Corrections log
 
-(empty; execution appends one line per user redirect and mirrors it into `PROCESS_LOG.md`)
+(execution appends one line per user redirect and mirrors it into `PROCESS_LOG.md`)
+
+- 2026-10-31, Task 33 accepted. Process change: the user asked that the remaining `Human review:`
+  tasks (34, 36, 37, 38, 39, 40) be built and committed as their checks go green, and reviewed
+  all at once at the end of the phase, not one stop per task. Expected: stop at each review.
+  Wanted: one batch. Why the first reading missed: the skill says never commit before an explicit
+  accept; a batched review means a rejection later is a follow-up commit, not an amend.
