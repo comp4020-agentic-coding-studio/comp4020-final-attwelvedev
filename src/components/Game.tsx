@@ -122,7 +122,11 @@ const PILL_MS = 4000; // an edge pill outlasts the face on it (FACE_POP_MS) by a
 const LAMP_MS = 1000; // the lamp's light shows this long in a sighted HUD (spec §4.1)
 const fadeOut = (leftMs: number) => Math.min(1, leftMs / 300);
 const SPAWN_FACING: Vec = { x: 1, y: 0 }; // everyone starts a room facing east (src/game/sim/world.ts)
-const EASE = 0.5; // share of the gap to the predicted position closed each frame
+// How long the drawn position takes to close most of a gap to the predicted one (an exponential
+// ease, so it is the same at 60 and 144 Hz). Over a jittery link the server and the client
+// disagree by a step or so now and then; this spreads that correction over a few frames instead
+// of a visible snap, at the cost of the figure trailing its prediction by a fraction of a tile.
+const EASE_TAU_MS = 60;
 const SNAP_TILES = 1.5;
 
 // Draw every frame; the canvas is sized to its frame in device pixels. Shared by the reveal (the
@@ -158,18 +162,19 @@ function useDraw(
       raf = requestAnimationFrame(frameLoop);
       const view = rt.view;
       if (!view || !el.isConnected) return; // the reveal's backdrop goes when the game starts
+      const now = performance.now();
       if (rt.self && rt.shown) {
         const gap = Math.hypot(rt.self.x - rt.shown.x, rt.self.y - rt.shown.y);
+        const ease = 1 - Math.exp(-Math.min(now - lastFrame, 100) / EASE_TAU_MS);
         rt.shown =
           gap > SNAP_TILES
             ? rt.self
             : {
-                x: rt.shown.x + (rt.self.x - rt.shown.x) * EASE,
-                y: rt.shown.y + (rt.self.y - rt.shown.y) * EASE,
+                x: rt.shown.x + (rt.self.x - rt.shown.x) * ease,
+                y: rt.shown.y + (rt.self.y - rt.shown.y) * ease,
               };
       }
-      const t = (performance.now() - rt.at) / NET.interpolateMs;
-      const now = performance.now();
+      const t = (now - rt.at) / NET.interpolateMs;
       const pops: FacePop[] = [];
       for (const p of rt.pops) {
         const seat = p.seat as 0 | 1 | 2;
