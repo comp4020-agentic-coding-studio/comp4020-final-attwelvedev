@@ -67,8 +67,8 @@ async function selfAt(page: Page): Promise<{ x: number; y: number } | null> {
 }
 
 // Steers through `route` (tile centres) one short key press at a time, reading the drawn boxes after
-// each, and returns every distinct sample. Each leg runs along one axis and holds the other within a
-// tile's quarter, so a one-tile gap is passed rather than pushed at.
+// each, and returns every distinct sample. A leg runs along its longer axis once the other is within
+// 0.1 of the waypoint's line, so a one-tile gap is passed rather than pushed at.
 async function walkAndSample(page: Page, route: [number, number][]): Promise<Boxes[]> {
   const seen = new Map<string, Boxes>();
   const take = async () => {
@@ -86,7 +86,10 @@ async function walkAndSample(page: Page, route: [number, number][]): Promise<Box
   for (const [tx, ty] of route) {
     const legEnd = Date.now() + 30_000;
     for (;;) {
-      if (Date.now() > legEnd) throw new Error(`never reached ${tx},${ty} within 30 s`);
+      if (Date.now() > legEnd) {
+        const at = await selfAt(page);
+        throw new Error(`never reached ${tx},${ty} within 30 s; stuck at ${JSON.stringify(at)}`);
+      }
       await take();
       const me = await selfAt(page);
       if (!me) {
@@ -96,8 +99,12 @@ async function walkAndSample(page: Page, route: [number, number][]): Promise<Box
       const dx = tx - me.x;
       const dy = ty - me.y;
       if (Math.abs(dx) < 0.2 && Math.abs(dy) < 0.2) break;
-      // line up on the axis the next leg does not travel first, when it is a gap's width off
-      if (Math.abs(dx) >= Math.abs(dy)) await press(dx > 0 ? "d" : "a");
+      // a leg runs along one axis, so first get the other within 0.1 of the waypoint's line: a gap in
+      // a wall is one tile wide and a body that is a fifth of a tile off its middle pushes at the wall
+      const alongX = Math.abs(dx) >= Math.abs(dy);
+      const off = alongX ? dy : dx;
+      if (Math.abs(off) > 0.1) await press(alongX ? (dy > 0 ? "s" : "w") : dx > 0 ? "d" : "a");
+      else if (alongX) await press(dx > 0 ? "d" : "a");
       else await press(dy > 0 ? "s" : "w");
     }
     // at the waypoint, read what is drawn over a few frames (a count of samples, not a clock)
@@ -176,4 +183,52 @@ describe.each(ROOMS)("labels never cover a plaque (room $n)", ({ n, plaques, rou
       for (const p of table.pages) await p.context().close();
     }
   }, 300_000); // two pages, each up to five 30 s legs; a walk takes about 5 s alone, far longer beside two other browser files
+
+  // Task 35: a plaque's plate is measured inside the canvas it is drawn on, at three window heights.
+  // Only room 5 has a plaque in view without a torch. The player walks the whole route to the
+  // keypad nook, where S1 is in the top wall row: its plate floats above row 0, so it only stays in
+  // the canvas if it is slid back in. Then the window is made shorter and the plate's box is read
+  // from what was drawn. (Made red by removing the clamp; S2, mid-wall, did not catch it.)
+  it.runIf(plaques)(
+    "keeps a plaque's whole plate inside the canvas at three heights",
+    async () => {
+      const table = await playRoom(browser, url);
+      try {
+        const page = table.byRole.mute;
+        await walkAndSample(page, route);
+        const canvas = page.locator("canvas[data-camera]");
+        for (const height of [800, 420, 260]) {
+          await page.setViewportSize({ width: 1280, height });
+          const size = () =>
+            canvas.evaluate((c) => ({
+              w: (c as HTMLCanvasElement).clientWidth,
+              h: (c as HTMLCanvasElement).clientHeight,
+            }));
+          // Wait for the canvas itself to be the new size, so no frame drawn before the resize can
+          // stand in for one drawn after it (the old canvas was taller, so its plate was "inside").
+          await expect
+            .poll(async () => (await size()).h, { message: `canvas at window height ${height}` })
+            .toBeLessThanOrEqual(height);
+          const { w, h } = await size();
+          // then read the plates over a run of frames, and every one must sit inside the canvas
+          const seen: Boxes[] = [];
+          for (let i = 0; i < 12; i++) {
+            const b = await boxesOf(page);
+            if (b && b.plaques.length > 0) seen.push(b);
+            await page.waitForTimeout(40);
+          }
+          expect(seen.length, `${height}: a plaque was drawn after the resize`).toBeGreaterThan(0);
+          for (const b of seen)
+            for (const q of b.plaques)
+              expect(
+                q.x >= 0 && q.y >= 0 && q.x + q.w <= w && q.y + q.h <= h,
+                `${height}: plate ${JSON.stringify(q)} outside the ${w}x${h} canvas`,
+              ).toBe(true);
+        }
+      } finally {
+        for (const p of table.pages) await p.context().close();
+      }
+    },
+    300_000,
+  );
 });

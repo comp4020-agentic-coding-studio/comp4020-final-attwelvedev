@@ -100,7 +100,7 @@ filter or the cap sorting by distance alone), and write the failing case.
   overlaps a plaque in rooms 3, 5 and 7 at 1280 and 375. **Human review:** the intro rooms of
   camera, glass and grate, played.
 
-### Task 35: Plaques never cut off; wires join linked parts; drop the stray anchor box  [ ]  (demo 4, 5)
+### Task 35: Plaques never cut off; wires join linked parts; drop the stray anchor box  [x]  (demo 4, 5; human review deferred to the end of the phase)
 
 - **Plaque:** `drawPlaque` places the plate above its tile, so a tall one leaves the frame when the
   window is short. Clamp it into the canvas (or flip it below its tile). Layout spec at three
@@ -234,3 +234,9 @@ the pair stalls; one idle means the other leads at full speed.
   all at once at the end of the phase, not one stop per task. Expected: stop at each review.
   Wanted: one batch. Why the first reading missed: the skill says never commit before an explicit
   accept; a batched review means a rejection later is a follow-up commit, not an amend.
+- 2026-11-01, Task 35 links. Plan said: draw the wire "along wall tiles", and a keypad's `clue` is
+  its remote part. Found: two of six remote parts (rooms 8 and 9) have no wall-only route and room
+  4's is 17 tiles for a 2-tile gap; a keypad's `clue` is a chime id, not a tile. User chose: wall
+  route where one exists, else a straight line. Built that (a wall route over twice the Manhattan
+  distance also falls back to straight); a keypad gets no wire. Why the plan missed: it was
+  written without running a route search over the real rooms.

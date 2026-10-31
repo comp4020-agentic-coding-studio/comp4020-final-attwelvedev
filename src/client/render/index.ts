@@ -247,7 +247,7 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
   const chipped = new Set((scene.labels ?? []).map((l) => l.text.split(":")[0] ?? ""));
   for (const e of scene.entities) if (e.kind === "station") drawStationPlates(ctx, e, cam, chipped);
   // a sign's own words (a plaque), over everything standing, like the names
-  for (const e of scene.entities) if (e.kind === "sign" && e.text) drawPlaque(ctx, e, cam);
+  for (const e of scene.entities) if (e.kind === "sign" && e.text) drawPlaque(ctx, e, cam, scene);
   // the UV pool and its ink: the one bold effect, over the mist (it is only sent where it is seen)
   drawUv(ctx, scene, cam);
   // the outline of a figure a wall hides: the figure itself, outline only, over the wall

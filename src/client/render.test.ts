@@ -1409,6 +1409,55 @@ describe("stations, gear and signals", () => {
       expect(words, name).toContain(name);
   });
 
+  it("joins a safe to its back box and a music box to its tune box with a wire (Task 35)", () => {
+    const linked = (type: "dial" | "bells", key: "back" | "tune", to: { x: number; y: number }) =>
+      station(
+        "Q1",
+        type,
+        at(1.5, 1.5),
+        [],
+        [
+          { key: "anchor", at: [at(1, 1)] },
+          { key: key, at: [to] },
+        ],
+      );
+    for (const [type, key] of [
+      ["dial", "back"],
+      ["bells", "tune"],
+    ] as const) {
+      const wired = recorder();
+      draw(wired.ctx, room({ entities: [linked(type, key, at(4, 3)), player(1, 3.5, 3.5)] }));
+      const bare = recorder();
+      const alone = station("Q1", type, at(1.5, 1.5), [], [{ key: "anchor", at: [at(1, 1)] }]);
+      draw(bare.ctx, room({ entities: [alone, player(1, 3.5, 3.5)] }));
+      const wires = (ops: { name: string; strokeStyle: unknown; globalAlpha: number }[]) =>
+        ops.filter((o) => o.name === "stroke" && o.strokeStyle === WORLD.line && o.globalAlpha < 1);
+      expect(wires(wired.ops).length, `${type}: a faint wire is stroked`).toBeGreaterThan(
+        wires(bare.ops).length,
+      );
+    }
+  });
+
+  it("draws a keypad's keys alone: its anchor is not a box (Task 35, room 8's stray box)", () => {
+    // the anchor is only where the station is named; it stands apart from the keys, as room 8's does
+    const keypad = station(
+      "Q2",
+      "keypad",
+      at(1.5, 1.5),
+      [],
+      [
+        { key: "anchor", at: [at(1, 1)] },
+        { key: "keys", at: [at(5, 1), at(6, 1), at(7, 1)] },
+      ],
+    );
+    const { ctx, ops } = recorder();
+    draw(ctx, room({ entities: [keypad, player(1, 3.5, 3.5)] }));
+    // a plinth is the only thing drawn with the steel front colour; the floor keys use the top only
+    expect(ops.filter((o) => o.name === "fillRect" && o.fillStyle === WORLD.steelFront)).toEqual(
+      [],
+    );
+  });
+
   it("draws a station's furniture without its state when only its parts are in sight", () => {
     const { ctx, ops } = recorder();
     const furniture = station(
@@ -1451,6 +1500,35 @@ describe("clues drawn (escape-room Task 11)", () => {
       expect(lines.map((o) => o.args[0]).join(" ")).toBe(text);
       for (const o of lines)
         expect(px((o as unknown as { font: unknown }).font)).toBeGreaterThanOrEqual(11);
+    }
+  });
+
+  it("keeps a tall plaque's whole plate inside the canvas at any window height (Task 35)", () => {
+    const text = "Cut the wire that matches the lamp, then the one after it, and never the last.";
+    for (const h of [600, 300, 200, 140]) {
+      for (const w of [1280, 375]) {
+        const { ctx, ops } = recorder();
+        draw(
+          ctx,
+          scene({
+            tiles: ROOM3,
+            entities: [
+              player(1, 2.5, 2.5),
+              { id: "S1", kind: "sign", pos: at(4.5, 1.5), shows: [], text },
+            ],
+            self: { x: 2.5, y: 2.5 },
+            w,
+            h,
+          }),
+        );
+        const plate = ops.find((o) => o.name === "roundRect" && (o.args[4] as number) === 4);
+        const [x, y, pw, ph] = (plate?.args ?? []) as number[];
+        expect(plate, `${w}x${h}: a plate was drawn`).toBeDefined();
+        expect(x, `${w}x${h}: left edge`).toBeGreaterThanOrEqual(0);
+        expect(y, `${w}x${h}: top edge`).toBeGreaterThanOrEqual(0);
+        expect((x ?? 0) + (pw ?? 0), `${w}x${h}: right edge`).toBeLessThanOrEqual(w);
+        expect((y ?? 0) + (ph ?? 0), `${w}x${h}: bottom edge`).toBeLessThanOrEqual(h);
+      }
     }
   });
 

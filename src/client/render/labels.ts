@@ -45,7 +45,7 @@ export function drawLabels(ctx: CanvasRenderingContext2D, scene: Scene, cam: Cam
   const placed: Rect[] = [];
   if (scene.report) scene.report = { chips: [], plaques: [] };
   for (const e of scene.entities) {
-    let b: Rect | null = e.kind === "sign" ? plaqueBox(ctx, e, cam) : null;
+    let b: Rect | null = e.kind === "sign" ? plaqueBox(ctx, e, cam, scene) : null;
     if (e.kind === "ink" && e.text) {
       // UV ink in a torch's light (gear.ts: drawUv): its words centred on its tile
       const c = toScreen(cam, e.pos.x, e.pos.y);

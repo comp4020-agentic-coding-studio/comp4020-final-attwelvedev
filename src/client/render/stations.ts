@@ -5,6 +5,7 @@ import type { EntityView } from "../../net/protocol.ts";
 import { COLOR, WORLD, type WorldTokens } from "../tokens.ts";
 import { block } from "./blocks.ts";
 import type { Scene } from "./index.ts";
+import { linkPath } from "./links.ts";
 import { type Camera, LIVE, toScreen } from "./project.ts";
 
 // Stations (spec §4.1): gallery furniture in the 3/4 world, and the object is the readout. Nothing
@@ -244,8 +245,15 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, max: number): string[
 }
 
 // Where a plaque's plate sits on the canvas, and its wrapped lines: the one place both the drawing
-// and the label chips (which keep off it) read the box from.
-export function plaqueBox(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera) {
+// and the label chips (which keep off it) read the box from. The plate floats over its tile; where
+// that would leave the canvas (a short window, a tile near an edge) it is slid back in, so its words
+// are never cut off. `frame` is the canvas size; without it the plate is left where it floats.
+export function plaqueBox(
+  ctx: CanvasRenderingContext2D,
+  e: EntityView,
+  cam: Camera,
+  frame?: { w: number; h: number },
+) {
   if (!e.text) return null;
   const s = cam.scale;
   const px = Math.max(PLATE_MIN_PX, Math.round(s * 0.22));
@@ -256,29 +264,41 @@ export function plaqueBox(ctx: CanvasRenderingContext2D, e: EntityView, cam: Cam
   const h = lines.length * px * 1.3 + px * 0.8;
   ctx.restore();
   const c = toScreen(cam, e.pos.x, e.pos.y - 0.2, LIVE.block * 1.2);
-  return { x: c.x - w / 2, y: c.y - h, w, h, px, lines, cx: c.x, cy: c.y };
+  let x = c.x - w / 2;
+  let y = c.y - h;
+  if (frame) {
+    // never wider or taller than the canvas can hold: past that the plate is as large as it can be
+    x = Math.max(0, Math.min(frame.w - w, x));
+    y = Math.max(0, Math.min(frame.h - h, y));
+  }
+  return { x, y, w, h, px, lines };
 }
 
 // A plaque's text (clues FR2): a brass plate on the wall over its tile, the words wrapped to at
 // most four tiles wide and never below PLATE_MIN_PX, outlined so it reads on any floor.
-export function drawPlaque(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera) {
-  const b = plaqueBox(ctx, e, cam);
+export function drawPlaque(
+  ctx: CanvasRenderingContext2D,
+  e: EntityView,
+  cam: Camera,
+  frame?: { w: number; h: number },
+) {
+  const b = plaqueBox(ctx, e, cam, frame);
   if (!b) return;
-  const { px, lines, w, h, cx, cy } = b;
+  const { px, lines, w, h, x, y } = b;
   ctx.save();
   ctx.font = `700 ${px}px Archivo, system-ui, sans-serif`;
   ctx.fillStyle = WORLD.brass;
   ctx.strokeStyle = WORLD.line;
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.roundRect(cx - w / 2, cy - h, w, h, 4);
+  ctx.roundRect(x, y, w, h, 4);
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = WORLD.line;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   lines.forEach((l, i) => {
-    ctx.fillText(l, cx, cy - h + px * 0.4 + px * 1.3 * (i + 0.5));
+    ctx.fillText(l, x + w / 2, y + px * 0.4 + px * 1.3 * (i + 0.5));
   });
   ctx.restore();
 }
@@ -525,6 +545,30 @@ function solvedPlate(ctx: CanvasRenderingContext2D, cam: Camera, at: Vec) {
 }
 
 // The flat parts of a station: pads, floor keys and buttons. Drawn with the floor, under what stands.
+// A thin wire from a station's anchor to its remote part (a safe's back, a music box's tune), so a
+// box on its own never looks lost: along the wall where a short wall route exists, else straight.
+// Faint (the line colour at 35 %), laid on the floor under everything that stands.
+function drawLink(ctx: CanvasRenderingContext2D, st: Station, cam: Camera, scene: Scene) {
+  const anchor = partsOf(st, "anchor")[0];
+  const remote = partsOf(st, st.type === "dial" ? "back" : "tune")[0];
+  if (!anchor || !remote || !scene.tiles || (st.type !== "dial" && st.type !== "bells")) return;
+  const path = linkPath(scene.tiles, anchor, remote);
+  if (path.length < 2) return;
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  ctx.strokeStyle = WORLD.line;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 4]);
+  ctx.beginPath();
+  path.forEach((p, i) => {
+    const c = toScreen(cam, p.x, p.y);
+    if (i === 0) ctx.moveTo(c.x, c.y);
+    else ctx.lineTo(c.x, c.y);
+  });
+  ctx.stroke();
+  ctx.restore();
+}
+
 export function drawStationFloor(
   ctx: CanvasRenderingContext2D,
   e: EntityView,
@@ -533,6 +577,7 @@ export function drawStationFloor(
 ) {
   const st = e.station;
   if (!st) return;
+  drawLink(ctx, st, cam, scene);
   for (const [i, t] of partsOf(st, "pads").entries())
     turnPad(ctx, cam, t, i === 0 ? -1 : 1, standingOn(scene, t));
   if (st.type === "keypad") {
@@ -743,10 +788,6 @@ export function drawStationStanding(
       ctx.lineTo(c.x - Math.cos(a) * s * 0.3, c.y - Math.sin(a) * s * 0.3);
     }
     ctx.stroke();
-  }
-  if (st.type === "keypad" && inRow(anchor)) {
-    // the keypad's lit panel: which keys have been pressed, as lights over a small brass frame
-    plinth(ctx, cam, anchor, 0.2, 0.3);
   }
   if (st.solved && inRow(anchor)) solvedPlate(ctx, cam, centre(anchor));
   if (inRow(anchor) && st.motif) {
