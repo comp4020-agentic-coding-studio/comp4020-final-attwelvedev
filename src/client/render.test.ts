@@ -764,7 +764,7 @@ describe("mist, night and marks out of sight (FR5, FR7, FR8)", () => {
           near(o.args[2] as number, camera(s).scale + 0.5),
       );
       expect(tileRects, "no tile-sized rectangle of mist on top of it").toEqual([]);
-      expect(ops.filter((o) => o.name === "clip").length, "the floor is the one clip").toBe(2);
+      expect(ops.filter((o) => o.name === "clip").length, "the floor is the one clip").toBe(1);
     });
 
     it("never veils a pixel twice: no seam where two veiled tiles meet", () => {

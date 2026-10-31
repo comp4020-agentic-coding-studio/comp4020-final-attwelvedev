@@ -289,6 +289,32 @@ export function drawMist(
   ctx.restore();
 }
 
+// The stipple's tile: dots 1.5 px across on a checkerboard, 8 px across and 16 down (two rows of
+// dots, the second shifted half a step). Built once per device pixel ratio and tiled as a pattern,
+// so the GPU (or the software rasteriser, on a machine without one) fills a region in one call
+// instead of running a fillRect per dot over the whole canvas every frame. Null where there is
+// no DOM to draw the tile on (the unit tests' recording context).
+let stipple: { dpr: number; pattern: CanvasPattern } | null = null;
+function stipplePattern(ctx: CanvasRenderingContext2D): CanvasPattern | null {
+  if (typeof document === "undefined" || typeof ctx.createPattern !== "function") return null;
+  const dpr = window.devicePixelRatio || 1;
+  if (stipple?.dpr === dpr) return stipple.pattern;
+  const tile = document.createElement("canvas");
+  tile.width = Math.round(STIPPLE_PX * 2 * dpr);
+  tile.height = Math.round(STIPPLE_PX * 4 * dpr);
+  const t = tile.getContext("2d");
+  if (!t) return null;
+  t.scale(dpr, dpr);
+  t.fillStyle = "#ffffff";
+  t.fillRect(0, 0, 1.5, 1.5);
+  t.fillRect(STIPPLE_PX, STIPPLE_PX * 2, 1.5, 1.5);
+  const pattern = ctx.createPattern(tile, "repeat");
+  if (!pattern) return null;
+  pattern.setTransform(new DOMMatrix().scale(1 / dpr, 1 / dpr)); // the tile is in device pixels
+  stipple = { dpr, pattern };
+  return pattern;
+}
+
 // Fills the current path once, then a static stipple through the same region, so the haze is
 // texture and not only a tint. Called once per region, so no point is painted twice.
 function paintVeil(ctx: CanvasRenderingContext2D, rule: CanvasFillRule) {
@@ -296,13 +322,11 @@ function paintVeil(ctx: CanvasRenderingContext2D, rule: CanvasFillRule) {
   ctx.globalAlpha = MIST.alpha;
   ctx.fillStyle = WORLD.mist;
   ctx.fill(rule);
-  ctx.clip(rule);
-  ctx.globalAlpha = 0.3;
-  ctx.fillStyle = "#ffffff";
-  const step = STIPPLE_PX * 2;
-  const w = ctx.canvas?.width ?? 0;
-  const h = ctx.canvas?.height ?? 0;
-  for (let y = 0; y < h; y += step)
-    for (let x = ((y / step) % 2) * STIPPLE_PX; x < w; x += step) ctx.fillRect(x, y, 1.5, 1.5);
+  const dots = stipplePattern(ctx);
+  if (dots) {
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = dots;
+    ctx.fill(rule); // the same path: only the region is stippled, no clip needed
+  }
   ctx.restore();
 }
