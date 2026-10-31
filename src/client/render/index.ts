@@ -65,6 +65,16 @@ export interface Scene {
   seen?: string[];
   bots?: [boolean, boolean, boolean]; // by seat: a bot's figure has an antenna
   labels?: { text: string; at: Vec }[]; // the first room's labels: one per kind in sight (FR15)
+  // Filled by draw with the boxes it placed (canvas px), so a spec can measure that no chip sits on a
+  // plaque: the picture alone cannot say. Absent, nothing is recorded.
+  report?: { chips: Box[]; plaques: Box[] };
+}
+
+export interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }
 
 export interface Motion {

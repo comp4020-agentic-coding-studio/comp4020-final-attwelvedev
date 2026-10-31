@@ -1502,6 +1502,41 @@ describe("clues drawn (escape-room Task 11)", () => {
 
 // Label chips (DESIGN.md 4.6): each stays readable, never under another, however many crowd one edge.
 describe("label chips", () => {
+  it("never sit on a plaque's text, even a chip that points at the plaque (Task 34)", () => {
+    const { ctx, ops } = recorder();
+    const sign: EntityView = {
+      id: "S1",
+      kind: "sign",
+      pos: { x: 4.5, y: 3.5 },
+      shows: [],
+      text: "Cut the wire that matches the lamp.",
+    };
+    const labels = [{ text: "Plaque: a rule for another room", at: { x: 4.5, y: 3.5 } }];
+    draw(
+      ctx,
+      scene({
+        w: 1280,
+        h: 600,
+        tiles: ["##########", "#........#", "#........#", "#........#", "#........#", "##########"],
+        entities: [player(1, 2.5, 2.5), sign],
+        self: { x: 2.5, y: 2.5 },
+        labels,
+      }),
+    );
+    const rects = (radius: number) =>
+      ops
+        .filter((o) => o.name === "roundRect" && (o.args[4] as number) === radius)
+        .map((o) => o.args as [number, number, number, number]);
+    const plaque = rects(4);
+    const chips = rects(8);
+    expect(plaque).toHaveLength(1);
+    expect(chips).toHaveLength(1);
+    const [px, py, pw, ph] = plaque[0] as [number, number, number, number];
+    const [cx, cy, cw, ch] = chips[0] as [number, number, number, number];
+    const apart = px + pw <= cx || cx + cw <= px || py + ph <= cy || cy + ch <= py;
+    expect(apart, `plaque ${plaque[0]} vs chip ${chips[0]}`).toBe(true);
+  });
+
   it("never draw one chip over another, even five crowded at the screen's right edge", () => {
     const { ctx, ops } = recorder();
     const labels = Array.from({ length: 5 }, (_, i) => ({

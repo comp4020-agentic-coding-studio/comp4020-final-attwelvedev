@@ -1,6 +1,7 @@
 import { COLOR, WORLD } from "../tokens.ts";
 import type { Scene } from "./index.ts";
 import { type Camera, LIVE, toScreen } from "./project.ts";
+import { plaqueBox } from "./stations.ts";
 
 const FONT_PX = 13;
 const LINE_PX = 17;
@@ -40,7 +41,25 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, maxW: number): string
 // The labels (FR15): a glass chip with a leader line down to the thing it names. A chip that would
 // sit on another moves to the nearest free place, so each stays readable; none is drawn over another.
 export function drawLabels(ctx: CanvasRenderingContext2D, scene: Scene, cam: Camera) {
+  // a plaque's plate is already on the wall: no chip sits on its words, so it starts as taken
   const placed: Rect[] = [];
+  if (scene.report) scene.report = { chips: [], plaques: [] };
+  for (const e of scene.entities) {
+    let b: Rect | null = e.kind === "sign" ? plaqueBox(ctx, e, cam) : null;
+    if (e.kind === "ink" && e.text) {
+      // UV ink in a torch's light (gear.ts: drawUv): its words centred on its tile
+      const c = toScreen(cam, e.pos.x, e.pos.y);
+      const px = Math.round(cam.scale * 0.42);
+      ctx.save();
+      ctx.font = `700 ${px}px Archivo, system-ui, sans-serif`;
+      const w = ctx.measureText(e.text).width;
+      ctx.restore();
+      b = { x: c.x - w / 2, y: c.y - px / 2, w, h: px };
+    }
+    if (!b) continue;
+    placed.push({ x: b.x, y: b.y, w: b.w, h: b.h });
+    scene.report?.plaques.push({ x: b.x, y: b.y, w: b.w, h: b.h });
+  }
   for (const label of scene.labels ?? []) {
     const target = toScreen(cam, label.at.x, label.at.y, LIVE.block * 0.5);
     ctx.save();
@@ -62,6 +81,7 @@ export function drawLabels(ctx: CanvasRenderingContext2D, scene: Scene, cam: Cam
       continue;
     }
     placed.push({ x, y, w, h });
+    scene.report?.chips.push({ x, y, w, h });
     const lineX = Math.max(x + 10, Math.min(x + w - 10, target.x));
     ctx.strokeStyle = WORLD.line;
     ctx.lineWidth = 1.5;

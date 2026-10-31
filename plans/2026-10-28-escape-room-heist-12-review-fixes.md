@@ -84,7 +84,7 @@ plate params). Read `DESIGN.md` first.
   375 show the two plate designs apart. **Human review:** `review/12-task33-plates-{1280,375}.png`.
 - **Depends on:** none.
 
-### Task 34: Labels by distance, a new kind first, never on a plaque  [ ]  (demo 3)
+### Task 34: Labels by distance, a new kind first, never on a plaque  [x]  (demo 3; human review deferred to the end of the phase)
 
 `labelsFor` (`src/client/labels.ts:104`) keeps one chip per kind, nearest instance, filtered by
 `only` (`ESCAPE_KINDS`, past the first room) and capped by `max`. Game.tsx:199 passes the filter.

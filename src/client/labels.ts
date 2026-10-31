@@ -73,6 +73,9 @@ const STATION_KIND: Record<NonNullable<EntityView["station"]>["type"], string> =
 // than 720 px, the camera's phone split.
 export const LABEL_CAP = { desktop: 3, phone: 2 } as const;
 
+// A chip is only for what is this close (tiles between centres): further off is not what you are
+// looking at, and a far chip only crowds a near one.
+export const LABEL_RANGE = 9;
 const TILE_RADIUS = 7; // glass and vents are labelled when one is this close to the seat
 const KIND_OF: Partial<Record<EntityView["kind"], string>> = {
   plate: "plate",
@@ -101,8 +104,10 @@ function kindOf(e: EntityView): string | undefined {
   return KIND_OF[e.kind];
 }
 
-// The chips for what is in sight right now: one per kind, on the nearest one to `near`. A kind
-// whose every instance is out of sight has none; it comes back when one is in sight again.
+// The chips for what is in sight right now: one per kind, on the nearest one to `near`, within
+// LABEL_RANGE. A kind whose every instance is out of sight has none; it comes back when one is in
+// sight again. `met` is the kinds already shown in an earlier room: a kind not in it is new, so it
+// passes `only` and is ranked ahead of the nearer, known ones (without `met` no kind is new).
 export function labelsFor(
   entities: readonly EntityView[],
   tiles: readonly string[] | undefined,
@@ -110,12 +115,14 @@ export function labelsFor(
   enabled = true,
   visible: (at: Vec) => boolean = () => true,
   only?: ReadonlySet<string>, // label just these kinds (past the first room: the new objects)
-  max = Number.POSITIVE_INFINITY, // keep only this many chips, the nearest
+  max = Number.POSITIVE_INFINITY, // keep only this many chips: new kinds first, then the nearest
+  met?: ReadonlySet<string>,
 ): Label[] {
   if (!enabled) return [];
   const nearest = new Map<string, { at: Vec; d: number }>();
   const offer = (kind: string, at: Vec) => {
     const d = Math.hypot(at.x - near.x, at.y - near.y);
+    if (d > LABEL_RANGE) return;
     const best = nearest.get(kind);
     if (!best || d < best.d) nearest.set(kind, { at, d });
   };
@@ -155,9 +162,10 @@ export function labelsFor(
       }
     }
   }
+  const isNew = (kind: string) => met !== undefined && !met.has(kind);
   return [...nearest]
-    .filter(([kind]) => !only || only.has(kind))
-    .sort((a, b) => a[1].d - b[1].d)
+    .filter(([kind]) => !only || only.has(kind) || isNew(kind))
+    .sort((a, b) => Number(isNew(b[0])) - Number(isNew(a[0])) || a[1].d - b[1].d)
     .slice(0, max)
     .map(([kind, { at }]) => ({ kind, text: LABEL_COPY[kind] ?? kind, at }));
 }

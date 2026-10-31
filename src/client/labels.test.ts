@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EntityView } from "../game/perception.ts";
-import { LABEL_CAP, LABEL_COPY, labelsFor } from "./labels.ts";
+import { ESCAPE_KINDS, LABEL_CAP, LABEL_COPY, LABEL_RANGE, labelsFor } from "./labels.ts";
 
 const plate: EntityView = { id: "p1", kind: "plate", pos: { x: 3.5, y: 4.5 } };
 const cratePlate: EntityView = {
@@ -187,5 +187,55 @@ describe("labelsFor: the cap", () => {
   });
   it("has no cap unless asked", () => {
     expect(labelsFor(five, undefined, me, true)).toHaveLength(5);
+  });
+});
+
+// Task 34: a kind never labelled before comes first, and nothing far away is labelled.
+describe("labelsFor: a new kind first, and a range", () => {
+  const camera: EntityView = { id: "C1", kind: "camera", pos: { x: 9.5, y: 4.5 } };
+  const known = new Set(["plate", "crate", "door"]);
+  const near = [plate, crate, door];
+  const all = () => true;
+
+  it("gives a kind never met a chip ahead of nearer known kinds, under the cap", () => {
+    const got = labelsFor([...near, camera], undefined, me, true, all, undefined, 3, known);
+    expect(got.map((l) => l.kind)).toContain("camera");
+    expect(got).toHaveLength(3);
+    expect(got[0]?.kind).toBe("camera"); // the new kind leads
+  });
+
+  it("labels a new kind past the first room's filter (camera, glass and vent are not escape kinds)", () => {
+    const got = labelsFor([camera], undefined, me, true, all, ESCAPE_KINDS, 3, known);
+    expect(got.map((l) => l.kind)).toEqual(["camera"]);
+    const glass = labelsFor(
+      [],
+      ["#####", "#.=.#", "#####"],
+      { x: 1.5, y: 1.5 },
+      true,
+      all,
+      ESCAPE_KINDS,
+      3,
+      known,
+    );
+    expect(glass.map((l) => l.kind)).toEqual(["glass"]);
+  });
+
+  it("goes back to the filter once a kind has been met", () => {
+    const met = new Set([...known, "camera"]);
+    expect(labelsFor([camera], undefined, me, true, all, ESCAPE_KINDS, 3, met)).toEqual([]);
+  });
+
+  it("is the nearest first among kinds that are all new, or all known", () => {
+    const got = labelsFor(near, undefined, me, true, all, undefined, 2, new Set());
+    expect(got.map((l) => l.kind)).toEqual(["plate", "crate"]);
+    const again = labelsFor(near, undefined, me, true, all, undefined, 2, known);
+    expect(again.map((l) => l.kind)).toEqual(["plate", "crate"]);
+  });
+
+  it("drops what is beyond the range, however new", () => {
+    const far: EntityView = { ...camera, pos: { x: me.x + LABEL_RANGE + 0.5, y: me.y } };
+    expect(labelsFor([far], undefined, me, true, all, undefined, 3, known)).toEqual([]);
+    const edge: EntityView = { ...camera, pos: { x: me.x + LABEL_RANGE - 0.5, y: me.y } };
+    expect(labelsFor([edge], undefined, me, true, all, undefined, 3, known)).toHaveLength(1);
   });
 });

@@ -113,6 +113,9 @@ interface Runtime {
   labelsOn: boolean; // the Labels setting
   labelsAll: boolean; // room one labels everything; later rooms only the escape-room objects
   labels: Label[]; // the chips on show this frame: one per kind in sight
+  metKinds: Set<string>; // kinds whose chip was shown in an EARLIER room: a kind not here is new, and leads
+  roomKinds: Set<string>; // kinds shown in this room; they join metKinds when the next room starts
+  labelRoom: number; // the room index metKinds is current for
 }
 
 const RISE_MS = 900; // the world rises out of the reveal
@@ -204,12 +207,15 @@ function useDraw(
           (at) => inSight(seenNow, at),
           rt.labelsAll ? undefined : ESCAPE_KINDS,
           size.w >= 720 ? LABEL_CAP.desktop : LABEL_CAP.phone,
+          rt.metKinds,
         );
+        for (const l of rt.labels) rt.roomKinds.add(l.kind);
         labels = rt.labels;
       }
       const scene: Scene = {
         ...size,
         labels,
+        report: { chips: [], plaques: [] },
         role,
         seat: view.you.seat,
         roles: crew.map((c) => c.role) as Scene["roles"],
@@ -257,6 +263,13 @@ function useDraw(
         }
       }
       draw(ctx, scene);
+      if (!flat && scene.report) {
+        // the chips and plaques as drawn, for the layout specs (a chip must never sit on a plaque)
+        const boxes = JSON.stringify(scene.report, (_k, v) =>
+          typeof v === "number" ? Math.round(v) : v,
+        );
+        if (el.dataset.labelBoxes !== boxes) el.dataset.labelBoxes = boxes;
+      }
     };
     raf = requestAnimationFrame(frameLoop);
     return () => {
@@ -365,6 +378,9 @@ export function Game({
     lampUntil: 0,
     lampFrom: null,
     labels: [],
+    metKinds: new Set(),
+    roomKinds: new Set(),
+    labelRoom: -1,
   });
   const audio = useRef<GameAudio | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -627,6 +643,11 @@ function Hud({
   live.current.forceCaptions = forceCaptions;
   rt.labelsOn = settings.labels;
   rt.labelsAll = reveal.index === 0;
+  if (rt.labelRoom !== reveal.index) {
+    for (const k of rt.roomKinds) rt.metKinds.add(k); // what the last room showed is no longer new
+    rt.roomKinds.clear();
+    rt.labelRoom = reveal.index;
+  }
   rt.soundOn = settings.sound && !forceCaptions;
 
   // The tile centre under a client point, for placing a mark; `open` is false

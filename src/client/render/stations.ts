@@ -243,10 +243,10 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, max: number): string[
   return lines;
 }
 
-// A plaque's text (clues FR2): a brass plate on the wall over its tile, the words wrapped to at
-// most four tiles wide and never below PLATE_MIN_PX, outlined so it reads on any floor.
-export function drawPlaque(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera) {
-  if (!e.text) return;
+// Where a plaque's plate sits on the canvas, and its wrapped lines: the one place both the drawing
+// and the label chips (which keep off it) read the box from.
+export function plaqueBox(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera) {
+  if (!e.text) return null;
   const s = cam.scale;
   const px = Math.max(PLATE_MIN_PX, Math.round(s * 0.22));
   ctx.save();
@@ -254,19 +254,31 @@ export function drawPlaque(ctx: CanvasRenderingContext2D, e: EntityView, cam: Ca
   const lines = wrap(ctx, e.text, Math.max(s * 4, px * 10));
   const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + px * 1.2;
   const h = lines.length * px * 1.3 + px * 0.8;
+  ctx.restore();
   const c = toScreen(cam, e.pos.x, e.pos.y - 0.2, LIVE.block * 1.2);
+  return { x: c.x - w / 2, y: c.y - h, w, h, px, lines, cx: c.x, cy: c.y };
+}
+
+// A plaque's text (clues FR2): a brass plate on the wall over its tile, the words wrapped to at
+// most four tiles wide and never below PLATE_MIN_PX, outlined so it reads on any floor.
+export function drawPlaque(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera) {
+  const b = plaqueBox(ctx, e, cam);
+  if (!b) return;
+  const { px, lines, w, h, cx, cy } = b;
+  ctx.save();
+  ctx.font = `700 ${px}px Archivo, system-ui, sans-serif`;
   ctx.fillStyle = WORLD.brass;
   ctx.strokeStyle = WORLD.line;
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.roundRect(c.x - w / 2, c.y - h, w, h, 4);
+  ctx.roundRect(cx - w / 2, cy - h, w, h, 4);
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = WORLD.line;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   lines.forEach((l, i) => {
-    ctx.fillText(l, c.x, c.y - h + px * 0.4 + px * 1.3 * (i + 0.5));
+    ctx.fillText(l, cx, cy - h + px * 0.4 + px * 1.3 * (i + 0.5));
   });
   ctx.restore();
 }
