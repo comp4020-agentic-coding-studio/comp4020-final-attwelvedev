@@ -50,7 +50,7 @@ Requirements 1 to 10 are the demo steps; each task names its step. Out of scope:
 
 Each session loads this overview plus one file. Ordered by real dependency.
 
-- [ ] `2026-11-01-escape-room-heist-13-01-chimes.md`: Tasks 41, 42 (vent chimes, practice sound). Ends green with chimes countable by ear.
+- [x] `2026-11-01-escape-room-heist-13-01-chimes.md`: Tasks 41, 42 (vent chimes, practice sound). Ends green with chimes countable by ear.
 - [ ] `2026-11-01-escape-room-heist-13-02-render.md`: Tasks 43, 46, 47 (UV ink, success ring once, link wires). Ends green with screenshots.
 - [ ] `2026-11-01-escape-room-heist-13-03-room-seven.md`: Tasks 44, 45 (room 7 door and torch, wire wording). Ends green with room 7 cleared by bots.
 - [ ] `2026-11-01-escape-room-heist-13-04-bots-harness.md`: Tasks 48, 49, 50 (bots, flaky specs, CLAUDE.md rule, backlog). Depends on 41 and 44. Ends with `pnpm check:flaky 6` clean.

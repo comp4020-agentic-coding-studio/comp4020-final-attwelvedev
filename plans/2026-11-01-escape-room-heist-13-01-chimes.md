@@ -48,5 +48,10 @@ Today the `practice` cue is a dry noise tap (`src/client/audio.ts:297`) so a per
 
 ## Phase Definition of Done
 
-- [ ] Tasks 41 and 42 committed, \`pnpm test:unit\` green, bots clear rooms 5, 6, 8 in every rotation.
-- [ ] Covers demo 1, 2, 3.
+- [x] Tasks 41 and 42 committed, \`pnpm test:unit\` green, bots clear rooms 5, 6, 8 in every rotation.
+- [x] Covers demo 1, 2, 3 (by test; the eyes-closed **Human review:** items are queued for the end of phase 13).
+
+## Corrections log
+
+- 2026-11-01 (Phase 1 review, user ruling): the plan's `CHIME_GAP_S` 0.22 was not a whole number of 50 ms ticks; the user ruled 0.20 s.
+  `clue.n` stays a count on the wire (`audio.ts` plays `n - 1`), and room 6 gets no change because `TUNE_PAUSE_TICKS` already beats a group gap.
