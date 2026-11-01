@@ -7,11 +7,12 @@
 // leave TICK_MS undefined here whenever this file is loaded first. chimes.test.ts checks it agrees.
 export const CHIME_TICK_MS = 50;
 
-export const CHIME_TICKS = Math.round(150 / CHIME_TICK_MS); // between chimes of one group: 150 ms
+export const CHIME_TICKS = Math.round(200 / CHIME_TICK_MS); // between chimes of one group: 200 ms
 export const GROUP_GAP_TICKS = Math.round(600 / CHIME_TICK_MS); // last chime of a group to the next group's first: 600 ms
 export const TUNE_PAUSE_TICKS = 40; // last chime to the tune starting again (2 s): beats a rest's 2 gaps
-// Four of the longest groups (9 chimes), the most a code can ask for, plus the pause.
-export const TUNE_MAX_TICKS = 180;
+// Four of the longest groups (9 chimes), the most a code can ask for, plus the pause:
+// 4 x 8 x CHIME_TICKS, three group gaps, and TUNE_PAUSE_TICKS.
+export const TUNE_MAX_TICKS = 4 * 8 * CHIME_TICKS + 3 * GROUP_GAP_TICKS + TUNE_PAUSE_TICKS;
 
 export interface ChimeGroup {
   at: number; // tick (in the tune's own count from 0) of the group's first chime

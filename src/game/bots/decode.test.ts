@@ -387,6 +387,23 @@ describe("the keypad decoder", () => {
     expect(keypadStep(q, pressed)).toEqual({ x: 4 + (k % 3), y: 1 + Math.floor(k / 3) });
   });
 
+  it("reads a vent's full count: a code of the highest keys (n up to 9) is heard whole (Task 41)", () => {
+    const world = createWorld(room, 5);
+    const st = world.stations.Q1;
+    if (!st) throw new Error("no Q1");
+    st.answer = [8, 7, 6];
+    place(world, 2, { x: 3, y: 2 });
+    let b = emptyBelief();
+    for (let t = 0; t < LISTEN_TICKS; t++) {
+      step(world, {}, TICK_MS);
+      const view = viewFor(world, 2, "mute", false);
+      b = beliefFrom(view, [], q, b);
+      DECODERS.keypad?.(view, [], b, q, view.tick);
+    }
+    expect(b.heard.some((h) => h.n === 8)).toBe(true);
+    expect(b.answer).toEqual([8, 7, 6]);
+  });
+
   it("out of earshot of the clue, it never presses a key", () => {
     const { b } = listen(2, "mute", { x: 10, y: 2 });
     expect(b.answer).toEqual([]);

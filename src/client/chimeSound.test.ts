@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { CHIME_TICKS } from "../game/sim/chimes.ts";
 import { TICK_MS } from "../game/sim/world.ts";
-import { CHIME_GAP_S, chimePlan } from "./chimeSound.ts";
+import type { SoundCue } from "../net/protocol.ts";
+import { CHIME_GAP_S, chimePlan, isChimeCue } from "./chimeSound.ts";
 
 // Task 36: a keypad key, a music-box bell and the earpiece each play as a GROUP of chimes, one more
 // chime for each step up the scale, so the group's length is the note and can be counted by ear.
 describe("chimePlan: what one chime cue sounds like", () => {
   it("plays n + 1 chimes for a note n, each higher than the one before", () => {
-    for (const kind of ["key", "bellnote", "earpiece"] as const) {
+    for (const kind of ["key", "bellnote", "earpiece", "clue"] as const) {
       for (const n of [0, 1, 4, 8]) {
         const plan = chimePlan(kind, n);
         expect(plan, `${kind} ${n}`).toHaveLength(n + 1);
@@ -21,9 +22,9 @@ describe("chimePlan: what one chime cue sounds like", () => {
     }
   });
 
-  it("spaces the chimes of a group 150 ms apart, so they read as one group", () => {
+  it("spaces the chimes of a group 200 ms apart, so they read as one group", () => {
     const plan = chimePlan("key", 3);
-    for (const [i, c] of plan.entries()) expect(c.at).toBeCloseTo(i * 0.15, 9);
+    for (const [i, c] of plan.entries()) expect(c.at).toBeCloseTo(i * 0.2, 9);
     expect(plan).toHaveLength(4);
   });
 
@@ -41,6 +42,19 @@ describe("chimePlan: what one chime cue sounds like", () => {
         chimePlan("earpiece", 0)[0]?.voice,
       ]).size,
     ).toBe(3);
+  });
+
+  it("makes a vent's clue a chime kind: seven is eight chimes rising, past the old cap of three", () => {
+    expect(isChimeCue({ kind: "clue", n: 8 } as SoundCue)).toBe(true);
+    const plan = chimePlan("clue", 7);
+    expect(plan).toHaveLength(8);
+    for (let i = 1; i < plan.length; i++) expect(plan[i]?.hz).toBeGreaterThan(plan[i - 1]?.hz ?? 0);
+    // a vent is neither a key nor a bell
+    const voice = (k: "key" | "bellnote" | "clue") => chimePlan(k, 0)[0];
+    expect(`${voice("clue")?.voice}${voice("clue")?.hz}`).not.toBe(
+      `${voice("key")?.voice}${voice("key")?.hz}`,
+    );
+    expect(voice("clue")?.voice).not.toBe(voice("bellnote")?.voice);
   });
 
   it("never plays fewer than one chime or more than nine, whatever it is sent", () => {

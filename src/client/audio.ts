@@ -267,11 +267,6 @@ export function createAudio(): GameAudio {
           [523, 659, 784].forEach((hz, i) => {
             tone(c, s, "triangle", hz, hz, 0.22, 0.3, i * 0.09);
           });
-        } else if (s.kind === "clue") {
-          // n soft bells, so the count is something you hear and can count
-          for (let i = 0; i < Math.max(1, Math.min(3, s.n ?? 1)); i++) {
-            tone(c, s, "sine", 880, 880, 0.35, 0.2, i * 0.28);
-          }
         } else if (s.kind === "hide") rustle(c, s);
         // stations, gear and signals: each a sound of its own, synthesised, no speech
         else if (s.kind === "tick")
@@ -283,7 +278,9 @@ export function createAudio(): GameAudio {
         } else if (isChimeCue(s)) {
           // a group of chimes, n + 1 of them rising: the note is the count (chimeSound.ts)
           const cue = s.kind === "earpiece" ? { ...s, pan: 0 } : s; // the earpiece is in the holder's head
-          for (const ch of chimePlan(s.kind, s.n)) {
+          // a vent's `n` is a count (a key's note + 1, or a plain clue's 1 to 3); the others send the note
+          const note = s.kind === "clue" ? (s.n ?? 1) - 1 : s.n;
+          for (const ch of chimePlan(s.kind, note)) {
             if (ch.voice === "bell") bellTone(c, cue, ch.hz, ch.secs, ch.level, ch.at);
             else tone(c, cue, ch.voice, ch.hz, ch.hz, ch.secs, ch.level, ch.at);
           }

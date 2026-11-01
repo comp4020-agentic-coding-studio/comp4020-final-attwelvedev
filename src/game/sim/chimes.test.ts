@@ -29,9 +29,9 @@ describe("tuneGroups: a code as groups of chimes", () => {
     expect(tuneGroups([3, 3, 3]).period).not.toBe(tuneGroups([4, 4, 4]).period);
   });
 
-  it("puts 600 ms between a group's last chime and the next group's first, 150 ms inside one", () => {
+  it("puts 600 ms between a group's last chime and the next group's first, 200 ms inside one", () => {
     expect(GROUP_GAP_TICKS * TICK_MS).toBe(600);
-    expect(CHIME_TICKS * TICK_MS).toBe(150);
+    expect(CHIME_TICKS * TICK_MS).toBe(200);
     expect(GROUP_GAP_TICKS).toBeGreaterThan(CHIME_TICKS);
     for (const code of [
       [8, 0, 4, 2],
@@ -88,10 +88,10 @@ describe("tuneGroups: a code as groups of chimes", () => {
     expect(starts[3]?.[0]).toBe(tune.period); // the tune starts again after its period
   });
 
-  it("plays a group as its count of chimes, 150 ms apart, each a step higher", () => {
+  it("plays a group as its count of chimes, 200 ms apart, each a step higher", () => {
     const three = chimeTimes(3);
     expect(three.map((c) => c.step)).toEqual([0, 1, 2]);
-    expect(three.map((c) => c.at)).toEqual([0, 0.15, 0.3]);
+    expect(three.map((c) => c.at)).toEqual([0, 0.2, 0.4]);
     expect(chimeTimes(9)).toHaveLength(9);
     expect(chimeTimes(0)).toHaveLength(1); // never silent
   });
