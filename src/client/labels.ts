@@ -26,7 +26,7 @@ export const LABEL_COPY: Record<string, string> = {
   // stations, gear and signals (spec §4.1 labels; the keys' line is ours: the spec named none)
   safe: "Safe: stand on an arrow and press Act to turn the dial",
   wires: "Wires: stand under one and press Act to cut it",
-  plaque: "Plaque: a rule for another room. Some are only in UV ink",
+  plaque: "Plaque: a rule or a number for another room. Some are only in UV ink",
   keypad: "Keypad: each key has its own note and light",
   radio: "Radio: turn until the static clears, then count the pips",
   switches: "Switches: each one flips lamps in another room",

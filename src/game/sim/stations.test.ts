@@ -168,6 +168,15 @@ describe("wires", () => {
     expect(st(w).solved).toBe(true);
   });
 
+  it("a numbered panel's plaque is the 1-based wire to cut, not a rule", () => {
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const w = stationWorld({ Q1: { ...WIRES, numbered: true }, S1: {} }, seed);
+      expect(plaqueText(w, "S1")).toBe(String((st(w).answer[0] as number) + 1));
+    }
+    const plain = stationWorld({ Q1: WIRES, S1: {} }, 5);
+    expect(plaqueText(plain, "S1")).toBe(WIRE_RULES[st(plain).answer[1] as number]?.text);
+  });
+
   it("is wrong on any other cut", () => {
     const w = stationWorld({ Q1: WIRES, S1: {} }, 5);
     const other = ((st(w).answer[0] as number) + 1) % 4;

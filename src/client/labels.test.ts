@@ -122,7 +122,7 @@ describe("labelsFor: stations, gear and signals", () => {
       "Hatch: gear and crates go through, people don't",
       "Bell: pull the rope; everyone who can hear, hears it",
       "Lamp: flips a light on every sighted teammate's screen",
-      "Plaque: a rule for another room. Some are only in UV ink",
+      "Plaque: a rule or a number for another room. Some are only in UV ink",
     ])
       expect(texts).toContain(line);
   });

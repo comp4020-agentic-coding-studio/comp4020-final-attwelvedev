@@ -1129,6 +1129,40 @@ describe("viewFor: stations, gear and signals", () => {
     expect(ink(1, "deaf")).toBeUndefined();
   });
 
+  it("ink on a numbered wire panel is the wire's number, never shown to Can't see", () => {
+    const grid = [
+      "##############",
+      "#1....uQ.#...#",
+      "#2.......#...#",
+      "#3..g....#...#",
+      "##############",
+    ];
+    const w = worldWith(grid, {
+      g1: { item: "uv" },
+      u1: { text: "" },
+      Q1: {
+        type: "wires",
+        wires: [
+          [7, 1],
+          [8, 1],
+          [9, 1],
+        ],
+        plaque: "u1",
+        numbered: true,
+      },
+    });
+    holdGear(w, "g1", 2);
+    place(w, 2, { x: 4, y: 1 });
+    const ink = (seat: 0 | 1 | 2, role: "deaf" | "mute" | "blind") =>
+      viewFor(w, seat, role, false).entities.find((e) => e.id === "u1");
+    const answer = w.stations.Q1?.answer[0] as number;
+    expect(ink(1, "deaf")).toMatchObject({
+      kind: "ink",
+      text: String(answer + 1),
+    });
+    expect(ink(0, "blind")).toBeUndefined();
+  });
+
   it("the lamp flashes for the sighted, and is absent for Can't see", () => {
     const w = worldWith(["##########", "#1..l....#", "#2.......#", "#3.......#", "##########"]);
     place(w, 2, { x: 4, y: 1 });

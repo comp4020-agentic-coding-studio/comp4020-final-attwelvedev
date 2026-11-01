@@ -190,11 +190,14 @@ function redrawOne(world: World, o: RoomObject, s: StationState): void {
   fixFeeds(world);
 }
 
-// The text on a wire panel's plaque: the rule this attempt's wires follow (FR8).
+// The text on a wire panel's plaque: the rule this attempt's wires follow (FR8), or, for a
+// `numbered` panel, only the 1-based wire to cut (the colours are then decoys).
 export function plaqueText(world: World, id: string): string | undefined {
   const o = stationObjects(world).find((s) => s.params?.type === "wires" && s.params.plaque === id);
   const s = o && world.stations[o.id];
-  return s ? WIRE_RULES[s.answer[1] as number]?.text : undefined;
+  if (!s) return undefined;
+  if (o.params?.numbered === true) return String((s.answer[0] as number) + 1);
+  return WIRE_RULES[s.answer[1] as number]?.text;
 }
 
 const same = (a: Vec, b: Vec) => a.x === b.x && a.y === b.y;

@@ -879,6 +879,7 @@ function thinkSighted(
         b.answer = [];
         b.heard = [];
         b.rule = null;
+        b.wire = null;
         b.shows = [];
         b.card = null; // switches are drawn again with a new card, from dark
         b.marked = [];

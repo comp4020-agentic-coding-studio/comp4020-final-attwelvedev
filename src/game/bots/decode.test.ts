@@ -292,6 +292,66 @@ describe("the wires decoder", () => {
   });
 });
 
+// A numbered panel (room 7): the ink is the wire to cut, one digit; the colours decide nothing.
+describe("the wires decoder, a numbered panel", () => {
+  const GRID = ["##########", "#1S.Q....#", "#2.......#", "#3.......#", "##########"];
+  const room = roomWith(GRID, {
+    Q1: {
+      type: "wires",
+      wires: [
+        [4, 2],
+        [5, 2],
+        [6, 2],
+      ],
+      plaque: "S1",
+      numbered: true,
+    },
+  });
+  const q = room.objects.find((x) => x.id === "Q1");
+  if (!q) throw new Error("no Q1");
+  const decode = (view: RoleView, prior = emptyBelief()) => {
+    const b = beliefFrom(view, [], q, prior);
+    DECODERS.wires?.(view, [], b, q, view.tick);
+    return b;
+  };
+
+  it("cuts the wire the ink numbers, whatever the colours", () => {
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const world = createWorld(room, seed);
+      const s = world.stations.Q1;
+      if (!s) throw new Error("no Q1");
+      place(world, 1, { x: 3, y: 2 });
+      const view = viewFor(world, 1, "deaf", false);
+      expect(view.entities.find((e) => e.id === "S1")?.text).toBe(
+        String((s.answer[0] as number) + 1),
+      );
+      const b = decode(view);
+      expect(b.answer).toEqual([s.answer[0]]);
+    }
+  });
+
+  it("leaves the answer unset with no ink in sight", () => {
+    const world = createWorld(room, 2);
+    place(world, 1, { x: 3, y: 2 });
+    const view = { ...viewFor(world, 1, "deaf", false) };
+    view.entities = view.entities.filter((e) => e.id !== "S1");
+    expect(decode(view).answer).toEqual([null]);
+  });
+
+  it("forgets a digit read once the panel is drawn again", () => {
+    const world = createWorld(room, 3);
+    place(world, 1, { x: 3, y: 2 });
+    const read = decode(viewFor(world, 1, "deaf", false));
+    const s = world.stations.Q1;
+    if (!s) throw new Error("no Q1");
+    s.answer = [((s.answer[0] as number) + 1) % 3, 0, ...s.answer.slice(2).map((c) => (c + 1) % 6)];
+    const hidden = { ...viewFor(world, 1, "deaf", false) };
+    hidden.entities = hidden.entities.filter((e) => e.id !== "S1");
+    const b = decode(hidden, read);
+    expect(b.answer).toEqual([null]);
+  });
+});
+
 // How long a bot must listen to be sure of a code: it hears one tune, a second complete one, and the
 // pause that ends it, so three periods of the longest tune a code can have (nine-chime groups: the
 // worst case is 4 x 9 chimes). The old fixed 200 ticks was three tunes of the old 60-tick schedule.

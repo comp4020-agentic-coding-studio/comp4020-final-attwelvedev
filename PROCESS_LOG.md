@@ -938,3 +938,15 @@ riddles is the better idea but a different one, so it went to `specs/backlog.md`
 How I knew the call was right: the open-question count in the plan went to zero, and the next tasks' interface lists
 (45, 48) now name what Task 43 produces. The first test for the number will be `plaqueText`'s digit; `spec/rooms.test.ts`
 (bots clear room 7 in every rotation) is the evidence the bots still read it.
+
+## 2026-11-01 — A stray formatter rewrote 60 files; the rule went into CLAUDE.md
+
+Task 43's ink number. After writing the red tests I ran `prettier --write src/game` out of habit; the project formats with
+Biome at width 100, so it rewrote about 60 files outside the task and the tree was no longer a single unit of work. I caught it
+when `pnpm check` failed on formatting, and `git status` showed 64 changed files against a clean start. I did not restore them on
+my own: the restore was a destructive `git checkout`, so I stopped and asked, and the user approved it for the 28 files outside
+the task. Five files I had also changed were rebuilt from HEAD plus only my edits, so the diff came back to 126 lines in 10 files.
+
+The call: ask before discarding, and add a harness rule rather than just fix the instance (CLAUDE.md, Hygiene: format only with
+`pnpm format`, check `git status` after a formatter). Checked by `pnpm lint` clean, `git diff --stat` showing only the task's
+files, and a green `pnpm check` (125 files, 1769 tests).

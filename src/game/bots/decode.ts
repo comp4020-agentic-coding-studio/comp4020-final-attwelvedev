@@ -18,6 +18,7 @@ export interface StationBelief {
   numbers: number[]; // one-digit texts received, in order
   changedAt: number; // the tick `shows` last changed while in sight (a dial's turner waits on it)
   rule: number | null; // a wire panel's plaque, read: which of WIRE_RULES it says
+  wire: number | null; // a numbered panel's ink, read: the 0-based wire it numbers
   heard: { tick: number; n: number }[]; // a keypad's code notes heard (n: the key), latest last
   shownAt: number; // the tick the station's state was last in sight
   card: number[] | null; // a switches station's target card, read where it stands
@@ -44,6 +45,7 @@ export const emptyBelief = (): StationBelief => ({
   numbers: [],
   changedAt: Number.NEGATIVE_INFINITY,
   rule: null,
+  wire: null,
   heard: [],
   shownAt: Number.NEGATIVE_INFINITY,
   card: null,
@@ -82,7 +84,10 @@ export function beliefFrom(
     if (!e.station.furniture) {
       if (e.station.shows.join() !== prior.shows.join()) {
         b.changedAt = view.tick;
-        if (prior.shows.length > 0 && o.params?.type === "wires") b.rule = null; // drawn again
+        if (prior.shows.length > 0 && o.params?.type === "wires") {
+          b.rule = null; // drawn again
+          b.wire = null;
+        }
       }
       b.shows = [...e.station.shows];
       b.shownAt = view.tick;
@@ -149,6 +154,12 @@ const wires: Decoder = (view, _inbox, b, o) => {
   const plaque = view.entities.find((e) => e.id === o.params?.plaque && e.text);
   const read = plaque ? WIRE_RULES.findIndex((r) => r.text === plaque.text) : -1;
   if (read >= 0) b.rule = read;
+  const digit = plaque?.text && /^\d$/.test(plaque.text) ? Number(plaque.text) - 1 : -1;
+  if (digit >= 0) b.wire = digit;
+  if (b.wire !== null) {
+    b.answer = [b.wire];
+    return;
+  }
   const cut = b.rule === null || b.shows.length === 0 ? null : WIRE_RULES[b.rule]?.cut(b.shows);
   b.answer = [cut ?? null];
 };

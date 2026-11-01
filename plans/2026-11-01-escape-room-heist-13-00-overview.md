@@ -87,5 +87,7 @@ Add a §5 row for phase 13 to `plans/2026-10-28-escape-room-heist-00-overview.md
 
 - 2026-11-01, Task 43: plan said shorten room 7's ink to "Wire 2" via `plaqueText`; user wanted just the number, no "Wire" text.
   The plan assumed the ink text was free copy, but it carries the `WIRE_RULES` sentence that players and bots decode.
+- 2026-11-01, Task 43: I ran `prettier --write src/game` (the project uses Biome), reformatting 60 files outside the task. The
+  user had me restore them. Harness fix: a CLAUDE.md Hygiene rule (format with `pnpm format` only).
 - 2026-11-01, Tasks 43, 45, 48: re-planned. Ink is only the wire number, for room 7 only (`"numbered":true`; colours stay drawn as decoys); the digit
   decoder moves into Task 43; Task 45 covers rooms 5 and 9; Task 48 only runs against it. The user is also considering riddle plaques (backlog, not built).

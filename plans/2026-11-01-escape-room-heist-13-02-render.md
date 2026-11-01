@@ -13,7 +13,7 @@ None.
 
 ## Tasks
 
-### Task 43: UV ink: short, always shown in the light, no ring  [~] render half done (e1968b3); ink number to do  (demo 4)
+### Task 43: UV ink: short, always shown in the light, no ring  [x]  (demo 4; human review deferred to the end of the phase)
 
 `drawUv` (`src/client/render/gear.ts:250`) strokes a dashed rim round the pool, clips the ink to the pool polygon and
 `inkBox` centres each line on the ink tile. A long ink at x=1 pokes past the left wall; to the right of the pool the ink is clipped out entirely.
