@@ -555,10 +555,16 @@ describe("the comms wheel", () => {
       const c = await frameCentre(page);
       await page.mouse.move(c.x, c.y);
       await page.keyboard.down("q");
-      await page.locator(".wheel").waitFor({ timeout: 1000 });
-      expect(await axeViolations(page)).toEqual([]);
-      await page.keyboard.press("Escape");
-      await page.keyboard.up("q");
+      try {
+        await page.locator(".wheel").waitFor({ timeout: 1000 });
+        // joined, so a failure prints the rule and the element and not "Array(1)"
+        expect((await axeViolations(page)).join("\n")).toBe("");
+      } finally {
+        // the table is shared: a failure here must not leave Q down and the wheel open for the next case
+        await page.keyboard.press("Escape");
+        await page.keyboard.up("q");
+        await page.locator(".wheel").waitFor({ state: "detached" });
+      }
     }
   });
 });

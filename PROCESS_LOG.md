@@ -950,3 +950,26 @@ the task. Five files I had also changed were rebuilt from HEAD plus only my edit
 The call: ask before discarding, and add a harness rule rather than just fix the instance (CLAUDE.md, Hygiene: format only with
 `pnpm format`, check `git status` after a formatter). Checked by `pnpm lint` clean, `git diff --stat` showing only the task's
 files, and a green `pnpm check` (125 files, 1769 tests).
+
+## 2026-11-01 — A flaky wheel that was one failure and three bystanders
+
+resolved by the commit that adds this entry
+
+Task 49 asked for the root cause of the flaky wheel and reveal specs. `pnpm check:flaky 6` on a fresh
+server was clean, 6 of 6 (3 idle, 3 under its four busy loops), so there was nothing to read yet.
+I raised the load to eight busy loops on the 12-core machine and ran `spec/layout/` whole. Then
+wheel failed four cases in one run: the axe case with the wheel open, and the three phone cases after
+it. The axe message was `expected [ Array(1) ] to deeply equal []`, which names nothing.
+
+The obvious fix was a longer timeout on the three phone cases. I did not make it: they failed in the
+same run, in order, right after the axe case, and the file shares one `table`. I read the axe case
+and found it returns on a failed assertion before it presses Escape and releases Q, so the wheel stays
+open for the next case. To check that reading I broke the axe case on purpose, twice. With the
+cleanup removed, one forced failure failed exactly four cases (the same four); with the cleanup in a
+`finally`, it failed one and passed 24. The case now cleans up in a `finally` and joins the axe
+violations into its message.
+
+What I have not found: why axe reports a violation under load at all. That needs the next occurrence,
+which will now say which rule and element. `reveal.test.ts` failed only twice, by 30 s timeouts in a
+run where eight other files were failing too; it builds a real lobby through three browsers per case
+and never failed alone or in `check:flaky`. I left it, and did not raise its timeout.
