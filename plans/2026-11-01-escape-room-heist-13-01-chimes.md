@@ -33,7 +33,7 @@ sine beeps 0.28 s apart, so a vent never climbed and never passed three; Task 36
 - **Done when:** unit tests pass; `spec/rooms.test.ts` bots clear rooms 5, 6 and 8 in every rotation inside their budgets.
   **Human review:** eyes closed in rooms 5, 6, 8, no subtitles: the count of a group of 7 is countable, room 6's start of a repeat is clear.
 
-### Task 42: Practice mode plays the real chime  [ ]  (demo 3)
+### Task 42: Practice mode plays the real chime  [x]  (demo 3)
 
 Today the `practice` cue is a dry noise tap (`src/client/audio.ts:297`) so a person cannot hear which key or bell they pressed.
 

@@ -130,6 +130,15 @@ describe("cueCaptions", () => {
     ]);
   });
 
+  it("names the note of a practice press, key or bell, as the count it stands for (Task 42)", () => {
+    expect(
+      cueCaptions([
+        { kind: "practice", pan: 0, gain: 0.5, n: 4, of: "key" },
+        { kind: "practice", pan: 0, gain: 0.5, n: 2, of: "bellnote", dir: west },
+      ]).map((c) => c.text),
+    ).toEqual(["Practice: key 5", "Practice: bell 3"]);
+  });
+
   it("gives team-wide sounds, the hum and a sound with no direction dir null", () => {
     const cues = [
       { kind: "checkpoint", pan: 0, gain: 1 },

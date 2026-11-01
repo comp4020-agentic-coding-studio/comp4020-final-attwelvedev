@@ -51,3 +51,9 @@ export function chimePlan(kind: ChimeKind, n: number | undefined): PlannedChime[
 
 export const isChimeCue = (s: SoundCue): s is SoundCue & { kind: ChimeKind } =>
   s.kind === "key" || s.kind === "bellnote" || s.kind === "earpiece" || s.kind === "clue";
+
+// A practice press (Task 38) plays the real chime of the key or bell, quieter, so a person hears
+// which one they pressed; a short low tick before it (audio.ts) keeps it from passing for a solve.
+export const PRACTICE_LEVEL = 0.6;
+export const practiceChimes = (of: "key" | "bellnote", n: number | undefined): PlannedChime[] =>
+  chimePlan(of, n).map((c) => ({ ...c, level: c.level * PRACTICE_LEVEL }));

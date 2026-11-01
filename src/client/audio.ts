@@ -1,5 +1,5 @@
 import type { SoundCue } from "../net/protocol.ts";
-import { chimePlan, isChimeCue } from "./chimeSound.ts";
+import { chimePlan, isChimeCue, practiceChimes } from "./chimeSound.ts";
 
 export interface GameAudio {
   resume(): Promise<void>; // call from a tap or key press: browsers keep audio off until then
@@ -292,10 +292,14 @@ export function createAudio(): GameAudio {
             tone(c, s, "sine", 880, 880, 0.08, 0.25, i * 0.16);
         } else if (s.kind === "clunk") tone(c, s, "square", 150, 110, 0.1, 0.25);
         else if (s.kind === "practice") {
-          // a dry, unpitched tap of filtered noise with a low thud: nothing like a key's rising chimes
-          // or a bell's ring, so a practice press is never taken for a note of the real tune
-          burst(c, s, "bandpass", 900, 0.5, 4);
+          // the real chime of the key or bell pressed, quieter (chimeSound.ts), behind a short low tick
+          // that no real note has, so a practice press is never taken for a note of the real tune
           tone(c, s, "sine", 110, 80, 0.07, 0.3);
+          const at = 0.1; // the tick, then a beat, then the chime
+          for (const ch of practiceChimes(s.of ?? "key", s.n)) {
+            if (ch.voice === "bell") bellTone(c, s, ch.hz, ch.secs, ch.level, at + ch.at);
+            else tone(c, s, ch.voice, ch.hz, ch.hz, ch.secs, ch.level, at + ch.at);
+          }
         } else if (s.kind === "lever") {
           // a heavy two-part clunk: the handle thrown, then the stop (lower and longer than a switch)
           tone(c, s, "square", 90, 60, 0.12, 0.3);

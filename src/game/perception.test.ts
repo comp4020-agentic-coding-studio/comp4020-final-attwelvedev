@@ -1195,6 +1195,30 @@ describe("viewFor: stations, gear and signals", () => {
     expect(station("deaf", 1)).not.toHaveProperty("practice");
   });
 
+  it("a practice press carries its note and its source, only to roles that hear it (Task 42)", () => {
+    const keys = [0, 1, 2].flatMap((y) => [0, 1, 2].map((x) => [6 + x, 1 + y]));
+    const w = worldWith(
+      ["###########", "#1...Q....#", "#2.v......#", "#3........#", "###########"],
+      {
+        Q1: { type: "keypad", keys, clue: "c9", length: 3, practice: "v1" },
+      },
+    );
+    place(w, 2, { x: 3, y: 2 });
+    step(w, { 2: { seq: 1, move: { x: 0, y: 0 }, act: true } }, TICK_MS); // the lever on
+    step(w, {}, TICK_MS);
+    expect(w.levers.v1).toBe(true);
+    place(w, 0, { x: 5, y: 3 });
+    place(w, 2, { x: 8, y: 2 }); // on key 5 (the middle of the right column)
+    step(w, { 2: { seq: 2, move: { x: 0, y: 0 }, act: true } }, TICK_MS);
+    const heard = viewFor(w, 0, "blind", false).sounds.filter((s) => s.kind === "practice");
+    expect(heard).toHaveLength(1);
+    expect(heard[0]).toMatchObject({ n: 5, of: "key" });
+    // Can't hear gets no sounds at all, so no `n` or `of` either
+    const deaf = viewFor(w, 1, "deaf", false);
+    expect(deaf.sounds).toEqual([]);
+    expect(JSON.stringify(deaf)).not.toContain('"of"');
+  });
+
   it("a tug of war is heard by the two hand-holders and by nobody else (Task 40)", () => {
     const w = worldWith(["##########", "#1.......#", "#2.......#", "#3.......#", "##########"], {});
     place(w, 0, { x: 3, y: 1 });

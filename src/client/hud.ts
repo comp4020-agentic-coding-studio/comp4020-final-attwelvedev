@@ -136,6 +136,9 @@ function word(s: SoundCue): string {
   if ((s.kind === "key" || s.kind === "bellnote") && s.n !== undefined)
     return `${CUE_WORD[s.kind]} ${s.n + 1} (${s.n + 1} chimes)`;
   if (s.kind === "pip") return `${CUE_WORD[s.kind]} ×${s.n ?? 1}`;
+  // a practice press says which note it was: the same count as the real key or bell it stands for
+  if (s.kind === "practice" && s.n !== undefined)
+    return `${CUE_WORD[s.kind]}: ${s.of === "bellnote" ? "bell" : "key"} ${s.n + 1}`;
   return CUE_WORD[s.kind];
 }
 

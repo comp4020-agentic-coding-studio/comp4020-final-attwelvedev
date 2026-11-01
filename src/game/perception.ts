@@ -170,7 +170,8 @@ export interface SoundCue {
   // unit vector from the listener to the source, rounded to 0.01, for a sound that comes from
   // somewhere: what a caption's arrow points along. Absent for your own and team-wide sounds.
   dir?: Vec;
-  n?: number; // flag, exit, seq-ok, pip: a count; key, bellnote, earpiece: which note
+  n?: number; // flag, exit, seq-ok, pip: a count; key, bellnote, earpiece, practice: which note
+  of?: "key" | "bellnote"; // practice: whether the note was a keypad key or a bell
 }
 
 export interface RoleView {
@@ -591,8 +592,11 @@ function stationSound(
   if (e.result === "wrong") return; // the dye pack says it
   if (e.practice) {
     // a practice press: its own sound, never the key's or the bell's, so it is never taken for a solve
+    // it carries the note and its source, so the client can play the real chime quietly (Task 42)
     const p = cue(world, "practice", e.at, me);
-    if (p) out.push(p);
+    const of = STATION_CLICK[s.type];
+    if (p)
+      out.push(e.n !== undefined && (of === "key" || of === "bellnote") ? { ...p, n: e.n, of } : p);
     return;
   }
   const kind = e.result === "press" && s.type === "dial" ? "clunk" : STATION_CLICK[s.type];

@@ -347,6 +347,32 @@ describe("a practice lever (Task 38)", () => {
   });
 });
 
+describe("a practice press carries its note and its kind (Task 42)", () => {
+  it("a bell's practice press is note n of a bell; a key's is note n of a key", () => {
+    const w = worldWith(
+      ["###########", "#1..Q.v...#", "#2........#", "#3........#", "###########"],
+      {
+        Q1: {
+          type: "bells",
+          bells: [
+            [6, 2],
+            [7, 2],
+            [8, 2],
+            [9, 2],
+          ],
+          tune: [1, 2],
+          practice: "v1",
+        },
+      },
+      {},
+    );
+    press(w, { x: 6, y: 1 }); // the lever on
+    expect(w.levers.v1).toBe(true);
+    const e = press(w, { x: 8, y: 2 }).find((x) => x.kind === "station");
+    expect(e).toMatchObject({ result: "press", n: 2, practice: true });
+  });
+});
+
 describe("vault", () => {
   const VAULT = {
     type: "vault",

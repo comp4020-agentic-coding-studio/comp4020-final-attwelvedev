@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import { CHIME_TICKS } from "../game/sim/chimes.ts";
 import { TICK_MS } from "../game/sim/world.ts";
 import type { SoundCue } from "../net/protocol.ts";
-import { CHIME_GAP_S, chimePlan, isChimeCue } from "./chimeSound.ts";
+import {
+  CHIME_GAP_S,
+  chimePlan,
+  isChimeCue,
+  PRACTICE_LEVEL,
+  practiceChimes,
+} from "./chimeSound.ts";
 
 // Task 36: a keypad key, a music-box bell and the earpiece each play as a GROUP of chimes, one more
 // chime for each step up the scale, so the group's length is the note and can be counted by ear.
@@ -55,6 +61,22 @@ describe("chimePlan: what one chime cue sounds like", () => {
       `${voice("key")?.voice}${voice("key")?.hz}`,
     );
     expect(voice("clue")?.voice).not.toBe(voice("bellnote")?.voice);
+  });
+
+  it("a practice press plays the real plan for its note and source, at a lower level (Task 42)", () => {
+    for (const of of ["key", "bellnote"] as const) {
+      for (const n of [0, 3, 5]) {
+        const real = chimePlan(of, n);
+        const practice = practiceChimes(of, n);
+        expect(practice.map((c) => [c.at, c.hz, c.voice, c.secs])).toEqual(
+          real.map((c) => [c.at, c.hz, c.voice, c.secs]),
+        );
+        practice.forEach((c, i) => {
+          expect(c.level).toBeCloseTo((real[i]?.level ?? 0) * PRACTICE_LEVEL, 9);
+        });
+      }
+    }
+    expect(PRACTICE_LEVEL).toBeCloseTo(0.6, 9);
   });
 
   it("never plays fewer than one chime or more than nine, whatever it is sent", () => {
