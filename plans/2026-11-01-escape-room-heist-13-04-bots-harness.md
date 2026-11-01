@@ -13,7 +13,7 @@ From phase 01: `chimePlan` accepts `"clue"`, so a vent's `n` can exceed 3 (the b
 
 ## Tasks
 
-### Task 48: Bots collaborate in rooms 5 to 8  [ ]  (demo 9)
+### Task 48: Bots collaborate in rooms 5 to 8  [x] (human review queued for the end of the phase)  (demo 9)
 
 The user saw bots wander after a hand-hold was released and ignore players. ADR 0018 stands: a bot acts only on what it perceives and what teammates send.
 

@@ -908,7 +908,7 @@ function thinkSighted(
     if (e.kind === "player" && e.seat !== undefined) m.bodies[e.seat] = e.pos;
   // Led by another's hand (a person took it: a bot only ever leads, in a `tow` job), the leader
   // walks for both and both steer (ADR 0019): a bot's own walk would only pull against them, so it
-  // adds nothing to the pair's step. Its presses still work.
+  // adds nothing to the pair's step. It presses no Act (that would let go: see `press`).
   const led = view.you.hand !== undefined && known.holding[view.you.seat] !== undefined;
   const input = view.alarm
     ? idle(m)
@@ -1016,7 +1016,11 @@ function press(
   const centred = Math.hypot(pos.x - (tile.x + 0.5), pos.y - (tile.y + 0.5)) < 0.15;
   const goal = job ? workGoal(room, m, job, known, m.seat) : null;
   const here = centred && goal !== null && goal.x === tile.x && goal.y === tile.y;
-  const button = job && here ? pressFor(room, m, known, job, view.tick) : null;
+  const pressed = job && here ? pressFor(room, m, known, job, view.tick) : null;
+  // An Act from a towed seat lets go of the hand that leads it (sim/gear.ts: actOn), so a bot a
+  // person is leading never presses one: it waits, and works once they let go. G is unaffected.
+  const towed = view.you.hand !== undefined && known.holding[view.you.seat] !== undefined;
+  const button = pressed === "act" && towed ? "wait" : pressed;
   const was = button === "act" ? m.actWas : button === "gear" ? m.gearWas : false;
   m.actWas = button === "act" && !was;
   m.gearWas = button === "gear" && !was;
