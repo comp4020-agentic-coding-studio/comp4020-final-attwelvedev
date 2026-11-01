@@ -17,12 +17,15 @@ import { type Camera, camera, LIVE, setRise, tileWindow, toScreen } from "./proj
 import { drawMist, inSight, lightPolygon, nightTile, seenOf } from "./sight.ts";
 import { drawBell, drawHatch, drawLampSwitch, drawLever } from "./signals.ts";
 import {
+  drawLink,
   drawOrder,
   drawPlaque,
   drawStationFloor,
   drawStationPlates,
   drawStationStanding,
   drawTargetCard,
+  linkOf,
+  linkRow,
   stationRows,
 } from "./stations.ts";
 
@@ -188,6 +191,14 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
       .map((e) => `${Math.floor(e.pos.x)},${Math.floor(e.pos.y)}`),
   );
 
+  // a station's wire, in the row of its southernmost point so the wall blocks it runs along are down
+  const linksByRow = new Map<number, { e: EntityView; path: Vec[] }[]>();
+  for (const e of scene.entities) {
+    const path = e.kind === "station" && e.station ? linkOf(e.station, scene) : null;
+    if (path)
+      linksByRow.set(linkRow(path), [...(linksByRow.get(linkRow(path)) ?? []), { e, path }]);
+  }
+
   const seenNow = scene.seen ? seenOf(scene.seen) : null;
   // north to south: blocks of the row, then what stands in it
   for (let y = win.y0; y <= win.y1; y++) {
@@ -204,6 +215,8 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
       else glass(ctx, cam, x, y);
       ctx.restore();
     }
+    for (const { e, path } of linksByRow.get(y) ?? [])
+      if (e.station) drawLink(ctx, e.station, cam, scene, path);
     for (const e of stationsByRow.get(y) ?? []) drawStationStanding(ctx, e, cam, scene, y);
     for (const kind of STANDING) {
       for (const e of byRow.get(y) ?? []) {
