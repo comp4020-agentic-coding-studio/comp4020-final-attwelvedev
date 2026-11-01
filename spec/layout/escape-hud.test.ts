@@ -31,10 +31,21 @@ async function walk(page: Page, key: string, until: () => Promise<boolean>, maxM
   }
 }
 
+// A box is read right after a resize or a render, so it is waited for (the page lays out on its own
+// schedule, later under load), not read once. An element that really is absent still fails, with
+// the locator named, after the wait.
 const box = async (l: Locator) => {
-  const b = await l.boundingBox();
-  if (!b) throw new Error("not laid out");
-  return b;
+  let b: Awaited<ReturnType<Locator["boundingBox"]>> = null;
+  await expect
+    .poll(
+      async () => {
+        b = await l.boundingBox();
+        return b !== null;
+      },
+      { timeout: 3000, message: `${String(l)} was never laid out` },
+    )
+    .toBe(true);
+  return b as unknown as { x: number; y: number; width: number; height: number };
 };
 const overlaps = (
   a: { x: number; y: number; width: number; height: number },
