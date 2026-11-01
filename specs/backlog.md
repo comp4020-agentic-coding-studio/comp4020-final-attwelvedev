@@ -40,3 +40,4 @@ Sorted on 2026-10-19 by the play overhaul brainstorm (`specs/2026-10-19-play-ove
 - 2026-10-28 — "Can't speak has little to do" → Architecture (`specs/2026-10-28-escape-room-heist.md`, ADR 0017): stations, gear and side jobs give every role work.
 - 2026-10-28 — `pnpm check` overloads the machine → Tweak: the spec project's `maxWorkers` is 3 in `vitest.config.ts` (unit tests first, full width); two full checks green, peak load 13–15, 227–231 s.
 - 2026-11-01 — wire plaques as riddles, not instructions: today's rule sentences just say what to do and are boring; a riddle would make players think (room 7's ink is a bare number meanwhile) → undecided, needs a brainstorm after phase 13.
+- 2026-11-01 — radios are only "dial until the static clears": needs a brainstorm for a real challenge (a hidden target, a clue held by a teammate, or a narrow drifting lock) → undecided, after phase 13.

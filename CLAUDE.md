@@ -63,6 +63,12 @@ cause, not just the instance: add a rule here, or a check in `spec/` or
 `pnpm check`, then log it in `PROCESS_LOG.md`. A repeated mistake is a missing
 sensor. A bug fix starts with a failing test that reproduces it.
 
+Every new test or spec that guards a promise is shown to fail first: break the code it
+guards on purpose (revert the line, flip the flag, put the layout back), watch it go red,
+then restore the code. The plan or commit says what was broken. A test that cannot be made
+to fail is deleted. Phase 12's Task 38 and Task 39 had a vacuous test this caught; phase
+13's Task 49 broke the wheel's axe case to show one failure took three others with it.
+
 ## Visual changes read DESIGN.md first
 
 Before changing the look, read `DESIGN.md`. A change to the look, a token, a

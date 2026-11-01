@@ -973,3 +973,24 @@ What I have not found: why axe reports a violation under load at all. That needs
 which will now say which rule and element. `reveal.test.ts` failed only twice, by 30 s timeouts in a
 run where eight other files were failing too; it builds a real lobby through three browsers per case
 and never failed alone or in `check:flaky`. I left it, and did not raise its timeout.
+
+## 2026-11-01 — A bot that "wandered after release" was wandering before it, and I could not see it from the plan
+
+resolved by the commit that adds this entry
+
+The plan for Task 48 said bots wander after a hand-hold is released, and named stale `led` and
+`known.holding` as suspects. I wrote cases for rooms 5 to 8, all rotations: lead a bot for 40 ticks,
+release, check it walks on. All 36 passed, so the plan's story did not reproduce, and I stopped and
+asked rather than fix a guess. The user's answer was what the plan did not have: room 8, a Can't-hear
+or Can't-speak bot, "wandered before and after hand release".
+
+"Before" was the clue. I added a case that fails if a bot lets go of the hand itself, and it went red
+in room 8 (`tick 15: the bot let go`). A towed seat's Act releases the leader's hand
+(`sim/gear.ts: actOn`), and a bot at its station or gear job pressed Act, so it dropped the hand and
+walked off. The first version of my fix suppressed Act whenever `view.you.hand` was set; reading it
+again I saw that is also true while a bot is leading, which would stop a `tow` job letting go at the
+end, so it uses the towed test (`known.holding`) instead.
+
+Checked by breaking the mark decoder to see the mark case go red, and by `pnpm check` (126 files,
+1839 tests, 4 min 56 s, the baseline for this phase). Rule for next time: when the plan's reproduction
+passes, ask the user what they saw before changing code.

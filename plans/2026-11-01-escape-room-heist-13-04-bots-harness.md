@@ -27,7 +27,7 @@ The user saw bots wander after a hand-hold was released and ignore players. ADR 
 - **Done when:** new unit tests and `spec/rooms.test.ts` (bots clear every room in every rotation) pass.
   **Human review:** three tabs, rooms 5 to 8: hold a bot's hand, let go, it works; send it a mark, it answers.
 
-### Task 49: Find the root cause of the flaky wheel and reveal specs  [ ]  (demo 10)
+### Task 49: Find the root cause of the flaky wheel and reveal specs  [x]  (demo 10)
 
 `PROCESS_LOG.md` records wheel cases passing 25/25 isolated but failing in the full run, and `spec/layout/reveal.test.ts` is flaky in
 `pnpm check`. Both sit in `spec/layout/`, which runs at most 3 files at once (`maxWorkers`).
@@ -40,7 +40,7 @@ The user saw bots wander after a hand-hold was released and ignore players. ADR 
   Never raise a timeout. If the shape can be grepped, add it to `spec/flaky-patterns.test.ts`.
 - **Done when:** `pnpm check:flaky 6` shows neither file failing in any run. Say plainly if it does not and what remains.
 
-### Task 50: Harness: "break it and watch it go red"; radio backlog  [ ]
+### Task 50: Harness: "break it and watch it go red"; radio backlog  [x]
 
 - **CLAUDE.md:** under "Corrections go into the harness" add a rule: every new test or spec that guards a promise is shown to fail first, by
   deliberately breaking the code it guards (reverting the line, flipping the flag, putting a layout back) and watching it go red, then restoring. The plan or

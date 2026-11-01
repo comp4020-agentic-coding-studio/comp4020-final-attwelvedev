@@ -96,3 +96,6 @@ Add a §5 row for phase 13 to `plans/2026-10-28-escape-room-heist-00-overview.md
 - 2026-11-01, Task 44: plan gated Q2/Q4's buttons with corridor doors `D5`/`D6`; lint FR2 refuses (only one station open from the
   start). User wanted the switches and lamps behind one door per half, and chose to add a station outside the doors. The plan
   assumed a hidden station could be gated without checking FR2 against the whole room's station count.
+- 2026-11-01, Task 48: plan said bots wander after a hand is released (stale `led`/`known.holding`); every release case passed. User said room 8, a
+  Can't-hear or Can't-speak bot, wandering before and after. The cause was the bot's own Act letting go of the hand it was led by. The plan
+  named the wrong moment because it was written from the symptom, not a reproduction.
