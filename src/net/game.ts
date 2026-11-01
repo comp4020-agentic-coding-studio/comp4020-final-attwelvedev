@@ -470,6 +470,11 @@ export function tickGame(
     const input = acted.inputs[seat];
     if (input) applyInput(game, seat, input);
   }
+  // A mark a bot sent is drawn where it was put, as a person's is in `relay`: Can't hear and Can't
+  // speak see it fade. (The bot picked a tile in its own sight; the router already applied the rules.)
+  for (const said of acted.sent) {
+    if (said.message.method === "mark") addStamp(game.world, said.message.id, said.message.at);
+  }
   step(game.world, game.inputs, TICK_MS);
   const views = new Map<Seat, RoleView>();
   for (const seat of [0, 1, 2] as const) {

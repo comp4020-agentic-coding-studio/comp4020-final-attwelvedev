@@ -315,6 +315,41 @@ describe("bots in a game", () => {
   });
 });
 
+// A mark a person sends lands in the world, where Can't hear and Can't speak see it drawn (relay).
+// A bot's mark goes through the same router, so it must be drawn too: a mark nobody can see is
+// not a message. Room 7's torch carrier marks the wire its ink names.
+describe("a bot's mark is drawn on the wall like a person's", () => {
+  it("room 7: the Can't-speak bot at the ink marks the wire, and a stamp lands in the world", () => {
+    const l = withBots("a", 1, 2); // seat 0 a person, seats 1 and 2 bots
+    const game = startGame(l, rooms);
+    // walk to room 7 the way the server does: each cleared room advances the game
+    while (game.roomIndex < 6) {
+      game.world.status = "cleared";
+      advanceRoom(game, l, rooms);
+    }
+    expect(game.world.room.id).toBe("07-night-shift");
+    game.ready.add(0);
+    const marks: number[] = [];
+    for (let i = 0; i < 1500 && game.world.stamps.length === 0; i++) {
+      const said = tickGame(game, new Set(), i * 50).sent;
+      if (said.some((s) => s.message.method === "mark")) marks.push(i);
+    }
+    expect(marks.length, "a bot sent a mark").toBeGreaterThan(0);
+    expect(game.world.stamps.length, "and it is drawn in the world").toBeGreaterThan(0);
+    // a seat that is neither the bot that marked nor Can't see is shown it: the sighted roles that
+    // receive marks (ADR 0011). Whoever the room's rotation made the other sighted seat, by role.
+    const views = tickGame(game, new Set(), 99_999).views;
+    const sighted = ([0, 1, 2] as const).filter((x) => game.roles[x] !== "blind");
+    expect(sighted.length).toBe(2);
+    for (const x of sighted) {
+      expect(
+        views.get(x)?.entities.some((e) => e.kind === "stamp"),
+        `${game.roles[x]} (seat ${x}) is shown the stamp`,
+      ).toBe(true);
+    }
+  });
+});
+
 describe("pausing for a dropped seat", () => {
   const started = () => startGame(lobby("a", "b", "c"), rooms);
   const walkers = (game: ReturnType<typeof started>) => {
