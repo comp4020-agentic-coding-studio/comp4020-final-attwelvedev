@@ -13,7 +13,7 @@ None.
 
 ## Tasks
 
-### Task 43: UV ink: short, always shown in the light, no ring  [~] render half done, ink text deferred  (demo 4)
+### Task 43: UV ink: short, always shown in the light, no ring  [~] render half done (e1968b3); ink number to do  (demo 4)
 
 `drawUv` (`src/client/render/gear.ts:250`) strokes a dashed rim round the pool, clips the ink to the pool polygon and
 `inkBox` centres each line on the ink tile. A long ink at x=1 pokes past the left wall; to the right of the pool the ink is clipped out entirely.
@@ -24,12 +24,24 @@ None.
   Break the clip by hand and watch (c) go red.
 - **Green:** remove the dashed rim (keep the wash and, for high contrast, a solid edge only if the wash is off, as DESIGN.md says: update it). Draw the ink
   so the pool's clip shows whatever part is lit, however far the holder stands; clamp the ink box into the wall's face. Shorten
-  the room 7 ink: **deferred (user ruling 2026-11-01).** The user wants the ink to be only the wire number ("2", no "Wire" text), but that
-  drops room 7's rule-reading puzzle (`plaqueText`, `src/game/sim/stations.ts:194`, returns a `WIRE_RULES` sentence that
-  `perception.ts:901` puts in the ink and `src/game/bots/decode.ts:150` matches). It goes back to `plan-feature` with Tasks 45 and 48;
-  this task does the render fixes only. Wrapping still handles the long sentence meanwhile.
-- **Done when:** unit tests pass and screenshots `review/13-task43-uv-{1280,375}.png` show full ink at the left wall, no ring, and ink with the holder far right.
-  **Human review:** play room 7 with the torch.
+  the room 7 ink to **only the wire number** (user ruling 2026-11-01: "2", no "Wire" text, no rule). The render half above is committed (`e1968b3`);
+  what is left is the number, below.
+- **Red first, the ink number (second half):** a wire panel opts in with `"numbered":true` beside `"plaque"` (room 7's `Q1` and `Q3`; rooms 5 and 9 keep their
+  sentence rules, user ruling 2026-11-01). (d) `src/game/sim/stations.test.ts`: `plaqueText` for a `numbered` panel is `String(answer[0] + 1)` (the 1-based
+  wire to cut, the number a Can't-see player hears in "Cut wire N"), and for an un-numbered panel is still the `WIRE_RULES` sentence; (e) `src/game/perception.test.ts`:
+  the ink view for `u1` on a numbered panel carries that digit, never to Can't see; (f) `src/game/bots/decode.test.ts` (the wires decoder block): a sighted bot that
+  sees ink `"2"` for a numbered panel sets `b.answer = [1]` and cuts that wire whatever the colours, a panel with no ink in sight leaves it unset, and a digit read before a catch is gone after it (`brain.test.ts`, the sent-back case).
+- **Green, the ink number:** `plaqueText` (`src/game/sim/stations.ts:194`) returns the digit when `s.params.numbered` is true (the `answer` is drawn
+  as before; the colours stay drawn and decide nothing); the room file sets `"numbered":true` on `Q1` and `Q3`. In `src/game/bots/decode.ts` the `wires` decoder
+  (line 148) reads a one-digit `plaque.text` as the wire to cut (`b.answer = [Number(text) - 1]`) before it tries `WIRE_RULES`. The decoder rewrites `b.answer` every tick, so the digit is kept in the belief the way
+  `rule` is (a new field beside it) and forgotten where `rule` is: `decode.ts:85` (the panel drawn again) and `brain.ts:881` (the team sent back), or a bot would cut a stale wire. A bot learns nothing the sighted
+  role's own view does not already show (ADR 0018). The wire colours stay on screen and in `shows`; they are decoys in room 7 only.
+  `rooms/07-night-shift.room`'s `beats` intent text for the deaf and mute roles stops saying "reads the hidden rule" and says "reads the number in the ink".
+  Update `DESIGN.md` §UV ink (it says "a long rule"; ink is now a number, the wrap rule stays for other text), and the label `plaque` in `src/client/labels.ts:29`
+  ("a rule for another room") so it still tells the truth for a number.
+- **Done when:** (a) to (f) pass, `pnpm lint:rooms` and `spec/rooms.test.ts` pass (bots clear room 7 in every rotation),
+  `spec/room07.test.ts` still passes, and screenshots `review/13-task43-uv-{1280,375}.png` show full ink at the left wall, no ring, and ink with the holder far right.
+  **Human review:** play room 7 with the torch: the ink is one number on the wall, and cutting that wire opens the door.
 
 ### Task 46: A solved ring plays once  [x]  (demo 8)
 

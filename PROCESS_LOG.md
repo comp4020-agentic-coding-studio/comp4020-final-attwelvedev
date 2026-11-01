@@ -918,3 +918,23 @@ fail (deleted), a search-and-replace that matched nothing after the formatter re
 is "break it and watch it go red", which I did for each test from Task 34 on; making that a rule
 for a test written after the code is the candidate for CLAUDE.md, left for you to decide.
 
+
+## 2026-11-01 — A plan step that read like copy was a puzzle mechanic
+
+e1968b3 (the render half; the number half is planned in `plans/2026-11-01-escape-room-heist-13-02-render.md`, not yet built)
+
+Phase 13's Task 43 said to shorten room 7's UV ink to "Wire 2". The agent read it against the code before
+building and found the ink text was not copy: it is the `WIRE_RULES` sentence players read to decide which wire to cut,
+and the one bots match in `decode.ts`. A bare number would turn a clue into the answer and leave bots unable to read room 7.
+It stopped and asked instead of building.
+
+The obvious move was to shorten the sentence, or to ship the number and let the bots fail the room spec. I chose to
+split the task: the render half (no ring, ink kept on the wall's face, clip unchanged) went ahead and was committed, because
+it did not depend on the ruling, and the text half went back to `plan-feature`. I then ruled that the ink is only the
+number, for room 7 only, with the colours kept as decoys, and that rooms 5 and 9 keep their rules. The digit decoder
+moved into the same task as the number so no commit leaves the bots unable to clear room 7. I also noted that plaques as
+riddles is the better idea but a different one, so it went to `specs/backlog.md` rather than into this phase.
+
+How I knew the call was right: the open-question count in the plan went to zero, and the next tasks' interface lists
+(45, 48) now name what Task 43 produces. The first test for the number will be `plaqueText`'s digit; `spec/rooms.test.ts`
+(bots clear room 7 in every rotation) is the evidence the bots still read it.

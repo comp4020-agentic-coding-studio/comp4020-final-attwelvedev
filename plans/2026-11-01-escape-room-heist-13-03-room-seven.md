@@ -2,14 +2,14 @@
 
 - **Status:** Approved
 - **Part of:** `plans/2026-11-01-escape-room-heist-13-00-overview.md` (read it first: requirements, demo script, conventions, coverage).
-  Depends on phase 12. Task numbers are global.
+  Depends on phase 12. Task numbers are global. Task 43 (phase 02) now also makes room 7's ink a number: Task 44's `beats` and `hints` edits must keep that text.
 - **Commits:** one per task once `pnpm check` is green, ending with
   `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`. Never push or deploy without the user's go-ahead.
 - **Review mode:** build and commit as checks go green; `Human review:` items are reviewed together at the end of phase 13 (overview §5).
 
 ## Interfaces from earlier phases (exact)
 
-None. (Task 43, phase 02, shortens the UV ink text; Task 44 does not depend on it, but the room's hints and bots must route through the new doors.)
+From phase 02, Task 43: a wire panel with `"numbered":true` has `plaqueText(world, id)` equal to `String(answer[0] + 1)`, and room 7's `Q1`, `Q3` are numbered. Task 44 edits the same room file (a different region: doors, torch, `hints`), so edit by a unique string and re-read first. Bots route through the new doors and read the digit through the decoder Task 43 adds.
 
 ## Tasks
 
@@ -30,10 +30,11 @@ that blocks the task (do not edit the linter to pass).
 
 ### Task 45: Wire rule wording  [ ]  (demo 7)
 
-`WIRE_RULES` ends with `"Otherwise: cut the first wire."` (`src/game/sim/stations.ts:38`).
+`WIRE_RULES` ends with `"Otherwise: cut the first wire."` (`src/game/sim/stations.ts:38`). Scope after the 2026-11-01 ruling: room 7's plaques are numbers
+(Task 43), so no room 7 card carries a rule; this task rewords the rules rooms 5 and 9 still show. It does not depend on Task 43's order.
 
-- **Red first:** `stations.test.ts`: no rule text starts with "Otherwise"; every rule text is a full sentence that names its wire (the last rule "No other rule applies: cut the first wire." is
-  fine: it says why). The same test checks the text in the vault's and room 7's cards.
+- **Red first:** `stations.test.ts`: no rule text starts with "Otherwise"; every rule text is a full sentence that names its wire (the last rule "None of the rules above: cut the first wire." is
+  fine: it says why). The same test checks the text of the rooms 5 and 9 plaques (the rooms that still show a rule); room 7 shows a digit, covered by Task 43.
 - **Green:** reword to `"None of the rules above: cut the first wire."`; fix any copy or test that quotes the old text (grep first).
 - **Done when:** test and `pnpm test:unit` pass.
 

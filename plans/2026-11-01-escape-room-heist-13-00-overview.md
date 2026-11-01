@@ -16,10 +16,10 @@
 
 - Chimes heard through a vent climb and give the full count, like the keypad and bells. Room 6's repeats are easy to tell apart.
 - Practice mode plays the real chime for the key or bell you press.
-- Room 7: the ink fits on its wall, shows wherever the torch reaches, has no dotted ring, and the torch is
+- Room 7: the ink is just the wire number, fits on its wall, shows wherever the torch reaches, has no dotted ring, and the torch is
   far from it. The switches and lamps are behind a door that only the right wire cut opens.
 - The room 4 wire goes to the second safe only; the bells wire meets the middle of the bells.
-- The cut-wire rule no longer starts "Otherwise". A success ring plays once, not each time it comes back into view.
+- The cut-wire rules in rooms 5 and 9 no longer start "Otherwise". A success ring plays once, not each time it comes back into view.
 - Bots help after you let go of their hand. Flaky wheel and reveal specs are fixed at the cause.
   CLAUDE.md gains a "break it and watch it go red" rule.
 
@@ -29,13 +29,13 @@
 2. Room 6, eyes closed → every repeat of the key is separated by a gap clearly longer than the gaps between groups.
 3. Room 8, flip the lever, press key 5 and a bell → each plays its real chime (five or the bell's note), the lever
    still shows practice (keys dimmed) and nothing counts.
-4. Room 7, torch on the ink → the whole ink is on the wall's face, never cut by the left wall, no dashed ring on the
-   light. Walk right → the ink stays in whatever part of the light reaches it.
+4. Room 7, torch on the ink → the ink is one number ("2"), wholly on the wall's face, never cut by the left wall, no dashed ring on the
+   light. Walk right → the ink stays in whatever part of the light reaches it. Cut that wire, whatever its colour → the door opens.
 5. Room 7: the torch lies well away from either ink. Walk to the switches without cutting the wire → a door blocks you.
    Cut the right wire → it opens and stays open.
 6. Room 4: a dotted wire runs from the second safe's dial to its audio box through the wall; the first safe has none.
    Room 8: the bells wire ends in the middle of the bells.
-7. Room 7 wire card → no sentence starts "Otherwise".
+7. Rooms 5 and 9 wire plaques → no sentence starts "Otherwise" (room 7's plaques are a number, step 4).
 8. Solve a station, walk out of sight and back → no second ring.
 9. Room 5 to 8 with a person leading then letting go of a bot's hand → the bot walks to its next job.
    Send a callout or mark the bot can act on → it answers it.
@@ -72,10 +72,10 @@ Add a §5 row for phase 13 to `plans/2026-10-28-escape-room-heist-00-overview.md
 | --- | --- |
 | 1, 2 | 41 |
 | 3 | 42 |
-| 4 | 43 |
+| 4 | 43 (render half done; the number, and the bot reading it, to do) |
 | 5 | 44 |
 | 6 | 47 |
-| 7 | 45 |
+| 7 | 45 (rooms 5 and 9; room 7 is Task 43) |
 | 8 | 46 |
 | 9 | 48 |
 | 10 | 49 |
@@ -87,3 +87,5 @@ Add a §5 row for phase 13 to `plans/2026-10-28-escape-room-heist-00-overview.md
 
 - 2026-11-01, Task 43: plan said shorten room 7's ink to "Wire 2" via `plaqueText`; user wanted just the number, no "Wire" text.
   The plan assumed the ink text was free copy, but it carries the `WIRE_RULES` sentence that players and bots decode.
+- 2026-11-01, Tasks 43, 45, 48: re-planned. Ink is only the wire number, for room 7 only (`"numbered":true`; colours stay drawn as decoys); the digit
+  decoder moves into Task 43; Task 45 covers rooms 5 and 9; Task 48 only runs against it. The user is also considering riddle plaques (backlog, not built).

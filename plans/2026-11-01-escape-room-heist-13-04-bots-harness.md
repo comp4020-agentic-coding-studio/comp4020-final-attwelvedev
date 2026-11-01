@@ -9,7 +9,7 @@
 
 ## Interfaces from earlier phases (exact)
 
-From phase 01: `chimePlan` accepts `"clue"`, so a vent's `n` can exceed 3 (the bot decoder in `src/game/bots/decode.ts` must read it). From phase 03: room 7 has doors `D5`, `D6` that bots must path through.
+From phase 01: `chimePlan` accepts `"clue"`, so a vent's `n` can exceed 3 (the bot decoder in `src/game/bots/decode.ts` must read it). From phase 03: room 7 has doors `D5`, `D6` that bots must path through. From phase 02, Task 43: room 7's wire plaques are a one-digit ink (`numbered`), and the `wires` decoder in `src/game/bots/decode.ts` reads it as the wire to cut (`b.answer = [Number(text) - 1]`); Task 48's room 7 cases run with that in place and must not re-add a rule-matching path for it.
 
 ## Tasks
 
@@ -23,7 +23,7 @@ The user saw bots wander after a hand-hold was released and ignore players. ADR 
   so the cause (stale `led`, `known.holding` never cleared, a job waiting on gear a person holds) is read, not guessed. `brain.ts:288` and `:908` keep `led` while `view.you.hand` is set; check the first
   tick after release.
 - **Green:** fix what the failures show, in `src/game/bots/brain.ts` (or `jobs.ts`/`decode.ts`), never by giving a bot the simulation's state. Add the missing decoder for any new station
-  (the vent clue's count, the practice lever) in `decode.ts`.
+  (the vent clue's count, the practice lever) in `decode.ts`. The wires decoder's digit reading is Task 43's, not this task's.
 - **Done when:** new unit tests and `spec/rooms.test.ts` (bots clear every room in every rotation) pass.
   **Human review:** three tabs, rooms 5 to 8: hold a bot's hand, let go, it works; send it a mark, it answers.
 
