@@ -549,12 +549,38 @@ function solvedPlate(ctx: CanvasRenderingContext2D, cam: Camera, at: Vec) {
 // A thin wire from a station's anchor to its remote part (a safe's back, a music box's tune), so a
 // box on its own never looks lost: along the wall where a short wall route exists, else straight.
 // Faint (the line colour at 35 %), laid on the floor under everything that stands.
+// Whether a wall, glass pane or vent tile lies on the straight line between two tiles' centres
+// (not counting the two tiles themselves): sampled finely enough to touch every tile it crosses.
+function wallBetween(tiles: readonly string[], a: Vec, b: Vec): boolean {
+  const steps = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) * 8);
+  for (let i = 1; i < steps; i++) {
+    const x = Math.floor(a.x + 0.5 + ((b.x - a.x) * i) / steps);
+    const y = Math.floor(a.y + 0.5 + ((b.y - a.y) * i) / steps);
+    if ((x === a.x && y === a.y) || (x === b.x && y === b.y)) continue;
+    if ("#=%".includes(tiles[y]?.[x] ?? ".")) return true;
+  }
+  return false;
+}
+
 function drawLink(ctx: CanvasRenderingContext2D, st: Station, cam: Camera, scene: Scene) {
   const anchor = partsOf(st, "anchor")[0];
   const remote = partsOf(st, st.type === "dial" ? "back" : "tune")[0];
   if (!anchor || !remote || !scene.tiles || (st.type !== "dial" && st.type !== "bells")) return;
+  // a safe's back box is wired only when something solid is between it and the dial (the same open
+  // floor needs no wire to be understood); a music box's tune box always is
+  if (st.type === "dial" && !wallBetween(scene.tiles, anchor, remote)) return;
   const path = linkPath(scene.tiles, anchor, remote);
   if (path.length < 2) return;
+  if (st.type === "bells") {
+    // the wire meets the bells in the middle of them, not at the first bell
+    const bells = partsOf(st, "bells");
+    if (bells.length > 0) {
+      path[0] = {
+        x: bells.reduce((n, t) => n + t.x, 0) / bells.length + 0.5,
+        y: bells.reduce((n, t) => n + t.y, 0) / bells.length + 0.5,
+      };
+    }
+  }
   ctx.save();
   ctx.globalAlpha = 0.35;
   ctx.strokeStyle = WORLD.line;

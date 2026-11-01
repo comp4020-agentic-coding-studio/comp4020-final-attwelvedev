@@ -1382,6 +1382,62 @@ describe("stations, gear and signals", () => {
     expect(ops.some((o) => o.name === "fillText" && o.args[0] === "7 3")).toBe(false);
   });
 
+  it("wires a dial to its back only where a wall is between them (Task 47)", () => {
+    const dial = (back: { x: number; y: number }) =>
+      station(
+        "Q1",
+        "dial",
+        at(1.5, 1.5),
+        [],
+        [
+          { key: "anchor", at: [at(1, 1)] },
+          { key: "back", at: [back] },
+        ],
+      );
+    const faint = (tiles: string[], back: { x: number; y: number }) => {
+      const { ctx, ops } = recorder();
+      draw(ctx, room({ tiles, entities: [dial(back), player(1, 3.5, 3.5)] }));
+      return ops.filter(
+        (o) =>
+          o.name === "stroke" &&
+          o.strokeStyle === WORLD.line &&
+          o.globalAlpha < 1 &&
+          o.lineDash.length > 0,
+      ).length;
+    };
+    // room 4's first safe: the back box is on the same open floor (no wall tile on the line)
+    expect(faint(grid(7, 12), at(4, 3)), "open floor: no wire").toBe(0);
+    // room 4's second safe: a wall (a vent counts, it blocks sight and bodies) lies on the line
+    expect(faint(grid(7, 12, [[3, 2]]), at(4, 3)), "through a wall: a wire").toBeGreaterThan(0);
+    expect(faint(grid(7, 12, [[3, 2]], "%"), at(4, 3)), "through a vent: a wire").toBeGreaterThan(
+      0,
+    );
+  });
+
+  it("ends a bells wire at the middle of the bells, not at the first bell (Task 47)", () => {
+    const bells = [at(1, 1), at(2, 1), at(3, 1), at(4, 1)];
+    const st = station(
+      "Q1",
+      "bells",
+      at(1.5, 1.5),
+      [],
+      [
+        { key: "anchor", at: [bells[0] as { x: number; y: number }] },
+        { key: "bells", at: bells },
+        { key: "tune", at: [at(2, 4)] },
+      ],
+    );
+    const { ctx, ops } = recorder();
+    draw(ctx, room({ tiles: grid(7, 12), entities: [st, player(1, 3.5, 3.5)] }));
+    const cam = camera(room({ tiles: grid(7, 12), entities: [st, player(1, 3.5, 3.5)] }));
+    const start = ops.find(
+      (o) => o.name === "moveTo" && o.globalAlpha < 1 && o.lineDash.length > 0,
+    );
+    expect(start, "the wire starts somewhere").toBeDefined();
+    const mid = toScreen(cam, 3, 1.5); // the mean of the bell tiles' centres: x 1.5..4.5 -> 3
+    expect(Math.abs((start?.args[0] as number) - mid.x)).toBeLessThan(1e-6);
+  });
+
   it("splatters a dyed figure with blotches, in dye colours", () => {
     const { ctx, ops } = recorder();
     draw(ctx, room({ w: 1280, h: 600 }));
@@ -1426,7 +1482,13 @@ describe("stations, gear and signals", () => {
       ["bells", "tune"],
     ] as const) {
       const wired = recorder();
-      draw(wired.ctx, room({ entities: [linked(type, key, at(4, 3)), player(1, 3.5, 3.5)] }));
+      // a wall tile on the straight line from the anchor (1,1) to the remote part (4,3): a dial's
+      // back is wired only through a wall (Task 47)
+      const walled = grid(7, 12, [[3, 2]]);
+      draw(
+        wired.ctx,
+        room({ tiles: walled, entities: [linked(type, key, at(4, 3)), player(1, 3.5, 3.5)] }),
+      );
       const bare = recorder();
       const alone = station("Q1", type, at(1.5, 1.5), [], [{ key: "anchor", at: [at(1, 1)] }]);
       draw(bare.ctx, room({ entities: [alone, player(1, 3.5, 3.5)] }));
