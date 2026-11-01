@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ChannelMessage } from "../channels.ts";
+import { type ChannelMessage, STAMP_LIFE_MS } from "../channels.ts";
 import { rolesFor } from "../crew.ts";
 import { loadRooms } from "../rooms/load.ts";
 import { releaseAll } from "../sim/gear.ts";
@@ -205,50 +205,77 @@ describe("a bot at its exit job leaves through a door that opened out of its sig
   });
 });
 
-// Room 7's ink is only a number: the wire to cut. A bot that reads it with the torch is the only one
-// who can, so it tells the team by marking that wire; a mark is a message Can't speak may send.
-describe("a bot that reads room 7's ink marks the wire it names (Task 48)", () => {
+// Room 7's ink is only a number, and only the torch shows it. With people in the other two seats the
+// bot Can't speak ends up with the torch (a person took the goggles and the ink jobs). A teammate who
+// holds the torch stands at the ink so the number is lit for the others; it does not hand over the
+// answer at once: if the wire is still uncut after a wait it marks it, and marks again each time the
+// mark has faded, until the door that wire opens is open.
+describe("a bot holding room 7's torch lights the ink, then marks the wire if it is left (Task 48)", () => {
   const room7 = rooms.find((r) => r.id === "07-night-shift") as (typeof rooms)[0];
-  const wireTiles = (id: string) =>
-    ((room7.objects.find((o) => o.id === id)?.params?.wires ?? []) as [number, number][]).map(
-      ([x, y]) => ({ x, y }),
-    );
-  for (const botRole of ["deaf", "mute"] as Role[]) {
-    it(`a ${botRole} bot with the torch, at the first ink, marks the wire the ink names`, () => {
-      const roles: [Role, Role, Role] =
-        botRole === "deaf" ? ["blind", "deaf", "mute"] : ["blind", "mute", "deaf"];
-      const botSeat = roles.indexOf(botRole) as Seat;
-      const humans = new Set<Seat>(([0, 1, 2] as const).filter((s) => s !== botSeat));
-      const world = createWorld(room7, 1);
-      const bot: BotSeat = { memory: createBotMemory(botSeat, humans, roles), inbox: [] };
-      // it is holding the torch and has worked its way to the ink
-      const torch = world.gear.find((g) => g.item === "uv");
-      if (torch) Object.assign(torch, { heldBy: botSeat, at: null });
-      world.players[botSeat].pos = { x: 2.5, y: 5.5 };
-      const sent: { method: string; at?: { x: number; y: number } }[] = [];
-      const cooldowns = { until: {} };
-      for (let t = 0; t < 400; t++) {
-        const turn = botsAct(
-          room7,
-          world,
-          roles,
-          { [botSeat]: bot },
-          cooldowns,
-          t * TICK_MS,
-          (s) => `Bot ${s}`,
-        );
-        for (const s of turn.sent) if (s.message.method === "mark") sent.push(s.message as never);
-        step(world, turn.inputs, TICK_MS);
+  const roles: [Role, Role, Role] = ["blind", "deaf", "mute"];
+  const inkAt = { x: 2.5, y: 6.5 }; // the corridor tile in front of the first ink
+  const play = (ticks: number, cutAt = Number.POSITIVE_INFINITY) => {
+    const humans = new Set<Seat>([0, 1]);
+    const world = createWorld(room7, 1);
+    const bot: BotSeat = { memory: createBotMemory(2, humans, roles), inbox: [] };
+    const cooldowns = { until: {} };
+    const marks: { tick: number; x: number; y: number }[] = [];
+    const at: { x: number; y: number }[] = [];
+    for (let t = 0; t < ticks; t++) {
+      const turn = botsAct(
+        room7,
+        world,
+        roles,
+        { 2: bot },
+        cooldowns,
+        t * TICK_MS,
+        (s) => `Bot ${s}`,
+      );
+      for (const s of turn.sent)
+        if (s.message.method === "mark") marks.push({ tick: t, ...s.message.at });
+      step(world, turn.inputs, TICK_MS); // the people stand where they spawned
+      if (t === cutAt) {
+        const st = world.stations.Q1;
+        if (st) st.solved = true; // the wire is cut: the sim's own door rule then opens D1
       }
-      const answer = world.stations.Q1?.answer[0] as number;
-      const want = wireTiles("Q1")[answer];
-      expect(sent.length, "it sent a mark").toBeGreaterThan(0);
-      expect(
-        sent.some(
-          (m) => Math.floor(m.at?.x ?? -1) === want?.x && Math.floor(m.at?.y ?? -1) === want?.y,
-        ),
-        "the mark is on the wire the ink names",
-      ).toBe(true);
-    });
-  }
+      at.push({ ...world.players[2].pos });
+    }
+    return { world, marks, at };
+  };
+  const near = (p: { x: number; y: number }) => Math.hypot(p.x - inkAt.x, p.y - inkAt.y) <= 2;
+
+  it("walks to the ink and stands there", () => {
+    const { at } = play(600);
+    expect(
+      at.slice(300).every(near),
+      "after 15 s it is standing within the torch's reach of the ink",
+    ).toBe(true);
+  });
+
+  it("says nothing at first, then marks the wire the ink names, and again once that mark has faded", () => {
+    const { marks, world } = play(1400);
+    const answer = world.stations.Q1?.answer[0] as number;
+    const [wx, wy] = (
+      (room7.objects.find((o) => o.id === "Q1")?.params?.wires ?? []) as [number, number][]
+    )[answer] as [number, number];
+    const onWire = marks.filter((m) => Math.floor(m.x) === wx && Math.floor(m.y) === wy);
+    expect(onWire.length, "marked the wire the ink names, more than once").toBeGreaterThan(1);
+    expect(
+      (onWire[0]?.tick ?? 0) * TICK_MS,
+      "gave the others a while to read it first",
+    ).toBeGreaterThanOrEqual(15_000);
+    for (let i = 1; i < onWire.length; i++) {
+      const gap = ((onWire[i]?.tick ?? 0) - (onWire[i - 1]?.tick ?? 0)) * TICK_MS;
+      expect(gap, "waits for the last mark to fade first").toBeGreaterThanOrEqual(STAMP_LIFE_MS);
+    }
+  });
+
+  it("stops marking and goes on to the lamps once the door the wire opens is open", () => {
+    const { marks, at } = play(1400, 700);
+    expect(
+      marks.filter((m) => m.tick > 710),
+      "no mark once the door is open",
+    ).toEqual([]);
+    expect(at.at(-1)?.x, "it has left the ink for the lamps").toBeGreaterThan(8);
+  });
 });

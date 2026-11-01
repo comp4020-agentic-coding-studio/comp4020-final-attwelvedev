@@ -1,4 +1,10 @@
-import { type Callout, type ChannelMessage, COOLDOWN_MS, type Outgoing } from "../channels.ts";
+import {
+  type Callout,
+  type ChannelMessage,
+  COOLDOWN_MS,
+  type Outgoing,
+  STAMP_LIFE_MS,
+} from "../channels.ts";
 import type { EntityView, RoleView, SoundCue } from "../perception.ts";
 import type { Room } from "../rooms/format.ts";
 import { blockedAt } from "../sim/collide.ts";
@@ -81,6 +87,8 @@ export interface BotMemory {
   gearWas: boolean;
   markedFor: string | null; // a switches watcher: the lamps (as seen) it last marked a button for
   lastMarkAt: number; // when it last sent a mark (game ms): marks have a cooldown
+  wireMarkedAt: Record<string, number>; // when it last marked a wire panel's answer, by station
+  postSince: number | null; // when it got to the ink it is lighting (game ms), or null
   ear: Ear; // Can't see holding the earpiece: the tune heard, and the code last told
   toTell: number[]; // digits of the earpiece's code still to text, one a turn
   count: Count | null; // a sync lock's counter: the digit it last texted, and when
@@ -148,6 +156,7 @@ const ZERO: Vec = { x: 0, y: 0 };
 const STEP_LEN = (SPEED_TPS * TICK_MS) / 1000;
 const REPEAT_MS = 1500; // a callout is repeated, not spammed
 const FLAVOUR_MS = 10_000;
+const MARK_AFTER_MS = 20_000; // a torch carrier at the ink gives the others this long to read it first
 const IDLE_MS = 5000; // a blind bot with nothing heard for this long stays put
 const CLIP_MS = 10_000;
 const HUM_TICKS = 3;
@@ -210,6 +219,8 @@ export function createBotMemory(
     gearWas: false,
     markedFor: null,
     lastMarkAt: Number.NEGATIVE_INFINITY,
+    wireMarkedAt: {},
+    postSince: null,
     ear: emptyEar(),
     toTell: [],
     count: null,
@@ -651,6 +662,21 @@ function goalFor(
       queue.slice(i + 1).some((j) => j.target.kind !== "exit" && isDone(room, j, known, at, seat)));
   while (m.ptr[seat] < queue.length && behind(m.ptr[seat])) m.ptr[seat]++;
   const queued = queue[m.ptr[seat]] ?? null;
+  // A torch only lights what is in its pool, so a seat carrying one whose ink has not yet been cut
+  // stands at that ink and lights it for the others (a teammate who has no reading job of its own).
+  // (Only for the bot's own seat: the same function works out where the Can't-see seat it guides goes.
+  // A seat whose own job is to work a wire panel reads the ink in doing it, so it keeps that job.)
+  const readsInk = queue
+    .slice(m.ptr[seat])
+    .some(
+      (j) =>
+        j.target.kind === "station" &&
+        known.stations[j.target.id]?.answer !== undefined &&
+        room.objects.find((o) => o.id === (j.target as { id: string }).id)?.params?.numbered ===
+          true,
+    );
+  const post = seat === m.seat && view.gear === "uv" && !readsInk ? inkPost(room, known) : null;
+  if (post) return { goal: post, job: null };
   if (!queued) return { goal: lookAtDoor(room, known, from, exitTile(room, seat)), job: queued };
   // gear passes hand to hand in the hints' order: a gear job waits for every earlier one to be done
   if (GEAR_KINDS.has(queued.target.kind) && !gearTurn(room, m, queued, known, own)) {
@@ -717,6 +743,26 @@ function lookAtDoor(room: Room, known: Known, from: Vec, goal: Vec): Vec {
   const path = findPath({ ...grid, blocked: ignoringDoors }, from, goal);
   const door = path?.findIndex((t) => room.grid[t.y]?.[t.x] === "D") ?? -1;
   return path && door > 0 ? (path[door - 1] as Vec) : goal;
+}
+
+// The floor tile in front of the nearest ink sign of a numbered wire panel that is not yet cut, or
+// null. "Cut" is seen in the one place a seat can see it from the corridor: the door that panel
+// opens, believed open (a sign's own wire panel is out of sight from the post).
+function inkPost(room: Room, known: Known): Vec | null {
+  for (const o of room.objects) {
+    if (o.kind !== "station" || o.params?.type !== "wires" || o.params.numbered !== true) continue;
+    if (known.stations[o.id]?.solved) continue;
+    const doors = room.objects.filter((d) => d.kind === "door" && d.opensWhen?.includes(o.id));
+    if (doors.length > 0 && doors.every((d) => known.doorOpen[d.id] === true)) continue;
+    const sign = room.objects.find((x) => x.id === o.params?.plaque)?.tiles[0];
+    if (!sign) continue;
+    const below = { x: sign.x, y: sign.y + 1 };
+    const above = { x: sign.x, y: sign.y - 1 };
+    const open = (t: Vec) => room.grid[t.y]?.[t.x] === ".";
+    const front = [above, below].find(open);
+    if (front) return front;
+  }
+  return null;
 }
 
 const GEAR_KINDS = new Set<Job["target"]["kind"]>(["take", "give", "sill"]);
@@ -962,16 +1008,22 @@ function workSend(
   }
   const job = queuesOf(room, m, view.role)[m.seat][m.ptr[m.seat]];
   // A wire panel whose answer this bot read from ink or a plaque that only it can read (room 7's ink
-  // needs the torch it holds): it marks that wire once, whatever its job is, so a teammate who has
-  // no way to read it cuts the right one. A mark is a message Can't speak may send.
-  if (canSend(view.role, "mark") && view.tick * TICK_MS - m.lastMarkAt >= COOLDOWN_MS.mark) {
+  // needs the torch it holds): it marks that wire whatever its job is, so a teammate who has no way
+  // to read it cuts the right one, and marks it again each time the last mark has faded, until it
+  // is cut. A mark is a message Can't speak may send.
+  const now = view.tick * TICK_MS;
+  if (canSend(view.role, "mark") && now - m.lastMarkAt >= COOLDOWN_MS.mark) {
     for (const w of room.objects) {
       const wb = known.stations[w.id];
       const want = w.params?.type === "wires" && wb ? wb.answer[0] : null;
       const at = want == null ? undefined : tilesOf(w.params?.wires)[want];
-      if (!wb || wb.solved || !at || wb.told.has(0) || w.params?.numbered !== true) continue;
-      wb.told.add(0);
-      m.lastMarkAt = view.tick * TICK_MS;
+      if (!wb || wb.solved || !at || w.params?.numbered !== true) continue;
+      // standing at the ink lights it for the others first; the answer is only handed over once
+      // they have had a while to read it, and again each time the last mark has faded
+      if (m.postSince === null || now - m.postSince < MARK_AFTER_MS) continue;
+      if (now - (m.wireMarkedAt[w.id] ?? Number.NEGATIVE_INFINITY) < STAMP_LIFE_MS) continue;
+      m.wireMarkedAt[w.id] = now;
+      m.lastMarkAt = now;
       return { method: "mark", id: "x", at: centreOf(at) };
     }
   }
@@ -1126,6 +1178,11 @@ function moveSelf(room: Room, view: RoleView, m: BotMemory, known: Known, pos: V
   const seat = m.seat;
   const tile = tileOf(pos);
   const { goal, job } = goalFor(room, m, seat, view.role, pos, known, tile, view);
+  // how long it has stood at the ink it is lighting (the mark waits on this, see workSend)
+  const post = view.gear === "uv" && job === null ? inkPost(room, known) : null;
+  const atPost = post !== null && post.x === tile.x && post.y === tile.y;
+  if (!atPost) m.postSince = null;
+  else m.postSince ??= view.tick * TICK_MS;
 
   // The guide steers by sight: when the Can't-see seat drops out of view it goes back to
   // where it last reckoned them to be, before doing anything of its own, unless its own job is a
