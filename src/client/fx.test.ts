@@ -70,6 +70,24 @@ describe("detectFx: small effects for what just changed between two views", () =
     expect(detectFx([safe(true)], [safe(true)])).toEqual([]);
   });
 
+  it("makes no ring for a solved station that comes back into sight (Task 46)", () => {
+    const other = e({ id: "P0", kind: "player", seat: 0, pos: { x: 2.5, y: 2.5 } });
+    // absent from prev (out of sight), present and already solved in next: not newly solved
+    expect(detectFx([other], [other, safe(true)])).toEqual([]);
+    // unsolved in view, then solved in view: still exactly one ring
+    expect(detectFx([other, safe(false)], [other, safe(true)])).toHaveLength(1);
+  });
+
+  it("makes no ring for a door already open, a bell already ringing or a sign already ahead on entering view (Task 46)", () => {
+    const other = e({ id: "P0", kind: "player", seat: 0, pos: { x: 2.5, y: 2.5 } });
+    const open = e({ id: "D1", kind: "door", state: "open" });
+    const bell = e({ id: "b1", kind: "bell", state: "on" });
+    const sign = e({ id: "S1", kind: "sign", progress: 2 });
+    expect(detectFx([other], [other, open])).toEqual([]);
+    expect(detectFx([other], [other, bell])).toEqual([]);
+    expect(detectFx([other], [other, sign])).toEqual([]);
+  });
+
   it("arcs gear from one figure to another when it is handed over", () => {
     const a = e({ id: "P0", kind: "player", seat: 0, pos: { x: 2.5, y: 2.5 }, item: "uv" });
     const b = e({ id: "P1", kind: "player", seat: 1, pos: { x: 3.5, y: 2.5 } });

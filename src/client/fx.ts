@@ -38,13 +38,20 @@ export function detectFx(prev: EntityView[], next: EntityView[]): Fx[] {
       out.push({ kind: "ring", pos: e.pos, tone: "ui" });
     } else if (e.kind === "checkpoint" && before?.state === "up" && e.state === "reached") {
       out.push({ kind: "ring", pos: e.pos, tone: "goal", big: true });
-    } else if (e.kind === "sign") {
+    } else if (e.kind === "sign" && wasById.has(e.id)) {
+      // (a sign that was out of sight is not newly ahead: only one seen both times can change)
       const was = wasById.get(e.id)?.progress ?? 0;
       const now = e.progress ?? 0;
       if (now > was) out.push({ kind: "ring", pos: e.pos, tone: "goal" });
       else if (now < was) out.push({ kind: "ring", pos: e.pos, tone: "danger" });
-    } else if (e.kind === "station" && e.station?.solved && !wasById.get(e.id)?.station?.solved) {
-      // solved: the goal ring under it (the tick plate stays, drawn with the station)
+    } else if (
+      e.kind === "station" &&
+      e.station?.solved &&
+      wasById.has(e.id) &&
+      !wasById.get(e.id)?.station?.solved
+    ) {
+      // solved: the goal ring under it (the tick plate stays, drawn with the station). Only one seen
+      // unsolved just before: a station back in line of sight was not solved just now.
       const anchor = e.station.parts.find((p) => p.key === "anchor")?.at[0];
       out.push({
         kind: "ring",
@@ -52,7 +59,12 @@ export function detectFx(prev: EntityView[], next: EntityView[]): Fx[] {
         big: true,
         pos: anchor ? { x: anchor.x + 0.5, y: anchor.y + 0.5 } : e.pos,
       });
-    } else if (e.kind === "bell" && e.state === "on" && wasById.get(e.id)?.state !== "on") {
+    } else if (
+      e.kind === "bell" &&
+      e.state === "on" &&
+      wasById.has(e.id) &&
+      wasById.get(e.id)?.state !== "on"
+    ) {
       out.push({ kind: "swing", pos: e.pos, tone: "ui" });
     } else if (e.kind === "player" && e.item && wasById.has(e.id) && !wasById.get(e.id)?.item) {
       // gear in a hand that was empty: it came from whoever just let go of the same item
