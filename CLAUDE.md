@@ -136,8 +136,8 @@ match on a short unique string, and re-read before a large edit.
 
 ## Hygiene
 
-Format only with `pnpm format` (Biome, line width 100), never `prettier`, and never on a
-directory: a stray run rewrote 60 files outside the task. Run `git status` after any formatter.
+Format only with `pnpm format` (Biome, line width 100); never run `prettier`: a stray run
+rewrote 60 files outside the task. Run `git status` after any formatter.
 Never hand-edit build output or generated files; fix the source and rebuild.
 Never commit a key, and never widen `.gitignore` (`.env*`, `mise.local.toml`,
 `.claude/`) to make one committable. One commit per unit of work once
