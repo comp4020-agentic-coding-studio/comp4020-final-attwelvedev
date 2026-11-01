@@ -13,7 +13,7 @@ None.
 
 ## Tasks
 
-### Task 43: UV ink: short, always shown in the light, no ring  [ ]  (demo 4)
+### Task 43: UV ink: short, always shown in the light, no ring  [~] render half done, ink text deferred  (demo 4)
 
 `drawUv` (`src/client/render/gear.ts:250`) strokes a dashed rim round the pool, clips the ink to the pool polygon and
 `inkBox` centres each line on the ink tile. A long ink at x=1 pokes past the left wall; to the right of the pool the ink is clipped out entirely.
@@ -24,12 +24,14 @@ None.
   Break the clip by hand and watch (c) go red.
 - **Green:** remove the dashed rim (keep the wash and, for high contrast, a solid edge only if the wash is off, as DESIGN.md says: update it). Draw the ink
   so the pool's clip shows whatever part is lit, however far the holder stands; clamp the ink box into the wall's face. Shorten
-  the room 7 ink to a bare number via the `u1`/`u2` text plus `plaqueText` (`src/game/sim/stations.ts:193`, `src/game/perception.ts:858`):
-  "Wire 2" style, written so it needs no wrapping at 5 tiles.
+  the room 7 ink: **deferred (user ruling 2026-11-01).** The user wants the ink to be only the wire number ("2", no "Wire" text), but that
+  drops room 7's rule-reading puzzle (`plaqueText`, `src/game/sim/stations.ts:194`, returns a `WIRE_RULES` sentence that
+  `perception.ts:901` puts in the ink and `src/game/bots/decode.ts:150` matches). It goes back to `plan-feature` with Tasks 45 and 48;
+  this task does the render fixes only. Wrapping still handles the long sentence meanwhile.
 - **Done when:** unit tests pass and screenshots `review/13-task43-uv-{1280,375}.png` show full ink at the left wall, no ring, and ink with the holder far right.
   **Human review:** play room 7 with the torch.
 
-### Task 46: A solved ring plays once  [ ]  (demo 8)
+### Task 46: A solved ring plays once  [x]  (demo 8)
 
 `detectFx` (`src/client/fx.ts:46`) fires the goal ring when `e.station.solved && !wasById.get(e.id)?.station?.solved`, so a station coming back
 into line of sight (absent from `prev`) looks newly solved. Doors, plates and checkpoints already compare `was.get(key(e))` first.
@@ -39,7 +41,7 @@ into line of sight (absent from `prev`) looks newly solved. Doors, plates and ch
 - **Green:** require `wasById.has(e.id)` (and an unsolved `before`) for that branch. Check the other branches for the same shape (`bell`, `sign`).
 - **Done when:** tests pass; a layout-free check by hand: walk out of and into sight of a solved station.
 
-### Task 47: Link wires: only where there is a remote box, to the middle  [ ]  (demo 6)
+### Task 47: Link wires: only where there is a remote box, to the middle  [x]  (demo 6)
 
 `drawLink` (`src/client/render/stations.ts:552`) takes `partsOf(st, "back" | "tune")[0]` and draws a link for every dial and bells station; a
 bells station's tune box is at one end, so the line meets the right of the bells; room 4's first safe has `back` at `[6,3]` with no audio box behind a wall.

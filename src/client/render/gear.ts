@@ -240,10 +240,15 @@ export function inkBox(ctx: CanvasRenderingContext2D, ink: EntityView, cam: Came
   const step = px * 1.25;
   const x = toScreen(cam, ink.pos.x, ink.pos.y).x;
   const edge = toScreen(cam, ink.pos.x, Math.floor(ink.pos.y)).y;
+  const widths = lines.map((text) => ctx.measureText(text).width);
+  // an ink near the left wall is shifted right as one block (its lines stay aligned) until its
+  // widest line starts on screen and inside the wall's face: the world's left edge
+  const left = Math.max(0, toScreen(cam, 0, 0).x);
+  const shift = Math.max(0, left - (x - Math.max(0, ...widths) / 2));
   const placed = lines.map((text, i) => {
     const y = edge - px / 2 - (lines.length - 1 - i) * step;
-    const w = ctx.measureText(text).width;
-    return { text, x, y, box: { x: x - w / 2, y: y - px / 2, w, h: px } };
+    const w = widths[i] as number;
+    return { text, x: x + shift, y, box: { x: x + shift - w / 2, y: y - px / 2, w, h: px } };
   });
   ctx.restore();
   return { px, lines: placed, boxes: placed.map((l) => l.box) };
@@ -264,11 +269,13 @@ export function drawUv(ctx: CanvasRenderingContext2D, scene: Scene, cam: Camera)
       ctx.fill();
       ctx.globalAlpha = 1;
     }
-    ctx.setLineDash([6, 4]);
-    ctx.lineWidth = high ? 3 : 2;
-    ctx.strokeStyle = high ? COLOR.ui : WORLD.uv;
-    ctx.stroke();
-    ctx.setLineDash([]);
+    // no dashed ring: the light is its wash. High contrast has no wash, so there alone it keeps a
+    // solid edge, or the light would be invisible where it falls on bare floor.
+    if (high) {
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = COLOR.ui;
+      ctx.stroke();
+    }
     ctx.clip();
     for (const ink of inks) {
       const b = inkBox(ctx, ink, cam);

@@ -84,3 +84,6 @@ Add a §5 row for phase 13 to `plans/2026-10-28-escape-room-heist-00-overview.md
 ## 7. Corrections log
 
 (execution appends one line per user redirect and mirrors it into `PROCESS_LOG.md`)
+
+- 2026-11-01, Task 43: plan said shorten room 7's ink to "Wire 2" via `plaqueText`; user wanted just the number, no "Wire" text.
+  The plan assumed the ink text was free copy, but it carries the `WIRE_RULES` sentence that players and bots decode.

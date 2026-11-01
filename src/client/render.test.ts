@@ -1491,7 +1491,7 @@ describe("stations, gear and signals", () => {
       );
       const bare = recorder();
       const alone = station("Q1", type, at(1.5, 1.5), [], [{ key: "anchor", at: [at(1, 1)] }]);
-      draw(bare.ctx, room({ entities: [alone, player(1, 3.5, 3.5)] }));
+      draw(bare.ctx, room({ tiles: walled, entities: [alone, player(1, 3.5, 3.5)] }));
       const wires = (ops: { name: string; strokeStyle: unknown; globalAlpha: number }[]) =>
         ops.filter((o) => o.name === "stroke" && o.strokeStyle === WORLD.line && o.globalAlpha < 1);
       expect(wires(wired.ops).length, `${type}: a faint wire is stroked`).toBeGreaterThan(
@@ -1729,6 +1729,94 @@ describe("clues drawn (escape-room Task 11)", () => {
         ).toBeLessThanOrEqual(edge);
       }
     }
+  });
+
+  // Task 43: the UV light has no ring, the ink fits the left wall, and the pool's clip shows what is lit
+  const wideText = (ctx: CanvasRenderingContext2D) => {
+    const font = () =>
+      Number(/(\d+(?:\.\d+)?)px/.exec(String((ctx as unknown as { font: string }).font))?.[1] ?? 0);
+    (ctx as unknown as { measureText: (t: string) => { width: number } }).measureText = (t) => ({
+      width: t.length * 0.56 * font(),
+    });
+  };
+  const uvScene = (inkAt: number, poolFrom: number, poolTo: number, w = 1280) => ({
+    ...base([
+      { id: "u1", kind: "ink", pos: at(inkAt, 3.5), text: "Wire 2: cut it" },
+      {
+        id: "uv0",
+        kind: "uv",
+        pos: at(poolFrom + 2.5, 2.5),
+        polys: [[at(poolFrom, 0.5), at(poolTo, 0.5), at(poolTo, 3), at(poolFrom, 3)]],
+      },
+    ]),
+    tiles: ["#".repeat(12), `#${".".repeat(10)}#`, `#${".".repeat(10)}#`, "#".repeat(12)],
+    w,
+  });
+
+  it("strokes no dashed rim round the UV light (Task 43)", () => {
+    for (const high of [false, true]) {
+      setContrast(high);
+      const { ctx, ops } = recorder();
+      wideText(ctx);
+      const scn = uvScene(1.5, 1, 6);
+      draw(ctx, scn);
+      // the pool's own strokes: after its path (a closing line) and before its clip
+      const clip = ops.findIndex((o) => o.name === "clip");
+      expect(clip, "the pool still clips its ink").toBeGreaterThan(-1);
+      const between = ops
+        .slice(0, clip)
+        .filter((o) => o.name === "stroke" && o.lineDash.length > 0);
+      const rims = between.filter((o) => o.strokeStyle === WORLD.uv || o.strokeStyle === COLOR.ui);
+      expect(rims, `high contrast ${high}: no dashed rim stroked in the UV colour`).toEqual([]);
+      setContrast(false);
+    }
+  });
+
+  it("keeps an ink wider than the room to its left wall on screen and off the wall's far side (Task 43)", () => {
+    for (const w of [1280, 375]) {
+      const { ctx, ops } = recorder();
+      wideText(ctx);
+      const scn = uvScene(1.2, 0.5, 5.5, w);
+      draw(ctx, scn);
+      const cam = camera(scn);
+      const wall = toScreen(cam, 0, 0).x; // the left wall tile's outer edge
+      const lines = ops.filter((o) => o.name === "fillText" && o.fillStyle === WORLD.uvInk);
+      expect(lines.length, `${w}: the ink is drawn`).toBeGreaterThan(0);
+      for (const o of lines) {
+        const px = Number(
+          /(\d+(?:\.\d+)?)px/.exec(String((o as unknown as { font: string }).font))?.[1] ?? 0,
+        );
+        const left = (o.args[1] as number) - (String(o.args[0]).length * 0.56 * px) / 2;
+        expect(left, `${w}: "${o.args[0]}" starts on screen`).toBeGreaterThanOrEqual(0);
+        expect(left, `${w}: "${o.args[0]}" starts inside the wall's face`).toBeGreaterThanOrEqual(
+          wall - 1e-6,
+        );
+      }
+    }
+  });
+
+  it("still draws the lit part of an ink when the torch stands tiles to its right (Task 43)", () => {
+    const { ctx, ops } = recorder();
+    wideText(ctx);
+    // the ink is at x 3.5; the pool is 5 tiles across, 3 tiles to its right: only its tail is lit
+    draw(ctx, uvScene(3.5, 5, 10));
+    const clip = ops.findIndex((o) => o.name === "clip");
+    const text = ops.findIndex((o) => o.name === "fillText" && o.fillStyle === WORLD.uvInk);
+    expect(clip, "a clip is set").toBeGreaterThan(-1);
+    expect(text, "the ink is filled, under the pool's clip").toBeGreaterThan(clip);
+    // and the clip is the pool: the polygon's far corner was traced into the path before it
+    const cam = camera(uvScene(3.5, 5, 10));
+    const far = toScreen(cam, 10, 0.5);
+    expect(
+      ops
+        .slice(0, clip)
+        .some(
+          (o) =>
+            (o.name === "lineTo" || o.name === "moveTo") &&
+            Math.abs((o.args[0] as number) - far.x) < 1e-6,
+        ),
+      "the clip path is the pool's polygon",
+    ).toBe(true);
   });
 
   it("keeps a label chip off UV ink where the ink is drawn: wrapped, on the wall's face (Task 37)", () => {
