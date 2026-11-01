@@ -207,6 +207,28 @@ export function lightPolygon(
 // The wall tiles the light touches. A wall is seen where a ray ends on its face, so it is lit when
 // the polygon has a vertex on its boundary: area would say a wall is dark, since the light stops at
 // its face and never fills it. A vertex on a corner touches up to four tiles.
+// Whether a point is inside the light polygon (even-odd ray crossing).
+function insideLight(light: readonly Vec[], x: number, y: number): boolean {
+  let inside = false;
+  for (let i = 0, j = light.length - 1; i < light.length; j = i++) {
+    const a = light[i] as Vec;
+    const b = light[j] as Vec;
+    if (a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+  }
+  return inside;
+}
+
+// Glass passes sight, so the light runs through a pane and no ray stops on its face: a pane is lit
+// when the light covers it, not when a vertex happens to land on it (those come and go from one
+// step to the next at a shallow angle, and the pane flickered). It is lit when any of a grid of
+// points across its footprint is inside the polygon.
+const GLASS_SAMPLES = [0.1, 0.5, 0.9];
+function glassLit(light: readonly Vec[], tx: number, ty: number): boolean {
+  for (const fx of GLASS_SAMPLES)
+    for (const fy of GLASS_SAMPLES) if (insideLight(light, tx + fx, ty + fy)) return true;
+  return false;
+}
+
 const TOUCH = 1e-3;
 function touchedTiles(light: readonly Vec[]): Set<number> {
   const out = new Set<number>();
@@ -260,7 +282,8 @@ export function drawMist(
       const top = toScreen(cam, x, y, lift);
       const box = { x: top.x, y: top.y, w: s, h: depth + lift * s };
       if (!block) open.push(box);
-      else if (!touched.has(y * 4096 + x)) walls.push(box);
+      else if (row[x] === "=" ? !glassLit(light, x, y) : !touched.has(y * 4096 + x))
+        walls.push(box);
     }
   }
   ctx.save();

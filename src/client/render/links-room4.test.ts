@@ -122,3 +122,152 @@ describe("room 4's safes are wired only where a wall is between (Task 47)", () =
     expect(wire, "after the walls of its rows").toBeGreaterThan(Math.max(...hiding));
   });
 });
+
+// Room 8's little music box plays its tune for the ear: the sighted get nothing flashing above the
+// tune box while a note plays (the box used to lift a cream lid with every chime).
+describe("a music box's tune box has no lid that flashes with the chimes", () => {
+  const room8 = loadRooms().find((r) => r.id === "08-music-room") as ReturnType<
+    typeof loadRooms
+  >[0];
+  const creamRects = (playing: 0 | 1) => {
+    const world = createWorld(room8, 1);
+    world.players[2].pos = { x: 6.5, y: 2.5 };
+    const view = viewFor(world, 2, "mute", true);
+    const entities = view.entities.map((e) =>
+      e.id === "Q1" && e.station
+        ? { ...e, station: { ...e.station, shows: [playing, ...e.station.shows.slice(1)] } }
+        : e,
+    );
+    const scene: Scene = {
+      w: 1280,
+      h: 600,
+      role: "mute",
+      seat: 2,
+      roles: ["blind", "deaf", "mute"],
+      tiles: view.tiles ?? null,
+      entities,
+      self: { x: 6.5, y: 2.5 },
+      layout: "follow",
+      nowMs: 1000,
+    };
+    const rects: { fillStyle: unknown }[] = [];
+    const state: Record<string, unknown> = { globalAlpha: 1, lineDash: [] };
+    const saved: Record<string, unknown>[] = [];
+    const ctx = new Proxy(
+      {},
+      {
+        get: (_t, name) => {
+          if (String(name) in state) return state[String(name)];
+          if (name === "save") return () => saved.push({ ...state });
+          if (name === "restore") return () => Object.assign(state, saved.pop());
+          if (name === "setLineDash") return (a: number[]) => (state.lineDash = a);
+          if (name === "createLinearGradient") return () => ({ addColorStop() {} });
+          if (name === "measureText") return () => ({ width: 10 });
+          return () => {
+            if (name === "fillRect") rects.push({ fillStyle: state.fillStyle });
+          };
+        },
+        set: (_t, name, value) => {
+          state[String(name)] = value;
+          return true;
+        },
+      },
+    ) as unknown as CanvasRenderingContext2D;
+    draw(ctx, scene);
+    return rects.filter((r) => r.fillStyle === WORLD.card).length;
+  };
+  it("draws the same with a note playing as with none", () => {
+    expect(creamRects(1), "a note playing adds no cream rectangle").toBe(creamRects(0));
+  });
+});
+
+// Glass passes sight, so the light goes through a pane and no ray stops on its face. A pane used to
+// count as lit only when a vertex of the light's polygon happened to land beside it; seen at a
+// shallow angle those vertices come and go from one step to the next, and the pane flickered.
+describe("a glass pane does not flicker at the edge of sight", () => {
+  const room8 = loadRooms().find((r) => r.id === "08-music-room") as ReturnType<
+    typeof loadRooms
+  >[0];
+  // the pane at (4,4) in room 8, seen from the corridor row below it
+  const veiled = (y: number, x = 1.5) => {
+    const world = createWorld(room8, 1);
+    const self = { x, y };
+    world.players[2].pos = self;
+    const view = viewFor(world, 2, "mute", true);
+    const scene: Scene = {
+      w: 1280,
+      h: 600,
+      role: "mute",
+      seat: 2,
+      roles: ["blind", "deaf", "mute"],
+      tiles: view.tiles ?? null,
+      entities: [],
+      self,
+      layout: "follow",
+      nowMs: 1000,
+      ...(view.seen ? { seen: view.seen } : {}),
+    };
+    const cam = camera(scene);
+    const top = toScreen(cam, 4, 4, TILT.wall);
+    const boxes: { x: number; y: number; w: number }[] = [];
+    const state: Record<string, unknown> = { globalAlpha: 1, lineDash: [] };
+    const saved: Record<string, unknown>[] = [];
+    let path: { x: number; y: number; w: number; h: number }[] = [];
+    let veilPath: { x: number; y: number; w: number; h: number }[] = [];
+    const ctx = new Proxy(
+      {},
+      {
+        get: (_t, name) => {
+          if (String(name) in state) return state[String(name)];
+          if (name === "save") return () => saved.push({ ...state });
+          if (name === "restore") return () => Object.assign(state, saved.pop());
+          if (name === "setLineDash") return (a: number[]) => (state.lineDash = a);
+          if (name === "createLinearGradient") return () => ({ addColorStop() {} });
+          if (name === "createPattern") return () => null;
+          if (name === "measureText") return () => ({ width: 10 });
+          if (name === "beginPath") return () => (path = []);
+          if (name === "rect")
+            return (x: number, y: number, w: number, h: number) => path.push({ x, y, w, h });
+          if (name === "fill")
+            return () => {
+              if (state.fillStyle === WORLD.mist) veilPath = path.slice();
+            };
+          return () => {};
+        },
+        set: (_t, name, value) => {
+          state[String(name)] = value;
+          return true;
+        },
+      },
+    ) as unknown as CanvasRenderingContext2D;
+    draw(ctx, scene);
+    boxes.push(...veilPath);
+    // a veiled wall-like block is a box at the block's own top-left, as wide as one tile
+    return boxes.some(
+      (b) =>
+        Math.abs(b.x - top.x) < 0.5 &&
+        Math.abs(b.y - top.y) < 0.5 &&
+        Math.abs(b.w - cam.scale) < 0.5,
+    );
+  };
+  it("is veiled or clear the same way across a small movement along it", () => {
+    let flips = 0;
+    let last: boolean | null = null;
+    for (let i = 0; i <= 90; i++) {
+      const v = veiled(5.05 + i * 0.01);
+      if (last !== null && v !== last) flips++;
+      last = v;
+    }
+    expect(
+      flips,
+      "the pane's veil changed this many times over a 0.9-tile walk",
+    ).toBeLessThanOrEqual(1);
+  });
+
+  it("is clear where the light reaches it, and veiled where it does not", () => {
+    // beside the pane in the corridor, the pane is in the light
+    expect(veiled(5.5, 4.5), "standing right below the pane").toBe(false);
+    // in the middle room, behind its own walls, the pane's whole face is out of sight
+    expect(veiled(2.5, 12.5), "in the middle room, behind the wall").toBe(true);
+  });
+});
