@@ -178,12 +178,42 @@ describe("wires", () => {
     expect(plaqueText(plain, "S1")).toBe(WIRE_RULES[st(plain).answer[1] as number]?.text);
   });
 
-  it('words every rule as a full sentence that names its wire, none starting "Otherwise"', () => {
+  it("words every rule as a full sentence that reads alone: a plaque shows one rule, never a list", () => {
     for (const { text } of WIRE_RULES) {
-      expect(text, text).not.toMatch(/^Otherwise/i);
       expect(text, text).toMatch(/^[A-Z][^:]*: cut the [\w ]*wire\.$/);
+      // it must not point at other rules, which are not on the plaque
+      expect(text, text).not.toMatch(
+        /\b(otherwise|above|below|else|other|remaining|rest|none of|any of|previous|following)\b/i,
+      );
     }
-    expect(WIRE_RULES.at(-1)?.text).toBe("None of the rules above: cut the first wire.");
+  });
+
+  it("states a condition that is true of every set of wires that shows it", () => {
+    // Read from the rule's own words, so a plaque that says something false about the wires fails.
+    const NAMES = ["red", "blue", "yellow", "green", "white", "black"];
+    const NUMBER: Record<string, number> = { no: 0, one: 1, two: 2, three: 3 };
+    const claim = (text: string, c: number[]): boolean => {
+      const t = text.toLowerCase();
+      const colourIn = (s: string) => NAMES.findIndex((n) => s.includes(n));
+      const count = (colour: number) => c.filter((x) => x === colour).length;
+      let m = t.match(/^no (\w+) wires?:/);
+      if (m) return count(NAMES.indexOf(m[1] as string)) === 0;
+      m = t.match(/^more than one (\w+) wire:/);
+      if (m) return count(NAMES.indexOf(m[1] as string)) > 1;
+      m = t.match(/^exactly (\w+) (\w+) wires?:/);
+      if (m) return count(NAMES.indexOf(m[2] as string)) === NUMBER[m[1] as string];
+      m = t.match(/^the last wire is (\w+):/);
+      if (m) return c.at(-1) === NAMES.indexOf(m[1] as string);
+      throw new Error(`no reading for "${text}" (colour ${colourIn(t)})`);
+    };
+    for (const n of [3, 4, 5]) {
+      for (let i = 0; i < 6 ** n; i++) {
+        const colours = Array.from({ length: n }, (_, j) => Math.floor(i / 6 ** j) % 6);
+        const { rule } = ruleFor(colours);
+        const text = WIRE_RULES[rule]?.text ?? "";
+        expect(claim(text, colours), `"${text}" for ${colours.map((x) => NAMES[x])}`).toBe(true);
+      }
+    }
   });
 
   it("shows only reworded rules on the plaques in rooms 5 and 9", () => {
