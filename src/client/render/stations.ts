@@ -761,7 +761,7 @@ export function drawStationStanding(
     }
   }
   if (st.type === "bells") {
-    const [playing, ...struck] = st.shows;
+    const [, ...struck] = st.shows; // the first entry is the tune playing, which has no picture
     const last = struck.at(-1);
     partsOf(st, "bells").forEach((t, i) => {
       if (!inRow(t)) return;
@@ -796,16 +796,9 @@ export function drawStationStanding(
     });
     for (const t of partsOf(st, "tune")) {
       if (!inRow(t)) continue;
-      // the music box that plays the tune: a small card box, its lid up while it plays
+      // the music box that plays the tune: a small card box. The tune is for the ear (the sighted
+      // mark its bells from what Can't see hears), so nothing on it moves with a chime.
       plinth(ctx, cam, t, 0.35, 0.18);
-      if (!st.furniture && playing === 1) {
-        const lid = toScreen(cam, t.x + 0.5, t.y + 0.2, LIVE.block * 0.9);
-        ctx.fillStyle = WORLD.card;
-        ctx.strokeStyle = WORLD.line;
-        ctx.lineWidth = 2;
-        ctx.fillRect(lid.x - s * 0.3, lid.y - s * 0.25, s * 0.6, s * 0.25);
-        ctx.strokeRect(lid.x - s * 0.3, lid.y - s * 0.25, s * 0.6, s * 0.25);
-      }
     }
   }
   if (st.type === "switches") {
