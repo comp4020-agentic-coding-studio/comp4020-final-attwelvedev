@@ -51,5 +51,5 @@ The user saw bots wander after a hand-hold was released and ignore players. ADR 
 
 ## Phase Definition of Done
 
-- [ ] Tasks 48, 49 and 50 committed, \`pnpm check\` green, \`pnpm check:flaky 6\` run once with no wheel or reveal failure.
-- [ ] Covers demo 9, 10 and the harness items.
+- [x] Tasks 48, 49 and 50 committed, \`pnpm check\` green, \`pnpm check:flaky 6\` run once with no wheel or reveal failure.
+- [x] Covers demo 9, 10 and the harness items.
