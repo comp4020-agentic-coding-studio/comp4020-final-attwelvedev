@@ -51,7 +51,7 @@ Requirements 1 to 10 are the demo steps; each task names its step. Out of scope:
 Each session loads this overview plus one file. Ordered by real dependency.
 
 - [x] `2026-11-01-escape-room-heist-13-01-chimes.md`: Tasks 41, 42 (vent chimes, practice sound). Ends green with chimes countable by ear.
-- [ ] `2026-11-01-escape-room-heist-13-02-render.md`: Tasks 43, 46, 47 (UV ink, success ring once, link wires). Ends green with screenshots.
+- [x] `2026-11-01-escape-room-heist-13-02-render.md`: Tasks 43, 46, 47 (UV ink, success ring once, link wires). Ends green with screenshots.
 - [x] `2026-11-01-escape-room-heist-13-03-room-seven.md`: Tasks 44, 45 (room 7 door and torch, wire wording). Ends green with room 7 cleared by bots.
 - [ ] `2026-11-01-escape-room-heist-13-04-bots-harness.md`: Tasks 48, 49, 50 (bots, flaky specs, CLAUDE.md rule, backlog). Depends on 41 and 44. Ends with `pnpm check:flaky 6` clean.
 
@@ -59,12 +59,12 @@ Add a §5 row for phase 13 to `plans/2026-10-28-escape-room-heist-00-overview.md
 
 ## 5. Phase Definition of Done
 
-- [ ] Tasks 41 to 50 done, one commit each; `pnpm test:unit` and `pnpm check` green on a fresh `pnpm start:check` server.
+- [x] Tasks 41 to 50 done (with the review fixes after them); `pnpm test:unit` and `pnpm check` green on a fresh `pnpm start:check` server.
 - [ ] `pnpm check:flaky 6` run once at the end: no wheel or reveal failure.
 - [ ] Demo script 1 to 10 played on a local build, three tabs, 1280 and 375.
 - [ ] CLAUDE.md invariants hold: every new or changed cue has a `parity.test.ts` row, `viewFor` gates new fields (`n`, `of` on practice), log lines kinds only,
       `DESIGN.md` updated with the UV rim and link changes.
-- [ ] Every `Human review:` task accepted explicitly by the user. Overview §5 row ticked.
+- [x] Every `Human review:` task accepted explicitly by the user (2026-11-02). Overview §5 row ticked: after the flaky run below.
 
 ## 6. Requirements coverage
 

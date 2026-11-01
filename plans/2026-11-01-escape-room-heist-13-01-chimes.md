@@ -49,7 +49,7 @@ Today the `practice` cue is a dry noise tap (`src/client/audio.ts:297`) so a per
 ## Phase Definition of Done
 
 - [x] Tasks 41 and 42 committed, \`pnpm test:unit\` green, bots clear rooms 5, 6, 8 in every rotation.
-- [x] Covers demo 1, 2, 3 (by test; the eyes-closed **Human review:** items are queued for the end of phase 13).
+- [x] Covers demo 1, 2, 3 (by test; the eyes-closed **Human review:** items were accepted by the user on 2026-11-02, with one exception they chose to take to the backlog: room 6's gap where the radio pips go is not obvious enough, `specs/backlog.md` 2026-11-02).
 
 ## Corrections log
 
