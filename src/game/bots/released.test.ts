@@ -204,3 +204,51 @@ describe("a bot at its exit job leaves through a door that opened out of its sig
     );
   });
 });
+
+// Room 7's ink is only a number: the wire to cut. A bot that reads it with the torch is the only one
+// who can, so it tells the team by marking that wire; a mark is a message Can't speak may send.
+describe("a bot that reads room 7's ink marks the wire it names (Task 48)", () => {
+  const room7 = rooms.find((r) => r.id === "07-night-shift") as (typeof rooms)[0];
+  const wireTiles = (id: string) =>
+    ((room7.objects.find((o) => o.id === id)?.params?.wires ?? []) as [number, number][]).map(
+      ([x, y]) => ({ x, y }),
+    );
+  for (const botRole of ["deaf", "mute"] as Role[]) {
+    it(`a ${botRole} bot with the torch, at the first ink, marks the wire the ink names`, () => {
+      const roles: [Role, Role, Role] =
+        botRole === "deaf" ? ["blind", "deaf", "mute"] : ["blind", "mute", "deaf"];
+      const botSeat = roles.indexOf(botRole) as Seat;
+      const humans = new Set<Seat>(([0, 1, 2] as const).filter((s) => s !== botSeat));
+      const world = createWorld(room7, 1);
+      const bot: BotSeat = { memory: createBotMemory(botSeat, humans, roles), inbox: [] };
+      // it is holding the torch and has worked its way to the ink
+      const torch = world.gear.find((g) => g.item === "uv");
+      if (torch) Object.assign(torch, { heldBy: botSeat, at: null });
+      world.players[botSeat].pos = { x: 2.5, y: 5.5 };
+      const sent: { method: string; at?: { x: number; y: number } }[] = [];
+      const cooldowns = { until: {} };
+      for (let t = 0; t < 400; t++) {
+        const turn = botsAct(
+          room7,
+          world,
+          roles,
+          { [botSeat]: bot },
+          cooldowns,
+          t * TICK_MS,
+          (s) => `Bot ${s}`,
+        );
+        for (const s of turn.sent) if (s.message.method === "mark") sent.push(s.message as never);
+        step(world, turn.inputs, TICK_MS);
+      }
+      const answer = world.stations.Q1?.answer[0] as number;
+      const want = wireTiles("Q1")[answer];
+      expect(sent.length, "it sent a mark").toBeGreaterThan(0);
+      expect(
+        sent.some(
+          (m) => Math.floor(m.at?.x ?? -1) === want?.x && Math.floor(m.at?.y ?? -1) === want?.y,
+        ),
+        "the mark is on the wire the ink names",
+      ).toBe(true);
+    });
+  }
+});

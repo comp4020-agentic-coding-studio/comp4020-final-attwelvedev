@@ -961,6 +961,20 @@ function workSend(
     }
   }
   const job = queuesOf(room, m, view.role)[m.seat][m.ptr[m.seat]];
+  // A wire panel whose answer this bot read from ink or a plaque that only it can read (room 7's ink
+  // needs the torch it holds): it marks that wire once, whatever its job is, so a teammate who has
+  // no way to read it cuts the right one. A mark is a message Can't speak may send.
+  if (canSend(view.role, "mark") && view.tick * TICK_MS - m.lastMarkAt >= COOLDOWN_MS.mark) {
+    for (const w of room.objects) {
+      const wb = known.stations[w.id];
+      const want = w.params?.type === "wires" && wb ? wb.answer[0] : null;
+      const at = want == null ? undefined : tilesOf(w.params?.wires)[want];
+      if (!wb || wb.solved || !at || wb.told.has(0) || w.params?.numbered !== true) continue;
+      wb.told.add(0);
+      m.lastMarkAt = view.tick * TICK_MS;
+      return { method: "mark", id: "x", at: centreOf(at) };
+    }
+  }
   if (job?.target.kind !== "watch" || !canSend(view.role, "mark")) return null;
   const o = room.objects.find((x) => x.id === (job.target as { station: string }).station);
   const b = o && known.stations[o.id];
