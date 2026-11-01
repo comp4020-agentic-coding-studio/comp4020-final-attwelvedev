@@ -93,3 +93,6 @@ Add a §5 row for phase 13 to `plans/2026-10-28-escape-room-heist-00-overview.md
   user had me restore them. Harness fix: a CLAUDE.md Hygiene rule (format with `pnpm format` only).
 - 2026-11-01, Tasks 43, 45, 48: re-planned. Ink is only the wire number, for room 7 only (`"numbered":true`; colours stay drawn as decoys); the digit
   decoder moves into Task 43; Task 45 covers rooms 5 and 9; Task 48 only runs against it. The user is also considering riddle plaques (backlog, not built).
+- 2026-11-01, Task 44: plan gated Q2/Q4's buttons with corridor doors `D5`/`D6`; lint FR2 refuses (only one station open from the
+  start). User wanted the switches and lamps behind one door per half, and chose to add a station outside the doors. The plan
+  assumed a hidden station could be gated without checking FR2 against the whole room's station count.

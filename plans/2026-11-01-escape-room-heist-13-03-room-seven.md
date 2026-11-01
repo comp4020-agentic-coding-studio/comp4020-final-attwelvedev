@@ -13,7 +13,12 @@ From phase 02, Task 43: a wire panel with `"numbered":true` has `plaqueText(worl
 
 ## Tasks
 
-### Task 44: Room 7: a door the right cut opens, torch far from the ink  [ ]  (demo 5)
+### Task 44: Room 7: a door the right cut opens, torch far from the ink  [x]  (demo 5)
+
+> **Ruling 2026-11-01 (user, after FR2 blocked the plan's two corridor doors):** each half gets **one door over the whole nook**
+> (switches and lamps together): `D1` (Q1) over Q2's nook, `D2` (Q3) over Q4's. FR2 then needs a second station open from the
+> start and from the checkpoint, so two teaching dials are added outside the doors: `Q5` (left, opens with `D4`) and `Q6`
+> (right, opens with `D3`). The plan's `D5`/`D6` are not used. `spec/room07.test.ts` is rewritten to match.
 
 Lint's FR2 rule forbids hiding two stations from the start, so the new door sits between the wire stations and the
 switch/lamp stations as a **corridor door**, not over a station. Read `src/game/rooms/lint.ts:450` first and tell the user at once if FR2 forbids it:
