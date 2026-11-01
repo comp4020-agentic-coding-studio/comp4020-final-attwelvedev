@@ -1051,3 +1051,26 @@ needs a hidden pane veiled. My guess at a hidden spot was wrong until I printed 
 Lesson for the harness: three of the four came from a stand-in (a teleport, a copy of a table,
 the bot's brain instead of the server). Break the fix to red is not enough; break it the way a
 lazy fix would, too.
+
+## 2026-11-02 — A flaky layout failure I could not reproduce, and what I did with it
+
+resolved by the commit that adds this entry
+
+One `pnpm check` failed in `escape-hud.test.ts` (phone) with "not laid out", from the spec's own
+`box()` helper. I was told to find the root cause if I could. I could not: the file passed in the
+next full check, in `check:flaky 6` three times (18 runs of the suite in all), and in six runs of
+the file alone under eight busy loops. I wrote down two causes I had reasoned out and tested each
+against the code: the dock vanishing during a resize (the app renders it whenever the room is not
+`cleared`) and an earlier test clearing the shared room (nothing in the file can; the draft room
+needs three people on plates). Neither held, so neither is in the commit as the cause.
+
+What I did instead is the project's own rule for this shape: `box()` waits for the element to be
+laid out (3 s, with the locator in the message) and does not read once after a resize. I checked it
+by pointing a read at a selector that does not exist: it still fails, after the wait, with the
+locator named. The commit says it may not have been the race. The failure was first seen when I had
+leftover busy loops of my own running (load 9 to 11 on 12 cores), which is the likeliest reason it
+appeared at all, and I killed those; since then 3 full `check:flaky` runs and 1 full check are clean.
+
+A smaller lesson: my load test first leaked its busy loops (26 of them, load 71) because I killed a
+subshell's pid and not its group. The second time they ran in one process group, were killed with
+it, and the script printed how many remained.

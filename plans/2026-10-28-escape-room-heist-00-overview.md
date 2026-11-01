@@ -300,7 +300,7 @@ matching `/^\d$/`, or `"stop"` as a callout for a dial; bots read only those two
 | 10 | `…-10-vault.md` | 26–27 | 09 | vault and sync decoders; room 9; old rooms removed; **human review** | [x] |
 | 11 | `…-11-wrap-up.md` | 28–31 | 10 | side jobs, credits, comms map, edition 2, docs, ADRs; **human review** | [ ] |
 | 12 | `…-12-review-fixes.md` | 32–40 | 10 | fixes from the human review of phases 02 to 10 (G, crate plate, labels, links, chimes, room 7, practice lever, HUD, hand-holding); **human review** | [ ] |
-| 13 | `2026-11-01-escape-room-heist-13-00-overview.md` | 41–50 | 12 | fixes from the human review of phase 12 (vent chimes, practice sound, UV ink, room 7 door, link wires, bots, flaky specs); **human review** | [ ] |
+| 13 | `2026-11-01-escape-room-heist-13-00-overview.md` | 41–50 | 12 | fixes from the human review of phase 12 (vent chimes, practice sound, UV ink, room 7 door, link wires, bots, flaky specs); **human review** | [x] |
 
 ## 6. Feature-level Definition of Done
 

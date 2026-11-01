@@ -53,18 +53,18 @@ Each session loads this overview plus one file. Ordered by real dependency.
 - [x] `2026-11-01-escape-room-heist-13-01-chimes.md`: Tasks 41, 42 (vent chimes, practice sound). Ends green with chimes countable by ear.
 - [x] `2026-11-01-escape-room-heist-13-02-render.md`: Tasks 43, 46, 47 (UV ink, success ring once, link wires). Ends green with screenshots.
 - [x] `2026-11-01-escape-room-heist-13-03-room-seven.md`: Tasks 44, 45 (room 7 door and torch, wire wording). Ends green with room 7 cleared by bots.
-- [ ] `2026-11-01-escape-room-heist-13-04-bots-harness.md`: Tasks 48, 49, 50 (bots, flaky specs, CLAUDE.md rule, backlog). Depends on 41 and 44. Ends with `pnpm check:flaky 6` clean.
+- [x] `2026-11-01-escape-room-heist-13-04-bots-harness.md`: Tasks 48, 49, 50 (bots, flaky specs, CLAUDE.md rule, backlog). Depends on 41 and 44. Ends with `pnpm check:flaky 6` clean.
 
 Add a §5 row for phase 13 to `plans/2026-10-28-escape-room-heist-00-overview.md` when the first file is started.
 
 ## 5. Phase Definition of Done
 
 - [x] Tasks 41 to 50 done (with the review fixes after them); `pnpm test:unit` and `pnpm check` green on a fresh `pnpm start:check` server.
-- [ ] `pnpm check:flaky 6` run once at the end: no wheel or reveal failure.
-- [ ] Demo script 1 to 10 played on a local build, three tabs, 1280 and 375.
-- [ ] CLAUDE.md invariants hold: every new or changed cue has a `parity.test.ts` row, `viewFor` gates new fields (`n`, `of` on practice), log lines kinds only,
+- [x] `pnpm check:flaky 6` run once at the end: no wheel or reveal failure (6 of 6 clean on `b27e8e6`, 2026-11-02).
+- [ ] Demo script 1 to 10 played on a local build, three tabs, 1280 and 375. (The user reviewed rooms 4 to 8 by hand on 2026-11-02; they did not say every step ran at both widths, so this stays open for them.)
+- [x] CLAUDE.md invariants hold (checked 2026-11-02: no new cue kind or log line this phase; the changed `practice` cue has its parity row and its `n`/`of` are gated in `viewFor`; DESIGN.md has the links and the UV text): every new or changed cue has a `parity.test.ts` row, `viewFor` gates new fields (`n`, `of` on practice), log lines kinds only,
       `DESIGN.md` updated with the UV rim and link changes.
-- [x] Every `Human review:` task accepted explicitly by the user (2026-11-02). Overview §5 row ticked: after the flaky run below.
+- [x] Every `Human review:` task accepted explicitly by the user (2026-11-02). Master overview row ticked.
 
 ## 6. Requirements coverage
 
