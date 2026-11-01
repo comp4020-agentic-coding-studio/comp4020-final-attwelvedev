@@ -99,3 +99,7 @@ Add a §5 row for phase 13 to `plans/2026-10-28-escape-room-heist-00-overview.md
 - 2026-11-01, Task 48: plan said bots wander after a hand is released (stale `led`/`known.holding`); every release case passed. User said room 8, a
   Can't-hear or Can't-speak bot, wandering before and after. The cause was the bot's own Act letting go of the hand it was led by. The plan
   named the wrong moment because it was written from the symptom, not a reproduction.
+- 2026-11-02, Tasks 45 and 48: the review found my "None of the rules above" no better than "Otherwise" (a plaque shows one rule), the bot's marks
+  never drawn on the wall (only sent as messages), room 7's torch-carrying bot never going to the ink, a lid flashing over room 8's tune box, and
+  glass flickering at a shallow angle. Each was fixed from a failing test through the layer the user saw. The first wire wording and the bot
+  tests were built on stand-ins (a shape check, a teleport) and passed.

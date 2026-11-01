@@ -1018,3 +1018,36 @@ four layouts go red without it.
 Lesson for the harness: both findings came from a spec that checked a stand-in (a synthetic grid; a
 room cleared by three bots) and not the thing the user did (read the real room's picture; play with
 people in two seats). The rooms spec clears every room with three bots and no people.
+
+## 2026-11-02 — Four review findings that were each one layer below where my tests looked
+
+resolved by the commit that adds this entry
+
+The review of phase 13 went on, and every finding sat one layer below a green test.
+
+The plaque: I had reworded "Otherwise" to "None of the rules above", and a test that passed it.
+A plaque shows one rule, so "above" points at nothing, exactly as "Otherwise" did. The test checked
+the sentence's shape and even asserted the exact text, so it could only pass what I had just chosen.
+The new test reads each rule's own words and checks the claim against all 1,472 colour sets that
+reach the last rule, and I broke it two ways ("exactly two red", the old text) to see it go red.
+The first version of the test could not fail on a false sentence (its table was a copy of the
+rules): I found that by breaking it and watching it stay green, then made it read the text.
+
+The marks: the user did not see the bot's marks escalate. In the simulation they did: 27 s, then
+every 8 s. In the real server they were never drawn, because `addStamp` is called only from the
+path for people. The bot's mark arrived as a message and nothing was on the wall. That gap was
+there since bots first marked a switch. A test through the server's own path to room 7 (not the
+bot's brain, which was fine) found it.
+
+The torch: my first room 7 test teleported the bot onto the ink, so it proved the mark worked and
+never asked whether the bot got there. From the real start it never did. The user's "what if the
+bot just stands at the ink so the others notice" was better than my two options, and the
+agreed behaviour is: stand there, then mark after 20 s, repeating until the door opens.
+
+The glass: a pane flickered at a shallow angle (26 flips over 0.9 tile). A first test with only the
+flicker case would have accepted a fix that never veils glass, so there is a second one that
+needs a hidden pane veiled. My guess at a hidden spot was wrong until I printed the map.
+
+Lesson for the harness: three of the four came from a stand-in (a teleport, a copy of a table,
+the bot's brain instead of the server). Break the fix to red is not enough; break it the way a
+lazy fix would, too.
