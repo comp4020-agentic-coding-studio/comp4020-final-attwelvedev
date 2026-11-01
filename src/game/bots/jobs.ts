@@ -357,6 +357,18 @@ export function claimJobs(room: Room, jobs: Job[], seats: SeatInfo[]): Record<Se
       give(bots.reduce((a, b) => (rank(b) < rank(a) ? b : a)).seat, job);
     }
   }
+  // A give is the job of whoever holds the gear. A person who chose it cannot give what a bot took,
+  // so a bot that took a piece of gear also carries the give for it that a person claimed: it hands
+  // the gear on, and the person's own copy is still theirs to do.
+  for (const take of jobs.filter((j) => j.target.kind === "take")) {
+    const gear = (take.target as { gear: string }).gear;
+    const taker = seats.find((s) => !s.human && queues[s.seat].includes(take));
+    if (!taker) continue;
+    for (const give of jobs.filter((j) => j.target.kind === "give" && j.target.gear === gear)) {
+      const owner = seats.find((s) => queues[s.seat].includes(give));
+      if (owner?.human && give.beat >= take.beat) queues[taker.seat].push(give);
+    }
+  }
   for (const j of jobs.filter((x) => x.all)) for (const s of seats) queues[s.seat].push(j);
   for (const s of seats) queues[s.seat].sort((a, b) => a.beat - b.beat || a.index - b.index);
   return queues;

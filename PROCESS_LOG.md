@@ -994,3 +994,27 @@ end, so it uses the towed test (`known.holding`) instead.
 Checked by breaking the mark decoder to see the mark case go red, and by `pnpm check` (126 files,
 1839 tests, 4 min 56 s, the baseline for this phase). Rule for next time: when the plan's reproduction
 passes, ask the user what they saw before changing code.
+
+## 2026-11-01 — Two review findings that every green spec had passed
+
+resolved by the commit that adds this entry
+
+In the human review of phase 13 the user found two things by playing room 4: the second safe has no
+wire to its audio box, and a Can't-speak bot takes the stethoscope, plays the air horn over and over
+and stands in a corner. `pnpm check` had been green throughout.
+
+The wire: commit `f57ba8d` drew it correctly, but in the floor pass, before every wall block, and
+room 4's second safe's wire runs along the top wall, so the wall painted over it. My render tests drew
+synthetic grids with no wall beside the wire. I only found it by drawing the real room on a real
+canvas in Chrome and looking at the screenshot: no wire. The new test draws the real room, and goes
+red when the wire is put back before its row's walls (checked by doing it).
+
+The bot: I had asked the user for the setup instead of guessing, and the answer (they controlled both
+other seats) was the missing fact. With two people, they claim the plan's "give the stethoscope" job
+first, so the bot that took it never had a job to hand it on, and later sounded the air horn at a
+closed door from the exit. A bot that takes gear now carries the give a person claimed. Three of the
+four layouts go red without it.
+
+Lesson for the harness: both findings came from a spec that checked a stand-in (a synthetic grid; a
+room cleared by three bots) and not the thing the user did (read the real room's picture; play with
+people in two seats). The rooms spec clears every room with three bots and no people.

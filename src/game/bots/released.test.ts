@@ -138,3 +138,27 @@ describe("a bot led by a person's hand never lets go of it itself (Task 48)", ()
     }
   }
 });
+
+// The gear a bot took is the gear it hands on: a person who picks the plan's give job cannot give
+// what a bot holds, so the give follows the take (room 4: a Can't-speak bot holds the stethoscope).
+describe("a bot that took a piece of gear hands it over even when a person has the give job (Task 48)", () => {
+  const room4 = rooms.find((r) => r.id === "04-the-safe") as (typeof rooms)[0];
+  // the layouts where a bot plays Can't hear or Can't speak and takes the stethoscope
+  for (const people of [[0, 1], [0], [1], [0, 2]] as Seat[][]) {
+    it(`room 4, people on seats ${people.join(" and ")}: Can't see ends up holding the stethoscope`, () => {
+      const roles: [Role, Role, Role] = ["blind", "deaf", "mute"];
+      const humans = new Set<Seat>(people);
+      const world = createWorld(room4, 1);
+      const bots: Partial<Record<Seat, BotSeat>> = {};
+      for (const s of [0, 1, 2] as const)
+        if (!humans.has(s)) bots[s] = { memory: createBotMemory(s, humans, roles), inbox: [] };
+      const cooldowns = { until: {} };
+      for (let t = 0; t < 1200; t++) {
+        const turn = botsAct(room4, world, roles, bots, cooldowns, t * TICK_MS, (s) => `Bot ${s}`);
+        step(world, turn.inputs, TICK_MS); // the people stand where they spawned
+      }
+      const gear = world.gear.find((g) => g.item === "stethoscope");
+      expect(gear?.heldBy, "who holds the stethoscope").toBe(0);
+    });
+  }
+});
