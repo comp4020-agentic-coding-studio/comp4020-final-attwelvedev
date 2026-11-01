@@ -1753,21 +1753,42 @@ describe("clues drawn (escape-room Task 11)", () => {
     w,
   });
 
-  it("strokes no dashed rim round the UV light (Task 43)", () => {
+  it("strokes a dashed ring round the UV light, with no spoke to its centre (Task 43)", () => {
     for (const high of [false, true]) {
       setContrast(high);
       const { ctx, ops } = recorder();
       wideText(ctx);
-      const scn = uvScene(1.5, 1, 6);
+      // a full-circle pool as the server sends it: the torch first, then rays round to where they began
+      const centre = at(3.5, 2);
+      const ring = [0, 1, 2, 3, 4, 5, 6, 7, 8].map((k) => {
+        const a = (k / 8) * 2 * Math.PI - Math.PI;
+        return at(3.5 + 2 * Math.cos(a), 2 + 1.2 * Math.sin(a));
+      });
+      const scn = {
+        ...uvScene(1.5, 1, 6),
+        entities: [{ id: "uv0", kind: "uv", pos: centre, polys: [[centre, ...ring]] }],
+      } as ReturnType<typeof uvScene>;
       draw(ctx, scn);
-      // the pool's own strokes: after its path (a closing line) and before its clip
-      const clip = ops.findIndex((o) => o.name === "clip");
-      expect(clip, "the pool still clips its ink").toBeGreaterThan(-1);
-      const between = ops
-        .slice(0, clip)
-        .filter((o) => o.name === "stroke" && o.lineDash.length > 0);
-      const rims = between.filter((o) => o.strokeStyle === WORLD.uv || o.strokeStyle === COLOR.ui);
-      expect(rims, `high contrast ${high}: no dashed rim stroked in the UV colour`).toEqual([]);
+      const cam = camera(scn);
+      const mid = toScreen(cam, centre.x, centre.y);
+      const strokeAt = ops.findIndex(
+        (o) => o.name === "stroke" && o.lineDash.length > 0 && o.strokeStyle !== undefined,
+      );
+      expect(strokeAt, `high contrast ${high}: a dashed ring is stroked`).toBeGreaterThan(-1);
+      const began = ops
+        .slice(0, strokeAt)
+        .map((o) => o.name)
+        .lastIndexOf("beginPath");
+      const path = ops
+        .slice(began, strokeAt)
+        .filter((o) => o.name === "moveTo" || o.name === "lineTo");
+      expect(path.length, "the ring's points were traced").toBe(ring.length);
+      const spokes = path.filter(
+        (o) =>
+          Math.abs((o.args[0] as number) - mid.x) < 1e-6 &&
+          Math.abs((o.args[1] as number) - mid.y) < 1e-6,
+      );
+      expect(spokes, `high contrast ${high}: no vertex at the torch, so no spoke`).toEqual([]);
       setContrast(false);
     }
   });

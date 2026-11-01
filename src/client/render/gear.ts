@@ -204,7 +204,7 @@ const tracePoly = (ctx: CanvasRenderingContext2D, cam: Camera, poly: Vec[]) => {
   ctx.closePath();
 };
 
-// The UV pool: a blue-violet wash at 30 % with a dashed rim, clipped by walls (the polygon is the
+// The UV pool: a blue-violet wash at 30 % with a dashed ring (rim only, no spoke to the torch), clipped by walls (the polygon is the
 // server's, cast with the walls), and the ink in it, clipped to the pool so letters cut at the rim.
 // High contrast: no wash, a 3 px dashed white rim, yellow ink outlined black.
 const INK_MIN_PX = 11; // the same floor as a plaque's text
@@ -269,13 +269,25 @@ export function drawUv(ctx: CanvasRenderingContext2D, scene: Scene, cam: Camera)
       ctx.fill();
       ctx.globalAlpha = 1;
     }
-    // no dashed ring: the light is its wash. High contrast has no wash, so there alone it keeps a
-    // solid edge, or the light would be invisible where it falls on bare floor.
-    if (high) {
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = COLOR.ui;
-      ctx.stroke();
+    // The ring is the rim only. A pool's first point is the torch itself (visiblePolygon), so the
+    // closed path would also stroke two spokes in to the centre: the ring is traced again from the
+    // rays alone. The wash is the light; the ring marks where it ends, and is all high contrast has.
+    ctx.save();
+    ctx.beginPath();
+    for (const poly of pool.polys ?? []) {
+      poly.slice(1).forEach((p, i) => {
+        const q = toScreen(cam, p.x, p.y);
+        if (i === 0) ctx.moveTo(q.x, q.y);
+        else ctx.lineTo(q.x, q.y);
+      });
     }
+    ctx.setLineDash([6, 4]);
+    ctx.lineWidth = high ? 3 : 2;
+    ctx.strokeStyle = high ? COLOR.ui : WORLD.uv;
+    ctx.stroke();
+    ctx.restore();
+    ctx.beginPath();
+    for (const poly of pool.polys ?? []) tracePoly(ctx, cam, poly);
     ctx.clip();
     for (const ink of inks) {
       const b = inkBox(ctx, ink, cam);
