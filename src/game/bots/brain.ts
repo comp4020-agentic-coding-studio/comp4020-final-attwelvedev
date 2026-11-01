@@ -651,7 +651,7 @@ function goalFor(
       queue.slice(i + 1).some((j) => j.target.kind !== "exit" && isDone(room, j, known, at, seat)));
   while (m.ptr[seat] < queue.length && behind(m.ptr[seat])) m.ptr[seat]++;
   const queued = queue[m.ptr[seat]] ?? null;
-  if (!queued) return { goal: exitTile(room, seat), job: queued };
+  if (!queued) return { goal: lookAtDoor(room, known, from, exitTile(room, seat)), job: queued };
   // gear passes hand to hand in the hints' order: a gear job waits for every earlier one to be done
   if (GEAR_KINDS.has(queued.target.kind) && !gearTurn(room, m, queued, known, own)) {
     return { goal: from, job: null };
@@ -665,7 +665,10 @@ function goalFor(
     if (!heard) return { goal: from, job: queued };
     job = { ...queued, target: { kind: "plate", id: heard.id, tile: heard.tile } };
   }
-  const goal = jobTile(room, job, seat);
+  const goal =
+    job.target.kind === "exit"
+      ? lookAtDoor(room, known, from, jobTile(room, job, seat))
+      : jobTile(room, job, seat);
   const turn = job.target.kind === "plate" ? sequenceTurn(room, m, job, known, view) : null;
   if (job.target.kind === "plate" && turn) {
     // A sequence door counts presses, in order, each within 5 s of the last. Stand off
@@ -699,6 +702,21 @@ function goalFor(
     if (before) return { goal: before, job };
   }
   return { goal, job };
+}
+
+// A door that opens out of the bot's sight and hearing is never reported, so it goes on believing
+// it shut. Where the way to `goal` is blocked only by doors it believes closed, it goes and looks:
+// the tile before the first of them, from which the door is in view and what it sees stands.
+function lookAtDoor(room: Room, known: Known, from: Vec, goal: Vec): Vec {
+  const grid = { width: room.width, height: room.height };
+  const believed = blockedFor(room, known, goal);
+  if (findPath({ ...grid, blocked: believed }, from, goal)) return goal;
+  const { doorAt } = mapsOf(room);
+  const ignoringDoors = (x: number, y: number) =>
+    believed(x, y) && !(room.grid[y]?.[x] === "D" && doorAt.has(`${x},${y}`));
+  const path = findPath({ ...grid, blocked: ignoringDoors }, from, goal);
+  const door = path?.findIndex((t) => room.grid[t.y]?.[t.x] === "D") ?? -1;
+  return path && door > 0 ? (path[door - 1] as Vec) : goal;
 }
 
 const GEAR_KINDS = new Set<Job["target"]["kind"]>(["take", "give", "sill"]);

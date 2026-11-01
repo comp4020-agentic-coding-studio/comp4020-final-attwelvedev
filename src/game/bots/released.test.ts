@@ -162,3 +162,45 @@ describe("a bot that took a piece of gear hands it over even when a person has t
     });
   }
 });
+
+// A door out of sight is never in the view, and a bot with only the exit left walks to the nearest
+// tile it can reach and waits there. Solving the stations is heard by the whole team, with a bearing.
+describe("a bot at its exit job leaves through a door that opened out of its sight (Task 48)", () => {
+  const room4 = rooms.find((r) => r.id === "04-the-safe") as (typeof rooms)[0];
+  it("room 4: once both safes are solved a Can't-speak bot walks through D1 to the exit", () => {
+    const roles: [Role, Role, Role] = ["blind", "deaf", "mute"];
+    const humans = new Set<Seat>([0, 1]);
+    const world = createWorld(room4, 1);
+    const bot: BotSeat = { memory: createBotMemory(2, humans, roles), inbox: [] };
+    bot.memory.ptr[2] = 4; // its queue's last job: the exit (the earlier ones are done)
+    world.players[2].pos = { x: 17.5, y: 4.5 };
+    world.players[0].pos = { x: 24.5, y: 1.5 };
+    world.players[1].pos = { x: 23.5, y: 1.5 };
+    const cooldowns = { until: {} };
+    for (let t = 0; t < 600; t++) {
+      const turn = botsAct(
+        room4,
+        world,
+        roles,
+        { 2: bot },
+        cooldowns,
+        t * TICK_MS,
+        (s) => `Bot ${s}`,
+      );
+      step(world, turn.inputs, TICK_MS);
+      // the people solve both safes as the sim does: solved, and the team-wide event for the next view
+      if (t === 100)
+        for (const o of room4.objects.filter((x) => x.kind === "station")) {
+          const st = world.stations[o.id];
+          if (!st) continue;
+          st.solved = true;
+          const at = { x: (o.tiles[0]?.x ?? 0) + 0.5, y: (o.tiles[0]?.y ?? 0) + 0.5 };
+          world.events.push({ kind: "station", id: o.id, result: "solved", at });
+        }
+    }
+    expect(world.doorOpen.D1, "the exit door opened").toBe(true);
+    expect(world.players[2].pos.y, "the bot is through the door, not in the corridor").toBeLessThan(
+      4,
+    );
+  });
+});
