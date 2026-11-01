@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { loadRooms } from "../rooms/load.ts";
 import type { Seat, Vec } from "../types.ts";
 import { tuneGroups } from "./chimes.ts";
 import { rng } from "./rng.ts";
@@ -13,7 +14,7 @@ import {
 } from "./stations.ts";
 import { step } from "./step.ts";
 import { input, place, stationWorld, worldWith } from "./testing.ts";
-import type { StationState, World, WorldEvent } from "./world.ts";
+import { createWorld, type StationState, type World, type WorldEvent } from "./world.ts";
 
 // Seat 0 walks onto `tile` and presses Act for one tick, then lets go for one (Act is an edge).
 function press(world: World, tile: Vec, seat: Seat = 0): WorldEvent[] {
@@ -175,6 +176,33 @@ describe("wires", () => {
     }
     const plain = stationWorld({ Q1: WIRES, S1: {} }, 5);
     expect(plaqueText(plain, "S1")).toBe(WIRE_RULES[st(plain).answer[1] as number]?.text);
+  });
+
+  it('words every rule as a full sentence that names its wire, none starting "Otherwise"', () => {
+    for (const { text } of WIRE_RULES) {
+      expect(text, text).not.toMatch(/^Otherwise/i);
+      expect(text, text).toMatch(/^[A-Z][^:]*: cut the [\w ]*wire\.$/);
+    }
+    expect(WIRE_RULES.at(-1)?.text).toBe("None of the rules above: cut the first wire.");
+  });
+
+  it("shows only reworded rules on the plaques in rooms 5 and 9", () => {
+    for (const id of ["05-the-gallery", "09-the-vault"]) {
+      const room = loadRooms().find((r) => r.id === id);
+      if (!room) throw new Error(`no ${id}`);
+      for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) {
+        const w = createWorld(room, seed);
+        for (const o of room.objects.filter((x) => x.params?.type === "wires")) {
+          if (o.params?.numbered) continue;
+          const shown = plaqueText(w, String(o.params?.plaque));
+          expect(
+            WIRE_RULES.map((r) => r.text),
+            `${id} seed ${seed}`,
+          ).toContain(shown);
+          expect(shown).not.toMatch(/^Otherwise/i);
+        }
+      }
+    }
   });
 
   it("is wrong on any other cut", () => {

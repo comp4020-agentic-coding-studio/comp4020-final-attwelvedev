@@ -33,7 +33,7 @@ that blocks the task (do not edit the linter to pass).
 - **Done when:** lint, `spec/room07.test.ts` and `spec/rooms.test.ts` (bots clear it every rotation) pass.
   **Human review:** play room 7: the torch needs finding, the switches cannot be reached before the cut.
 
-### Task 45: Wire rule wording  [ ]  (demo 7)
+### Task 45: Wire rule wording  [x]  (demo 7)
 
 `WIRE_RULES` ends with `"Otherwise: cut the first wire."` (`src/game/sim/stations.ts:38`). Scope after the 2026-11-01 ruling: room 7's plaques are numbers
 (Task 43), so no room 7 card carries a rule; this task rewords the rules rooms 5 and 9 still show. It does not depend on Task 43's order.
@@ -45,5 +45,5 @@ that blocks the task (do not edit the linter to pass).
 
 ## Phase Definition of Done
 
-- [ ] Tasks 44 and 45 committed, \`pnpm lint:rooms\`, \`spec/room07.test.ts\` and \`spec/rooms.test.ts\` green.
+- [x] Tasks 44 and 45 committed, \`pnpm lint:rooms\`, \`spec/room07.test.ts\` and \`spec/rooms.test.ts\` green.
 - [ ] Covers demo 5, 7.

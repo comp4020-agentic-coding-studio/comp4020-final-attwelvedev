@@ -35,7 +35,7 @@ export const WIRE_RULES: { text: string; cut: (c: number[]) => number | null }[]
     text: "More than one yellow wire: cut the first yellow wire.",
     cut: (c) => (c.filter((x) => x === YELLOW).length > 1 ? c.indexOf(YELLOW) : null),
   },
-  { text: "Otherwise: cut the first wire.", cut: () => 0 },
+  { text: "None of the rules above: cut the first wire.", cut: () => 0 },
 ];
 
 export function ruleFor(colours: number[]): { rule: number; cut: number } {
