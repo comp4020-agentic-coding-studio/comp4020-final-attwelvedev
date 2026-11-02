@@ -341,3 +341,26 @@ describe("the reveal's server messages", () => {
     expect(m).toEqual(["hum", "door"]);
   });
 });
+
+describe("the cache fields on `cleared` and `heist` (Task 54)", () => {
+  it("name seats, never nicknames, and the heist's shelf is one row per cache room", () => {
+    const cache: NonNullable<Extract<ServerMsg, { t: "cleared" }>["cache"]> = {
+      room: "04-the-safe",
+      found: true,
+      item: "watch",
+      owner: 0,
+      by: 2,
+      riddle: "Where the moon watches, listen twice.",
+    };
+    const heist: Extract<ServerMsg, { t: "heist" }> = {
+      t: "heist",
+      ms: 1,
+      loot: 1,
+      lootTotal: 2,
+      rank: 1,
+      caches: [{ room: cache.room, found: cache.found, item: cache.item }],
+    };
+    expect(Object.keys(heist.caches[0] ?? {})).toEqual(["room", "found", "item"]);
+    expect(typeof cache.owner).toBe("number");
+  });
+});

@@ -1,0 +1,8 @@
+{"id":"01-cache-a","name":"Cache a","version":1,"beats":[{"name":"Three hands","x":[0,14],"intent":{"blind":"holds a plate and hears the hum","deaf":"sees which plate is free","mute":"signals the moment to step in"}},{"name":"Out","x":[15,19],"intent":{"blind":"follows the footsteps to the exit","deaf":"guides the others onto the exit","mute":"confirms everyone is on it"}}],"objects":{"D1":{"opensWhen":["p1","p2","p3"]},"Q1":{"type":"dial","pads":[[8,4],[10,4]],"digits":2,"range":10,"cache":{"owner":1,"motif":"moon","riddle":"Where the moon watches, listen twice.","item":"watch","tiles":[{"at":[2,4],"motif":"moon"},{"at":[4,4],"motif":"star"}]}}},"hints":{"jobs":[{"beat":1,"goTo":"p2","prefer":"blind"},{"beat":1,"goTo":"p1","prefer":"deaf"},{"beat":1,"goTo":"p3","prefer":"mute"},{"beat":2,"goTo":"E","all":true}]}}
+---
+####################
+#1.......p....D..E.#
+#2.......p....D....#
+#3.......p....D..$.#
+#........Q....#....#
+####################

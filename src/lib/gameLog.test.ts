@@ -114,3 +114,20 @@ describe("gameLinesFor: the sim's station, gear, hold and signal events", () => 
     expect(details).not.toMatch(/Q1|Q2|g1|b1|l1|v1|"n"|7/);
   });
 });
+
+describe("gameLinesFor: a cache (Task 54)", () => {
+  it("logs an uncover and a solve by kind only: never the item, motif, riddle or seat", () => {
+    const lines = gameLinesFor([
+      { kind: "cache", id: "Q9", result: "uncover", seat: 1, at: { x: 3.5, y: 2.5 } },
+      { kind: "cache", id: "Q9", result: "solved", seat: 2, at: { x: 3.5, y: 2.5 } },
+    ]);
+    expect(lines).toEqual([
+      { event: "cache", detail: { kind: "uncover" } },
+      { event: "cache", detail: { kind: "solved" } },
+    ]);
+    const out = JSON.stringify(
+      lines.map((l) => describeGame({ event: l.event, detail: l.detail }).detail),
+    );
+    expect(out).not.toMatch(/watch|moon|Q9|seat|[0-9]/);
+  });
+});

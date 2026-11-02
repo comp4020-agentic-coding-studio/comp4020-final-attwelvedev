@@ -58,7 +58,7 @@ The room's cache result is built from `world` at the clear: `{ room, found, item
 
 ## 5. Task breakdown
 
-### Task 54: Credits, the cache result, the heist record, the log line
+### Task 54 (done): Credits, the cache result, the heist record, the log line
 
 - **Description:** per this file's §4.
 - **Files touched:** `src/game/sim/credits.ts` (`ITEM_NAME`, a cache line; a cache is skipped by the station-type fold), `src/net/attach.ts`
@@ -79,10 +79,10 @@ The room's cache result is built from `world` at the clear: `{ room, found, item
 
 ## 6. Phase Definition of Done
 
-- [ ] Task 54 done and committed.
-- [ ] `pnpm test:unit` and `pnpm check` pass on a fresh check server.
-- [ ] `cleared` and `heist` carry the new fields; no log line carries an item, motif, riddle or seat.
-- [ ] Tick this phase in the 14 overview §5 and commit.
+- [x] Task 54 done and committed.
+- [x] `pnpm test:unit` and `pnpm check` pass on a fresh check server.
+- [x] `cleared` and `heist` carry the new fields; no log line carries an item, motif, riddle or seat.
+- [x] Tick this phase in the 14 overview §5 and commit.
 
 ## 7. Requirements coverage (this phase)
 

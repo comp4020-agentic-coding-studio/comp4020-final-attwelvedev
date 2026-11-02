@@ -4,10 +4,10 @@ import { type RawData, type WebSocket, WebSocketServer } from "ws";
 import { cleanText } from "../game/channels.ts";
 import { cuesIn } from "../game/cues.ts";
 import { cacheFor, spectatorView, viewFor } from "../game/perception.ts";
-import type { Room } from "../game/rooms/format.ts";
+import type { ItemId, Room } from "../game/rooms/format.ts";
 import { loadRooms } from "../game/rooms/load.ts";
 import { DEFAULT_SETUP } from "../game/setup.ts";
-import { creditsOf } from "../game/sim/credits.ts";
+import { cacheResultOf, creditsOf } from "../game/sim/credits.ts";
 import { TICK_MS } from "../game/sim/world.ts";
 import type { Role, Seat } from "../game/types.ts";
 import { db } from "../lib/db.ts";
@@ -104,7 +104,13 @@ interface Running {
   voteTimer: ReturnType<typeof setTimeout> | null; // the end of an open restart vote's time
   // Totalled across rooms as each is cleared, so the heist run saved after
   // room 3 is the whole heist's time and loot, not just the last room's.
-  heist: { ms: number; loot: number; lootTotal: number; versions: string[] };
+  heist: {
+    ms: number;
+    loot: number;
+    lootTotal: number;
+    versions: string[];
+    caches: { room: string; found: boolean; item: ItemId }[];
+  };
 }
 const games = new Map<string, Running>(); // lobby code → game
 // A watcher's device hash → the seat they follow. Nothing here means the whole room, with no sound.
@@ -350,6 +356,7 @@ function tick(code: string): void {
       lootTotal: world.lootTotal,
     });
     const board = roomBoard(db, roomRun);
+    const cache = cacheResultOf(world);
     for (const seat of [0, 1, 2] as const) {
       const who = lobby.seats[seat]?.who;
       if (who) {
@@ -361,6 +368,7 @@ function tick(code: string): void {
           lootTotal: world.lootTotal,
           board,
           credits: creditsOf(world),
+          ...(cache ? { cache } : {}),
         });
       }
     }
@@ -369,6 +377,8 @@ function tick(code: string): void {
     running.heist.loot += world.loot;
     running.heist.lootTotal += world.lootTotal;
     running.heist.versions.push(String(world.room.version));
+    if (cache)
+      running.heist.caches.push({ room: cache.room, found: cache.found, item: cache.item });
     const lastRoom = !roomList()[running.game.roomIndex + 1];
     if (lastRoom) {
       const heistRun = saveRun(db, {
@@ -389,6 +399,7 @@ function tick(code: string): void {
           loot: heistRun.loot,
           lootTotal: heistRun.lootTotal,
           rank: heistRun.rank,
+          caches: running.heist.caches,
         });
       }
     }
@@ -501,7 +512,7 @@ function endVote(code: string, result: "passed" | "declined" | "timeout", by?: s
   } else if (acted === "heist") {
     if (running.timer) clearInterval(running.timer);
     running.timer = null;
-    running.heist = { ms: 0, loot: 0, lootTotal: 0, versions: [] };
+    running.heist = { ms: 0, loot: 0, lootTotal: 0, versions: [], caches: [] };
     running.full = new Set([0, 1, 2]);
     record("room.start", null, lobby, { room: running.game.world.room.id });
     announceRoom(code);
@@ -835,7 +846,7 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
           timer: null,
           pauseTimer: null,
           voteTimer: null,
-          heist: { ms: 0, loot: 0, lootTotal: 0, versions: [] },
+          heist: { ms: 0, loot: 0, lootTotal: 0, versions: [], caches: [] },
         });
         announceRoom(lobby.code);
         record("game.start", who, lobby, { bots: lobby.seats.filter((s) => s.bot).length });

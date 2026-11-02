@@ -35,6 +35,7 @@ export type GameEvent =
   | "hold" // two players took or let go of hands (detail kind: on/off)
   | "signal" // the bell rung or the lamp flashed (detail kind: bell/lamp)
   | "practice" // a practice lever flipped (detail kind: on/off; never which lever)
+  | "cache" // a side job's hidden station uncovered or solved (detail kind only: never the item, motif or riddle)
   | "pull"; // a tug of war began between two hand-holders (no detail: who is never logged)
 
 // One line per discrete thing a player did: never per tick. `who` is a device
@@ -96,6 +97,7 @@ export function gameLinesFor(events: readonly WorldEvent[]): EventLine[] {
       return [{ event: "hold", detail: { kind: e.leader === null ? "off" : "on" } }];
     if (e.kind === "bell" || e.kind === "lamp")
       return [{ event: "signal", detail: { kind: e.kind } }];
+    if (e.kind === "cache") return [{ event: "cache", detail: { kind: e.result } }];
     if (e.kind === "pull") return [{ event: "pull", detail: { kind: "tug" } }];
     if (e.kind === "lever") return [{ event: "practice", detail: { kind: e.on ? "on" : "off" } }];
     return [];

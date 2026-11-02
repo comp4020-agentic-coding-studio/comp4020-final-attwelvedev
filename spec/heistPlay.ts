@@ -41,6 +41,14 @@ function toward(pos: Point, target: Point): { x: number; y: number; arrived: boo
 export interface ClearedMsg {
   t: "cleared";
   room: string;
+  cache?: {
+    room: string;
+    found: boolean;
+    item: string;
+    owner: number;
+    by?: number;
+    riddle: string;
+  };
   ms: number;
   loot: number;
   lootTotal: number;

@@ -42,6 +42,9 @@ describe("the heist moves on from a cleared room", () => {
     expect(first).toMatchObject({ room: "01-first-steps", loot: 0 });
     expect(first.ms).toBeGreaterThan(0);
     expect(first.lootTotal).toBeGreaterThanOrEqual(1);
+    // room 1 has no side job: no cache result, and no side-job line in anyone's credits
+    expect(first).not.toHaveProperty("cache");
+    for (const c of first.credits) expect(c.lines.join(" ")).not.toMatch(/side job/);
     // one credit per seat, in fixed words: a teammate is a {seat} token, never a name
     expect(first.credits.map((c) => c.seat)).toEqual([0, 1, 2]);
     for (const c of first.credits) expect(c.lines.length).toBeGreaterThan(0);

@@ -106,7 +106,7 @@ Each session loads this overview plus one file. Ordered by real dependency.
 
 - [x] `2026-11-02-escape-room-heist-14-01-sim-view.md`: Tasks 51 to 53 (cache in the sim, own-only view and team sounds, linters).
   Ends green with a test room where a cache is uncovered, solved and undone by a send-back.
-- [ ] `2026-11-02-escape-room-heist-14-02-server.md`: Task 54 (credits, heist record, wire formats, log). Depends on 51, 52.
+- [x] `2026-11-02-escape-room-heist-14-02-server.md`: Task 54 (credits, heist record, wire formats, log). Depends on 51, 52.
 - [ ] `2026-11-02-escape-room-heist-14-03-client.md`: Tasks 55 to 57 (items and plate, chip and moments, cleared tile and shelf).
   Depends on 52, 54. Ends with screenshots and the user's reviews.
 - [ ] `2026-11-02-escape-room-heist-14-04-rooms-wrap.md`: Tasks 58 to 60 (six caches in rooms 4 to 9, wrap-up). Depends on 53, 55 to 57.

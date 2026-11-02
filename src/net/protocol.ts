@@ -109,6 +109,16 @@ export type ServerMsg =
       board: RoomBoard;
       // who did what, in fixed words: a teammate is a `{seat}` token the page fills in (never a name here)
       credits: { seat: Seat; lines: string[] }[];
+      // the room's side job, found or not (absent in a room with none). Seats, never names; the
+      // riddle is shown to the whole team here because the room is over
+      cache?: {
+        room: string;
+        found: boolean;
+        item: ItemId;
+        owner: Seat;
+        by?: Seat;
+        riddle: string;
+      };
     }
   | ({ t: "msg" } & ChannelMessage) // only ever sent to a seat whose role receives the method
   | { t: "cooldown"; method: Method; until: number }
@@ -144,7 +154,15 @@ export type ServerMsg =
   | { t: "spec.msg"; nickname: string; text: string; at: number } // watchers' chat: never sent to a player
   | { t: "vote.end"; kind: VoteKind; result: "passed" | "declined" | "timeout"; by?: string } // by: who declined
   | { t: "resume"; back: string | null } // the person is back, or null when a bot took the seat
-  | { t: "heist"; ms: number; loot: number; lootTotal: number; rank: number }; // the whole heist is done
+  // the whole heist is done; `caches` has one row per room that had a side job, in room order
+  | {
+      t: "heist";
+      ms: number;
+      loot: number;
+      lootTotal: number;
+      rank: number;
+      caches: { room: string; found: boolean; item: ItemId }[];
+    };
 
 const MAX_FRAME = 8 * 1024;
 
