@@ -137,7 +137,7 @@ Each session loads this overview plus one file. Ordered by real dependency (the 
 - [x] `2026-11-02-escape-room-heist-14-01-sim-view.md`: Tasks 51 to 53 (cache in the sim, own-only view and team sounds, linters). Done
   as first built; **superseded in part** by 14-02b (the solve rule, the in-place hidden station).
 - [x] `2026-11-02-escape-room-heist-14-02-server.md`: Task 54 (credits, heist record, wire formats, log). Done; **amended** by Task 65.
-- [ ] `2026-11-02-escape-room-heist-14-02b-chamber.md`: Tasks 61 to 65 (commit what survives, the chamber in the format and linters, the
+- [x] `2026-11-02-escape-room-heist-14-02b-chamber.md`: Tasks 61 to 65 (commit what survives, the chamber in the format and linters, the
   doors, keepsake and loot-at-pickup in the sim, the masked view, the amended server results). Depends on 51 to 54.
 - [ ] `2026-11-02-escape-room-heist-14-03-client.md`: Tasks 55 (done), 56 (rewritten: the chamber on the map, the chip, the keepsake slot),
   57 (the cleared tile and the shelf, three states). Depends on 62 to 65. Ends with screenshots and the user's reviews.

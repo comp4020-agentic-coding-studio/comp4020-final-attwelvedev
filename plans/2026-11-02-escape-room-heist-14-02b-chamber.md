@@ -258,12 +258,12 @@ view with `full = true`, so the sighted get the unmasked map the same tick.
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 61 to 65 done and committed one each.
-- [ ] `pnpm test:unit` and `pnpm check` pass on a fresh check server.
-- [ ] `src/game/sim/cache.test.ts` and `chamber.test.ts`: a chamber opened, solved, its item taken by the owner only, and all of it undone by a send-back.
-- [ ] No sighted or watcher view lists the chamber, the vault or a secret door before it opens (the tests of Task 64).
-- [ ] CLAUDE.md invariants: parity rows (`uncover`, `stash`, `loot`), `viewFor` gating, no bot reads cache state.
-- [ ] Tick this phase in the 14 overview §5 and commit.
+- [x] Tasks 61 to 65 done and committed one each.
+- [x] `pnpm test:unit` and `pnpm check` pass on a fresh check server.
+- [x] `src/game/sim/cache.test.ts` and `chamber.test.ts`: a chamber opened, solved, its item taken by the owner only, and all of it undone by a send-back.
+- [x] No sighted or watcher view lists the chamber, the vault or a secret door before it opens (the tests of Task 64).
+- [x] CLAUDE.md invariants: parity rows (`uncover`, `stash`, `loot`), `viewFor` gating, no bot reads cache state.
+- [x] Tick this phase in the 14 overview §5 and commit.
 
 ## 7. Requirements coverage (this phase)
 
