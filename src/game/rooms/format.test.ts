@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseRoom, RoomFormatError } from "./format.ts";
+import { cacheOf, parseRoom, RoomFormatError } from "./format.ts";
 
 const header = (extra = "") =>
   `{"id":"t-room","name":"Test room","version":1,"beats":[{"name":"Three hands","x":[8,19],"intent":{"blind":"b","deaf":"d","mute":"m"}}],"objects":{"D1":{"opensWhen":["p1","p2","p3"]}${extra}}}`;
@@ -285,5 +285,65 @@ describe("parseRoom: clue keys (escape-room Task 11)", () => {
     expect(() =>
       parseRoom(text(grid, head({ Q1: { ...SWITCHES, motif: "sun" }, Q2: VAULT }))),
     ).toThrow(/Q1.*motif/);
+  });
+});
+
+describe("parseRoom: caches (escape-room phase 14, Task 51)", () => {
+  const grid = ["#########", "#1.Q....#", "#2......#", "#3......#", "#########"];
+  const DIAL = {
+    type: "dial",
+    pads: [
+      [2, 2],
+      [4, 2],
+    ],
+    digits: 2,
+    range: 10,
+  };
+  const CACHE = {
+    owner: 2,
+    motif: "moon",
+    riddle: "Where the moon watches, listen twice.",
+    item: "watch",
+    tiles: [
+      { at: [5, 1], motif: "moon" },
+      { at: [6, 1], motif: "star" },
+    ],
+  };
+  const withCache = (cache: unknown) =>
+    parseRoom(text(grid, header(`,"Q1":${JSON.stringify({ ...DIAL, cache })}`)));
+
+  it("cacheOf gives a CacheSpec for a cache and null for a plain station", () => {
+    const room = withCache(CACHE);
+    expect(cacheOf(room.objects.find((o) => o.id === "Q1") as never)).toEqual({
+      owner: 2,
+      motif: "moon",
+      riddle: "Where the moon watches, listen twice.",
+      item: "watch",
+      tiles: [
+        { at: { x: 5, y: 1 }, motif: "moon" },
+        { at: { x: 6, y: 1 }, motif: "star" },
+      ],
+    });
+    const plain = parseRoom(text(grid, header(`,"Q1":${JSON.stringify(DIAL)}`)));
+    expect(cacheOf(plain.objects.find((o) => o.id === "Q1") as never)).toBeNull();
+  });
+
+  it("fails a cache with two matching tiles, an owner of 4, an unknown item, or too many tiles", () => {
+    const tile = (x: number, motif: string) => ({ at: [x, 1], motif });
+    expect(() => withCache({ ...CACHE, tiles: [tile(5, "moon"), tile(6, "moon")] })).toThrow(
+      /Q1.*exactly one/,
+    );
+    expect(() => withCache({ ...CACHE, tiles: [tile(5, "star")] })).toThrow(/Q1.*exactly one/);
+    expect(() => withCache({ ...CACHE, owner: 4 })).toThrow(/Q1.*owner/);
+    expect(() => withCache({ ...CACHE, item: "jetpack" })).toThrow(/Q1.*item/);
+    expect(() => withCache({ ...CACHE, motif: "sun" })).toThrow(/Q1.*motif/);
+    const many = ["moon", "star", "wave", "key", "eye", "leaf", "star"].map((m, i) =>
+      tile(i + 1, m),
+    );
+    expect(() => withCache({ ...CACHE, tiles: many })).toThrow(/Q1.*at most 6/);
+  });
+
+  it("no longer knows the j tile", () => {
+    expect(() => parseRoom(text(["#####", "#123#", "#.j.#", "#####"]))).toThrow(/unknown tile "j"/);
   });
 });

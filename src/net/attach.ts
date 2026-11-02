@@ -3,7 +3,7 @@ import type { Duplex } from "node:stream";
 import { type RawData, type WebSocket, WebSocketServer } from "ws";
 import { cleanText } from "../game/channels.ts";
 import { cuesIn } from "../game/cues.ts";
-import { sideJobFor, spectatorView, viewFor } from "../game/perception.ts";
+import { cacheFor, spectatorView, viewFor } from "../game/perception.ts";
 import type { Room } from "../game/rooms/format.ts";
 import { loadRooms } from "../game/rooms/load.ts";
 import { DEFAULT_SETUP } from "../game/setup.ts";
@@ -177,7 +177,7 @@ function revealFor(
   seat?: Seat,
 ): ServerMsg {
   const { game } = running;
-  const job = seat === undefined ? undefined : sideJobFor(game.world, seat);
+  const cache = seat === undefined ? undefined : cacheFor(game.world, seat);
   return {
     t: "reveal",
     room: game.world.room.id,
@@ -192,7 +192,7 @@ function revealFor(
     played: Object.fromEntries(lobby.people.map((p) => [p.nickname, p.played])),
     real: realFor(lobby, running, who, role),
     cues: role === "blind" ? cuesIn(game.world.room) : [],
-    ...(job ? { sideJob: job.text } : {}),
+    ...(cache ? { cache: { motif: cache.motif, riddle: cache.riddle, item: cache.item } } : {}),
   };
 }
 

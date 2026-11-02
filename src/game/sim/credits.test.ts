@@ -82,34 +82,6 @@ describe("creditsOf", () => {
     ]);
   });
 
-  it("credits a side job to its owner and its picker, naming the other by seat token", () => {
-    const w = stationWorld({
-      Q1: {
-        type: "radio",
-        pads: [
-          [6, 4],
-          [8, 4],
-        ],
-        range: 8,
-      },
-    });
-    w.sideJobsDone.push("j1");
-    w.sideJobBy.j1 = 0;
-    w.room.objects.push({
-      id: "j1",
-      kind: "sidejob",
-      tiles: [{ x: 3, y: 3 }],
-      visibleTo: [],
-      audibleTo: [],
-      params: { owner: 2, text: "the music box" },
-    });
-    const lines = creditsOf(w);
-    expect(lines.find((c) => c.seat === 1)?.lines).toEqual(["side job: the music box (with {0})"]);
-    expect(lines.find((c) => c.seat === 0)?.lines).toEqual([
-      "fetched {1}'s side job: the music box",
-    ]);
-  });
-
   it("a solve made by Act records who did it", () => {
     const w = stationWorld(
       {

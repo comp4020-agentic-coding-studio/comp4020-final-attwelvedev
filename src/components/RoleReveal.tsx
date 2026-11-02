@@ -10,6 +10,7 @@ import {
 } from "../client/reveal.ts";
 import { PAGE_LABEL, PAGE_METHOD, type Page } from "../client/wheel.ts";
 import type { BriefingCue } from "../game/cues.ts";
+import type { RoleView } from "../game/perception.ts";
 import { ROLE_LABEL, type Role, type Seat } from "../game/types.ts";
 import type { CrewMember, RealLife } from "../net/protocol.ts";
 import { ReceiverLine } from "./ReceiverLine.tsx";
@@ -45,7 +46,7 @@ export function RoleReveal({
   host,
   onSwap,
   audio,
-  sideJob,
+  cache,
 }: {
   name: string;
   index: number;
@@ -65,7 +66,7 @@ export function RoleReveal({
   host: boolean;
   onSwap: (a: string, b: string) => void; // by nickname: the page maps to person indexes
   audio: { current: GameAudio | null };
-  sideJob?: string; // your own side job, if the room has one for you (never shown to the others)
+  cache?: Pick<NonNullable<RoleView["cache"]>, "motif" | "riddle" | "item">; // your own seat's cache, if the room has one for you (never shown to the others)
 }) {
   const sends = sendsOf(role);
   const gets = getsOf(role);
@@ -116,10 +117,10 @@ export function RoleReveal({
             <dt>You get</dt>
             <dd>{pagesText(gets)}</dd>
           </div>
-          {sideJob && (
+          {cache && (
             <div>
               <dt>Your side job</dt>
-              <dd>{sideJob}</dd>
+              <dd>{cache.riddle}</dd>
             </div>
           )}
         </dl>

@@ -72,6 +72,9 @@ import { usePause } from "./usePause.ts";
 import { useVoice } from "./useVoice.ts";
 import { type OpenVote, outcomeText, VotePrompt } from "./VotePrompt.tsx";
 
+// What the reveal tells the owner of a cache: the riddle and what it hides, never its state.
+export type RevealCache = Pick<NonNullable<RoleView["cache"]>, "motif" | "riddle" | "item">;
+
 export interface Reveal {
   room: string;
   name: string; // the room's title, from its file
@@ -83,7 +86,7 @@ export interface Reveal {
   played: Record<string, Role[]>; // by nickname: roles played so far
   real: RealLife; // what your setup means for you in this room
   cues: BriefingCue[]; // Can't see only: the sounds to learn
-  sideJob?: string; // your own side job, if the room has one for you
+  cache?: RevealCache; // your own seat's cache, if the room has one for you
   from?: Role; // your role in the room before, so the shape can morph into the new one
 }
 
@@ -602,7 +605,7 @@ function Hud({
   const [act, setAct] = useState<string | undefined>(undefined);
   const [gear, setGear] = useState<GearItem | null>(null);
   const [lamp, setLamp] = useState<Role | null>(null);
-  const [sideJob, setSideJob] = useState<RoleView["sideJob"]>(undefined);
+  const [cache, setCache] = useState<RoleView["cache"]>(undefined);
   const [carried, setCarried] = useState<Partial<Record<Seat, GearItem>>>({});
   const [watchOpen, setWatchOpen] = useState(false);
   const [cleared, setCleared] = useState(false);
@@ -857,8 +860,10 @@ function Hud({
       setLoot(view.loot);
       setAct(view.act);
       setGear(view.gear ?? null);
-      setSideJob((old) =>
-        old?.id === view.sideJob?.id && old?.done === view.sideJob?.done ? old : view.sideJob,
+      setCache((old) =>
+        old?.id === view.cache?.id && old?.state === view.cache?.state && old?.by === view.cache?.by
+          ? old
+          : view.cache,
       );
       // the lamp shows for a second after its flash, from the puller's role (at most 2 a second:
       // the server rate-limits the switch)
@@ -1065,7 +1070,7 @@ function Hud({
           role="img"
           aria-label={role === "blind" ? "No map. Listen to the room." : "Map of the room"}
         />
-        <SideJob job={sideJob} />
+        <SideJob cache={cache} />
         <Captions lines={lines} cues={cues} />
         {!cleared && (
           <div class="hud-dock">

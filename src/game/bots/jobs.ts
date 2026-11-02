@@ -1,4 +1,4 @@
-import type { Room } from "../rooms/format.ts";
+import { cacheOf, type Room } from "../rooms/format.ts";
 import type { Role, Seat, Vec } from "../types.ts";
 import type { StationBelief } from "./decode.ts";
 
@@ -78,6 +78,14 @@ export function parseJob(room: Room, j: unknown, index: number): Job | string {
     return `hint job ${index + 1} is in beat ${j.beat}, but the room has ${room.beats.length}`;
   }
   let target: JobTarget | null = null;
+  // bots never work a cache (caches FR8): it is for the people, and the room clears without it
+  for (const key of ["station", "listen", "watch"] as const) {
+    const named =
+      typeof j[key] === "string" ? room.objects.find((o) => o.id === j[key]) : undefined;
+    if (named && cacheOf(named)) {
+      return `hint job ${index + 1} ${key === "station" ? "works" : key === "listen" ? "listens at" : "watches"} ${named.id}, which is a cache: bots never work a cache`;
+    }
+  }
   const gearId = (id: unknown) =>
     room.objects.find((o) => o.id === id && o.kind === "gear") ? (id as string) : null;
   if (typeof j.station === "string") {

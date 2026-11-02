@@ -89,6 +89,16 @@ const PADS = [
 ];
 const KEYS = [0, 1, 2].flatMap((y) => [0, 1, 2].map((x) => [8 + x, 1 + y]));
 const MUTE = 2;
+const CACHE_AT = {
+  owner: 2,
+  motif: "moon",
+  riddle: "Where the moon watches, listen twice.",
+  item: "watch",
+  tiles: [
+    { at: [10, 1], motif: "moon" },
+    { at: [12, 1], motif: "star" },
+  ],
+};
 
 const PARITY: Record<SoundCue["kind"], Scenario> = {
   tick: (() => {
@@ -312,6 +322,26 @@ const PARITY: Record<SoundCue["kind"], Scenario> = {
       world,
       act: () => actBy(world, MUTE, { x: 7, y: 1 }),
       sees: (b, a) => !solvedIn(b) && solvedIn(a),
+    };
+  })(),
+  uncover: (() => {
+    const world = stationAt({ type: "dial", pads: PADS, back: [6, 3], digits: 1, cache: CACHE_AT });
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 10, y: 1 }),
+      sees: (b, a) => ent(b, "Q1") === undefined && ent(a, "Q1") !== undefined,
+    };
+  })(),
+  stash: (() => {
+    const world = stationAt({ type: "dial", pads: PADS, back: [6, 3], digits: 1, cache: CACHE_AT });
+    world.cacheUncovered.push("Q1");
+    const s = world.stations.Q1;
+    if (s) s.input = [s.answer[0] as number];
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 6, y: 1 }),
+      sees: (b, a) =>
+        ent(b, "Q1")?.station?.stash === undefined && ent(a, "Q1")?.station?.stash === "watch",
     };
   })(),
   footsteps: (() => {

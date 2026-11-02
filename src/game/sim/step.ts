@@ -1,4 +1,4 @@
-import { flipsOf } from "../rooms/format.ts";
+import { cacheOf, flipsOf, type RoomObject } from "../rooms/format.ts";
 import type { PlayerInput, Seat, Vec } from "../types.ts";
 import { blockedAt, circleHitsTile, crateAt, crateTouching, indexOf, tileKey } from "./collide.ts";
 import { actOn, gearPress, releaseAll, tow } from "./gear.ts";
@@ -322,7 +322,8 @@ function updateCheckpoints(world: World) {
       crates: world.crates.map((c) => ({ id: c.id, tile: { ...c.tile } })),
       lootTaken: [...world.lootTaken],
       gear: copyGear(world.gear),
-      sideJobsDone: [...world.sideJobsDone],
+      cacheUncovered: [...world.cacheUncovered],
+      cacheBy: { ...world.cacheBy },
     };
     world.events.push({ kind: "checkpoint", index });
   }
@@ -336,18 +337,6 @@ function updateLoot(world: World) {
     world.lootTaken.push(o.id);
     world.loot += lootValue(o.params);
     world.events.push({ kind: "loot", id: o.id, at: tileCentre(at) });
-  }
-  // a side job is loot with an owner: anyone may take it, and both are credited
-  for (const o of world.room.objects.filter((o) => o.kind === "sidejob")) {
-    const at = o.tiles[0];
-    if (!at || world.sideJobsDone.includes(o.id)) continue;
-    const picker = world.players.find((p) => tileOf(p.pos).x === at.x && tileOf(p.pos).y === at.y);
-    if (!picker) continue;
-    world.sideJobsDone.push(o.id);
-    world.sideJobBy[o.id] = picker.seat;
-    world.loot += lootValue(o.params);
-    world.events.push({ kind: "sidejob", id: o.id, seat: picker.seat });
-    world.events.push({ kind: "loot", id: o.id, at: tileCentre(at) }); // the whole team hears it
   }
 }
 
@@ -366,17 +355,23 @@ function sendBack(world: World, caught: Catch) {
   world.lootTaken = [...snapshot.lootTaken];
   world.gear = copyGear(snapshot.gear);
   releaseAll(world);
-  world.sideJobsDone = [...snapshot.sideJobsDone];
-  for (const id of Object.keys(world.sideJobBy)) {
-    if (!world.sideJobsDone.includes(id)) delete world.sideJobBy[id];
+  world.cacheUncovered = [...snapshot.cacheUncovered];
+  world.cacheBy = { ...snapshot.cacheBy };
+  // a cache solved after the checkpoint is closed again: its station is unsolved and drawn afresh
+  for (const id of Object.keys(world.solvedBy)) {
+    if (
+      cacheOf(world.room.objects.find((o) => o.id === id) as RoomObject) &&
+      !(id in world.cacheBy)
+    ) {
+      delete world.solvedBy[id];
+      const s = world.stations[id];
+      if (s) s.solved = false;
+    }
   }
-  world.loot = world.room.objects
-    .filter(
-      (o) =>
-        (o.kind === "loot" && world.lootTaken.includes(o.id)) ||
-        (o.kind === "sidejob" && world.sideJobsDone.includes(o.id)),
-    )
-    .reduce((sum, o) => sum + lootValue(o.params), 0);
+  world.loot =
+    world.room.objects
+      .filter((o) => o.kind === "loot" && world.lootTaken.includes(o.id))
+      .reduce((sum, o) => sum + lootValue(o.params), 0) + Object.keys(world.cacheBy).length;
   world.seqProgress = {};
   world.seqFlash = {};
   world.events.push({ kind: "caught", ...caught });

@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { RoomObject } from "./format.ts";
+import { cacheTypeFaults } from "./lint.ts";
 import { loadRooms } from "./load.ts";
 
 // Clues FR9, FR10: the heist teaches at most two new things a room. A thing is a kind of object a
 // person meets; loot, checkpoints, the exit and the spawns are in every room and not counted. A
 // side job is loot with an owner: walked onto, nothing to learn, so it is not counted either
 // (user, 2026-11-02, phase 11 Task 28).
-const EVERYWHERE = new Set<RoomObject["kind"]>(["loot", "sidejob", "checkpoint", "exit", "spawn"]);
+const EVERYWHERE = new Set<RoomObject["kind"]>(["loot", "checkpoint", "exit", "spawn"]);
 
 describe("pacing", () => {
   it("each shipped room introduces at most two kinds of thing not met in an earlier room", () => {
@@ -22,5 +23,11 @@ describe("pacing", () => {
     for (const [id, kinds] of Object.entries(fresh)) {
       expect(kinds.length, `${id} introduces ${kinds.join(", ")}`).toBeLessThanOrEqual(2);
     }
+  });
+
+  // Caches FR2 (spec §2.2): a cache is an optional station of a type already met, so it adds nothing to
+  // learn. A first appearance of a station type is never a cache.
+  it("each cache is of a station type an earlier room (or the same room, first) taught", () => {
+    expect(cacheTypeFaults(loadRooms())).toEqual([]);
   });
 });

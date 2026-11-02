@@ -1,7 +1,7 @@
 // Stations (spec FR5-FR14): puzzles worked by standing on a tile and pressing Act. Pure: the
 // answers come from a seeded generator, and a wrong answer is reported to `step`, which sends the
 // team back (FR15). Each type's parts are tiles named in the station's metadata.
-import type { RoomObject } from "../rooms/format.ts";
+import { cacheOf, type RoomObject } from "../rooms/format.ts";
 import type { Seat, Vec } from "../types.ts";
 import { groupStartingOn, tuneGroups } from "./chimes.ts";
 import { rng } from "./rng.ts";
@@ -127,6 +127,13 @@ function startInput(type: StationType, params: Record<string, unknown>): number[
 const stationObjects = (world: World): RoomObject[] =>
   world.room.objects.filter((o) => o.kind === "station");
 
+// A cache is hidden until its motif tile is pressed (caches FR1, FR4): until then it is in no view,
+// no hint and no sound, and an Act on its parts does nothing. A solved cache is open for good.
+export const cacheOpen = (world: World, id: string): boolean => {
+  const o = world.room.objects.find((x) => x.id === id);
+  return !o || cacheOf(o) === null || world.cacheUncovered.includes(id);
+};
+
 // A fresh answer and empty input for every unsolved station, from rng(seed * 1000 + attempt): at
 // room start and on every send-back (FR5). A solved station stays solved.
 export function drawStations(world: World): void {
@@ -178,7 +185,7 @@ function revealOn(world: World, o: RoomObject, s: StationState): void {
 
 // A teaching station's wrong answer (clues FR7): this station alone is drawn again, from the tick,
 // with nothing entered. No dye and no send-back.
-function redrawOne(world: World, o: RoomObject, s: StationState): void {
+export function redrawOne(world: World, o: RoomObject, s: StationState): void {
   const params = o.params ?? {};
   s.answer = drawAnswer(
     s.type,
@@ -231,7 +238,7 @@ const PART_KEYS: Record<StationType, Part["key"][]> = {
 export function partAt(world: World, tile: Vec): Part | null {
   for (const object of stationObjects(world)) {
     const station = world.stations[object.id];
-    if (!station || station.solved) continue;
+    if (!station || station.solved || !cacheOpen(world, object.id)) continue;
     for (const key of PART_KEYS[station.type]) {
       const index =
         key === "anchor"
@@ -257,9 +264,10 @@ function act(
   wrong: { w: Wrong | null },
 ): boolean {
   const s = world.stations[o.id];
-  if (!s || s.solved) return false;
+  if (!s || s.solved || !cacheOpen(world, o.id)) return false;
   const p = o.params ?? {};
   const anchor = o.tiles[0] as Vec;
+  const cache = cacheOf(o) !== null;
   // While its practice lever is on a station only plays (Task 38): a keypad key or a bell sounds as
   // it always does, and nothing counts: no input kept, nothing solved, no wrong answer.
   const practising = typeof p.practice === "string" && world.levers[p.practice] === true;
@@ -289,10 +297,16 @@ function act(
     world.solvedBy[o.id] = seat;
     revealOn(world, o, s);
     say("solved");
+    if (cache) {
+      world.cacheBy[o.id] = seat;
+      world.loot += 1;
+      world.events.push({ kind: "cache", id: o.id, result: "solved", seat, at: centre(anchor) });
+    }
   };
   const fail = () => {
     say("wrong");
-    if (p.teach) redrawOne(world, o, s);
+    // a cache's wrong answer, like a teaching station's, draws only itself again (caches FR5)
+    if (p.teach || cache) redrawOne(world, o, s);
     else wrong.w ??= { id: o.id, seat };
   };
   const partIndex = (key: string) => tilesOf(p[key]).findIndex((t) => same(t, tile));
@@ -391,6 +405,20 @@ function expireSync(world: World): void {
   }
 }
 
+// An Act on the tile of a cache's matching motif uncovers it (caches FR4); a decoy, or a cache that
+// is open already, does nothing and says nothing. True if it took the press.
+function uncover(world: World, tile: Vec, seat: Seat): boolean {
+  for (const o of stationObjects(world)) {
+    const cache = cacheOf(o);
+    if (!cache || world.cacheUncovered.includes(o.id) || world.stations[o.id]?.solved) continue;
+    if (!cache.tiles.some((t) => t.motif === cache.motif && same(t.at, tile))) continue;
+    world.cacheUncovered.push(o.id);
+    world.events.push({ kind: "cache", id: o.id, result: "uncover", seat, at: centre(tile) });
+    return true;
+  }
+  return false;
+}
+
 // The Acts pressed this tick (seats in order) worked on the stations under them. Returns the first
 // wrong answer, for `step` to send the team back; the seats a station took are added to `used`.
 export function updateStations(
@@ -403,6 +431,10 @@ export function updateStations(
   for (const seat of acts) {
     const pos = world.players[seat].pos;
     const tile = { x: Math.floor(pos.x), y: Math.floor(pos.y) };
+    if (uncover(world, tile, seat)) {
+      used.add(seat);
+      continue;
+    }
     for (const o of stationObjects(world)) {
       if (act(world, o, tile, seat, wrong)) {
         used.add(seat);

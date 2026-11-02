@@ -437,3 +437,44 @@ describe("a watch job", () => {
     expect(isDone(room, j, known, undefined)).toBe(true);
   });
 });
+
+describe("a job that names a cache (phase 14, Task 53)", () => {
+  const GRID = ["############", "#1..Q...#..#", "#2..g...H..#", "#3......#.E#", "############"];
+  const CACHE = {
+    owner: 1,
+    motif: "moon",
+    riddle: "r",
+    item: "watch",
+    tiles: [{ at: [6, 3], motif: "moon" }],
+  };
+  const cacheRoom = parseRoom(
+    `${JSON.stringify({
+      id: "t",
+      name: "T",
+      beats: [{ name: "b", x: [0, 11], intent: { blind: "b", deaf: "d", mute: "m" } }],
+      objects: {
+        Q1: {
+          type: "dial",
+          pads: [
+            [3, 1],
+            [5, 1],
+          ],
+          back: [4, 3],
+          cache: CACHE,
+        },
+        g1: { item: "stethoscope" },
+      },
+    })}\n---\n${GRID.join("\n")}\n`,
+  );
+
+  it("is an error whichever way it names the station: bots never work a cache", () => {
+    for (const hint of [
+      { beat: 1, station: "Q1" },
+      { beat: 1, listen: "Q1", at: [4, 3] },
+      { beat: 1, watch: "Q1", at: [4, 3] },
+    ]) {
+      const job = parseJob(cacheRoom, hint, 0);
+      expect(typeof job === "string" ? job : "a job was made").toMatch(/Q1.*cache/);
+    }
+  });
+});

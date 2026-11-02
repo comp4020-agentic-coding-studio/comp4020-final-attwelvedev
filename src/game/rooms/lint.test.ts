@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { Role } from "../types.ts";
 import { parseRoom, type Room } from "./format.ts";
-import { lintRoom } from "./lint.ts";
+import { cacheTypeFaults, lintRoom, uncoverSplitFault } from "./lint.ts";
 import { loadRooms } from "./load.ts";
 
 const header = (opensWhen = `["p1","p2","p3"]`, beatX = "[8,19]") =>
@@ -568,40 +569,252 @@ describe("lintRoom: clue paths (escape-room Task 12)", () => {
   });
 });
 
-// Side jobs (Task 28): an owner's item must be out of their own reach until a door opens.
-describe("lintRoom: side jobs", () => {
-  const head = (owner: number) =>
-    `{"id":"t-sj","name":"T","version":1,"beats":[{"name":"b","x":[0,19],"intent":{"blind":"b","deaf":"d","mute":"m"}}],"objects":{"D1":{"opensWhen":["p1","p2","p3"]},"j1":{"owner":${owner},"text":"the music box"}},"hints":{"jobs":[{"beat":1,"goTo":"p1"}]}}`;
-  const sjRoom = (grid: string[], owner: number) =>
-    parseRoom(`${head(owner)}\n---\n${grid.join("\n")}\n`);
-  const SHUT = [
-    "####################",
-    "#1.#..p...#.j..#####",
-    "#2.B..p...D....E####",
-    "#3.#..p...#........#",
-    "####################",
-  ];
-  const sjMessages = (r: Room) => lintRoom(r).map((i) => i.message);
-
-  it("flags a job its owner can walk to from their own spawn", () => {
-    const open = SHUT.map((r) => r.replace("D", "."));
-    expect(sjMessages(sjRoom(open, 2))).toContainEqual(expect.stringMatching(/j1.*reach/i));
-  });
-
-  it("passes a job behind a door", () => {
-    expect(sjMessages(sjRoom(SHUT, 2)).filter((m) => /j1/.test(m))).toEqual([]);
-  });
-
-  it("flags a job sealed in by walls, so nobody can reach it even with every door open", () => {
-    const sealed = [
-      "####################",
-      "#1.#..p...#.#j#.####",
-      "#2.B..p...D.###.E###",
-      "#3.#..p...#........#",
-      "####################",
-    ];
-    expect(sjMessages(sjRoom(sealed, 2))).toContainEqual(
-      expect.stringMatching(/j1.*no one can reach/i),
+// Caches (phase 14, Task 53): the clue path of a hidden optional station.
+describe("lintRoom: caches", () => {
+  const room = (
+    grid: string[],
+    objects: Record<string, unknown>,
+    extra: Record<string, unknown> = {},
+  ) =>
+    parseRoom(
+      `${JSON.stringify({
+        id: "t-cache",
+        name: "T",
+        version: 1,
+        beats: [
+          { name: "B", x: [0, grid[0]?.length ?? 1], intent: { blind: "b", deaf: "d", mute: "m" } },
+        ],
+        objects: { D1: { opensWhen: ["p1", "p2", "p3"] }, ...objects },
+        hints: { jobs: [{ beat: 1, goTo: "E", all: true }] },
+        ...extra,
+      })}\n---\n${grid.join("\n")}\n`,
     );
+  const faults = (r: Room) =>
+    lintRoom(r)
+      .map((i) => i.message)
+      .filter((m) => /cache/.test(m));
+  const at = (grid: string[], ...cells: [number, number, string][]) =>
+    grid.map((row, y) =>
+      [...row].map((ch, x) => cells.find(([cx, cy]) => cx === x && cy === y)?.[2] ?? ch).join(""),
+    );
+  const spec = (tiles: [number, number, string][], extra = {}) => ({
+    owner: 2,
+    motif: "moon",
+    riddle: "Where the moon watches, listen twice.",
+    item: "watch",
+    tiles: tiles.map(([x, y, motif]) => ({ at: [x, y], motif })),
+    ...extra,
+  });
+  const MOON_STAR: [number, number, string][] = [
+    [13, 1, "moon"],
+    [14, 1, "star"],
+  ];
+  // a dial whose clue is the tumbler at its back (a stethoscope, g1) and whose cache tile is open floor
+  const DIAL_GRID = [
+    "#################",
+    "#1...Q..........#",
+    "#2..............#",
+    "#3.g....ppp.D.E.#",
+    "#################",
+  ];
+  const dial = (cache: unknown) => ({
+    Q1: {
+      type: "dial",
+      pads: [
+        [4, 1],
+        [6, 1],
+      ],
+      back: [5, 2],
+      cache,
+    },
+    g1: { item: "stethoscope" },
+  });
+
+  it("passes a cache whose tile can be walked to and seen and whose clue two roles can perceive", () => {
+    expect(faults(room(DIAL_GRID, dial(spec(MOON_STAR))))).toEqual([]);
+  });
+
+  it("flags an uncover tile that cannot be walked to", () => {
+    const sealed = at(DIAL_GRID, [14, 2, "#"], [15, 1, "#"], [15, 3, "#"]);
+    const r = room(
+      sealed,
+      dial(
+        spec([
+          [15, 2, "moon"],
+          [13, 1, "star"],
+        ]),
+      ),
+    );
+    expect(faults(r)).toContainEqual(expect.stringMatching(/Q1.*moon tile.*walked to/));
+  });
+
+  it("flags an uncover tile on a wall", () => {
+    const r = room(
+      DIAL_GRID,
+      dial(
+        spec([
+          [0, 0, "moon"],
+          [14, 1, "star"],
+        ]),
+      ),
+    );
+    expect(faults(r)).toContainEqual(expect.stringMatching(/Q1.*moon tile.*not floor/));
+  });
+
+  it("flags an uncover tile no sighted role can see (inside a dark zone)", () => {
+    const r = room(DIAL_GRID, dial(spec(MOON_STAR)), {
+      flips: [{ kind: "dark", zone: [13, 1, 13, 1] }],
+    });
+    expect(faults(r)).toContainEqual(expect.stringMatching(/Q1.*moon tile.*no sighted role/));
+  });
+
+  it("flags a clue no role can perceive (a dial with no stethoscope)", () => {
+    const objects = dial(spec(MOON_STAR));
+    const r = room(at(DIAL_GRID, [3, 3, ".".toString()]), { Q1: objects.Q1 });
+    expect(faults(r)).toContainEqual(expect.stringMatching(/Q1.*no role can perceive its clue/));
+  });
+
+  describe("one role alone (spec FR6)", () => {
+    const set = (...r: Role[]) => new Set<Role>(r);
+
+    it("names the role when the same single role perceives the clue and the uncover tile", () => {
+      expect(uncoverSplitFault("Q1", set("deaf"), set("deaf"))).toMatch(
+        /Q1.*only deaf perceives its clue and its uncover tile/,
+      );
+    });
+
+    it("passes when a different role can see the tile than the one that perceives the clue", () => {
+      expect(uncoverSplitFault("Q1", set("deaf"), set("deaf", "mute"))).toBeNull();
+      expect(uncoverSplitFault("Q1", set("blind", "mute"), set("deaf", "mute"))).toBeNull();
+      expect(uncoverSplitFault("Q1", set("blind"), set("deaf"))).toBeNull();
+    });
+
+    it("is run by lintRoom: motif tiles are drawn for both sighted roles, so a real room splits", () => {
+      const wires = {
+        Q1: {
+          type: "wires",
+          wires: [
+            [10, 2],
+            [11, 2],
+            [12, 2],
+          ],
+          plaque: "S1",
+          cache: spec(MOON_STAR),
+        },
+        S1: { visible_to: ["deaf"] },
+      };
+      const grid = [
+        "#################",
+        "#1........Q.....#",
+        "#2..S...........#",
+        "#3......ppp.D.E.#",
+        "#################",
+      ];
+      expect(faults(room(grid, wires))).toEqual([]);
+    });
+  });
+
+  describe("a cache is optional", () => {
+    // Q1 and Q2 sit behind D1 (which Q1 opens); Q3 and Q4 are in the room the team starts in
+    const FR2_GRID = [
+      "##################",
+      "#1....#.Q...Q....#",
+      "#2....D..........#",
+      "#3.Q.Q#.ppp.D.E..#",
+      "##################",
+    ];
+    const dials = (cacheOn: "Q3" | "Q4" | null) => {
+      const d = (x: number, y: number, id: string) => ({
+        type: "dial",
+        pads: [
+          [x - 1, y + 1 > 3 ? y - 1 : y + 1],
+          [x + 1, y + 1 > 3 ? y - 1 : y + 1],
+        ],
+        ...(cacheOn === id
+          ? {
+              cache: spec([
+                [2, 1, "moon"],
+                [3, 1, "star"],
+              ]),
+            }
+          : {}),
+      });
+      return {
+        D1: { opensWhen: ["Q1"] },
+        D2: { opensWhen: ["p1", "p2", "p3"] },
+        Q1: d(8, 1, "Q1"),
+        Q2: d(12, 1, "Q2"),
+        Q3: d(3, 3, "Q3"),
+        Q4: d(5, 3, "Q4"),
+      };
+    };
+    const open = (r: Room) =>
+      lintRoom(r)
+        .map((i) => i.message)
+        .filter((m) => /at once/.test(m));
+
+    it("does not count a cache as one of the two stations open at once (FR2)", () => {
+      expect(open(room(FR2_GRID, dials("Q3")))).toContainEqual(
+        expect.stringMatching(/only 1 station.*two stations.*at once/),
+      );
+    });
+
+    it("counts the same station when it is not a cache", () => {
+      expect(open(room(FR2_GRID, dials(null)))).toEqual([]);
+    });
+
+    it("flags a door that opens when a cache is solved", () => {
+      const objects = { ...dials("Q3"), D1: { opensWhen: ["Q3"] } };
+      expect(faults(room(FR2_GRID, objects))).toContainEqual(
+        expect.stringMatching(/door D1.*cache Q3/),
+      );
+    });
+  });
+});
+
+describe("cacheTypeFaults: a cache is a type the heist has already taught", () => {
+  // one anchor per station listed, so the grid and the metadata agree
+  const roomWith = (id: string, objects: Record<string, unknown>) => {
+    const n = Object.keys(objects).length;
+    const wall = "#".repeat(n + 5);
+    return parseRoom(
+      `${JSON.stringify({ id, name: id, version: 1, beats: [], objects })}\n---\n${wall}\n#123${"Q".repeat(n)}#\n${wall}\n`,
+    );
+  };
+  const CACHE = {
+    owner: 1,
+    motif: "moon",
+    riddle: "r",
+    item: "watch",
+    tiles: [{ at: [1, 2], motif: "moon" }],
+  };
+  const PADS = [
+    [1, 2],
+    [3, 2],
+  ];
+  const plain = { type: "dial", pads: PADS };
+  const cache = { type: "dial", pads: PADS, cache: CACHE };
+
+  it("flags a cache of a type first met in its own room", () => {
+    expect(cacheTypeFaults([roomWith("r1", { Q1: cache })])).toEqual([
+      expect.stringMatching(/r1.*Q1.*dial.*not met/),
+    ]);
+  });
+
+  it("passes a cache of a type an earlier room taught", () => {
+    expect(cacheTypeFaults([roomWith("r1", { Q1: plain }), roomWith("r2", { Q1: cache })])).toEqual(
+      [],
+    );
+  });
+
+  it("passes a cache beside a plain station of its type that comes first in its own room", () => {
+    expect(cacheTypeFaults([roomWith("r1", { Q1: plain, Q2: cache })])).toEqual([]);
+    expect(cacheTypeFaults([roomWith("r1", { Q1: cache, Q2: plain })])).toHaveLength(1);
+  });
+
+  it("does not count another cache as having taught the type", () => {
+    expect(
+      cacheTypeFaults([roomWith("r1", { Q1: cache }), roomWith("r2", { Q1: cache })]),
+    ).toHaveLength(2);
   });
 });

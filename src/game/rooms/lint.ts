@@ -6,7 +6,7 @@ import { PIP_TICKS, tilesOf } from "../sim/stations.ts";
 import { step } from "../sim/step.ts";
 import { type GearItem, patrolOf, TICK_MS } from "../sim/world.ts";
 import type { Role, Vec } from "../types.ts";
-import { flipsOf, GEAR_ITEMS, isMotif, type Room, type RoomObject } from "./format.ts";
+import { cacheOf, flipsOf, GEAR_ITEMS, isMotif, type Room, type RoomObject } from "./format.ts";
 import { worldAt } from "./mockup.ts";
 
 const SAFE_S = 2; // FR14: a cue-dependent safe window is at least this long
@@ -46,9 +46,15 @@ export function lintRoom(room: Room): LintIssue[] {
       continue;
     }
     for (const id of door.opensWhen) {
-      const isStation = room.objects.some((o) => o.id === id && o.kind === "station");
-      if (!plateIds.has(id) && !isStation) {
+      const named = room.objects.find((o) => o.id === id && o.kind === "station");
+      if (!plateIds.has(id) && !named) {
         issue(`door ${door.id} opensWhen names unknown plate ${id}`);
+      }
+      // a cache is optional (caches FR8): the room must clear without it
+      if (named && cacheOf(named)) {
+        issue(
+          `door ${door.id} opensWhen names cache ${id}: a cache is optional, so no door may wait for it`,
+        );
       }
     }
   }
@@ -70,7 +76,7 @@ export function lintRoom(room: Room): LintIssue[] {
   lintHints(room, issue);
   lintPresence(room, issue);
   lintClues(room, issue);
-  lintSideJobs(room, issue);
+  lintCaches(room, issue);
 
   // every exit tile must be reachable from every spawn, treating doors as open
   if (exits.length > 0 && spawns.length > 0) {
@@ -403,7 +409,11 @@ export function lintPresence(room: Room, issue: (message: string) => void): void
       }
     }
   }
-  lintOpenAtOnce(room, stations, issue);
+  lintOpenAtOnce(
+    room,
+    stations.filter((o) => cacheOf(o) === null),
+    issue,
+  );
 }
 
 // Radio and sync carry no secret clue. A radio's digit must not be heard where the station it
@@ -497,45 +507,152 @@ function lintOpenAtOnce(
   }
 }
 
-// A side job is somewhere its owner cannot get to alone (spec FR28): flood from the owner's spawn
-// with every door shut (glass, vents and hatches stop bodies too). Reaching the item means a person
-// could take it before anyone else had to open anything.
-function lintSideJobs(room: Room, issue: (message: string) => void): void {
-  for (const job of room.objects.filter((o) => o.kind === "sidejob")) {
-    const spawn = room.objects.find((o) => o.id === `s${String(job.params?.owner)}`);
-    const target = at(job);
-    if (!spawn) continue;
-    const start = at(spawn);
-    const flood = (blocks: string) => {
-      const seen = new Set([`${start.x},${start.y}`]);
-      const queue = [start];
-      while (queue.length > 0) {
-        const t = queue.shift() as Vec;
-        for (const [dx, dy] of [
-          [1, 0],
-          [-1, 0],
-          [0, 1],
-          [0, -1],
-        ] as const) {
-          const n = { x: t.x + dx, y: t.y + dy };
-          const ch = room.grid[n.y]?.[n.x];
-          if (ch === undefined || blocks.includes(ch) || seen.has(`${n.x},${n.y}`)) continue;
-          seen.add(`${n.x},${n.y}`);
-          queue.push(n);
-        }
+// Caches FR6 (spec §2.1): the uncover tile and the cache's clue must not be perceivable by one role
+// alone, so someone other than the clue's perceiver can find the tile. `clue` and `tile` are the
+// roles that perceive each. Returns the message, or null.
+export function uncoverSplitFault(id: string, clue: Set<Role>, tile: Set<Role>): string | null {
+  const all = new Set([...clue, ...tile]);
+  if (all.size !== 1) return null;
+  return `cache ${id}: only ${[...all][0]} perceives its clue and its uncover tile, so one role could do both`;
+}
+
+// A cache is a type the heist has already taught (spec §2.2): across the rooms in play order, a
+// cache's station type must have been met as an ordinary station in an earlier room, or earlier in
+// its own room. A cache never counts as having taught its type. The messages.
+export function cacheTypeFaults(rooms: Room[]): string[] {
+  const met = new Set<string>();
+  const out: string[] = [];
+  for (const room of rooms) {
+    for (const o of room.objects.filter((x) => x.kind === "station")) {
+      const type = String(o.params?.type);
+      if (cacheOf(o) === null) met.add(type);
+      else if (!met.has(type)) {
+        out.push(
+          `${room.id}: cache ${o.id} (${type}) is a type not met in an earlier room or taught first in this one`,
+        );
       }
-      return seen;
-    };
-    if (!flood("#=%H").has(`${target.x},${target.y}`)) {
-      issue(`side job ${job.id} is walled in: no one can reach it even with every door open`);
-      continue;
-    }
-    if (flood("#D=%H").has(`${target.x},${target.y}`)) {
-      issue(
-        `side job ${job.id} is within reach of its owner (seat ${String(job.params?.owner)}) with every door shut: put it behind a door another role opens`,
-      );
     }
   }
+  return out;
+}
+
+// Which sighted roles see the cache's motif tile `i` from some floor tile (the motif tiles are drawn
+// for both, so they are told apart only by the riddle).
+function seeTile(room: Room, id: string, i: number): Set<Role> {
+  const world = worldAt(room, 1, 1);
+  const out = new Set<Role>();
+  for (let y = 0; y < room.height; y++) {
+    for (let x = 0; x < room.width; x++) {
+      if (room.grid[y]?.[x] !== ".") continue;
+      world.players[1].pos = { x: x + 0.5, y: y + 0.5 };
+      for (const role of ["deaf", "mute"] as const) {
+        if (viewFor(world, 1, role, false).entities.some((e) => e.id === `${id}.m${i}`)) {
+          out.add(role);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+// Which roles perceive a cache's clue from somewhere: a sighted role from any floor tile (a plaque, a
+// readout; the torch only if the room has one), and any role from the cache's controls and the places
+// its clue sounds from, with each gear the room holds. One pass per cache.
+function perceiveClue(room: Room, o: RoomObject): Set<Role> {
+  const p = o.params ?? {};
+  const out = new Set<Role>();
+  const gears: (GearItem | undefined)[] = [
+    undefined,
+    ...GEAR_ITEMS.filter((g) =>
+      room.objects.some((x) => x.kind === "gear" && x.params?.item === g),
+    ),
+  ];
+  for (const gear of gears) {
+    const world = worldAt(room, 1, 1, gear);
+    for (let y = 0; y < room.height; y++) {
+      for (let x = 0; x < room.width; x++) {
+        if (room.grid[y]?.[x] !== ".") continue;
+        world.players[1].pos = { x: x + 0.5, y: y + 0.5 };
+        for (const role of ["deaf", "mute"] as const) {
+          if (!out.has(role) && hasClue(room, o, viewFor(world, 1, role, false), new Set())) {
+            out.add(role);
+          }
+        }
+      }
+    }
+  }
+  const sources = [p.back, p.tune].flatMap((t) =>
+    tilesOf(Array.isArray(t) && typeof t[0] === "number" ? [t] : t),
+  );
+  const named = room.objects.find((x) => x.id === p.clue);
+  const spots = [...controls(o), ...sources, ...(named ? [at(named)] : [])].filter(
+    (t) => room.grid[t.y]?.[t.x] === ".",
+  );
+  for (const tile of spots) {
+    for (const role of ROLES) {
+      for (const gear of gears) {
+        if (!out.has(role) && probe(room, o, tile, role, gear).clue) out.add(role);
+      }
+    }
+  }
+  return out;
+}
+
+// Caches (phase 14): the path from the riddle to the stash. The uncover tile (the one whose motif
+// matches) is floor, can be walked to and is drawn for a sighted role; the station's clue reaches some
+// role; and the clue and the tile are not one role's alone. Bots and doors never depend on it (jobs.ts,
+// the door check above, FR2 in lintPresence).
+function lintCaches(room: Room, issue: (message: string) => void): void {
+  for (const o of room.objects.filter((x) => x.kind === "station")) {
+    const cache = cacheOf(o);
+    if (!cache) continue;
+    const type = String(o.params?.type);
+    const reach = walkable(room, at(room.objects.find((s) => s.id === "s1") as RoomObject));
+    let tileRoles = new Set<Role>();
+    cache.tiles.forEach((t, i) => {
+      const matching = t.motif === cache.motif;
+      const where = `(${t.at.x},${t.at.y})`;
+      const name = `cache ${o.id}: its ${t.motif} tile ${where}${matching ? "" : " (a decoy)"}`;
+      if (room.grid[t.at.y]?.[t.at.x] !== ".") {
+        issue(`${name} is not floor`);
+      } else if (matching && !reach.has(`${t.at.x},${t.at.y}`)) {
+        issue(`${name} cannot be walked to, even with every door open`);
+      } else if (matching) {
+        tileRoles = seeTile(room, o.id, i);
+        if (tileRoles.size === 0) issue(`${name} is drawn for no sighted role from anywhere`);
+      }
+    });
+    if (type === "radio" || type === "sync") continue; // no secret clue: lintPresence's rules
+    const clue = perceiveClue(room, o);
+    if (clue.size === 0) issue(`cache ${o.id} (${type}): no role can perceive its clue`);
+    else if (tileRoles.size > 0) {
+      const split = uncoverSplitFault(o.id, clue, tileRoles);
+      if (split) issue(split);
+    }
+  }
+}
+
+// The floor tiles a body can walk to from `start` with every door open (glass, vents, hatches and
+// walls stop a body).
+function walkable(room: Room, start: Vec): Set<string> {
+  const seen = new Set([`${start.x},${start.y}`]);
+  const queue = [start];
+  while (queue.length > 0) {
+    const t = queue.shift() as Vec;
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const) {
+      const n = { x: t.x + dx, y: t.y + dy };
+      const ch = room.grid[n.y]?.[n.x];
+      if (ch === undefined || "#=%H".includes(ch) || seen.has(`${n.x},${n.y}`)) continue;
+      seen.add(`${n.x},${n.y}`);
+      queue.push(n);
+    }
+  }
+  return seen;
 }
 
 // Clues FR4: each station's clue reaches a person, and each link carries its motif at both ends.

@@ -25,8 +25,7 @@ export type Tile =
   | "u"
   | "t"
   | "v"
-  | "Y"
-  | "j";
+  | "Y";
 
 export interface RoomObject {
   id: string; // "p1", "D1", "B2", "E1"
@@ -51,7 +50,6 @@ export interface RoomObject {
     | "lamp" // a switch: Act flashes a lamp in every sighted player's HUD
     | "card" // a switches station's target card: `params.of` names the station
     | "lever" // a practice lever: Act flips it; a station that names it (`practice`) only plays
-    | "sidejob" // an owned bit of loot: `params.owner` (1 to 3), `params.text`, `params.value`
     | "order" // a vault's order clue: the wings' motifs in socket order
     | "ink"; // hidden text (`params.text`) that shows only in a UV torch's light
   tiles: Vec[]; // integer tile coordinates
@@ -149,7 +147,6 @@ const TILES = new Set([
   "t", // a target card
   "v", // a practice lever
   "Y", // a vault's order clue
-  "j", // a side job
 ]);
 
 // Single-tile objects numbered in reading order: letter -> [kind, id prefix].
@@ -171,7 +168,6 @@ const NUMBERED: Record<string, [RoomObject["kind"], string]> = {
   t: ["card", "T"],
   v: ["lever", "v"],
   Y: ["order", "Y"],
-  j: ["sidejob", "j"],
 };
 // Kinds whose metadata is kept whole as `params`.
 const PARAMS: Record<string, true> = {
@@ -190,7 +186,6 @@ const PARAMS: Record<string, true> = {
   card: true,
   order: true,
   lever: true,
-  sidejob: true,
 };
 export const STATION_TYPES = [
   "dial",
@@ -207,6 +202,76 @@ export const GEAR_ITEMS = ["earpiece", "goggles", "stethoscope", "uv"] as const;
 export const MOTIFS = ["moon", "star", "wave", "key", "eye", "leaf"] as const;
 export type Motif = (typeof MOTIFS)[number];
 export const isMotif = (v: unknown): v is Motif => (MOTIFS as readonly unknown[]).includes(v);
+// Things a cache's stash can hold (caches FR7): one drawn item, worth 1 loot.
+export const ITEMS = ["watch", "ledger", "ring", "goblet", "pen", "necklace"] as const;
+export type ItemId = (typeof ITEMS)[number];
+export const MAX_CACHE_TILES = 6;
+
+// A hidden optional station (`params.cache`): `owner` is the seat (1 to 3) whose screen shows the
+// riddle; the tile whose motif matches `motif` uncovers the station, the others are decoys.
+export interface CacheSpec {
+  owner: 1 | 2 | 3;
+  motif: Motif;
+  riddle: string;
+  item: ItemId;
+  tiles: { at: Vec; motif: Motif }[];
+}
+
+function checkCache(id: string, raw: unknown): void {
+  const fail = (why: string): never => {
+    throw new RoomFormatError(`cache ${id} ${why}`, 1);
+  };
+  if (!isRecord(raw)) {
+    fail("must be an object");
+    return;
+  }
+  if (![1, 2, 3].includes(raw.owner as number)) {
+    fail(`needs an owner of 1, 2 or 3 (got ${JSON.stringify(raw.owner)})`);
+  }
+  if (!isMotif(raw.motif))
+    fail(`has motif ${JSON.stringify(raw.motif)}, not one of ${MOTIFS.join(", ")}`);
+  if (typeof raw.riddle !== "string" || raw.riddle === "") fail("needs a riddle");
+  if (!(ITEMS as readonly unknown[]).includes(raw.item)) {
+    fail(`needs an item, one of ${ITEMS.join(", ")} (got ${JSON.stringify(raw.item)})`);
+  }
+  const tiles = raw.tiles;
+  if (!Array.isArray(tiles)) {
+    fail("needs tiles");
+    return;
+  }
+  if (tiles.length > MAX_CACHE_TILES) fail(`has ${tiles.length} tiles, at most ${MAX_CACHE_TILES}`);
+  for (const t of tiles) {
+    const at = isRecord(t) ? t.at : undefined;
+    if (
+      !isRecord(t) ||
+      !Array.isArray(at) ||
+      at.length !== 2 ||
+      at.some((n) => !Number.isInteger(n)) ||
+      !isMotif(t.motif)
+    ) {
+      fail('tiles are { "at": [x, y], "motif": a motif }');
+    }
+  }
+  const matching = tiles.filter((t) => isRecord(t) && t.motif === raw.motif).length;
+  if (matching !== 1) fail(`needs exactly one tile that matches its motif (has ${matching})`);
+}
+
+// The cache a station carries, or null for an ordinary station. `parseRoom` has already checked it.
+export function cacheOf(o: RoomObject): CacheSpec | null {
+  const raw = o.kind === "station" ? o.params?.cache : undefined;
+  if (!isRecord(raw)) return null;
+  return {
+    owner: raw.owner as 1 | 2 | 3,
+    motif: raw.motif as Motif,
+    riddle: raw.riddle as string,
+    item: raw.item as ItemId,
+    tiles: (raw.tiles as { at: [number, number]; motif: Motif }[]).map((t) => ({
+      at: { x: t.at[0], y: t.at[1] },
+      motif: t.motif,
+    })),
+  };
+}
+
 const DEFAULT_VISIBLE_TO: Role[] = ["deaf", "mute"];
 const ROLE_SET = new Set<string>(["blind", "deaf", "mute"]);
 
@@ -349,15 +414,7 @@ export function parseRoom(text: string): Room {
         1,
       );
     }
-    if (kind === "sidejob") {
-      const owner = ov.owner;
-      if (typeof owner !== "number" || ![1, 2, 3].includes(owner) || typeof ov.text !== "string") {
-        throw new RoomFormatError(
-          `side job ${id} needs an owner of 1, 2 or 3 and a text (got owner ${JSON.stringify(owner)})`,
-          1,
-        );
-      }
-    }
+    if (kind === "station" && ov.cache !== undefined) checkCache(id, ov.cache);
     if (kind === "gear" && !(GEAR_ITEMS as readonly unknown[]).includes(ov.item)) {
       throw new RoomFormatError(
         `gear ${id} needs an item, one of ${GEAR_ITEMS.join(", ")} (got ${JSON.stringify(ov.item)})`,

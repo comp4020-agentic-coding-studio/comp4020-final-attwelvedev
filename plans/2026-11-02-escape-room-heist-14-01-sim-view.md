@@ -83,6 +83,8 @@ them and recomputes `loot` including solved caches. The riddle is `RoleView.cach
 
 ### Task 51: Replace the floor-item side job with the cache in the sim
 
+- **Status:** DONE 2026-11-02 (one commit with Tasks 52 and 53, see §9). Mutations shown red: `redrawOne` call dropped, snapshot restore dropped, un-solve dropped, matching-motif check dropped.
+
 - **Step 0 (commit the tree as it is), only after the user has accepted Task 28's Human review (the redesigned cleared card at 1280 and 375;
   ask first, never commit it on silence):** the Task 28 tree is green (`pnpm check`, 130 files, 1878 tests, 2026-11-02) but its kept and replaced
   code share files (`world.ts`, `step.ts`, `perception.ts`, `lint.ts`, `RoomCleared.tsx`), so a partial commit would not build. Run the check
@@ -115,6 +117,8 @@ them and recomputes `loot` including solved caches. The riddle is `RoleView.cach
 
 ### Task 52: The owner's riddle, the hidden station and the team sounds in the view
 
+- **Status:** DONE 2026-11-02. Mutations shown red: riddle to every seat, hidden cache shown, motif tiles for Can't see, `stash` cue dropped, stash item dropped; typecheck fails with the `stash` parity row or its `CUE_WORD` removed.
+
 - **Description:** gate everything in `viewFor`: `RoleView.cache` (own seat), `motiftile` entities for the sighted, no entity or sound for
   a hidden cache, `stash`/`uncover` team sounds, the reveal's `cache` field, caption words.
 - **Files touched:** `src/game/perception.ts` (`cacheFor(world, seat): RoleView["cache"]` replacing `sideJobFor`, `entitiesFor` skips
@@ -138,6 +142,8 @@ them and recomputes `loot` including solved caches. The riddle is `RoleView.cach
 
 ### Task 53: Linters and the bots' blind spot
 
+- **Status:** DONE 2026-11-02. Mutations shown red: each of floor, walkable, drawn-for-a-role, clue-perceivable, one-role-alone, door-names-cache, FR2-excludes-caches, type-taught-first, bots-job rules. `pnpm lint:rooms`: 9 room(s) ok.
+
 - **Description:** `lintCaches` proves the clue path; caches are excluded from FR2 and from door conditions; a cache is never a first
   station type; bots make no job for one.
 - **Files touched:** `src/game/rooms/lint.ts` (`lintCaches`, called from `lintRoom`; delete `lintSideJobs`; `lintOpenAtOnce` skips caches),
@@ -156,11 +162,11 @@ them and recomputes `loot` including solved caches. The riddle is `RoleView.cach
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 51 to 53 done and committed one each; the Task 28 commit made first.
-- [ ] `pnpm test:unit` passes; `pnpm check` passes on a fresh check server.
-- [ ] A unit-test room has a cache uncovered, solved and undone, perceived by the right roles; the nine shipped rooms still clear.
-- [ ] CLAUDE.md invariants: parity rows, `viewFor` gating, no bot reads cache state.
-- [ ] Tick this phase in the 14 overview §5 and commit.
+- [x] Tasks 51 to 53 done, committed as one (ruling, §9); the Task 28 commit (`8144a79`) made first.
+- [x] `pnpm test:unit` passes; `pnpm check` passes on a fresh check server (130 files, 1899 tests, 5m19s against a 5m34s baseline).
+- [x] `src/game/sim/cache.test.ts`: a cache uncovered, solved and undone, perceived by the right roles; the nine shipped rooms still clear (`spec/` in `pnpm check`).
+- [x] CLAUDE.md invariants: parity rows (`uncover`, `stash`), `viewFor` gating, no bot reads cache state (grep of `src/game/bots` finds none).
+- [x] Tick this phase in the 14 overview §5 and commit.
 
 ## 7. Requirements coverage (this phase)
 
@@ -173,3 +179,11 @@ them and recomputes `loot` including solved caches. The riddle is `RoleView.cach
 ## 8. Risks / open questions
 
 None open.
+
+## 9. Execution notes and corrections log
+
+- 2026-11-02, Phase 1 review ruling (user: "accepted", "sure"): Task 28's Human review accepted; step 0 committed as `8144a79`.
+  Removing the `sidejob` kind and `RoleView.sideJob` breaks the typecheck between Tasks 51, 52 and 53 (`lintSideJobs`, `sideJobFor` and
+  the client readers sit in later tasks' files), so **Tasks 51 to 53 land as one green commit**, built task by task in order (red, green
+  per task), with the check run once at the end. `src/game/sim/sidejob.test.ts` (floor-item pickup) is deleted and `cache.test.ts` replaces
+  it; `spec/heist.test.ts` and `spec/heistPlay.ts` are fixed only where they touch side jobs.

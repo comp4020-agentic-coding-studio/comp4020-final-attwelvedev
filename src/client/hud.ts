@@ -110,6 +110,8 @@ export const CUE_WORD: Record<SoundCue["kind"], string> = {
   dye: "Dye pack",
   earpiece: "Earpiece",
   gear: "Gear",
+  uncover: "Something opened",
+  stash: "Stash found",
   solved: "Solved",
 };
 
@@ -121,6 +123,8 @@ const EVERYWHERE = new Set<SoundCue["kind"]>([
   "bump",
   "cleared",
   "dye",
+  "uncover", // a cache opened: the whole team hears it, from nowhere in particular
+  "stash",
   "earpiece",
   "pull", // a strain in the pair's own heads: no side to name
 ]);

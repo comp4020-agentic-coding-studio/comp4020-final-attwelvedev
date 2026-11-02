@@ -2,7 +2,7 @@ import { viewFor } from "../perception.ts";
 import { step } from "../sim/step.ts";
 import { createWorld, type GearItem, TICK_MS, type World } from "../sim/world.ts";
 import type { Role } from "../types.ts";
-import type { Room } from "./format.ts";
+import { cacheOf, type Room } from "./format.ts";
 
 // A cheap look at a room before it is built (the room-mockup script): for every role and every tile
 // a body can stand on, what the game's own `viewFor` says that role sees and hears from there. It
@@ -64,6 +64,9 @@ const note = (o: Room["objects"][number]): string => {
 // the room has none). Shared by the mockup and the presence linter, so both see what the game sees.
 export function worldAt(room: Room, x: number, y: number, gear?: GearItem): World {
   const world = createWorld(room);
+  // a cache is shown open: the mockup and the linters ask what each role perceives of the station,
+  // not whether its motif tile has been pressed yet (that is lintCaches' own question)
+  for (const o of room.objects) if (cacheOf(o)) world.cacheUncovered.push(o.id);
   world.players[0].pos = { x: 1.5, y: 1.5 };
   world.players[2].pos = { x: 1.5, y: 1.5 };
   world.players[1].pos = { x: x + 0.5, y: y + 0.5 };

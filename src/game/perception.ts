@@ -1,7 +1,7 @@
 import type { Stamp } from "./channels.ts";
 import { subtractRects } from "./clip.ts";
 import { visiblePolygon } from "./cone.ts";
-import { flipsOf, isMotif, type Motif } from "./rooms/format.ts";
+import { cacheOf, flipsOf, type ItemId, isMotif, type Motif } from "./rooms/format.ts";
 import { beside, carried, gearOn, hatchBeside, objectOn, onSill, partner } from "./sim/gear.ts";
 import {
   cameraApex,
@@ -16,6 +16,7 @@ import {
 } from "./sim/hazards.ts";
 import { blocksSight, lineOfSight, soundReaches } from "./sim/sight.ts";
 import {
+  cacheOpen,
   displayTiles,
   noteOf,
   PIP_TICKS,
@@ -63,7 +64,7 @@ export interface EntityView {
     | "bell"
     | "lamp"
     | "ink" // UV ink, sent only while a torch lights it
-    | "sidejob"
+    | "motiftile" // a cache's motif tile: `motif`; drawn for the sighted whether or not the cache is open
     | "card" // a switches station's target card: `card`
     | "lever" // a practice lever: `state` is "on" while it is flipped
     | "order" // a vault's order clue: `motifs`, its wings' motifs in socket order
@@ -113,9 +114,11 @@ export interface EntityView {
     practice?: true; // its practice lever is on: dimmed, and its keys and bells only play (Task 38)
     motif?: Motif; // drawn on it, and on the station it feeds or is fed by (clues FR3)
     reveal?: number; // a solved wing's symbol, for the vault (clues FR2)
+    stash?: ItemId; // a found cache's item (caches FR10), for the sighted
   };
   card?: number[]; // a target card's lamps: lit (1) or hollow (0), sighted only
   motifs?: Motif[]; // an order clue: the motif of each vault socket's wing, in socket order
+  motif?: Motif; // a motif tile's symbol
   item?: GearItem; // gear, or what a player carries
   heldBy?: Seat; // a player being towed: whose hand they hold
   holding?: Seat; // a player leading: whose hand they hold
@@ -164,6 +167,8 @@ export interface SoundCue {
     | "dye" // the dye pack: a wrong answer, heard by the team
     | "earpiece" // the earpiece's private tune: `n` is the note; only its holder hears it
     | "gear" // gear picked up, handed over, dropped or put on a sill
+    | "uncover" // a cache uncovered: heard by the team, wherever it is
+    | "stash" // a cache solved, its stash found: heard by the team
     | "solved"; // a station solved: heard by the team
   pan: number;
   gain: number;
@@ -201,7 +206,15 @@ export interface RoleView {
   alarm: boolean; // the alarm is on: deaf and mute see it, blind only ever hears it
   dark: boolean; // you are standing in a dark zone
   gear: GearItem | null; // your own gear slot: every role knows what it carries
-  sideJob?: { id: string; text: string; done: boolean }; // your own side job (phase 05)
+  // your own seat's cache, if the room has one for it (caches FR3): the riddle is the owner's alone
+  cache?: {
+    id: string;
+    motif: Motif;
+    riddle: string;
+    item: ItemId;
+    state: "hidden" | "open" | "found";
+    by?: Seat;
+  };
   lamp?: { seat: Seat; tick: number }; // the lamp flashed this tick: for the sighted only
   act?: string; // what Act would do here, phrased from what this role perceives
 }
@@ -357,11 +370,6 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
       if (!world.lootTaken.includes(o.id)) {
         out.push({ id: o.id, kind: "loot", pos: centre(o.tiles[0] as Vec) });
       }
-    } else if (o.kind === "sidejob") {
-      // to everyone it is plain loot: only its owner's view says whose it is (viewFor)
-      if (!world.sideJobsDone.includes(o.id)) {
-        out.push({ id: o.id, kind: "loot", pos: centre(o.tiles[0] as Vec) });
-      }
     } else if (o.kind === "sign") {
       const shows = Array.isArray(o.params?.shows)
         ? o.params.shows.filter((v): v is string => typeof v === "string")
@@ -378,7 +386,8 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
       });
     } else if (o.kind === "station") {
       const s = world.stations[o.id];
-      if (!s) continue;
+      if (!s || !cacheOpen(world, o.id)) continue; // a hidden cache is in no one's view
+      const item = cacheOf(o)?.item;
       out.push({
         id: o.id,
         kind: "station",
@@ -394,6 +403,7 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
             : {}),
           ...(isMotif(o.params?.motif) ? { motif: o.params.motif } : {}),
           ...(s.solved && s.reveal !== undefined ? { reveal: s.reveal } : {}),
+          ...(item && world.cacheBy[o.id] !== undefined ? { stash: item } : {}),
         },
       });
     } else if (o.kind === "card") {
@@ -431,6 +441,17 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
         pos: centre(o.tiles[0] as Vec),
         ...(rung(o.kind, o.id) ? { state: "on" as const } : {}),
       });
+    }
+  }
+  // a cache's motif tiles look alike but for the symbol: drawn for the sighted from the start, so a
+  // decoy and the right tile are told apart only by what the riddle says (caches FR4)
+  if (role !== "blind") {
+    for (const o of world.room.objects) {
+      const cache = cacheOf(o);
+      if (!cache) continue;
+      for (const [i, t] of cache.tiles.entries()) {
+        out.push({ id: `${o.id}.m${i}`, kind: "motiftile", pos: centre(t.at), motif: t.motif });
+      }
     }
   }
   for (const s of world.stamps) {
@@ -561,6 +582,10 @@ function soundsFor(world: World, seat: Seat): SoundCue[] {
       out.push({ kind: "bell", pan: panOf(e.at, me), gain: 1, ...dirTo(e.at, me) }); // the whole room hears it
     } else if (e.kind === "dye") {
       out.push({ kind: "dye", pan: 0, gain: 1 });
+    } else if (e.kind === "cache") {
+      // team-wide, like "solved": the whole crew hears it opened and found, wherever they stand
+      const kind = e.result === "uncover" ? "uncover" : "stash";
+      out.push({ kind, pan: panOf(e.at, me), gain: 1, ...dirTo(e.at, me) });
     }
   }
   stationAmbience(world, seat, out);
@@ -623,7 +648,7 @@ function stationSound(
 function stationAmbience(world: World, seat: Seat, out: SoundCue[]): void {
   const me = world.players[seat].pos;
   for (const o of world.room.objects) {
-    if (o.kind !== "station") continue;
+    if (o.kind !== "station" || !cacheOpen(world, o.id)) continue;
     const s = world.stations[o.id];
     const at = centre(o.tiles[0] as Vec);
     if (s?.type === "radio") {
@@ -779,16 +804,23 @@ function maskTiles(grid: string[], zones: Zone[]): string[] {
   );
 }
 
-// A seat's own side job, if the room has one for it: only the owner is ever told its text (also
-// used for the reveal, which is sent to one person at a time).
-export function sideJobFor(world: World, seat: Seat): RoleView["sideJob"] {
-  const job = world.room.objects.find((o) => o.kind === "sidejob" && o.params?.owner === seat + 1);
-  if (!job) return undefined;
-  return {
-    id: job.id,
-    text: String(job.params?.text),
-    done: world.sideJobsDone.includes(job.id),
-  };
+// A seat's own cache, if the room has one for it: only the owner is ever told its riddle (also used
+// for the reveal, which is sent to one person at a time).
+export function cacheFor(world: World, seat: Seat): RoleView["cache"] {
+  for (const o of world.room.objects) {
+    const cache = cacheOf(o);
+    if (!cache || cache.owner !== seat + 1) continue;
+    const by = world.cacheBy[o.id];
+    return {
+      id: o.id,
+      motif: cache.motif,
+      riddle: cache.riddle,
+      item: cache.item,
+      state: by !== undefined ? "found" : world.cacheUncovered.includes(o.id) ? "open" : "hidden",
+      ...(by !== undefined ? { by } : {}),
+    };
+  }
+  return undefined;
 }
 
 // The one place that decides what a role may know (ADR 0007). A field added to
@@ -812,8 +844,8 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
   };
   const hand = partner(world, seat);
   if (hand !== undefined) view.you.hand = hand; // own state (FR22)
-  const job = sideJobFor(world, seat);
-  if (job) view.sideJob = job;
+  const cache = cacheFor(world, seat);
+  if (cache) view.cache = cache;
   const hint = actHint(world, seat, role);
   if (hint) view.act = hint; // phrased per role: never a colour for Can't see
   const alarm = world.tick < world.alarmUntil;

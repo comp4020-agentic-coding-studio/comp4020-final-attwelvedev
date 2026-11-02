@@ -114,14 +114,3 @@ describe("gameLinesFor: the sim's station, gear, hold and signal events", () => 
     expect(details).not.toMatch(/Q1|Q2|g1|b1|l1|v1|"n"|7/);
   });
 });
-
-describe("gameLinesFor: side jobs", () => {
-  it("logs that one was done, never which, whose or what the item was", () => {
-    const lines = gameLinesFor([{ kind: "sidejob", id: "j1", seat: 2 }]);
-    expect(lines).toEqual([{ event: "sidejob", detail: { kind: "done" } }]);
-    const details = JSON.stringify(
-      lines.map((l) => describeGame({ event: l.event, detail: l.detail }).detail),
-    );
-    expect(details).not.toMatch(/j1|seat|2/);
-  });
-});

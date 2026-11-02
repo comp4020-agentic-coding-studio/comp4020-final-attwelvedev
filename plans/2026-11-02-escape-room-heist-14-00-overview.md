@@ -104,7 +104,7 @@ SoundCue.kind += "uncover" | "stash";      // team-wide, global (no range), like
 
 Each session loads this overview plus one file. Ordered by real dependency.
 
-- [ ] `2026-11-02-escape-room-heist-14-01-sim-view.md`: Tasks 51 to 53 (cache in the sim, own-only view and team sounds, linters).
+- [x] `2026-11-02-escape-room-heist-14-01-sim-view.md`: Tasks 51 to 53 (cache in the sim, own-only view and team sounds, linters).
   Ends green with a test room where a cache is uncovered, solved and undone by a send-back.
 - [ ] `2026-11-02-escape-room-heist-14-02-server.md`: Task 54 (credits, heist record, wire formats, log). Depends on 51, 52.
 - [ ] `2026-11-02-escape-room-heist-14-03-client.md`: Tasks 55 to 57 (items and plate, chip and moments, cleared tile and shelf).

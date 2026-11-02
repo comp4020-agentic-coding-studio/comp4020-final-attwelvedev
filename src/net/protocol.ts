@@ -12,6 +12,7 @@ import {
 } from "../game/channels.ts";
 import type { BriefingCue } from "../game/cues.ts";
 import type { EntityView, RoleView, SoundCue } from "../game/perception.ts";
+import type { ItemId, Motif } from "../game/rooms/format.ts";
 import { parseSetup, type Setup } from "../game/setup.ts";
 import type { StationType } from "../game/sim/world.ts";
 import type { Method, PlayerInput, Role, Seat, Vec } from "../game/types.ts";
@@ -93,7 +94,7 @@ export type ServerMsg =
       played: Record<string, Role[]>; // by nickname: the roles each person has played so far
       real: RealLife; // what this person's setup means for them in this room
       cues: BriefingCue[]; // Can't see only: the sounds of this room to learn; empty for the others
-      sideJob?: string; // your own side job's text, if this room has one for your seat
+      cache?: { motif: Motif; riddle: string; item: ItemId }; // your own seat's cache, if this room has one for it (never sent to the others)
     }
   | { t: "ready"; seats: Seat[] } // the seats that pressed I'm ready (bots count): sent on every change, to players and watchers
   | { t: "view"; view: RoleView }

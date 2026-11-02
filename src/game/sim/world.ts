@@ -1,5 +1,5 @@
 import { STAMP_LIFE_MS, type Stamp } from "../channels.ts";
-import type { GEAR_ITEMS, Room, STATION_TYPES } from "../rooms/format.ts";
+import { cacheOf, type GEAR_ITEMS, type Room, type STATION_TYPES } from "../rooms/format.ts";
 import type { PlayerInput, Seat, Vec } from "../types.ts";
 import { drawStations } from "./stations.ts";
 
@@ -77,7 +77,8 @@ export interface Snapshot {
   crates: CrateState[];
   lootTaken: string[];
   gear: GearState[];
-  sideJobsDone: string[];
+  cacheUncovered: string[]; // a send-back restores both, and un-solves a cache solved after it
+  cacheBy: Record<string, Seat>;
 }
 
 export interface World {
@@ -110,9 +111,9 @@ export interface World {
   seed: number;
   attempt: number; // 0 at room start, +1 on every send-back; answers come from rng(seed * 1000 + attempt)
   dyedUntil: number; // the tick the dye-pack splatter ends; 0 = none
-  sideJobsDone: string[];
   solvedBy: Record<string, Seat>; // a station solved -> the seat whose Act solved it (credits)
-  sideJobBy: Record<string, Seat>; // a side job done -> the seat that picked it up
+  cacheUncovered: string[]; // cache station ids whose motif tile was pressed
+  cacheBy: Record<string, Seat>; // cache station id -> the seat whose Act solved it
   syncAt: Record<string, number[]>; // sync locks: the tick each key was last turned (-1 = not yet)
 }
 
@@ -144,7 +145,7 @@ export type WorldEvent =
   | { kind: "bell"; id: string; at: Vec }
   | { kind: "lamp"; id: string; seat: Seat }
   | { kind: "dye"; station: string }
-  | { kind: "sidejob"; id: string; seat: Seat };
+  | { kind: "cache"; id: string; result: "uncover" | "solved"; seat: Seat; at: Vec };
 
 export type Inputs = Partial<Record<Seat, PlayerInput>>;
 
@@ -227,17 +228,18 @@ export function createWorld(room: Room, seed = 1): World {
       }),
     lootTaken: [],
     loot: 0,
-    lootTotal: [...loot, ...room.objects.filter((o) => o.kind === "sidejob")].reduce(
-      (sum, o) => sum + lootValue(o.params),
-      0,
-    ),
+    // a cache's stash is worth 1 loot, whatever its item
+    lootTotal:
+      loot.reduce((sum, o) => sum + lootValue(o.params), 0) +
+      room.objects.filter((o) => cacheOf(o) !== null).length,
     checkpoint: 0,
     snapshot: {
       players: players.map((p) => ({ ...p.pos })),
       crates: crates.map((c) => ({ id: c.id, tile: { ...c.tile } })),
       lootTaken: [],
       gear: copyGear(gear),
-      sideJobsDone: [],
+      cacheUncovered: [],
+      cacheBy: {},
     },
     seqProgress: {},
     alarmUntil: 0,
@@ -258,9 +260,9 @@ export function createWorld(room: Room, seed = 1): World {
     seed,
     attempt: 0,
     dyedUntil: 0,
-    sideJobsDone: [],
     solvedBy: {},
-    sideJobBy: {},
+    cacheUncovered: [],
+    cacheBy: {},
     syncAt: {},
   };
   drawStations(world);

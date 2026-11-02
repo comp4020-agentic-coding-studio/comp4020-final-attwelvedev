@@ -32,18 +32,6 @@ export function creditsOf(world: World): Credit[] {
       const words = SOLVED[type];
       return !words ? "solved a puzzle" : n === 1 ? words[0] : words[1](n);
     });
-    for (const id of world.sideJobsDone) {
-      const job = world.room.objects.find((o) => o.id === id);
-      const owner = Number(job?.params?.owner) - 1;
-      const picker = world.sideJobBy[id];
-      const text = String(job?.params?.text ?? "");
-      if (picker === undefined || owner < 0) continue;
-      if (owner === seat) {
-        lines.push(picker === seat ? `side job: ${text}` : `side job: ${text} (with {${picker}})`);
-      } else if (picker === seat) {
-        lines.push(`fetched {${owner}}'s side job: ${text}`);
-      }
-    }
     return { seat, lines: lines.length > 0 ? lines : ["kept the crew moving"] };
   });
 }
