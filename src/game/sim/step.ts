@@ -1,5 +1,6 @@
 import { cacheOf, flipsOf, type RoomObject } from "../rooms/format.ts";
 import type { PlayerInput, Seat, Vec } from "../types.ts";
+import { inChamber, syncCacheDoors } from "./cache.ts";
 import { blockedAt, circleHitsTile, crateAt, crateTouching, indexOf, tileKey } from "./collide.ts";
 import { actOn, gearPress, releaseAll, tow } from "./gear.ts";
 import { alarmOn, type Catch, findCatch, guardParams, tileOf } from "./hazards.ts";
@@ -296,7 +297,7 @@ function floorNear(world: World, from: Vec, count: number): Vec[] {
   for (let y = 0; y < world.room.height; y++) {
     for (let x = 0; x < world.room.width; x++) {
       const ch = world.room.grid[y]?.[x];
-      if (ch !== "." || crateAt(world, x, y)) continue;
+      if (ch !== "." || crateAt(world, x, y) || inChamber(world, { x, y })) continue;
       out.push({ t: { x, y }, d: Math.hypot(x - from.x, y - from.y) });
     }
   }
@@ -324,6 +325,7 @@ function updateCheckpoints(world: World) {
       gear: copyGear(world.gear),
       cacheUncovered: [...world.cacheUncovered],
       cacheBy: { ...world.cacheBy },
+      cacheTaken: { ...world.cacheTaken },
     };
     world.events.push({ kind: "checkpoint", index });
   }
@@ -357,6 +359,7 @@ function sendBack(world: World, caught: Catch) {
   releaseAll(world);
   world.cacheUncovered = [...snapshot.cacheUncovered];
   world.cacheBy = { ...snapshot.cacheBy };
+  world.cacheTaken = { ...snapshot.cacheTaken };
   // a cache solved after the checkpoint is closed again: its station is unsolved and drawn afresh
   for (const id of Object.keys(world.solvedBy)) {
     if (
@@ -371,7 +374,8 @@ function sendBack(world: World, caught: Catch) {
   world.loot =
     world.room.objects
       .filter((o) => o.kind === "loot" && world.lootTaken.includes(o.id))
-      .reduce((sum, o) => sum + lootValue(o.params), 0) + Object.keys(world.cacheBy).length;
+      .reduce((sum, o) => sum + lootValue(o.params), 0) + Object.keys(world.cacheTaken).length;
+  syncCacheDoors(world);
   world.seqProgress = {};
   world.seqFlash = {};
   world.events.push({ kind: "caught", ...caught });

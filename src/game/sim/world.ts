@@ -79,6 +79,7 @@ export interface Snapshot {
   gear: GearState[];
   cacheUncovered: string[]; // a send-back restores both, and un-solves a cache solved after it
   cacheBy: Record<string, Seat>;
+  cacheTaken: Record<string, Seat>; // and the keepsakes taken
 }
 
 export interface World {
@@ -113,7 +114,8 @@ export interface World {
   dyedUntil: number; // the tick the dye-pack splatter ends; 0 = none
   solvedBy: Record<string, Seat>; // a station solved -> the seat whose Act solved it (credits)
   cacheUncovered: string[]; // cache station ids whose motif tile was pressed
-  cacheBy: Record<string, Seat>; // cache station id -> the seat whose Act solved it
+  cacheBy: Record<string, Seat>; // cache station id -> the seat whose Act solved it (the vault door is open)
+  cacheTaken: Record<string, Seat>; // cache station id -> the seat that took the keepsake (its owner); +1 loot
   syncAt: Record<string, number[]>; // sync locks: the tick each key was last turned (-1 = not yet)
 }
 
@@ -145,7 +147,7 @@ export type WorldEvent =
   | { kind: "bell"; id: string; at: Vec }
   | { kind: "lamp"; id: string; seat: Seat }
   | { kind: "dye"; station: string }
-  | { kind: "cache"; id: string; result: "uncover" | "solved"; seat: Seat; at: Vec };
+  | { kind: "cache"; id: string; result: "uncover" | "solved" | "taken"; seat: Seat; at: Vec };
 
 export type Inputs = Partial<Record<Seat, PlayerInput>>;
 
@@ -240,6 +242,7 @@ export function createWorld(room: Room, seed = 1): World {
       gear: copyGear(gear),
       cacheUncovered: [],
       cacheBy: {},
+      cacheTaken: {},
     },
     seqProgress: {},
     alarmUntil: 0,
@@ -263,6 +266,7 @@ export function createWorld(room: Room, seed = 1): World {
     solvedBy: {},
     cacheUncovered: [],
     cacheBy: {},
+    cacheTaken: {},
     syncAt: {},
   };
   drawStations(world);

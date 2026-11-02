@@ -1,8 +1,9 @@
 // Stations (spec FR5-FR14): puzzles worked by standing on a tile and pressing Act. Pure: the
 // answers come from a seeded generator, and a wrong answer is reported to `step`, which sends the
 // team back (FR15). Each type's parts are tiles named in the station's metadata.
-import { cacheOf, type RoomObject } from "../rooms/format.ts";
+import { cacheOf, type RoomObject, secretDoors } from "../rooms/format.ts";
 import type { Seat, Vec } from "../types.ts";
+import { syncCacheDoors, takeKeepsake } from "./cache.ts";
 import { groupStartingOn, tuneGroups } from "./chimes.ts";
 import { rng } from "./rng.ts";
 import { type StationState, type StationType, TICK_MS, type World } from "./world.ts";
@@ -298,9 +299,11 @@ function act(
     revealOn(world, o, s);
     say("solved");
     if (cache) {
+      // the vault's secret door slides open; the loot waits for the owner to take the item
       world.cacheBy[o.id] = seat;
-      world.loot += 1;
-      world.events.push({ kind: "cache", id: o.id, result: "solved", seat, at: centre(anchor) });
+      syncCacheDoors(world);
+      const vaultDoor = secretDoors(world.room).find((d) => d.id === o.id)?.vault.tiles[0] as Vec;
+      world.events.push({ kind: "cache", id: o.id, result: "solved", seat, at: centre(vaultDoor) });
     }
   };
   const fail = () => {
@@ -413,7 +416,9 @@ function uncover(world: World, tile: Vec, seat: Seat): boolean {
     if (!cache || world.cacheUncovered.includes(o.id) || world.stations[o.id]?.solved) continue;
     if (!cache.tiles.some((t) => t.motif === cache.motif && same(t.at, tile))) continue;
     world.cacheUncovered.push(o.id);
-    world.events.push({ kind: "cache", id: o.id, result: "uncover", seat, at: centre(tile) });
+    syncCacheDoors(world);
+    const door = secretDoors(world.room).find((d) => d.id === o.id)?.chamber.tiles[0] as Vec;
+    world.events.push({ kind: "cache", id: o.id, result: "uncover", seat, at: centre(door) });
     return true;
   }
   return false;
@@ -431,7 +436,7 @@ export function updateStations(
   for (const seat of acts) {
     const pos = world.players[seat].pos;
     const tile = { x: Math.floor(pos.x), y: Math.floor(pos.y) };
-    if (uncover(world, tile, seat)) {
+    if (uncover(world, tile, seat) || takeKeepsake(world, seat)) {
       used.add(seat);
       continue;
     }

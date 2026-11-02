@@ -49,6 +49,8 @@ const OBJECTS = {
   },
   L1: { dir: "right", onS: 2, offS: 2, offsetS: 0 },
 };
+const DOOR_AT = { x: CHAMBER.door[0] + 0.5, y: CHAMBER.door[1] + 0.5 };
+const VAULT_DOOR_AT = { x: CHAMBER.vault.door[0] + 0.5, y: CHAMBER.vault.door[1] + 0.5 };
 const MOON = { x: 10, y: 1 };
 const STAR = { x: 12, y: 1 };
 const ANCHOR = { x: 7, y: 2 };
@@ -82,7 +84,7 @@ describe("a cache", () => {
     expect(w.cacheUncovered).toEqual([]);
     const events = press(w, MOON, 1);
     expect(cacheEvents(events)).toEqual([
-      { kind: "cache", id: "Q1", result: "uncover", seat: 1, at: { x: 10.5, y: 1.5 } },
+      { kind: "cache", id: "Q1", result: "uncover", seat: 1, at: DOOR_AT },
     ]);
     expect(w.cacheUncovered).toEqual(["Q1"]);
     expect(cacheEvents(press(w, MOON, 1))).toEqual([]); // pressing it again is silent
@@ -111,17 +113,17 @@ describe("a cache", () => {
     expect(st(w).input).toEqual([0]);
   });
 
-  it("is solved by a right answer: the solver's seat, one loot", () => {
+  it("is solved by a right answer: the solver's seat, and no loot until the item is taken", () => {
     const w = world();
     press(w, MOON);
     rig(w);
     const events = press(w, ANCHOR, 2);
     expect(cacheEvents(events)).toEqual([
-      { kind: "cache", id: "Q1", result: "solved", seat: 2, at: { x: 7.5, y: 2.5 } },
+      { kind: "cache", id: "Q1", result: "solved", seat: 2, at: VAULT_DOOR_AT },
     ]);
     expect(st(w).solved).toBe(true);
     expect(w.cacheBy).toEqual({ Q1: 2 });
-    expect(w.loot).toBe(1);
+    expect(w.loot).toBe(0);
     expect(w.lootTotal).toBe(1);
   });
 
@@ -130,7 +132,7 @@ describe("a cache", () => {
     press(w, MOON);
     rig(w);
     press(w, ANCHOR);
-    expect(w.loot).toBe(1);
+    expect(w.cacheBy).toEqual({ Q1: 0 });
     place(w, 1, { x: 10, y: 3 }); // into the laser's beam: the team goes back to the start
     step(w, {}, 50);
     expect(w.events.some((e) => e.kind === "caught")).toBe(true);

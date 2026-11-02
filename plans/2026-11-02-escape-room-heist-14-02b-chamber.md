@@ -175,7 +175,7 @@ view with `full = true`, so the sighted get the unmasked map the same tick.
   "9 room(s) ok"; `pnpm test:unit` green; `src/game/bots` never reads `cacheUncovered`, `cacheBy` or `cacheTaken`.
 - **Depends on:** 51, 53, 61.
 
-### Task 63: The chamber in the sim: doors, the standing item, the owner's take, loot at pickup
+### Task 63: The chamber in the sim: doors, the standing item, the owner's take, loot at pickup [x]
 
 - **Description:** the cache's state opens the secret doors; solving no longer gives loot; the item stands in the vault and only its owner
   takes it, into its own slot, which adds the loot; a send-back undoes all of it.
