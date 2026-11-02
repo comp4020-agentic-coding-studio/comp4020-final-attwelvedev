@@ -337,6 +337,18 @@ function updateLoot(world: World) {
     world.loot += lootValue(o.params);
     world.events.push({ kind: "loot", id: o.id, at: tileCentre(at) });
   }
+  // a side job is loot with an owner: anyone may take it, and both are credited
+  for (const o of world.room.objects.filter((o) => o.kind === "sidejob")) {
+    const at = o.tiles[0];
+    if (!at || world.sideJobsDone.includes(o.id)) continue;
+    const picker = world.players.find((p) => tileOf(p.pos).x === at.x && tileOf(p.pos).y === at.y);
+    if (!picker) continue;
+    world.sideJobsDone.push(o.id);
+    world.sideJobBy[o.id] = picker.seat;
+    world.loot += lootValue(o.params);
+    world.events.push({ kind: "sidejob", id: o.id, seat: picker.seat });
+    world.events.push({ kind: "loot", id: o.id, at: tileCentre(at) }); // the whole team hears it
+  }
 }
 
 // The whole team goes back to the last checkpoint: players, crates, loot and gear as
@@ -354,8 +366,16 @@ function sendBack(world: World, caught: Catch) {
   world.lootTaken = [...snapshot.lootTaken];
   world.gear = copyGear(snapshot.gear);
   releaseAll(world);
+  world.sideJobsDone = [...snapshot.sideJobsDone];
+  for (const id of Object.keys(world.sideJobBy)) {
+    if (!world.sideJobsDone.includes(id)) delete world.sideJobBy[id];
+  }
   world.loot = world.room.objects
-    .filter((o) => o.kind === "loot" && world.lootTaken.includes(o.id))
+    .filter(
+      (o) =>
+        (o.kind === "loot" && world.lootTaken.includes(o.id)) ||
+        (o.kind === "sidejob" && world.sideJobsDone.includes(o.id)),
+    )
     .reduce((sum, o) => sum + lootValue(o.params), 0);
   world.seqProgress = {};
   world.seqFlash = {};

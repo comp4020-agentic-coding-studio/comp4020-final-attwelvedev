@@ -567,3 +567,41 @@ describe("lintRoom: clue paths (escape-room Task 12)", () => {
     );
   });
 });
+
+// Side jobs (Task 28): an owner's item must be out of their own reach until a door opens.
+describe("lintRoom: side jobs", () => {
+  const head = (owner: number) =>
+    `{"id":"t-sj","name":"T","version":1,"beats":[{"name":"b","x":[0,19],"intent":{"blind":"b","deaf":"d","mute":"m"}}],"objects":{"D1":{"opensWhen":["p1","p2","p3"]},"j1":{"owner":${owner},"text":"the music box"}},"hints":{"jobs":[{"beat":1,"goTo":"p1"}]}}`;
+  const sjRoom = (grid: string[], owner: number) =>
+    parseRoom(`${head(owner)}\n---\n${grid.join("\n")}\n`);
+  const SHUT = [
+    "####################",
+    "#1.#..p...#.j..#####",
+    "#2.B..p...D....E####",
+    "#3.#..p...#........#",
+    "####################",
+  ];
+  const sjMessages = (r: Room) => lintRoom(r).map((i) => i.message);
+
+  it("flags a job its owner can walk to from their own spawn", () => {
+    const open = SHUT.map((r) => r.replace("D", "."));
+    expect(sjMessages(sjRoom(open, 2))).toContainEqual(expect.stringMatching(/j1.*reach/i));
+  });
+
+  it("passes a job behind a door", () => {
+    expect(sjMessages(sjRoom(SHUT, 2)).filter((m) => /j1/.test(m))).toEqual([]);
+  });
+
+  it("flags a job sealed in by walls, so nobody can reach it even with every door open", () => {
+    const sealed = [
+      "####################",
+      "#1.#..p...#.#j#.####",
+      "#2.B..p...D.###.E###",
+      "#3.#..p...#........#",
+      "####################",
+    ];
+    expect(sjMessages(sjRoom(sealed, 2))).toContainEqual(
+      expect.stringMatching(/j1.*no one can reach/i),
+    );
+  });
+});

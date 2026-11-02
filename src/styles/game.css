@@ -623,6 +623,7 @@ body.playing main {
   /* centred while it fits; taller than the frame (the cleared card's board on a phone), it scrolls
      from its top instead of being cut off at both ends */
   place-content: safe center;
+  grid-template-columns: minmax(0, 1fr);
   overflow: auto;
   padding: var(--s-3) var(--s-2);
   gap: var(--s-2);
@@ -872,6 +873,95 @@ fieldset.settings {
   gap: var(--s-2);
   justify-items: center;
   margin-top: var(--s-2);
+}
+
+/* the room-end card: one centred column, so the title, the credits, the buttons and the board share
+   a middle and a width. Credits are a card per player, side by side while they fit */
+.cleared {
+  display: grid;
+  gap: var(--s-4);
+  justify-items: center;
+  /* the overlay's one column is the frame's width (minmax(0, 1fr)), so this is 44rem or the frame */
+  width: 44rem;
+  max-width: 100%;
+  margin-inline: auto;
+}
+.cleared-head {
+  display: grid;
+  gap: var(--s-2);
+  justify-items: center;
+}
+.cleared-head h2 {
+  margin: 0;
+}
+.cleared-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s-2) var(--s-5);
+  margin: 0;
+}
+.cleared-stats div {
+  display: grid;
+  gap: var(--s-1);
+}
+.cleared-stats dt {
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+}
+.cleared-stats dd {
+  margin: 0;
+  font-size: var(--t-18);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.credits {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: var(--s-3);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.credits > li {
+  display: grid;
+  align-content: start;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  background: var(--panel);
+  border-radius: var(--r);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.credits h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+  font-size: var(--t-18);
+}
+.credits h3 .role-shape {
+  flex: none;
+}
+.credits ul {
+  display: grid;
+  gap: var(--s-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--t-14);
+}
+.cleared-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s-2);
+}
+.cleared .room-board {
+  width: 100%;
+  max-width: none;
+  margin-top: 0;
 }
 
 /* why the team was just sent back: over the top of the map, for everyone */

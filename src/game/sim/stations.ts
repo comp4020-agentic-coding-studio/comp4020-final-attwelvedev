@@ -286,6 +286,7 @@ function act(
     });
   const solve = () => {
     s.solved = true;
+    world.solvedBy[o.id] = seat;
     revealOn(world, o, s);
     say("solved");
   };

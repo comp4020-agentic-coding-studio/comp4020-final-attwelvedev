@@ -26,7 +26,7 @@ const mount = (over: Partial<Parameters<typeof RoomCleared>[0]> = {}) =>
   );
 // the card's own buttons; "Full leaderboard" sits with the board, after them
 const names = () =>
-  [...document.querySelectorAll(".overlay-actions button")].map((b) => b.textContent);
+  [...document.querySelectorAll(".cleared-actions button")].map((b) => b.textContent);
 
 describe("RoomCleared", () => {
   it("never offers Leave: it is too easy to press without reading", () => {
@@ -111,6 +111,37 @@ describe("RoomCleared", () => {
   it("shows the time and the loot", () => {
     mount();
     expect(document.body.textContent).toContain("1:35");
-    expect(document.body.textContent).toMatch(/Loot 1 of 2/);
+    expect(document.body.textContent).toMatch(/Loot\s*1 of 2/);
+  });
+
+  it("shows a card per player: their name, role and what they did, one line each", () => {
+    mount({
+      credits: [
+        { name: "Ana", role: "blind", lines: ["cracked 2 safes", "side job: the ledger"] },
+        { name: "Cy", role: "mute", lines: ["kept the crew moving"] },
+      ],
+    });
+    const cards = [...document.querySelectorAll(".credits > li")];
+    expect(cards.map((c) => c.querySelector("h3")?.textContent)).toEqual(["Ana", "Cy"]);
+    expect([...(cards[0] as Element).querySelectorAll("li")].map((l) => l.textContent)).toEqual([
+      "cracked 2 safes",
+      "side job: the ledger",
+    ]);
+  });
+
+  it("shows time and loot as two stats, and no credits list when there are none", () => {
+    mount({});
+    expect([...document.querySelectorAll(".cleared-stats dd")].map((d) => d.textContent)).toEqual([
+      "1:35",
+      "1 of 2",
+    ]);
+    expect(document.querySelector(".credits")).toBeNull();
+  });
+
+  it("keeps the whole card, board included, in one column", () => {
+    mount({ board: { top: [], mine: null } });
+    const card = document.querySelector(".overlay > .cleared");
+    expect(card?.querySelector(".room-board")).not.toBeNull();
+    expect(card?.querySelector(".cleared-actions")).not.toBeNull();
   });
 });

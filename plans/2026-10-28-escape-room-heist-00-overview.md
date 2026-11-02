@@ -298,9 +298,10 @@ matching `/^\d$/`, or `"stop"` as a callout for a dial; bots read only those two
 | 08 | `…-08-night-shift.md` | 22–23 | 07 | UV and goggles bot use; room 7; **human review** | [x] |
 | 09 | `…-09-music-room.md` | 24–25 | 08 | music box and earpiece decoders; room 8; **human review** | [x] |
 | 10 | `…-10-vault.md` | 26–27 | 09 | vault and sync decoders; room 9; old rooms removed; **human review** | [x] |
-| 11 | `…-11-wrap-up.md` | 28–31 | 10 | side jobs, credits, comms map, edition 2, docs, ADRs; **human review** | [ ] |
+| 11 | `…-11-wrap-up.md` | 28–31 | 10 | credits and the cleared card (28), comms map, edition 2, docs, ADRs (31); floor-item side jobs replaced by phase 14; **human review** | [ ] |
 | 12 | `…-12-review-fixes.md` | 32–40 | 10 | fixes from the human review of phases 02 to 10 (G, crate plate, labels, links, chimes, room 7, practice lever, HUD, hand-holding); **human review** | [ ] |
 | 13 | `2026-11-01-escape-room-heist-13-00-overview.md` | 41–50 | 12 | fixes from the human review of phase 12 (vent chimes, practice sound, UV ink, room 7 door, link wires, bots, flaky specs); **human review** | [x] |
+| 14 | `2026-11-02-escape-room-heist-14-00-overview.md` | 51–60 | 11 (28–30), 12, 13 | side jobs as hidden caches: sim and view, server, client, six caches, docs and ADR 0020; **human review** | [ ] |
 
 ## 6. Feature-level Definition of Done
 
@@ -325,7 +326,8 @@ matching `/^\d$/`, or `"stop"` as a callout for a dial; bots read only those two
 | Spec FR4 (`leads` removed), FR5 (seeded re-draw) | Tasks 2, 5 (done) |
 | Spec FR6–FR14 control and feedback, FR15 wrong = caught | Task 2 (done) |
 | Spec FR16–FR25 gear, holding, hatch, bell, lamp | Task 3 (done); Tasks 8–10 (client) |
-| Spec FR28 side jobs (from room 4), FR30 credits | Task 28 |
+| Spec FR28 side jobs (from room 4): replaced by caches | Phase 14 (Tasks 51–60, `specs/2026-11-02-escape-room-caches.md`) |
+| Spec FR30 credits | Task 28 (the cleared card and credits) |
 | Spec FR29 dye pack | Task 2 (sim, done), Tasks 8, 9 |
 | Spec FR31 version bump / edition | Task 30 |
 | Clues FR1, FR2 (clue per station type) | Task 11 (sim and view), Tasks 8–10 (drawing), each room's decoder task |
@@ -334,13 +336,13 @@ matching `/^\d$/`, or `"stop"` as a callout for a dial; bots read only those two
 | Clues FR5, FR6 (perception-only bots) | Task 13 (core); Tasks 16, 18, 20, 22, 24, 26 (decoders) |
 | Clues FR7, FR8 (teaching then real) | Task 11 (sim); every station room task |
 | Clues FR9, FR10 (nine rooms, two new a room) | Task 14 (rooms 1–3), Tasks 17, 19, 21, 23, 25, 27 |
-| Clues FR11 (side jobs from room 4) | Task 28 |
+| Clues FR11 (side jobs from room 4) | Tasks 58, 59 (caches in rooms 4 to 9) |
 | Clues FR12 (label cap) | Task 10 |
 | NFR audio (told apart by ear) | Task 9 (human review) |
 | NFR perception, parity | Tasks 3, 11 (rows), Task 31 (CLAUDE.md) |
 | NFR performance | Task 7 (done) |
 | NFR accessibility | Tasks 8, 10, 11 |
-| NFR logging | Task 4 (done), Task 28 |
+| NFR logging | Task 4 (done), Task 54 |
 | Overhaul FR35 comms map | Task 29 |
 | Housekeeping (CLAUDE.md, DESIGN.md, ADRs, backlog, PROCESS_LOG) | Task 31 |
 

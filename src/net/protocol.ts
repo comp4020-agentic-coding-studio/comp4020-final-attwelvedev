@@ -93,12 +93,22 @@ export type ServerMsg =
       played: Record<string, Role[]>; // by nickname: the roles each person has played so far
       real: RealLife; // what this person's setup means for them in this room
       cues: BriefingCue[]; // Can't see only: the sounds of this room to learn; empty for the others
+      sideJob?: string; // your own side job's text, if this room has one for your seat
     }
   | { t: "ready"; seats: Seat[] } // the seats that pressed I'm ready (bots count): sent on every change, to players and watchers
   | { t: "view"; view: RoleView }
   // `board`: the room's top 5 with this run marked, and its rank alone if it is outside them. Team
   // names are public on the board already (FR32); never log them.
-  | { t: "cleared"; room: string; ms: number; loot: number; lootTotal: number; board: RoomBoard }
+  | {
+      t: "cleared";
+      room: string;
+      ms: number;
+      loot: number;
+      lootTotal: number;
+      board: RoomBoard;
+      // who did what, in fixed words: a teammate is a `{seat}` token the page fills in (never a name here)
+      credits: { seat: Seat; lines: string[] }[];
+    }
   | ({ t: "msg" } & ChannelMessage) // only ever sent to a seat whose role receives the method
   | { t: "cooldown"; method: Method; until: number }
   // The game is paused for a dropped seat. `left` is the ms to go as the server counts them

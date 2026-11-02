@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { createAudio, type GameAudio } from "../client/audio.ts";
+import { creditRows } from "../client/credits.ts";
 import { faceImage, preloadFaces } from "../client/faces.ts";
 import { detectFx, FX_MAX, FX_MS, type Fx } from "../client/fx.ts";
 import {
@@ -82,6 +83,7 @@ export interface Reveal {
   played: Record<string, Role[]>; // by nickname: roles played so far
   real: RealLife; // what your setup means for you in this room
   cues: BriefingCue[]; // Can't see only: the sounds to learn
+  sideJob?: string; // your own side job, if the room has one for you
   from?: Role; // your role in the room before, so the shape can morph into the new one
 }
 
@@ -609,6 +611,7 @@ function Hud({
     loot: number;
     lootTotal: number;
     board: RoomBoardData;
+    credits: { seat: number; lines: string[] }[];
   } | null>(null);
   const [boardOpen, setBoardOpen] = useState<string | null>(null); // the leaderboard panel's first tab
   const [heist, setHeist] = useState<{
@@ -730,7 +733,13 @@ function Hud({
   useEffect(
     () =>
       socket.on("cleared", (m) =>
-        setSummary({ ms: m.ms, loot: m.loot, lootTotal: m.lootTotal, board: m.board }),
+        setSummary({
+          ms: m.ms,
+          loot: m.loot,
+          lootTotal: m.lootTotal,
+          board: m.board,
+          credits: m.credits,
+        }),
       ),
     [socket],
   );
@@ -1111,6 +1120,7 @@ function Hud({
               onRestart={() => ask("room")}
               onRestartHeist={() => ask("heist")}
               board={summary?.board}
+              credits={summary ? creditRows(summary.credits, reveal.crew) : undefined}
               onBoard={() => setBoardOpen(`room-${reveal.index + 1}`)}
             />
           )

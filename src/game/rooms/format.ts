@@ -25,7 +25,8 @@ export type Tile =
   | "u"
   | "t"
   | "v"
-  | "Y";
+  | "Y"
+  | "j";
 
 export interface RoomObject {
   id: string; // "p1", "D1", "B2", "E1"
@@ -50,6 +51,7 @@ export interface RoomObject {
     | "lamp" // a switch: Act flashes a lamp in every sighted player's HUD
     | "card" // a switches station's target card: `params.of` names the station
     | "lever" // a practice lever: Act flips it; a station that names it (`practice`) only plays
+    | "sidejob" // an owned bit of loot: `params.owner` (1 to 3), `params.text`, `params.value`
     | "order" // a vault's order clue: the wings' motifs in socket order
     | "ink"; // hidden text (`params.text`) that shows only in a UV torch's light
   tiles: Vec[]; // integer tile coordinates
@@ -147,6 +149,7 @@ const TILES = new Set([
   "t", // a target card
   "v", // a practice lever
   "Y", // a vault's order clue
+  "j", // a side job
 ]);
 
 // Single-tile objects numbered in reading order: letter -> [kind, id prefix].
@@ -168,6 +171,7 @@ const NUMBERED: Record<string, [RoomObject["kind"], string]> = {
   t: ["card", "T"],
   v: ["lever", "v"],
   Y: ["order", "Y"],
+  j: ["sidejob", "j"],
 };
 // Kinds whose metadata is kept whole as `params`.
 const PARAMS: Record<string, true> = {
@@ -186,6 +190,7 @@ const PARAMS: Record<string, true> = {
   card: true,
   order: true,
   lever: true,
+  sidejob: true,
 };
 export const STATION_TYPES = [
   "dial",
@@ -343,6 +348,15 @@ export function parseRoom(text: string): Room {
         `${id} has motif ${JSON.stringify(ov.motif)}, not one of ${MOTIFS.join(", ")}`,
         1,
       );
+    }
+    if (kind === "sidejob") {
+      const owner = ov.owner;
+      if (typeof owner !== "number" || ![1, 2, 3].includes(owner) || typeof ov.text !== "string") {
+        throw new RoomFormatError(
+          `side job ${id} needs an owner of 1, 2 or 3 and a text (got owner ${JSON.stringify(owner)})`,
+          1,
+        );
+      }
     }
     if (kind === "gear" && !(GEAR_ITEMS as readonly unknown[]).includes(ov.item)) {
       throw new RoomFormatError(

@@ -84,6 +84,68 @@ describe.each([
     await closeAll(players);
   }, 120_000);
 
+  it("lays the cleared card out in one centred column: credits inside it, the board on its middle, nothing clipped", async () => {
+    const { players, code } = await startedGame(baseUrl);
+    ready(players);
+    // a long nickname is the stress: a name wider than its card must wrap, never push the column out
+    const page = await openAs(
+      players[1] as Player,
+      "Bartholomew-the-Extremely-Long",
+      code,
+      viewport,
+    );
+    await clearRoomOne(players);
+    const card = page.locator(".overlay > .cleared");
+    await card.waitFor();
+    await page.locator(".credits > li").first().waitFor();
+    const box = async (sel: string) => {
+      const b = await page.locator(sel).first().boundingBox();
+      if (!b) throw new Error(`no box for ${sel}`);
+      return b;
+    };
+    const frame = await box(".frame");
+    const cardBox = await box(".overlay > .cleared");
+    const board = await box(".cleared .room-board");
+    const mid = (b: { x: number; width: number }) => b.x + b.width / 2;
+    // the card and the board share a middle (within a pixel), and both sit inside the frame
+    expect(Math.abs(mid(board) - mid(cardBox))).toBeLessThanOrEqual(1);
+    expect(board.x).toBeGreaterThanOrEqual(cardBox.x - 1);
+    expect(board.x + board.width).toBeLessThanOrEqual(cardBox.x + cardBox.width + 1);
+    expect(cardBox.x).toBeGreaterThanOrEqual(frame.x - 1);
+    expect(cardBox.x + cardBox.width).toBeLessThanOrEqual(frame.x + frame.width + 1);
+    // every credit card is inside the column and its text is not clipped (scrollWidth, not a guess)
+    const clipped = await page
+      .locator(".credits > li")
+      .evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth + 1).length);
+    expect(clipped).toBe(0);
+    for (const li of await page.locator(".credits > li").all()) {
+      const b = await li.boundingBox();
+      if (!b) throw new Error("no credit box");
+      expect(b.x).toBeGreaterThanOrEqual(cardBox.x - 1);
+      expect(b.x + b.width).toBeLessThanOrEqual(cardBox.x + cardBox.width + 1);
+    }
+    // the cards sit side by side on a desktop (one row, the column wide enough for three) and stack
+    // on a phone: it is the width of the column, not a wish, that decides
+    const tops = await page
+      .locator(".credits > li")
+      .evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+    expect(new Set(tops).size).toBe(name === "desktop" ? 1 : tops.length);
+    // the essentials are in view without scrolling, on both widths: the title, the stats, the
+    // credits and the buttons. The board below them may scroll (the overlay scrolls from its top),
+    // since a board of six rows plus a rank line is taller than the frame by design.
+    const lastButton = await box(".cleared-actions");
+    expect(lastButton.y + lastButton.height).toBeLessThanOrEqual(frame.y + frame.height + 1);
+    // the buttons are still 48 px targets
+    for (const btn of await page.locator(".cleared-actions button").all()) {
+      expect((await btn.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(48);
+    }
+    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
+    expect(await axeViolations(page, ".cleared")).toEqual([]);
+    await page.screenshot({ path: `/tmp/cleared-${name}.png` });
+    await page.context().close();
+    await closeAll(players);
+  }, 120_000);
+
   it("opens the full board as a panel with no navigation, axe clean, and closes", async () => {
     const { players, code } = await startedGame(baseUrl);
     ready(players);

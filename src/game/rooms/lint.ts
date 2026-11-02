@@ -70,6 +70,7 @@ export function lintRoom(room: Room): LintIssue[] {
   lintHints(room, issue);
   lintPresence(room, issue);
   lintClues(room, issue);
+  lintSideJobs(room, issue);
 
   // every exit tile must be reachable from every spawn, treating doors as open
   if (exits.length > 0 && spawns.length > 0) {
@@ -491,6 +492,47 @@ function lintOpenAtOnce(
     if (stations.length >= 2 && open.length < 2) {
       issue(
         `from (${start.x},${start.y}) only ${open.length} station${open.length === 1 ? "" : "s"} can be worked: two stations should be open at once (FR2)`,
+      );
+    }
+  }
+}
+
+// A side job is somewhere its owner cannot get to alone (spec FR28): flood from the owner's spawn
+// with every door shut (glass, vents and hatches stop bodies too). Reaching the item means a person
+// could take it before anyone else had to open anything.
+function lintSideJobs(room: Room, issue: (message: string) => void): void {
+  for (const job of room.objects.filter((o) => o.kind === "sidejob")) {
+    const spawn = room.objects.find((o) => o.id === `s${String(job.params?.owner)}`);
+    const target = at(job);
+    if (!spawn) continue;
+    const start = at(spawn);
+    const flood = (blocks: string) => {
+      const seen = new Set([`${start.x},${start.y}`]);
+      const queue = [start];
+      while (queue.length > 0) {
+        const t = queue.shift() as Vec;
+        for (const [dx, dy] of [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ] as const) {
+          const n = { x: t.x + dx, y: t.y + dy };
+          const ch = room.grid[n.y]?.[n.x];
+          if (ch === undefined || blocks.includes(ch) || seen.has(`${n.x},${n.y}`)) continue;
+          seen.add(`${n.x},${n.y}`);
+          queue.push(n);
+        }
+      }
+      return seen;
+    };
+    if (!flood("#=%H").has(`${target.x},${target.y}`)) {
+      issue(`side job ${job.id} is walled in: no one can reach it even with every door open`);
+      continue;
+    }
+    if (flood("#D=%H").has(`${target.x},${target.y}`)) {
+      issue(
+        `side job ${job.id} is within reach of its owner (seat ${String(job.params?.owner)}) with every door shut: put it behind a door another role opens`,
       );
     }
   }

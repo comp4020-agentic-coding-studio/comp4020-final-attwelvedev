@@ -111,6 +111,8 @@ export interface World {
   attempt: number; // 0 at room start, +1 on every send-back; answers come from rng(seed * 1000 + attempt)
   dyedUntil: number; // the tick the dye-pack splatter ends; 0 = none
   sideJobsDone: string[];
+  solvedBy: Record<string, Seat>; // a station solved -> the seat whose Act solved it (credits)
+  sideJobBy: Record<string, Seat>; // a side job done -> the seat that picked it up
   syncAt: Record<string, number[]>; // sync locks: the tick each key was last turned (-1 = not yet)
 }
 
@@ -225,7 +227,10 @@ export function createWorld(room: Room, seed = 1): World {
       }),
     lootTaken: [],
     loot: 0,
-    lootTotal: loot.reduce((sum, o) => sum + lootValue(o.params), 0),
+    lootTotal: [...loot, ...room.objects.filter((o) => o.kind === "sidejob")].reduce(
+      (sum, o) => sum + lootValue(o.params),
+      0,
+    ),
     checkpoint: 0,
     snapshot: {
       players: players.map((p) => ({ ...p.pos })),
@@ -254,6 +259,8 @@ export function createWorld(room: Room, seed = 1): World {
     attempt: 0,
     dyedUntil: 0,
     sideJobsDone: [],
+    solvedBy: {},
+    sideJobBy: {},
     syncAt: {},
   };
   drawStations(world);

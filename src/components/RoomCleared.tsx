@@ -1,6 +1,8 @@
+import type { CreditRow } from "../client/credits.ts";
 import { formatTime } from "../client/hud.ts";
 import type { RoomBoard as Board } from "../net/protocol.ts";
 import { ConfirmButton } from "./ConfirmButton.tsx";
+import { RoleShape } from "./RoleShape.tsx";
 import { RoomBoard } from "./RoomBoard.tsx";
 
 // Shown over the map when the team is on the exit. The host moves on to the next room; anyone
@@ -18,6 +20,7 @@ export function RoomCleared({
   onRestartHeist,
   board,
   onBoard,
+  credits,
 }: {
   ms: number;
   loot: number;
@@ -29,38 +32,68 @@ export function RoomCleared({
   onRestartHeist: () => void;
   board?: Board; // the room's board, once the `cleared` message brings it
   onBoard: () => void; // open the full leaderboard panel
+  credits?: CreditRow[]; // who did what, names filled in by the page
 }) {
   return (
     <div class="overlay" role="status">
-      <h2>{last ? "Last room cleared" : "Room cleared"}</h2>
-      <p>Time {formatTime(ms)}</p>
-      {lootTotal > 0 && (
-        <p>
-          Loot {loot} of {lootTotal}
-        </p>
-      )}
-      {last && <p class="muted">That was the last room.</p>}
-      <div class="overlay-actions">
-        {host && !last && (
-          <button type="button" class="btn primary" onClick={onNext}>
-            Next room
-          </button>
+      <div class="cleared">
+        <header class="cleared-head">
+          <h2>{last ? "Last room cleared" : "Room cleared"}</h2>
+          <dl class="cleared-stats">
+            <div>
+              <dt>Time</dt>
+              <dd>{formatTime(ms)}</dd>
+            </div>
+            {lootTotal > 0 && (
+              <div>
+                <dt>Loot</dt>
+                <dd>
+                  {loot} of {lootTotal}
+                </dd>
+              </div>
+            )}
+          </dl>
+        </header>
+        {credits && credits.length > 0 && (
+          <ul class="credits" aria-label="Who did what">
+            {credits.map((c) => (
+              <li key={c.name}>
+                <h3>
+                  <RoleShape role={c.role} size={16} />
+                  {c.name}
+                </h3>
+                <ul>
+                  {c.lines.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
         )}
-        <ConfirmButton
-          class="btn"
-          label="Restart room"
-          confirmLabel="Sure? Ask to restart room"
-          onConfirm={onRestart}
-        />
-        <ConfirmButton
-          class="btn"
-          label="Restart heist"
-          confirmLabel="Sure? Ask to restart heist"
-          onConfirm={onRestartHeist}
-        />
+        {last && <p class="muted">That was the last room.</p>}
+        <div class="cleared-actions">
+          {host && !last && (
+            <button type="button" class="btn primary" onClick={onNext}>
+              Next room
+            </button>
+          )}
+          <ConfirmButton
+            class="btn"
+            label="Restart room"
+            confirmLabel="Sure? Ask to restart room"
+            onConfirm={onRestart}
+          />
+          <ConfirmButton
+            class="btn"
+            label="Restart heist"
+            confirmLabel="Sure? Ask to restart heist"
+            onConfirm={onRestartHeist}
+          />
+        </div>
+        {!host && <p class="muted">The host picks the next room.</p>}
+        {board && <RoomBoard board={board} onFull={onBoard} />}
       </div>
-      {!host && <p class="muted">The host picks the next room.</p>}
-      {board && <RoomBoard board={board} onFull={onBoard} />}
     </div>
   );
 }

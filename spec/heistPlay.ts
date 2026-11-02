@@ -55,6 +55,7 @@ export interface ClearedMsg {
     }[];
     mine: { rank: number; ms: number } | null;
   };
+  credits: { seat: number; lines: string[] }[];
 }
 
 // A room played the way three people would, as stages: each gives every seat a route (orthogonal

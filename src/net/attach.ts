@@ -3,10 +3,11 @@ import type { Duplex } from "node:stream";
 import { type RawData, type WebSocket, WebSocketServer } from "ws";
 import { cleanText } from "../game/channels.ts";
 import { cuesIn } from "../game/cues.ts";
-import { spectatorView, viewFor } from "../game/perception.ts";
+import { sideJobFor, spectatorView, viewFor } from "../game/perception.ts";
 import type { Room } from "../game/rooms/format.ts";
 import { loadRooms } from "../game/rooms/load.ts";
 import { DEFAULT_SETUP } from "../game/setup.ts";
+import { creditsOf } from "../game/sim/credits.ts";
 import { TICK_MS } from "../game/sim/world.ts";
 import type { Role, Seat } from "../game/types.ts";
 import { db } from "../lib/db.ts";
@@ -168,8 +169,15 @@ function voiceOn(lobby: LobbyState, running: Running): boolean {
   return !setups.every((s) => s?.inRoom === true);
 }
 
-function revealFor(lobby: LobbyState, running: Running, role: Role, who: string): ServerMsg {
+function revealFor(
+  lobby: LobbyState,
+  running: Running,
+  role: Role,
+  who: string,
+  seat?: Seat,
+): ServerMsg {
   const { game } = running;
+  const job = seat === undefined ? undefined : sideJobFor(game.world, seat);
   return {
     t: "reveal",
     room: game.world.room.id,
@@ -184,6 +192,7 @@ function revealFor(lobby: LobbyState, running: Running, role: Role, who: string)
     played: Object.fromEntries(lobby.people.map((p) => [p.nickname, p.played])),
     real: realFor(lobby, running, who, role),
     cues: role === "blind" ? cuesIn(game.world.room) : [],
+    ...(job ? { sideJob: job.text } : {}),
   };
 }
 
@@ -192,7 +201,7 @@ function sendReveal(code: string, seat: Seat): void {
   const running = games.get(code);
   const who = lobby?.seats[seat]?.who;
   if (!lobby || !running || !who) return;
-  hub.sendTo(who, revealFor(lobby, running, running.game.roles[seat] as Role, who));
+  hub.sendTo(who, revealFor(lobby, running, running.game.roles[seat] as Role, who, seat));
 }
 
 // A watcher never occupies a seat, so it gets the same `reveal` (room, crew and every
@@ -351,6 +360,7 @@ function tick(code: string): void {
           loot: world.loot,
           lootTotal: world.lootTotal,
           board,
+          credits: creditsOf(world),
         });
       }
     }

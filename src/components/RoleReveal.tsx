@@ -45,6 +45,7 @@ export function RoleReveal({
   host,
   onSwap,
   audio,
+  sideJob,
 }: {
   name: string;
   index: number;
@@ -64,6 +65,7 @@ export function RoleReveal({
   host: boolean;
   onSwap: (a: string, b: string) => void; // by nickname: the page maps to person indexes
   audio: { current: GameAudio | null };
+  sideJob?: string; // your own side job, if the room has one for you (never shown to the others)
 }) {
   const sends = sendsOf(role);
   const gets = getsOf(role);
@@ -114,6 +116,12 @@ export function RoleReveal({
             <dt>You get</dt>
             <dd>{pagesText(gets)}</dd>
           </div>
+          {sideJob && (
+            <div>
+              <dt>Your side job</dt>
+              <dd>{sideJob}</dd>
+            </div>
+          )}
         </dl>
 
         <ul class="reveal-lines" aria-label="Who gets what you send">

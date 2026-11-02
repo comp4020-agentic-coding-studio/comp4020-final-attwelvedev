@@ -357,6 +357,11 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
       if (!world.lootTaken.includes(o.id)) {
         out.push({ id: o.id, kind: "loot", pos: centre(o.tiles[0] as Vec) });
       }
+    } else if (o.kind === "sidejob") {
+      // to everyone it is plain loot: only its owner's view says whose it is (viewFor)
+      if (!world.sideJobsDone.includes(o.id)) {
+        out.push({ id: o.id, kind: "loot", pos: centre(o.tiles[0] as Vec) });
+      }
     } else if (o.kind === "sign") {
       const shows = Array.isArray(o.params?.shows)
         ? o.params.shows.filter((v): v is string => typeof v === "string")
@@ -774,6 +779,18 @@ function maskTiles(grid: string[], zones: Zone[]): string[] {
   );
 }
 
+// A seat's own side job, if the room has one for it: only the owner is ever told its text (also
+// used for the reveal, which is sent to one person at a time).
+export function sideJobFor(world: World, seat: Seat): RoleView["sideJob"] {
+  const job = world.room.objects.find((o) => o.kind === "sidejob" && o.params?.owner === seat + 1);
+  if (!job) return undefined;
+  return {
+    id: job.id,
+    text: String(job.params?.text),
+    done: world.sideJobsDone.includes(job.id),
+  };
+}
+
 // The one place that decides what a role may know (ADR 0007). A field added to
 // RoleView must be gated here against the role tables in types.ts.
 export function viewFor(world: World, seat: Seat, role: Role, full: boolean): RoleView {
@@ -795,6 +812,8 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
   };
   const hand = partner(world, seat);
   if (hand !== undefined) view.you.hand = hand; // own state (FR22)
+  const job = sideJobFor(world, seat);
+  if (job) view.sideJob = job;
   const hint = actHint(world, seat, role);
   if (hint) view.act = hint; // phrased per role: never a colour for Can't see
   const alarm = world.tick < world.alarmUntil;

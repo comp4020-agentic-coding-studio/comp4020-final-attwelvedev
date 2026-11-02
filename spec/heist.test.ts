@@ -42,6 +42,9 @@ describe("the heist moves on from a cleared room", () => {
     expect(first).toMatchObject({ room: "01-first-steps", loot: 0 });
     expect(first.ms).toBeGreaterThan(0);
     expect(first.lootTotal).toBeGreaterThanOrEqual(1);
+    // one credit per seat, in fixed words: a teammate is a {seat} token, never a name
+    expect(first.credits.map((c) => c.seat)).toEqual([0, 1, 2]);
+    for (const c of first.credits) expect(c.lines.length).toBeGreaterThan(0);
     // the room's top 5 comes with it, this run among them or ranked on its own line
     expect(first.board.top.length).toBeGreaterThanOrEqual(1);
     expect(first.board.top.length).toBeLessThanOrEqual(5);

@@ -219,7 +219,7 @@ Reuse these before drawing something new. The test checks each name exists.
 - `LeaveGuard`: the glass modal that asks before leaving the lobby; the browser's own prompt covers a tab close.
 - `SpectatorChat`: the watchers' room (text and voice); players never see it.
 - `TouchControls`: the phone's joystick, comms buttons and Act.
-- `RoomCleared`: the room-end card: time, gems, and (Task 24) the comms map.
+- `RoomCleared`: the room-end card, one centred column (`.cleared`, 44rem or the frame): the title with Time and Loot as two stats, a card per player (role shape, name, what they did; the same job done twice is one line with a count), the buttons, then the room's board on the same middle. Cards sit side by side while the column fits three and stack on a phone. A teammate in a credit line is a `{seat}` token the page fills with a nickname, so the server never has one. The comms map (Task 29) goes between the credits and the buttons.
 - `RoomBoard`: on the cleared card, this room's top 5 (team, time, loot) with this team's row outlined in `--goal` and bold (never colour alone); a run outside them gets a sixth "You" line with its rank; nobody before you says "First clear of this room". "Full leaderboard" opens `LeaderboardPanel`.
 - `LeaderboardPanel`: the leaderboard as a modal inside the game (tabs, Close, Escape), from `/leaderboard.json`, so nobody leaves their seat to look. Opened from `RoomBoard` and from "See the leaderboard" on the heist-complete card.
 - `GearGlyph`: a gear item drawn (goggles, stethoscope, earpiece, UV torch), the HUD's mirror of the canvas `gearGlyph`. In the crew row it shows what each teammate carries. Always with the item's name for screen readers.

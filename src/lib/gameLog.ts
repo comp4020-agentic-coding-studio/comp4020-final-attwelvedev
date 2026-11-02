@@ -34,6 +34,7 @@ export type GameEvent =
   | "gear" // gear taken, given, dropped or put on a sill (detail kind)
   | "hold" // two players took or let go of hands (detail kind: on/off)
   | "signal" // the bell rung or the lamp flashed (detail kind: bell/lamp)
+  | "sidejob" // a side job picked up (detail kind: done; never which one, whose, or its text)
   | "practice" // a practice lever flipped (detail kind: on/off; never which lever)
   | "pull"; // a tug of war began between two hand-holders (no detail: who is never logged)
 
@@ -96,6 +97,7 @@ export function gameLinesFor(events: readonly WorldEvent[]): EventLine[] {
       return [{ event: "hold", detail: { kind: e.leader === null ? "off" : "on" } }];
     if (e.kind === "bell" || e.kind === "lamp")
       return [{ event: "signal", detail: { kind: e.kind } }];
+    if (e.kind === "sidejob") return [{ event: "sidejob", detail: { kind: "done" } }];
     if (e.kind === "pull") return [{ event: "pull", detail: { kind: "tug" } }];
     if (e.kind === "lever") return [{ event: "practice", detail: { kind: e.on ? "on" : "off" } }];
     return [];
