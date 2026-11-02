@@ -226,13 +226,15 @@ Reuse these before drawing something new. The test checks each name exists.
 - `GearSlot`: your own gear. On a keyboard a glass chip at the world's bottom-right ("Goggles", "G take, give, swap or drop"), the Act hint to its left; on a phone a 48 px button at the same corner, held to give or drop (`data-gear`). The dock is inside the frame, above the captions: the chat box and the touch controls are below the frame, so it never touches them.
 - `ActHint`: what Space will do where you stand, in `view.act`'s words only ("Cut the blue wire"; "Cut wire 2" for Can't see). On a phone the Act button says it instead.
 - `LampLight`: the lamp's flash in a sighted HUD, four rays and the puller's role shape, for a second.
+- `ItemGlyph`: one of the six keepsakes a cache holds (gold watch, ledger, signet ring, silver goblet, fountain pen, pearl necklace), drawn as a stack of layers on a 64 grid (`src/client/items.ts`) that the canvas's `drawItem` reads too. Realistic rather than flat, lit from the north-west like the world: bodies are metal (a banded gradient: a lit edge, a dark band, a second light), matte (leather, paper) or pearl (radial), each with an edge tinted from its own token instead of the line colour, a bevel's worth of light and shade laid over them, a soft south-east drop shadow, and fine ink (a watch's hands and hour marks, a necklace's chain). Every tone is a world token (`--w-brass`, `--w-card`, `--w-steel`, `--w-crate-brace`, `--w-code-red`, `--w-code-black`) mixed toward white or black, so no new colour exists. Fine layers drop out at small sizes, and ink is never thinner than about 1.4 px on screen, so each item still reads at 24 px. High contrast is flat: plain token fills, `--w-line` edges, no gradient, shadow or shine. Decorative: the name goes beside it.
+- `KeepsakePlate`: the plate an item sits on: `--w-card` face, `--w-brass` rim, `--w-line` outline. A missed one is the same plate empty with a dashed `--ui-muted` rim and no item name, so found and missed differ by line and shape, never colour alone.
 - `SideJob`: your private side job, a glass chip at the world's top-left; on a phone the label alone, a tap shows the line.
 
 Glass chips (anything over the world) sit on `--glass`.
 
 **Canvas helpers** (not components; in `src/client/render/`): `codeSwatch` (a code colour with its
 pattern and outline), `turnPad` (a floor pad with its arrow), `symbolGlyph` (a vault symbol),
-`splat` (a dye blotch), and `gearGlyph` (a gear item, which the HUD's `GearGlyph` will mirror).
+`splat` (a dye blotch), and `gearGlyph` (a gear item, which the HUD's `GearGlyph` will mirror), and `drawItem` (a keepsake, the canvas half of `ItemGlyph`).
 
 ## 5. Motion
 

@@ -85,7 +85,7 @@ Found, missed and no-cache states as the spec's §4.1 wireframes.
 
 ## 5. Task breakdown
 
-### Task 55: The six items and the keepsake plate
+### Task 55: The six items and the keepsake plate  [x] (human review accepted by the user 2026-11-02, after two rounds: more realism, then six fixes to glints and shadows)
 
 - **Description:** draw the six items once, in code, for both the HUD and the canvas; the plate.
 - **Files touched:** `src/client/items.ts` (new: `ITEM_PATHS`, `ITEM_NAMES`), `src/components/ItemGlyph.tsx` (new), `src/components/KeepsakePlate.tsx`
@@ -164,3 +164,9 @@ Found, missed and no-cache states as the spec's §4.1 wireframes.
 ## 8. Risks / open questions
 
 None open. Accepted: the watch and the necklace may need a redraw after the real-size look (Task 55 reviews them).
+
+## 9. Corrections log
+
+- 2026-11-02, Task 55: the detail (the watch's face, the necklace's string) vanished at 24 px, and the items looked too cartoonish. Expected flat fills with a detail layer dropped under 32 px; the user wanted them readable at 24 px and more realistic (gradients, shadows). The first cut treated size as "drop detail", not "keep what makes the item itself".
+- 2026-11-02, Task 55: six defects after the realism pass (ring glint over the rim, straight watch-band glint, a white hole in the watch's shadow, no shadow under the ribbon or the chain, a gap in the goblet's shadow). Expected one filled shadow path to be safe; overlapping shapes wound the opposite way cancel to a hole. Added geometry tests (winding, a gap-free silhouette, glints inside the item).
+

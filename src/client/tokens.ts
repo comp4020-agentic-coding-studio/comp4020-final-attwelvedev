@@ -223,6 +223,8 @@ export const OVERLAY = { wash: true };
 
 const DUSK_MS = 600;
 let high = false;
+// Whether the canvas is in high contrast (flat fills, no gloss or shadow on the keepsakes).
+export const isHighContrast = (): boolean => high;
 let dusk = { p: 0, target: 0, at: 0 }; // p: how far toward dusk, 0 to 1
 let shown = -1; // the blend WORLD currently holds, so a still frame costs nothing
 

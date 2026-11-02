@@ -1730,3 +1730,37 @@ fieldset.settings {
   white-space: normal;
   overflow-wrap: anywhere;
 }
+
+/* a keepsake on its plate (DESIGN.md Components: KeepsakePlate): card face, brass rim, line outline;
+   missed is the same plate empty and dashed in --ui-muted */
+/* the keepsakes' light: 1 mixes each body toward white and black as items.ts says, 0 (high contrast)
+   leaves the plain tokens, and hides the drop shadow and the lights */
+:root {
+  --item-shade: 1;
+}
+:root[data-contrast="high"] {
+  --item-shade: 0;
+}
+:root[data-contrast="high"] .item-shadow,
+:root[data-contrast="high"] .item-light {
+  display: none;
+}
+.keepsake {
+  box-sizing: content-box;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--keep, 48px);
+  height: var(--keep, 48px);
+  padding: var(--s-1);
+  background: var(--w-card);
+  border: 3px solid var(--w-brass);
+  outline: 2px solid var(--w-line);
+  outline-offset: 0;
+  border-radius: var(--r);
+}
+.keepsake.is-missed {
+  background: transparent;
+  border: 3px dashed var(--ui-muted);
+  outline: none;
+}
