@@ -1,4 +1,4 @@
-import { cacheOf, type Room } from "../rooms/format.ts";
+import { cacheOf, inRect, type Room } from "../rooms/format.ts";
 import type { Role, Seat, Vec } from "../types.ts";
 import type { StationBelief } from "./decode.ts";
 
@@ -78,6 +78,17 @@ export function parseJob(room: Room, j: unknown, index: number): Job | string {
     return `hint job ${index + 1} is in beat ${j.beat}, but the room has ${room.beats.length}`;
   }
   let target: JobTarget | null = null;
+  // a chamber is for the people (caches FR8): no job may send a bot to a tile inside one
+  for (const key of ["at", "read", "to", "goTo"] as const) {
+    const t = j[key];
+    if (!isTile(t)) continue;
+    for (const o of room.objects) {
+      const c = cacheOf(o);
+      if (c && inRect(c.chamber.rect, { x: t[0], y: t[1] })) {
+        return `hint job ${index + 1} has "${key}" ${JSON.stringify(t)} inside the chamber of cache ${o.id}: bots never go in`;
+      }
+    }
+  }
   // bots never work a cache (caches FR8): it is for the people, and the room clears without it
   for (const key of ["station", "listen", "watch"] as const) {
     const named =

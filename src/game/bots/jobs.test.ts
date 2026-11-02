@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { parseRoom, type Room } from "../rooms/format.ts";
+import { type CacheSpec, cacheOf, parseRoom, type Room } from "../rooms/format.ts";
 import { loadRooms } from "../rooms/load.ts";
+import { giveChambers } from "../sim/testing.ts";
 import type { Role, Seat } from "../types.ts";
 import { emptyBelief } from "./decode.ts";
 import {
@@ -447,25 +448,39 @@ describe("a job that names a cache (phase 14, Task 53)", () => {
     item: "watch",
     tiles: [{ at: [6, 3], motif: "moon" }],
   };
+  const given = giveChambers(GRID, {
+    Q1: {
+      type: "dial",
+      pads: [
+        [3, 1],
+        [5, 1],
+      ],
+      back: [4, 3],
+      cache: CACHE,
+    },
+    g1: { item: "stethoscope" },
+  });
   const cacheRoom = parseRoom(
     `${JSON.stringify({
       id: "t",
       name: "T",
       beats: [{ name: "b", x: [0, 11], intent: { blind: "b", deaf: "d", mute: "m" } }],
-      objects: {
-        Q1: {
-          type: "dial",
-          pads: [
-            [3, 1],
-            [5, 1],
-          ],
-          back: [4, 3],
-          cache: CACHE,
-        },
-        g1: { item: "stethoscope" },
-      },
-    })}\n---\n${GRID.join("\n")}\n`,
+      objects: given.objects,
+    })}\n---\n${given.grid.join("\n")}\n`,
   );
+
+  it("is an error for a job tile inside a chamber, whichever key carries it", () => {
+    const chamber = (cacheOf(cacheRoom.objects.find((o) => o.id === "Q1") as never) as CacheSpec)
+      .chamber;
+    const inside = [chamber.rect[0], chamber.rect[1]];
+    for (const hint of [
+      { beat: 1, goTo: inside },
+      { beat: 1, listen: "Q2", at: inside },
+    ]) {
+      const job = parseJob(cacheRoom, hint, 0);
+      expect(typeof job === "string" ? job : "a job was made").toMatch(/inside the chamber/);
+    }
+  });
 
   it("is an error whichever way it names the station: bots never work a cache", () => {
     for (const hint of [

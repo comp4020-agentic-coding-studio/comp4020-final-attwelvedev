@@ -77,7 +77,7 @@ keys, wires...) lie **inside the chamber**:
 ```
 
 `owner` is a spawn seat 1 to 3; `item` is one of `ITEMS`; exactly one tile matches `motif`; decoy tiles carry other motifs.
-`chamber.rect` is `[x0, y0, x1, y1]`, inclusive floor tiles of the side room; `door` is a `D` tile of the grid on its edge, touching
+`chamber.rect` is `[x0, y0, x1, y1]`, an inclusive bounding box of the side room (floor, interior `#` walls, and the vault's `D`; the example needs `#` at (32,10) and (34,9) to seal the vault); `door` is a `D` tile of the grid on its edge, touching
 the main room's floor on one side and the chamber's on the other (the secret door); `vault` is an alcove inside the chamber with its own
 `D` tile (`door`) between it and the rest of the chamber, and `item` is the floor tile the keepsake stands on, inside `vault.rect`.
 The chamber branches up or down: its rows lie outside the main room's rows. Authors append rows below the room by default, which

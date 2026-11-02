@@ -1118,3 +1118,19 @@ The call that beat the obvious one was the order: the agent did not patch the dr
 changes the approach goes back to the plan (and the spec, and ADR 0020 which is still proposed) before any
 code, so the work is not built twice. The review itself caught what no test could: the checks measured
 that the panel and plate were drawn well, not whether a panel was the right thing to draw.
+
+## 2026-11-02 — A plan whose format rule and its own example could not both hold
+
+(cite the Task 62 commit once it exists)
+
+Task 62 required every tile of a cache's `chamber.rect` to be floor, and its example put the vault's door inside
+that rect with no wall to seal the vault. Executing it showed no layout satisfies both: an all-floor rectangle
+cannot hold a sealed alcove behind a one-tile door, and nothing in the lints would have caught a vault anyone could
+walk into. The agent stopped before writing the tests, I ruled that the rect is a bounding box (floor, interior
+walls, the vault's own door) and the vault itself is all floor, and a lint now fails any vault reachable with its
+door shut.
+
+The call that beat the obvious one was making the seal a lint, not an authoring habit: six chambers are about to be
+written by hand in Task 58, and each is one misplaced wall from a free item. It was checked by breaking each chamber
+rule on purpose (the border check, the open-to-spawn check, the object-in-rect check, the control-tile check, the
+door-rule exemption, the jobs rule, and the seal) and watching its test go red, then restoring the code.

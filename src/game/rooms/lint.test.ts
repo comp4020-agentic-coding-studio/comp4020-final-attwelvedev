@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { giveChambers } from "../sim/testing.ts";
 import type { Role } from "../types.ts";
 import { parseRoom, type Room } from "./format.ts";
 import { cacheTypeFaults, lintRoom, uncoverSplitFault } from "./lint.ts";
@@ -575,8 +576,9 @@ describe("lintRoom: caches", () => {
     grid: string[],
     objects: Record<string, unknown>,
     extra: Record<string, unknown> = {},
-  ) =>
-    parseRoom(
+  ) => {
+    const given = giveChambers(grid, { D1: { opensWhen: ["p1", "p2", "p3"] }, ...objects });
+    return parseRoom(
       `${JSON.stringify({
         id: "t-cache",
         name: "T",
@@ -584,15 +586,19 @@ describe("lintRoom: caches", () => {
         beats: [
           { name: "B", x: [0, grid[0]?.length ?? 1], intent: { blind: "b", deaf: "d", mute: "m" } },
         ],
-        objects: { D1: { opensWhen: ["p1", "p2", "p3"] }, ...objects },
+        objects: given.objects,
         hints: { jobs: [{ beat: 1, goTo: "E", all: true }] },
         ...extra,
-      })}\n---\n${grid.join("\n")}\n`,
+      })}\n---\n${given.grid.join("\n")}\n`,
     );
+  };
+  // The clue-path faults only. The chamber's own rules (a control tile outside the chamber, a
+  // sealed vault...) have their own describe below, and these rooms keep the station in the room.
+  const CHAMBER_RULE = /control tile .* outside its chamber/;
   const faults = (r: Room) =>
     lintRoom(r)
       .map((i) => i.message)
-      .filter((m) => /cache/.test(m));
+      .filter((m) => /cache/.test(m) && !CHAMBER_RULE.test(m));
   const at = (grid: string[], ...cells: [number, number, string][]) =>
     grid.map((row, y) =>
       [...row].map((ch, x) => cells.find(([cx, cy]) => cx === x && cy === y)?.[2] ?? ch).join(""),
@@ -777,8 +783,9 @@ describe("cacheTypeFaults: a cache is a type the heist has already taught", () =
   const roomWith = (id: string, objects: Record<string, unknown>) => {
     const n = Object.keys(objects).length;
     const wall = "#".repeat(n + 5);
+    const given = giveChambers([wall, `#123${"Q".repeat(n)}#`, wall], objects, 1);
     return parseRoom(
-      `${JSON.stringify({ id, name: id, version: 1, beats: [], objects })}\n---\n${wall}\n#123${"Q".repeat(n)}#\n${wall}\n`,
+      `${JSON.stringify({ id, name: id, version: 1, beats: [], objects: given.objects })}\n---\n${given.grid.join("\n")}\n`,
     );
   };
   const CACHE = {
@@ -816,5 +823,140 @@ describe("cacheTypeFaults: a cache is a type the heist has already taught", () =
     expect(
       cacheTypeFaults([roomWith("r1", { Q1: cache }), roomWith("r2", { Q1: cache })]),
     ).toHaveLength(2);
+  });
+});
+
+// Caches (phase 14, Task 62): the chamber is a dead end behind its secret door, and holds only its station.
+describe("lintRoom: a cache's chamber", () => {
+  // The room above, a secret door at (3,5), a chamber (1..9, 6..8) whose vault (8..9, 8) is behind the
+  // vault door (7,8). The dial's pads and anchor are inside; its back tile is a clue and may lie anywhere.
+  const GRID = [
+    "####################",
+    "#1.......p....D..E.#",
+    "#2.......p....D....#",
+    "#3.......p....D..$.#",
+    "#.g...........#....#",
+    "###D################",
+    "#.........##########",
+    "#.......############",
+    "#....Q.D..##########",
+    "####################",
+  ];
+  const CHAMBER = {
+    rect: [1, 6, 9, 8],
+    door: [3, 5],
+    vault: { rect: [8, 8, 9, 8], door: [7, 8], item: [9, 8] },
+  };
+  const objects = (over: { chamber?: unknown; q?: object } = {}) => ({
+    D1: { opensWhen: ["p1", "p2", "p3"] },
+    g1: { item: "stethoscope" },
+    Q1: {
+      type: "dial",
+      pads: [
+        [4, 8],
+        [6, 8],
+      ],
+      back: [1, 6],
+      digits: 2,
+      range: 10,
+      ...over.q,
+      cache: {
+        owner: 1,
+        motif: "moon",
+        riddle: "r",
+        item: "watch",
+        tiles: [
+          { at: [2, 4], motif: "moon" },
+          { at: [4, 4], motif: "star" },
+        ],
+        chamber: over.chamber ?? CHAMBER,
+      },
+    },
+  });
+  const build = (grid = GRID, over: Parameters<typeof objects>[0] = {}) =>
+    parseRoom(
+      `${JSON.stringify({
+        id: "t-chamber",
+        name: "T",
+        version: 1,
+        beats: [{ name: "B", x: [0, 19], intent: { blind: "b", deaf: "d", mute: "m" } }],
+        objects: objects(over),
+        hints: { jobs: [{ beat: 1, goTo: "E", all: true }] },
+      })}\n---\n${grid.join("\n")}\n`,
+    );
+  const swap = (g: string[], x: number, y: number, ch: string) =>
+    g.map((r, i) => (i === y ? r.slice(0, x) + ch + r.slice(x + 1) : r));
+  const faults = (r: Room) => lintRoom(r).map((i) => i.message);
+
+  it("passes a well-formed chamber, and a secret door needs no opensWhen", () => {
+    expect(faults(build())).toEqual([]);
+  });
+
+  it("flags a chamber door that does not border chamber floor and the room", () => {
+    const g = swap(swap(GRID, 3, 5, "#"), 12, 5, "D"); // a door in the wall away from the chamber
+    expect(faults(build(g, { chamber: { ...CHAMBER, door: [12, 5] } }))).toContainEqual(
+      expect.stringMatching(/chamber door does not border/),
+    );
+  });
+
+  it("flags a vault door that does not border the vault and the rest of the chamber", () => {
+    const g = swap(swap(GRID, 7, 8, "."), 5, 7, "D");
+    expect(
+      faults(build(g, { chamber: { ...CHAMBER, vault: { ...CHAMBER.vault, door: [5, 7] } } })),
+    ).toContainEqual(expect.stringMatching(/vault door does not border/));
+  });
+
+  it("flags a chamber that can be reached from a spawn with both secret doors closed", () => {
+    const g = swap(GRID, 12, 5, "."); // a gap in the floor between the room and the chamber
+    const g2 = swap(swap(g, 12, 6, "."), 11, 6, ".");
+    const open = swap(g2, 10, 6, ".");
+    expect(faults(build(open, { chamber: { ...CHAMBER, rect: [1, 6, 12, 8] } }))).toContainEqual(
+      expect.stringMatching(/chamber floor can be reached/),
+    );
+  });
+
+  it("flags a vault that is not sealed when its door is shut", () => {
+    const g = swap(GRID, 7, 7, ".");
+    const g2 = swap(swap(g, 8, 7, "."), 9, 7, ".");
+    expect(faults(build(g2, { chamber: { ...CHAMBER, rect: [1, 6, 9, 8] } }))).toContainEqual(
+      expect.stringMatching(/vault can be reached without opening/),
+    );
+  });
+
+  it("flags an exit, plate, spawn, checkpoint, hazard, crate, gear or loot inside the rect", () => {
+    for (const ch of ["E", "p", "1", "$", "B"]) {
+      const g = swap(GRID, 2, 7, ch);
+      expect(faults(build(g)), ch).toContainEqual(expect.stringMatching(/lies inside its chamber/));
+    }
+  });
+
+  it("flags a station control tile outside the chamber, but not a clue tile", () => {
+    expect(faults(build(GRID, { q: { back: [2, 2] } }))).not.toContainEqual(
+      expect.stringMatching(/control tile/),
+    );
+    const moved = {
+      pads: [
+        [4, 3],
+        [6, 8],
+      ],
+    };
+    expect(faults(build(GRID, { q: moved }))).toContainEqual(
+      expect.stringMatching(/control tile \(4,3\) lies outside/),
+    );
+  });
+
+  it("still flags a plain door with no opensWhen (only secret doors are exempt)", () => {
+    const withDoor = swap(GRID, 15, 4, "D"); // another door tile, away from any chamber
+    const r = parseRoom(
+      `${JSON.stringify({
+        id: "t",
+        name: "T",
+        version: 1,
+        beats: [{ name: "B", x: [0, 19], intent: { blind: "b", deaf: "d", mute: "m" } }],
+        objects: objects(),
+        hints: { jobs: [{ beat: 1, goTo: "E", all: true }] },
+      })}\n---\n${withDoor.join("\n")}\n`,
+    );
+    expect(faults(r)).toContainEqual(expect.stringMatching(/door D\d+ has no opensWhen/));
   });
 });

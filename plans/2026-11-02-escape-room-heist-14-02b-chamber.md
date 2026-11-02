@@ -142,7 +142,7 @@ view with `full = true`, so the sighted get the unmasked map the same tick.
   plate drawing was removed because the user rejected it, and what was kept.
 - **Depends on:** 55.
 
-### Task 62: The chamber in the format, the doors helper, the linters and the bots' blind spot
+### Task 62: The chamber in the format, the doors helper, the linters and the bots' blind spot [x]
 
 - **Description:** `CacheSpec.chamber` is parsed and validated; `secretDoors` and `syncCacheDoors` exist; the linters prove the chamber is a
   dead end behind the secret door; the mockup and linters see the chamber open; no bot job may target it; both fixtures carry a chamber.
@@ -154,14 +154,14 @@ view with `full = true`, so the sighted get the unmasked map the same tick.
   `src/game/perception.test.ts` and any test that builds a cache with `worldWith`; tests: `src/game/rooms/format.test.ts`, `lint.test.ts`,
   `src/game/bots/jobs.test.ts`, `src/game/sim/chamber.test.ts` (new).
 - **Tests first (red):** (a) `parseRoom` accepts a valid chamber and throws, naming the cache and the field, on: a missing `chamber`; a rect
-  not inside the grid or with `x0 > x1`; a rect tile that is not `.`; `chamber.door` or `vault.door` not a `D` tile; the two doors touching
+  not inside the grid or with `x0 > x1`; a `chamber.rect` tile that is not `.`, `#` or the vault door's `D` (a bounding box: interior walls are allowed), or a `vault.rect` tile that is not `.`; `chamber.door` or `vault.door` not a `D` tile; the two doors touching
   (they would merge into one door object); `vault.rect` not inside `chamber.rect`; `vault.item` not in `vault.rect`. (b) `secretDoors(room)`
   returns, per cache, the chamber door and the vault door with their door object ids and tiles. (c) `syncCacheDoors`: with the id in
   `cacheUncovered` the chamber door's `doorOpen` is true and the vault's false; with `cacheBy` too both true; with neither both false; it
-  pushes no event. (d) `lintRoom` fails a cache whose chamber door does not border chamber floor on one side and non-chamber floor on the
+  pushes no event. (d) `lintRoom` fails a cache whose vault floor is reachable from the chamber door with the vault door closed (the vault must be sealed), whose chamber door does not border chamber floor on one side and non-chamber floor on the
   other, whose vault door does not border the vault on one side and chamber floor outside the vault on the other, whose chamber floor is
   reachable from a spawn with both secret doors closed (the other doors open, as the lint treats them), that has any object other than its own
-  station inside `chamber.rect` (an exit, plate, spawn, checkpoint, hazard, crate, gear, loot), or whose station has a control tile outside
+  station inside `chamber.rect` (an exit, plate, spawn, checkpoint, hazard, crate, gear, loot; the vault door is exempt), or whose station has a control tile outside
   `chamber.rect` (a clue tile such as a dial's `back` or a plaque may lie anywhere); and it still passes the ordinary door rule for a door with no
   `opensWhen` (a plain door without one fails as before; a secret door does not). (e) A `hints.jobs` entry whose tile lies inside a chamber rect
   fails. (f) `worldAt` shows the chamber open: a probe player standing in the chamber perceives the station's clue per role (the existing
@@ -282,3 +282,5 @@ checkpoint near a chamber must never snapshot a chamber tile (Task 63 test).
 ## 9. Corrections log
 
 (execution appends one line per user redirect and mirrors it into `PROCESS_LOG.md`)
+
+- 2026-11-02, Task 62 (found in execution, ruled by the user): the plan required every `chamber.rect` tile to be `.`, yet its example puts the vault's `D` inside the rect and cannot seal a vault in an all-floor rectangle. Expected the plan's format rule and example to agree. Ruling: `chamber.rect` is a bounding box (`.`, `#` or the vault door); `vault.rect` is all `.`; a new lint requires the vault to be sealed when its door is closed. Overview §4's example gains walls at (32,10) and (34,9).

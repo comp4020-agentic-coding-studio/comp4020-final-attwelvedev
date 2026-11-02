@@ -3,7 +3,7 @@ import { cueCaptions } from "../../client/hud.ts";
 import { spectatorView, viewFor } from "../perception.ts";
 import type { Seat, Vec } from "../types.ts";
 import { step } from "./step.ts";
-import { input, place, worldWith } from "./testing.ts";
+import { input, place, withChamber, worldWith } from "./testing.ts";
 import type { StationState, World, WorldEvent } from "./world.ts";
 
 // Seat `seat` walks onto `tile` and presses Act for one tick, then lets go for one (Act is an edge).
@@ -17,14 +17,16 @@ function press(world: World, tile: Vec, seat: Seat = 0): WorldEvent[] {
 
 // Q1 (a dial: pads (6,2) and (8,2), anchor (7,2)) is a cache. The moon tile is (10,1), the star
 // decoy (12,1). A laser at (7,3) fires right along row 3 from tick 0, for a send-back.
-const GRID = [
+const BASE = [
   "##############",
   "#1............#",
   "#2.....Q......#",
   "#3.....L......#",
   "##############",
 ].map((r) => r.padEnd(14, "#").slice(0, 14));
+const { grid: GRID, chamber: CHAMBER } = withChamber(BASE, 2);
 const CACHE = {
+  chamber: CHAMBER,
   owner: 2,
   motif: "moon",
   riddle: "Where the moon watches, listen twice.",

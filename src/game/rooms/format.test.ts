@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cacheOf, parseRoom, RoomFormatError } from "./format.ts";
+import { cacheOf, inRect, parseRoom, RoomFormatError, secretDoors } from "./format.ts";
 
 const header = (extra = "") =>
   `{"id":"t-room","name":"Test room","version":1,"beats":[{"name":"Three hands","x":[8,19],"intent":{"blind":"b","deaf":"d","mute":"m"}}],"objects":{"D1":{"opensWhen":["p1","p2","p3"]}${extra}}}`;
@@ -289,7 +289,15 @@ describe("parseRoom: clue keys (escape-room Task 11)", () => {
 });
 
 describe("parseRoom: caches (escape-room phase 14, Task 51)", () => {
-  const grid = ["#########", "#1.Q....#", "#2......#", "#3......#", "#########"];
+  const grid = [
+    "#########",
+    "#1.Q....#",
+    "#2......#",
+    "#3......#",
+    "##D######",
+    "#..D.####",
+    "#########",
+  ];
   const DIAL = {
     type: "dial",
     pads: [
@@ -308,6 +316,11 @@ describe("parseRoom: caches (escape-room phase 14, Task 51)", () => {
       { at: [5, 1], motif: "moon" },
       { at: [6, 1], motif: "star" },
     ],
+    chamber: {
+      rect: [1, 5, 4, 5],
+      door: [2, 4],
+      vault: { rect: [4, 5, 4, 5], door: [3, 5], item: [4, 5] },
+    },
   };
   const withCache = (cache: unknown) =>
     parseRoom(text(grid, header(`,"Q1":${JSON.stringify({ ...DIAL, cache })}`)));
@@ -323,6 +336,11 @@ describe("parseRoom: caches (escape-room phase 14, Task 51)", () => {
         { at: { x: 5, y: 1 }, motif: "moon" },
         { at: { x: 6, y: 1 }, motif: "star" },
       ],
+      chamber: {
+        rect: [1, 5, 4, 5],
+        door: { x: 2, y: 4 },
+        vault: { rect: [4, 5, 4, 5], door: { x: 3, y: 5 }, item: { x: 4, y: 5 } },
+      },
     });
     const plain = parseRoom(text(grid, header(`,"Q1":${JSON.stringify(DIAL)}`)));
     expect(cacheOf(plain.objects.find((o) => o.id === "Q1") as never)).toBeNull();
@@ -345,5 +363,99 @@ describe("parseRoom: caches (escape-room phase 14, Task 51)", () => {
 
   it("no longer knows the j tile", () => {
     expect(() => parseRoom(text(["#####", "#123#", "#.j.#", "#####"]))).toThrow(/unknown tile "j"/);
+  });
+});
+
+describe("parseRoom: a cache's chamber (escape-room phase 14, Task 62)", () => {
+  const grid = [
+    "#########",
+    "#1.Q....#",
+    "#2......#",
+    "#3......#",
+    "##D######",
+    "#..D.####",
+    "#########",
+  ];
+  const DIAL = {
+    type: "dial",
+    pads: [
+      [2, 2],
+      [4, 2],
+    ],
+    digits: 2,
+    range: 10,
+  };
+  const CHAMBER = {
+    rect: [1, 5, 4, 5],
+    door: [2, 4],
+    vault: { rect: [4, 5, 4, 5], door: [3, 5], item: [4, 5] },
+  };
+  const cache = (chamber?: unknown) => ({
+    owner: 2,
+    motif: "moon",
+    riddle: "r",
+    item: "watch",
+    tiles: [{ at: [5, 1], motif: "moon" }],
+    ...(chamber === undefined ? {} : { chamber }),
+  });
+  const parse = (chamber?: unknown, g = grid) =>
+    parseRoom(
+      `${JSON.stringify({ id: "t", name: "T", version: 1, beats: [], objects: { Q1: { ...DIAL, cache: cache(chamber) } } })}\n---\n${g.join("\n")}\n`,
+    );
+  const swap = (g: string[], x: number, y: number, ch: string) =>
+    g.map((r, i) => (i === y ? r.slice(0, x) + ch + r.slice(x + 1) : r));
+
+  it("accepts a valid chamber", () => {
+    expect(() => parse(CHAMBER)).not.toThrow();
+  });
+
+  it("throws naming the cache and the field", () => {
+    expect(() => parse()).toThrow(/cache Q1 needs a chamber/);
+    expect(() => parse({ ...CHAMBER, rect: [1, 5, 40, 5] })).toThrow(
+      /Q1 chamber rect is not inside the grid/,
+    );
+    expect(() => parse({ ...CHAMBER, rect: [4, 5, 1, 5] })).toThrow(/Q1 chamber rect has x0 > x1/);
+    expect(() => parse(CHAMBER, swap(grid, 1, 5, "="))).toThrow(/Q1 chamber rect .* not allowed/);
+    expect(() => parse({ ...CHAMBER, door: [2, 3] })).toThrow(/Q1 chamber door is not a D tile/);
+    expect(() => parse({ ...CHAMBER, vault: { ...CHAMBER.vault, door: [4, 5] } })).toThrow(
+      /Q1 chamber vault.door is not a D tile/,
+    );
+    expect(() => parse({ ...CHAMBER, vault: { ...CHAMBER.vault, rect: [0, 5, 4, 5] } })).toThrow(
+      /Q1 chamber vault.rect/,
+    );
+    expect(() => parse({ ...CHAMBER, vault: { ...CHAMBER.vault, item: [1, 5] } })).toThrow(
+      /Q1 chamber vault.item is not in vault.rect/,
+    );
+  });
+
+  it("allows interior walls in rect but not in vault.rect", () => {
+    expect(() => parse(CHAMBER, swap(grid, 2, 5, "#"))).not.toThrow();
+    expect(() => parse(CHAMBER, swap(grid, 4, 5, "#"))).toThrow(/vault.rect/);
+  });
+
+  it("throws when the two doors touch and would be one door", () => {
+    const touching = swap(swap(grid, 2, 5, "D"), 3, 5, "."); // (2,4) and (2,5) are one component
+    expect(() =>
+      parse({ ...CHAMBER, vault: { ...CHAMBER.vault, door: [2, 5] } }, touching),
+    ).toThrow(/Q1 chamber door and vault.door touch/);
+  });
+
+  it("secretDoors gives, per cache, the chamber door and the vault door with their ids and tiles", () => {
+    const room = parse(CHAMBER);
+    const [one] = secretDoors(room);
+    expect(secretDoors(room)).toHaveLength(1);
+    expect(one?.id).toBe("Q1");
+    expect(one?.chamber.kind).toBe("door");
+    expect(one?.chamber.tiles).toEqual([{ x: 2, y: 4 }]);
+    expect(one?.vault.tiles).toEqual([{ x: 3, y: 5 }]);
+    expect(one?.chamber.id).not.toBe(one?.vault.id);
+  });
+
+  it("inRect is inclusive on all four edges", () => {
+    const r: [number, number, number, number] = [1, 2, 3, 4];
+    expect(inRect(r, { x: 1, y: 2 })).toBe(true);
+    expect(inRect(r, { x: 3, y: 4 })).toBe(true);
+    expect(inRect(r, { x: 0, y: 2 })).toBe(false);
+    expect(inRect(r, { x: 3, y: 5 })).toBe(false);
   });
 });

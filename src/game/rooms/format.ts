@@ -215,7 +215,28 @@ export interface CacheSpec {
   riddle: string;
   item: ItemId;
   tiles: { at: Vec; motif: Motif }[];
+  chamber: ChamberSpec;
 }
+
+// Inclusive tile rectangle: [x0, y0, x1, y1].
+export type Rect = [x0: number, y0: number, x1: number, y1: number];
+// The side room a cache hides: floor in the room's own grid, entered by a secret `D` tile (`door`);
+// `vault` is an alcove inside it behind a second `D` tile, and `item` is where the keepsake stands.
+export interface ChamberSpec {
+  rect: Rect;
+  door: Vec;
+  vault: { rect: Rect; door: Vec; item: Vec };
+}
+
+export function inRect(r: Rect, t: Vec): boolean {
+  return t.x >= r[0] && t.x <= r[2] && t.y >= r[1] && t.y <= r[3];
+}
+
+const isRect = (v: unknown): v is Rect =>
+  Array.isArray(v) && v.length === 4 && v.every((n) => Number.isInteger(n));
+const isPoint = (v: unknown): v is [number, number] =>
+  Array.isArray(v) && v.length === 2 && v.every((n) => Number.isInteger(n));
+const toVec = (p: [number, number]): Vec => ({ x: p[0], y: p[1] });
 
 function checkCache(id: string, raw: unknown): void {
   const fail = (why: string): never => {
@@ -254,6 +275,64 @@ function checkCache(id: string, raw: unknown): void {
   }
   const matching = tiles.filter((t) => isRecord(t) && t.motif === raw.motif).length;
   if (matching !== 1) fail(`needs exactly one tile that matches its motif (has ${matching})`);
+  if (raw.chamber === undefined) fail("needs a chamber");
+}
+
+// Checks a cache's chamber against the grid and the door objects (`parseRoom` calls it once both
+// exist). Every message names the cache and the field.
+function checkChamber(
+  id: string,
+  raw: Record<string, unknown>,
+  grid: string[],
+  doors: RoomObject[],
+) {
+  const fail = (why: string): never => {
+    throw new RoomFormatError(`cache ${id} chamber ${why}`, 1);
+  };
+  const ch = raw.chamber;
+  if (!isRecord(ch)) return fail("must be an object");
+  const vault = ch.vault;
+  if (!isRecord(vault)) return fail("needs a vault");
+  const inGrid = (t: Vec) => grid[t.y] !== undefined && t.x >= 0 && t.x < (grid[t.y]?.length ?? 0);
+  const rect = (name: string, r: unknown, ok: (t: Vec, c: string) => boolean): Rect => {
+    if (!isRect(r)) return fail(`${name} must be [x0, y0, x1, y1]`);
+    if (r[0] > r[2] || r[1] > r[3]) fail(`${name} has x0 > x1 or y0 > y1`);
+    for (let y = r[1]; y <= r[3]; y++) {
+      for (let x = r[0]; x <= r[2]; x++) {
+        if (!inGrid({ x, y })) fail(`${name} is not inside the grid`);
+        if (!ok({ x, y }, grid[y]?.[x] ?? ""))
+          fail(`${name} has a tile at ${x},${y} that is not allowed`);
+      }
+    }
+    return r;
+  };
+  const door = (name: string, d: unknown): Vec => {
+    if (!isPoint(d)) return fail(`${name} must be [x, y]`);
+    const t = toVec(d);
+    if (!inGrid(t) || grid[t.y]?.[t.x] !== "D") fail(`${name} is not a D tile`);
+    return t;
+  };
+  const chamberDoor = door("door", ch.door);
+  const vaultDoor = door("vault.door", vault.door);
+  // `rect` is a bounding box: floor, interior walls and the vault's own door; `vault.rect` is floor
+  const outer = rect(
+    "rect",
+    ch.rect,
+    (t, c) => c === "." || c === "#" || (t.x === vaultDoor.x && t.y === vaultDoor.y),
+  );
+  const inner = rect("vault.rect", vault.rect, (_t, c) => c === ".");
+  if (
+    !inRect(outer, { x: inner[0], y: inner[1] }) ||
+    !inRect(outer, { x: inner[2], y: inner[3] })
+  ) {
+    fail("vault.rect is not inside rect");
+  }
+  if (!isPoint(vault.item) || !inRect(inner, toVec(vault.item))) {
+    fail("vault.item is not in vault.rect");
+  }
+  const idAt = (t: Vec) => doors.find((d) => d.tiles.some((q) => q.x === t.x && q.y === t.y))?.id;
+  if (idAt(chamberDoor) === idAt(vaultDoor))
+    fail("door and vault.door touch (they would be one door)");
 }
 
 // The cache a station carries, or null for an ordinary station. `parseRoom` has already checked it.
@@ -269,7 +348,36 @@ export function cacheOf(o: RoomObject): CacheSpec | null {
       at: { x: t.at[0], y: t.at[1] },
       motif: t.motif,
     })),
+    chamber: chamberOf(raw.chamber as Record<string, unknown>),
   };
+}
+
+function chamberOf(c: Record<string, unknown>): ChamberSpec {
+  const v = c.vault as Record<string, unknown>;
+  return {
+    rect: c.rect as Rect,
+    door: toVec(c.door as [number, number]),
+    vault: {
+      rect: v.rect as Rect,
+      door: toVec(v.door as [number, number]),
+      item: toVec(v.item as [number, number]),
+    },
+  };
+}
+
+// Per cache, the two secret doors: the chamber's and the vault's, as door objects with their tiles.
+export function secretDoors(room: Room): { id: string; chamber: RoomObject; vault: RoomObject }[] {
+  const out: { id: string; chamber: RoomObject; vault: RoomObject }[] = [];
+  for (const o of room.objects) {
+    const c = cacheOf(o);
+    if (!c) continue;
+    const at = (t: Vec) =>
+      room.objects.find(
+        (d) => d.kind === "door" && d.tiles.some((q) => q.x === t.x && q.y === t.y),
+      ) as RoomObject;
+    out.push({ id: o.id, chamber: at(c.chamber.door), vault: at(c.chamber.vault.door) });
+  }
+  return out;
 }
 
 const DEFAULT_VISIBLE_TO: Role[] = ["deaf", "mute"];
@@ -445,6 +553,11 @@ export function parseRoom(text: string): Room {
   for (const [i, tiles] of components(raw, "E").entries()) add(`E${i + 1}`, "exit", tiles);
 
   const grid = raw.map((row) => row.replace(/[^#D=%H]/g, "."));
+  const doorObjects = objects.filter((o) => o.kind === "door");
+  for (const o of objects) {
+    const cache = o.kind === "station" ? o.params?.cache : undefined;
+    if (isRecord(cache)) checkChamber(o.id, cache, grid, doorObjects);
+  }
   return {
     id: meta.id,
     name: meta.name,

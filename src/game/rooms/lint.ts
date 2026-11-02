@@ -6,7 +6,16 @@ import { PIP_TICKS, tilesOf } from "../sim/stations.ts";
 import { step } from "../sim/step.ts";
 import { type GearItem, patrolOf, TICK_MS } from "../sim/world.ts";
 import type { Role, Vec } from "../types.ts";
-import { cacheOf, flipsOf, GEAR_ITEMS, isMotif, type Room, type RoomObject } from "./format.ts";
+import {
+  cacheOf,
+  flipsOf,
+  GEAR_ITEMS,
+  inRect,
+  isMotif,
+  type Room,
+  type RoomObject,
+  secretDoors,
+} from "./format.ts";
 import { worldAt } from "./mockup.ts";
 
 const SAFE_S = 2; // FR14: a cue-dependent safe window is at least this long
@@ -40,7 +49,10 @@ export function lintRoom(room: Room): LintIssue[] {
 
   const plateIds = new Set(room.objects.filter((o) => o.kind === "plate").map((o) => o.id));
   const doors = room.objects.filter((o) => o.kind === "door");
+  // a secret door is opened by cache state, never by plates (lintCaches checks where it stands)
+  const secret = new Set(secretDoors(room).flatMap((d) => [d.chamber.id, d.vault.id]));
   for (const door of doors) {
+    if (secret.has(door.id)) continue;
     if (!door.opensWhen || door.opensWhen.length === 0) {
       issue(`door ${door.id} has no opensWhen`);
       continue;
@@ -622,6 +634,7 @@ function lintCaches(room: Room, issue: (message: string) => void): void {
         if (tileRoles.size === 0) issue(`${name} is drawn for no sighted role from anywhere`);
       }
     });
+    lintChamber(room, o, cache, issue);
     if (type === "radio" || type === "sync") continue; // no secret clue: lintPresence's rules
     const clue = perceiveClue(room, o);
     if (clue.size === 0) issue(`cache ${o.id} (${type}): no role can perceive its clue`);
@@ -632,9 +645,82 @@ function lintCaches(room: Room, issue: (message: string) => void): void {
   }
 }
 
+// A cache's chamber is a dead end behind its secret door, and holds only its own station: the door
+// borders chamber floor on one side and the main room on the other, the vault door borders the vault
+// and the rest of the chamber, nothing reaches the chamber or the vault while its door is shut, the
+// item can be reached, and no other object lies inside the rect.
+function lintChamber(
+  room: Room,
+  o: RoomObject,
+  cache: NonNullable<ReturnType<typeof cacheOf>>,
+  issue: (message: string) => void,
+): void {
+  const { chamber } = cache;
+  const name = `cache ${o.id}`;
+  const floor = (t: Vec) => room.grid[t.y]?.[t.x] === ".";
+  const DIRS = [
+    [1, 0],
+    [0, 1],
+  ] as const;
+  // some axis has a tile `a`-side and a tile `b`-side of `door`, in either order
+  const borders = (door: Vec, a: (t: Vec) => boolean, b: (t: Vec) => boolean) =>
+    DIRS.some(([dx, dy]) => {
+      const p = { x: door.x + dx, y: door.y + dy };
+      const q = { x: door.x - dx, y: door.y - dy };
+      return (a(p) && b(q)) || (a(q) && b(p));
+    });
+  const inChamber = (t: Vec) => floor(t) && inRect(chamber.rect, t);
+  const inVault = (t: Vec) => floor(t) && inRect(chamber.vault.rect, t);
+  if (!borders(chamber.door, inChamber, (t) => floor(t) && !inRect(chamber.rect, t))) {
+    issue(
+      `${name}: its chamber door does not border chamber floor on one side and the room on the other`,
+    );
+  }
+  if (
+    !borders(chamber.vault.door, inVault, (t) => inChamber(t) && !inRect(chamber.vault.rect, t))
+  ) {
+    issue(
+      `${name}: its vault door does not border the vault on one side and chamber floor outside the vault on the other`,
+    );
+  }
+  const spawn = room.objects.find((s) => s.id === "s1");
+  if (spawn) {
+    const start = at(spawn);
+    const firstIn = (reach: Set<string>, rect: [number, number, number, number]) => {
+      for (const key of reach) {
+        const [x, y] = key.split(",").map(Number) as [number, number];
+        if (inRect(rect, { x, y })) return true;
+      }
+      return false;
+    };
+    if (firstIn(walkable(room, start, [chamber.door, chamber.vault.door]), chamber.rect)) {
+      issue(`${name}: its chamber floor can be reached from a spawn with both secret doors closed`);
+    }
+    if (firstIn(walkable(room, start, [chamber.vault.door]), chamber.vault.rect)) {
+      issue(`${name}: its vault can be reached without opening the vault door (it is not sealed)`);
+    }
+    if (!walkable(room, start).has(`${chamber.vault.item.x},${chamber.vault.item.y}`)) {
+      issue(`${name}: its vault item cannot be walked to, even with every door open`);
+    }
+  }
+  const vaultDoorId = secretDoors(room).find((d) => d.id === o.id)?.vault.id;
+  for (const x of room.objects) {
+    if (x.id === o.id || x.id === vaultDoorId) continue;
+    if (x.tiles.some((t) => inRect(chamber.rect, t))) {
+      issue(`${name}: ${x.kind} ${x.id} lies inside its chamber, which holds only its own station`);
+    }
+  }
+  for (const t of controls(o)) {
+    if (!inRect(chamber.rect, t)) {
+      issue(`${name}: its control tile (${t.x},${t.y}) lies outside its chamber`);
+    }
+  }
+}
+
 // The floor tiles a body can walk to from `start` with every door open (glass, vents, hatches and
 // walls stop a body).
-function walkable(room: Room, start: Vec): Set<string> {
+function walkable(room: Room, start: Vec, shut: Vec[] = []): Set<string> {
+  const closed = new Set(shut.map((t) => `${t.x},${t.y}`));
   const seen = new Set([`${start.x},${start.y}`]);
   const queue = [start];
   while (queue.length > 0) {
@@ -648,6 +734,7 @@ function walkable(room: Room, start: Vec): Set<string> {
       const n = { x: t.x + dx, y: t.y + dy };
       const ch = room.grid[n.y]?.[n.x];
       if (ch === undefined || "#=%H".includes(ch) || seen.has(`${n.x},${n.y}`)) continue;
+      if (closed.has(`${n.x},${n.y}`)) continue;
       seen.add(`${n.x},${n.y}`);
       queue.push(n);
     }
