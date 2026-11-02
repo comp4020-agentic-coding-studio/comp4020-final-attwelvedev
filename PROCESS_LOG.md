@@ -1074,3 +1074,32 @@ appeared at all, and I killed those; since then 3 full `check:flaky` runs and 1 
 A smaller lesson: my load test first leaked its busy loops (26 of them, load 71) because I killed a
 subshell's pid and not its group. The second time they ran in one process group, were killed with
 it, and the script printed how many remained.
+
+## 2026-11-02 — Two flaky layout specs, both a measurement taken in the middle of something moving
+
+resolved by the commit that adds this entry
+
+Task 55's full `pnpm check` failed one wheel case, and `pnpm check:flaky 4` then failed a different
+spec once. I did not retry either. The wheel case passed 25/25 alone, with and without my change, so I
+first asked the user whether to commit past it; they said to fix both properly, and to stop leaving them.
+
+Spectator panel (`expected 507.19 to be >= 600.19`): sampling the phone watcher's boxes every 50 ms
+found one stable layout, so the spec was not wrong at rest. Recording the frame's height on every
+animation frame from the first paint found two: for one frame the site header stood around the map
+(frame bottom 601, panel at 605) and then the map jumped (bottom 503, panel at 507). `Spectator.tsx`
+added `body.playing` in a `useEffect`, after the first paint. The spec read the frame's box, then the
+panel's, and under load a frame boundary fell between the two reads. The fix is a `useLayoutEffect`,
+so the header is gone before anything paints. The new spec counts frames with the header showing and
+failed with 1 before the fix and 0 after.
+
+Wheel `color-contrast` on `.is-centre > .wheel-label` (the open item from Task 49's entry): looping the
+axe case 40 times under 12 busy loops reproduced it twice, and the message with the colours showed
+4.11 on foreground `#3a404c`, background `#9fa3aa`. That grey is the aimed slot's text blended with its
+background: the wheel fades in over 100 ms (`animation: fade 100ms`), and axe blends opacity into the
+colours it checks. At full opacity it passes. `axeViolations` in `spec/browser.ts` now waits for every
+animation that will end (capped at 5 s, so a pulse that never ends cannot hang it). `spec/layout/axe.test.ts`
+shows it on a page that fades: it failed before, passes after, and a real low-contrast page still fails.
+The same loop of 160 runs under the same load then found nothing.
+
+The lesson for the harness is the same as `settledHash`'s: a reading of a moving thing is a flake
+waiting for load. This one applies to every spec that calls `axeViolations`, not just the wheel's.

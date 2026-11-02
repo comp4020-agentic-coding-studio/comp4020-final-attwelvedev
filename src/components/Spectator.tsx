@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { createAudio, type GameAudio } from "../client/audio.ts";
 import {
   type CueCaption,
@@ -189,8 +189,10 @@ export function Spectator({
     };
   }, [voice]);
 
-  // Same full-bleed layout as a game: the site header and footer step aside.
-  useEffect(() => {
+  // Same full-bleed layout as a game: the site header and footer step aside. Before the first
+  // paint (a layout effect): in a plain effect the header stood around the map for one frame and
+  // the map then jumped up, so a reader measuring across that frame saw two layouts at once.
+  useLayoutEffect(() => {
     document.body.classList.add("playing");
     return () => document.body.classList.remove("playing");
   }, []);

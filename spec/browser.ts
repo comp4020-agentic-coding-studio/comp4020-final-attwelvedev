@@ -42,6 +42,18 @@ export function horizontalOverflow(page: Page): Promise<number> {
 // Colour contrast is checked, so run it in both colour schemes. `within` limits it to one part of
 // the page (a selector), for a modal whose promise is its own content, not what it covers.
 export async function axeViolations(page: Page, within?: string): Promise<string[]> {
+  // axe blends an element's opacity into the colours it checks, so a run that lands mid fade-in
+  // (the comms wheel fades in over 100 ms) reads washed-out text as a contrast failure. Wait for
+  // every animation that will end; one that never does (a pulse) is not waited for.
+  await page.evaluate(async () => {
+    const finite = document
+      .getAnimations()
+      .filter((a) => Number.isFinite(a.effect?.getComputedTiming().endTime ?? 0));
+    await Promise.race([
+      Promise.allSettled(finite.map((a) => a.finished)),
+      new Promise((done) => setTimeout(done, 5000)),
+    ]);
+  });
   await page.addScriptTag({ content: (await import("axe-core")).default.source });
   return page.evaluate(async (within) => {
     const axe = (window as unknown as { axe: typeof import("axe-core") }).axe;
