@@ -236,7 +236,7 @@ view with `full = true`, so the sighted get the unmasked map the same tick.
   (shown); `SideJob` renders a chip for `vault` and `taken`.
 - **Depends on:** 63.
 
-### Task 65: Results data: opened versus taken, credits and the log
+### Task 65: Results data: opened versus taken, credits and the log [x]
 
 - **Description:** a cache is **found** when its item is taken; the cleared message also says whether the vault was **opened**; credits name who
   opened the way and who took the item; the log gains the `taken` kind.

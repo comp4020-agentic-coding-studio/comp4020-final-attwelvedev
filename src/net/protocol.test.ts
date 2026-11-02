@@ -346,6 +346,7 @@ describe("the cache fields on `cleared` and `heist` (Task 54)", () => {
   it("name seats, never nicknames, and the heist's shelf is one row per cache room", () => {
     const cache: NonNullable<Extract<ServerMsg, { t: "cleared" }>["cache"]> = {
       room: "04-the-safe",
+      opened: true,
       found: true,
       item: "watch",
       owner: 0,
@@ -362,5 +363,8 @@ describe("the cache fields on `cleared` and `heist` (Task 54)", () => {
     };
     expect(Object.keys(heist.caches[0] ?? {})).toEqual(["room", "found", "item"]);
     expect(typeof cache.owner).toBe("number");
+    // `found` is the take; `opened` is the vault door: the cleared card says which, the shelf only the take
+    expect(cache.opened).toBe(true);
+    expect(heist.caches[0]).not.toHaveProperty("opened");
   });
 });

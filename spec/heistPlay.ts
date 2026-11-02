@@ -43,6 +43,7 @@ export interface ClearedMsg {
   room: string;
   cache?: {
     room: string;
+    opened: boolean;
     found: boolean;
     item: string;
     owner: number;

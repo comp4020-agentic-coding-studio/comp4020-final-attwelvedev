@@ -109,14 +109,15 @@ export type ServerMsg =
       board: RoomBoard;
       // who did what, in fixed words: a teammate is a `{seat}` token the page fills in (never a name here)
       credits: { seat: Seat; lines: string[] }[];
-      // the room's side job, found or not (absent in a room with none). Seats, never names; the
+      // the room's side job: taken, opened and left, or not found (absent in a room with none). Seats, never names; the
       // riddle is shown to the whole team here because the room is over
       cache?: {
         room: string;
-        found: boolean;
+        found: boolean; // the item was taken by its owner
+        opened: boolean; // the vault door was opened (the station was solved)
         item: ItemId;
         owner: Seat;
-        by?: Seat;
+        by?: Seat; // who solved it
         riddle: string;
       };
     }

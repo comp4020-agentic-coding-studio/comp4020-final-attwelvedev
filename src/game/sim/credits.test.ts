@@ -152,21 +152,49 @@ describe("a cache's credit and result (caches FR15, FR16)", () => {
     w.solvedBy[id] = seat;
     if (id === "Q1") w.cacheBy[id] = seat;
   };
+  // the owner takes the item from the vault (Task 63): the owner's seat is `owner - 1`
+  const take = (w: ReturnType<typeof cacheWorld>, owner: 1 | 2 | 3) => {
+    w.cacheTaken.Q1 = (owner - 1) as 0 | 1 | 2;
+  };
 
-  it("names the owner to the solver, and says 'side job found' to the owner", () => {
+  it("(b) opened and left: the solver is credited and the owner gets nothing", () => {
     const w = cacheWorld(1);
     solve(w, "Q1", 2);
     expect(creditsOf(w).find((c) => c.seat === 2)?.lines).toEqual([
-      "found {0}'s side job: the gold watch",
+      "opened {0}'s vault: the gold watch",
     ]);
-    const mine = cacheWorld(2);
-    solve(mine, "Q1", 1);
-    expect(creditsOf(mine).find((c) => c.seat === 1)?.lines).toEqual([
-      "side job found: the gold watch",
+    expect(creditsOf(w).find((c) => c.seat === 0)?.lines).toEqual(["kept the crew moving"]);
+  });
+
+  it("(b) the solver who is also the owner reads 'opened the vault'", () => {
+    const w = cacheWorld(2);
+    solve(w, "Q1", 1);
+    expect(creditsOf(w).find((c) => c.seat === 1)?.lines).toEqual([
+      "opened the vault: the gold watch",
     ]);
   });
 
-  it("adds nothing for a cache nobody solved, and keeps ordinary stations folding", () => {
+  it("(b) taken: the solver is credited for the way in and the owner for the item", () => {
+    const w = cacheWorld(1);
+    solve(w, "Q1", 2);
+    take(w, 1);
+    expect(creditsOf(w).find((c) => c.seat === 2)?.lines).toEqual([
+      "opened {0}'s vault: the gold watch",
+    ]);
+    expect(creditsOf(w).find((c) => c.seat === 0)?.lines).toEqual(["took the gold watch"]);
+  });
+
+  it("(b) an owner who solved it and took it gets both lines", () => {
+    const w = cacheWorld(2);
+    solve(w, "Q1", 1);
+    take(w, 2);
+    expect(creditsOf(w).find((c) => c.seat === 1)?.lines).toEqual([
+      "opened the vault: the gold watch",
+      "took the gold watch",
+    ]);
+  });
+
+  it("(b) adds nothing for a cache nobody solved, and keeps ordinary stations folding", () => {
     const w = cacheWorld(1);
     solve(w, "Q2", 0);
     solve(w, "Q3", 0);
@@ -175,28 +203,37 @@ describe("a cache's credit and result (caches FR15, FR16)", () => {
       creditsOf(w)
         .flatMap((c) => c.lines)
         .join(" "),
-    ).not.toMatch(/side job/);
+    ).not.toMatch(/side job|vault|took/);
   });
 
-  it("a solved cache is not counted as 'cracked the safe'", () => {
+  it("(b) a room without a cache adds nothing", () => {
+    const w = stationWorld({ Q1: DIAL });
+    solve(w as ReturnType<typeof cacheWorld>, "Q1", 0);
+    expect(creditsOf(w).find((c) => c.seat === 0)?.lines).toEqual(["cracked the safe"]);
+  });
+
+  it("(b) a solved cache is not counted as 'cracked the safe'", () => {
     const w = cacheWorld(1);
-    solve(w, "Q1", 0);
-    expect(creditsOf(w).find((c) => c.seat === 0)?.lines).toEqual([
-      "side job found: the gold watch",
+    solve(w, "Q1", 2);
+    expect(creditsOf(w).find((c) => c.seat === 2)?.lines).toEqual([
+      "opened {0}'s vault: the gold watch",
     ]);
   });
 
-  it("builds the room's cache result, found or not, and none for a room without one", () => {
+  it("(a) the room's cache result: nothing, opened and left, taken", () => {
     const w = cacheWorld(3);
     expect(cacheResultOf(w)).toEqual({
       room: w.room.id,
+      opened: false,
       found: false,
       item: "watch",
       owner: 2,
       riddle: "Where the moon watches, listen twice.",
     });
     solve(w, "Q1", 0);
-    expect(cacheResultOf(w)).toMatchObject({ found: true, by: 0, owner: 2 });
+    expect(cacheResultOf(w)).toMatchObject({ opened: true, found: false, by: 0, owner: 2 });
+    take(w, 3);
+    expect(cacheResultOf(w)).toMatchObject({ opened: true, found: true, by: 0, owner: 2 });
     expect(cacheResultOf(stationWorld({ Q1: DIAL }))).toBeUndefined();
   });
 });

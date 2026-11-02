@@ -116,14 +116,16 @@ describe("gameLinesFor: the sim's station, gear, hold and signal events", () => 
 });
 
 describe("gameLinesFor: a cache (Task 54)", () => {
-  it("logs an uncover and a solve by kind only: never the item, motif, riddle or seat", () => {
+  it("logs an uncover, a solve and a take by kind only: never the item, motif, riddle or seat", () => {
     const lines = gameLinesFor([
       { kind: "cache", id: "Q9", result: "uncover", seat: 1, at: { x: 3.5, y: 2.5 } },
       { kind: "cache", id: "Q9", result: "solved", seat: 2, at: { x: 3.5, y: 2.5 } },
+      { kind: "cache", id: "Q9", result: "taken", seat: 0, at: { x: 3.5, y: 2.5 } },
     ]);
     expect(lines).toEqual([
       { event: "cache", detail: { kind: "uncover" } },
       { event: "cache", detail: { kind: "solved" } },
+      { event: "cache", detail: { kind: "taken" } },
     ]);
     const out = JSON.stringify(
       lines.map((l) => describeGame({ event: l.event, detail: l.detail }).detail),

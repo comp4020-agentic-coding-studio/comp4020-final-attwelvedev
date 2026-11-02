@@ -35,10 +35,12 @@ export const ITEM_NAME: Record<ItemId, string> = {
 const objectOf = (world: World, id: string): RoomObject | undefined =>
   world.room.objects.find((o) => o.id === id);
 
-// The room's cache and whether it was found, for the cleared card; undefined for a room with none.
-// `owner` and `by` are seats (0 to 2), as everywhere on the wire.
+// The room's cache and how far it got, for the cleared card; undefined for a room with none.
+// `opened` is the vault door (the station was solved); `found` is the item taken by its owner, which
+// is what counts as loot. `owner` and `by` (the solver) are seats (0 to 2), as everywhere on the wire.
 export interface CacheResult {
   room: string;
+  opened: boolean;
   found: boolean;
   item: ItemId;
   owner: Seat;
@@ -53,7 +55,8 @@ export function cacheResultOf(world: World): CacheResult | undefined {
     const by = world.cacheBy[o.id];
     return {
       room: world.room.id,
-      found: by !== undefined,
+      opened: by !== undefined,
+      found: world.cacheTaken[o.id] !== undefined,
       item: cache.item,
       owner: (cache.owner - 1) as Seat,
       ...(by !== undefined ? { by } : {}),
@@ -76,12 +79,18 @@ export function creditsOf(world: World): Credit[] {
         const item = ITEM_NAME[cache.item];
         cacheLines.push(
           cache.owner - 1 === seat
-            ? `side job found: ${item}`
-            : `found {${cache.owner - 1}}'s side job: ${item}`,
+            ? `opened the vault: ${item}`
+            : `opened {${cache.owner - 1}}'s vault: ${item}`,
         );
         continue;
       }
       solved[type] = (solved[type] ?? 0) + 1;
+    }
+    // the owner who took the item is credited for it, whoever opened the way
+    for (const o of world.room.objects) {
+      const cache = cacheOf(o);
+      if (cache && world.cacheTaken[o.id] === seat)
+        cacheLines.push(`took ${ITEM_NAME[cache.item]}`);
     }
     const lines = [
       ...Object.entries(solved).map(([type, n]) => {

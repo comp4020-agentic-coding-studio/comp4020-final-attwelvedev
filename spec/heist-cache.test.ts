@@ -56,6 +56,7 @@ describe("the cleared card and the heist record carry the caches", () => {
       room: "01-cache-a",
       cache: {
         room: "01-cache-a",
+        opened: false,
         found: false,
         item: "watch",
         owner: 0,
@@ -73,7 +74,7 @@ describe("the cleared card and the heist record carry the caches", () => {
     const second = await clearTinyRoom(players);
     expect(second).toMatchObject({
       room: "02-cache-b",
-      cache: { found: false, item: "ring", owner: 2 },
+      cache: { opened: false, found: false, item: "ring", owner: 2 },
     });
 
     const heist = await players[0]?.socket.next<HeistMsg>("heist", 5000);
