@@ -2,7 +2,6 @@
 import { h, render } from "preact";
 import { afterEach, describe, expect, it } from "vitest";
 import type { RoleView } from "../game/perception.ts";
-import type { Seat } from "../game/types.ts";
 import { MotifGlyph } from "./MotifGlyph.tsx";
 import { SideJob } from "./SideJob.tsx";
 
@@ -19,9 +18,8 @@ const base: Cache = {
   item: "watch",
   state: "open",
 };
-const NAMES = ["Ana", "Bo", "Cy"];
-const mount = (cache: Cache | undefined, me: Seat = 0) =>
-  render(h(SideJob, { cache, names: NAMES, me }), document.body);
+const mount = (cache: Cache | undefined, keepsake?: Cache["item"]) =>
+  render(h(SideJob, { cache, keepsake }), document.body);
 const chip = () => document.querySelector(".side-job") as HTMLElement;
 
 describe("MotifGlyph", () => {
@@ -52,39 +50,46 @@ describe("SideJob", () => {
       expect(chip().querySelector("svg")).not.toBeNull();
       expect(chip().textContent).toContain("Side job");
       expect(chip().textContent).toContain(base.riddle);
-      expect(chip().textContent).not.toMatch(/gold watch|Found by/);
+      expect(chip().textContent).not.toMatch(/gold watch|Taken|vault/);
       expect(chip().querySelector(".keepsake")).toBeNull();
     },
   );
 
-  // Task 64's stopgap: both the open vault and the taken item show the old solved chip until Task 56
-  // (14-03) gives each its own.
-  it.each(["vault", "taken"] as const)(
-    "%s: the plate, the item's name, a tick and who found it, never the riddle",
-    (state) => {
-      mount({ ...base, state, by: 1 });
-      expect(chip().querySelector(".keepsake")).not.toBeNull();
-      expect(chip().textContent).toContain("gold watch");
-      expect(chip().textContent).toContain("Found by Bo");
-      expect(chip().querySelector(".side-job-tick")).not.toBeNull();
-      expect(chip().textContent).not.toContain(base.riddle);
-      expect(chip().getAttribute("aria-label")).toBe("Side job found: gold watch, with Bo");
-    },
-  );
-
-  it("says Found by you when you pressed it", () => {
-    mount({ ...base, state: "vault", by: 0 }, 0);
-    expect(chip().textContent).toContain("Found by you");
-    expect(chip().getAttribute("aria-label")).toBe("Side job found: gold watch, with you");
+  it("vault: the plate, the item's name and 'Waiting in the vault', no tick, never the riddle", () => {
+    mount({ ...base, state: "vault", by: 1 });
+    expect(chip().querySelector(".keepsake")).not.toBeNull();
+    expect(chip().textContent).toContain("gold watch");
+    expect(chip().textContent).toContain("Waiting in the vault");
+    expect(chip().querySelector(".side-job-tick")).toBeNull();
+    expect(chip().textContent).not.toContain(base.riddle);
+    expect(chip().getAttribute("aria-label")).toBe("Side job in the vault: gold watch");
   });
 
-  it("an unsolved chip expands on a tap; a solved one does not", async () => {
+  it("taken: the plate with the item in your slot, its name, a tick and 'Taken by you'", () => {
+    mount({ ...base, state: "taken", by: 1 }, "watch");
+    expect(chip().querySelector(".keepsake")).not.toBeNull();
+    expect(chip().textContent).toContain("gold watch");
+    expect(chip().textContent).toContain("Taken by you");
+    expect(chip().querySelector(".side-job-tick")).not.toBeNull();
+    expect(chip().textContent).not.toContain(base.riddle);
+    expect(chip().getAttribute("aria-label")).toBe("Side job taken: gold watch");
+  });
+
+  it("the plate shows the keepsake in the slot when there is one", () => {
+    mount({ ...base, state: "taken" }, "ring");
+    expect(chip().textContent).toContain("signet ring");
+  });
+
+  it("an unsolved chip expands on a tap; the two later states do not", async () => {
     mount(base);
     expect(chip().getAttribute("aria-expanded")).toBe("false");
     chip().click();
     await new Promise((r) => setTimeout(r, 0)); // preact re-renders after the click, not during it
     expect(document.querySelector(".side-job-text.is-open")).not.toBeNull();
-    mount({ ...base, state: "vault", by: 1 });
-    expect(chip().hasAttribute("aria-expanded")).toBe(false);
+    for (const state of ["vault", "taken"] as const) {
+      mount({ ...base, state });
+      expect(chip().hasAttribute("aria-expanded")).toBe(false);
+      expect(chip().tagName).toBe("DIV");
+    }
   });
 });

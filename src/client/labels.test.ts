@@ -13,6 +13,13 @@ const plate2: EntityView = { id: "p2", kind: "plate", pos: { x: 9.5, y: 4.5 } };
 const crate: EntityView = { id: "B1", kind: "crate", pos: { x: 5.5, y: 4.5 } };
 const door: EntityView = { id: "D1", kind: "door", pos: { x: 8.5, y: 4.5 }, state: "closed" };
 const me = { x: 2.5, y: 4.5 };
+const secretDoor: EntityView = {
+  id: "D9",
+  kind: "door",
+  pos: { x: 8.5, y: 4.5 },
+  state: "open",
+  secret: true,
+};
 
 // Labels are a reference (FR15): a kind's chip is there whenever one of it is in sight.
 describe("labelsFor", () => {
@@ -21,6 +28,20 @@ describe("labelsFor", () => {
     expect(first.map((l) => l.kind).sort()).toEqual(["crate", "door", "plate"]);
     expect(first.find((l) => l.kind === "plate")?.text).toBe(LABEL_COPY.plate);
     expect(labelsFor([plate, crate, door], undefined, me, true)).toEqual(first);
+  });
+
+  it("labels a secret door as its own kind, never with the ordinary door's plates line", () => {
+    const got = labelsFor([secretDoor], undefined, me, true);
+    expect(got.map((l) => l.kind)).toEqual(["secretdoor"]);
+    expect(got[0]?.text).toBe(LABEL_COPY.secretdoor);
+    expect(got[0]?.text).not.toMatch(/plates/);
+    expect(LABEL_COPY.secretdoor).not.toBe(LABEL_COPY.door);
+    // an ordinary door beside it keeps its own chip: one per kind
+    expect(
+      labelsFor([secretDoor, door], undefined, me, true)
+        .map((l) => l.kind)
+        .sort(),
+    ).toEqual(["door", "secretdoor"]);
   });
 
   it("labels a crate-only plate as its own kind, apart from a person's plate (Task 33)", () => {

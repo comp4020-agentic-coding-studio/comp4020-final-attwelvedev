@@ -6,17 +6,18 @@ import { COLOR, MAP, ROLE_COLOR, setDusk, WORLD } from "../tokens.ts";
 import { drawAlarm } from "./alarm.ts";
 import { drawBackdrop } from "./backdrop.ts";
 import { block, drawFlat, drawStanding, floorTop, glass, vent, wall } from "./blocks.ts";
+import { drawKeepsake, drawMotifTile, drawSlide } from "./chamber.ts";
 import { drawCloud } from "./dye.ts";
 import { drawHidden, drawOwnBlind, drawPlayer } from "./figures.ts";
 import { drawGear, drawGoggles, drawHold, drawUv, gearGlyph } from "./gear.ts";
 import { drawHazard, drawSight } from "./hazards.ts";
+import { drawItem } from "./items.ts";
 import { drawLabels } from "./labels.ts";
 import { figureCover, wallAlpha } from "./occlusion.ts";
 import { drawEdgePills, drawPops } from "./pops.ts";
 import { type Camera, camera, LIVE, setRise, tileWindow, toScreen } from "./project.ts";
 import { drawMist, inSight, lightPolygon, nightTile, seenOf } from "./sight.ts";
 import { drawBell, drawHatch, drawLampSwitch, drawLever } from "./signals.ts";
-import { drawMotifTile } from "./stash.ts";
 import {
   drawLink,
   drawOrder,
@@ -117,6 +118,7 @@ const STANDING: EntityView["kind"][] = [
   "bell",
   "lamp",
   "lever",
+  "keepsake",
   "card",
   "order",
   "player",
@@ -165,7 +167,11 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
   const figures = scene.entities
     .filter((e) => e.kind === "player" && e.state !== "dim")
     .map((e) => (e.seat === scene.seat && scene.self ? { ...e, pos: scene.self } : e));
-  const behindWalls = figures.map((f) => f.pos);
+  // a keepsake in a vault's bottom row stands behind the wall in front of it: it gets the same window
+  const behindWalls = [
+    ...figures.map((f) => f.pos),
+    ...scene.entities.filter((e) => e.kind === "keepsake").map((e) => e.pos),
+  ];
 
   // floor tops first, so no block front is painted over by the floor of the row behind it
   for (let y = win.y0; y <= win.y1; y++) {
@@ -234,6 +240,7 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
         else if (kind === "bell") drawBell(ctx, e, cam, scene);
         else if (kind === "lamp") drawLampSwitch(ctx, e, cam);
         else if (kind === "lever") drawLever(ctx, e, cam);
+        else if (kind === "keepsake") drawKeepsake(ctx, e, cam);
         else if (kind === "card") drawTargetCard(ctx, e, cam);
         else if (kind === "order") drawOrder(ctx, e, cam);
         else drawStanding(ctx, e, cam, scene);
@@ -303,8 +310,18 @@ function drawFx(ctx: CanvasRenderingContext2D, scene: Scene, cam: Camera) {
     ctx.strokeStyle = fxColor(f.tone);
     ctx.fillStyle = fxColor(f.tone);
     ctx.lineWidth = 3;
-    if (f.kind === "uncover" || f.kind === "stash") {
-      ctx.restore(); // drawn by Task 56 (14-03); nothing until then
+    if (f.kind === "slide") {
+      ctx.restore(); // the slide draws the door itself, over the floor the wall left
+      drawSlide(ctx, f.pos, cam, f.age, !!scene.reducedMotion);
+      continue;
+    }
+    if (f.kind === "lift") {
+      // the item rises off the plinth towards its owner and fades (reduced motion: it only fades)
+      const rise = scene.reducedMotion ? 0 : f.age * cam.scale * 0.9;
+      const c = toScreen(cam, f.pos.x, f.pos.y);
+      ctx.globalAlpha = 1 - f.age;
+      if (f.keep) drawItem(ctx, f.keep, c.x, c.y - cam.scale * 0.5 - rise, cam.scale * 0.7);
+      ctx.restore();
       continue;
     }
     if (f.kind === "cloud") {

@@ -1589,8 +1589,8 @@ fieldset.settings {
   font-size: var(--t-14);
 }
 /* the side job: a chip at the frame's top-left, past the notch; tap for the whole line. Unsolved it
-   is the motif and the riddle; solved it is the keepsake on its plate, its name, a tick and who
-   found it. Shape and words carry it, never colour alone. */
+   is the motif and the riddle; in the vault it is the keepsake on its plate and "Waiting in the
+   vault"; taken it adds a tick and "Taken by you". Shape and words carry it, never colour alone. */
 .side-job {
   position: absolute;
   top: var(--s-2);
@@ -1650,9 +1650,9 @@ fieldset.settings {
     display: none;
   }
 }
-/* the solved chip lands with one pulse (not under reduced motion, nor on a page that loads it solved) */
+/* the taken chip lands with one pulse (not under reduced motion, nor on a page that loads it taken) */
 @media (prefers-reduced-motion: no-preference) {
-  .side-job.is-found {
+  .side-job.is-taken {
     animation: side-job-pulse 600ms ease-out 1;
   }
 }

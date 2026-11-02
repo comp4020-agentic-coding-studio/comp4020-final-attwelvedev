@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EntityView } from "../net/protocol.ts";
 import { figureCover, wallAlpha } from "./render/occlusion.ts";
 import { easeCamera, setRise, TILT, toScreen } from "./render/project.ts";
@@ -416,6 +416,33 @@ describe("the 3/4 world", () => {
     expect(front(6)).toBeGreaterThanOrEqual(0);
     expect(figure).toBeGreaterThan(front(4));
     expect(figure).toBeLessThan(front(6));
+  });
+
+  it("fades the wall in front of a standing keepsake too, so an item on the bottom row can be seen", () => {
+    const base = {
+      layout: "fit" as const,
+      w: 400,
+      h: 400,
+      tiles: grid(7, 5, [[2, 6]]),
+      self: { x: 0.5, y: 0.5 },
+    };
+    const wallAlphas = (entities: EntityView[]) => {
+      const { ctx, ops } = recorder();
+      draw(ctx, scene({ ...base, entities }));
+      return ops
+        .filter((o) => o.name === "fillRect" && o.fillStyle === WORLD.wallFront)
+        .map((o) => o.globalAlpha);
+    };
+    vi.stubGlobal("Path2D", class {}); // drawItem builds Path2Ds; the node test env has none
+    const keep: EntityView = {
+      id: "Q1.keep",
+      kind: "keepsake",
+      pos: { x: 2.5, y: 5.5 },
+      keep: "watch",
+    };
+    expect(wallAlphas([player(1, 0.5, 0.5)]).every((a) => a === 1)).toBe(true);
+    expect(wallAlphas([player(1, 0.5, 0.5), keep]).some((a) => a < 1)).toBe(true);
+    vi.unstubAllGlobals();
   });
 
   it("fades a wall in front of a figure to 35% and outlines the figure dashed behind it", () => {

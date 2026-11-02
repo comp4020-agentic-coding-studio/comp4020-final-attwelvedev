@@ -1,8 +1,8 @@
 import { type Callout, CLIPS, type Stamp } from "../game/channels.ts";
+import type { RoleView } from "../game/perception.ts";
 import type { StationType } from "../game/sim/world.ts";
 import type { Role } from "../game/types.ts";
 import type { ChannelMessage, EntityView, SoundCue } from "../net/protocol.ts";
-import type { Fx } from "./fx.ts";
 import { ITEM_NAMES } from "./items.ts";
 
 export const ROLE_GLYPH: Record<Role, string> = { blind: "●", deaf: "■", mute: "▲" };
@@ -154,20 +154,21 @@ function word(s: SoundCue, names?: readonly string[]): string {
   return CUE_WORD[s.kind];
 }
 
-// The words on the chip at the top of the map when a cache opens or its stash is found (caches
-// FR9): a hearing seat reads what its cue says, Can't hear (no sounds) what the picture just
-// did. The stash wins over the opening if both land at once. The owner is named only where the
-// cue carries it, so Can't hear's version says "Side job open".
+// The words on the chip at the top of the map when a secret door opens or the keepsake is taken
+// (caches FR9, FR11). They come from the event, which every role gets on the same tick, so a seat
+// that cannot hear and one that cannot see read the same thing. A door opening names nobody (it
+// must not say whose riddle it is); a solve and a take name the owner and the item.
 export function cacheMoment(
-  fx: readonly Fx[],
-  sounds: SoundCue[],
+  event: RoleView["cacheEvent"],
   names?: readonly string[],
 ): string | null {
-  const cue = sounds.find((s) => s.kind === "stash") ?? sounds.find((s) => s.kind === "uncover");
-  if (cue) return word(cue, names);
-  const shown = fx.find((f) => f.kind === "stash") ?? fx.find((f) => f.kind === "uncover");
-  if (shown?.kind === "stash" && shown.keep) return `Side job open: the ${ITEM_NAMES[shown.keep]}`;
-  return shown ? CUE_WORD.uncover : null;
+  if (!event) return null;
+  const who = names?.[event.owner] || "Someone";
+  if (event.result === "uncover" || !event.item) return CUE_WORD.uncover;
+  const item = ITEM_NAMES[event.item];
+  return event.result === "solved"
+    ? `${who}'s side job open: the ${item}`
+    : `${who} took the ${item}`;
 }
 
 export type Dir8 = "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW";

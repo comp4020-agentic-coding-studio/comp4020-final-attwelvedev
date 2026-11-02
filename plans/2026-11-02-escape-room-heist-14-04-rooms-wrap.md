@@ -147,3 +147,17 @@ beside a checkpoint flag (a send-back would otherwise spawn people next to a wal
 ## 8. Risks / open questions
 
 None open. The six riddle sentences are settled with the user as each room is played (Human review in Tasks 58 and 59), not before.
+
+## 9. Pending amendment: a findable listening spot in a cache chamber (settled with the user 2026-11-03; needs `plan-feature` to write the task)
+
+Found in Task 56's human review (see 14-03 §9): a player holding the stethoscope at a cache's dial heard no tumbler, because the cue only reaches 1.5 tiles from the safe's `back` tile and nothing in a chamber points at that tile. Ordinary safes (rooms 4 and 9's teaching safes and the real ones) **keep their current clues unchanged**. Decided for cache chambers only:
+
+- **The object is a floor inspection plate, not a different tile.** A small metal plate set into the chamber floor at the `back` tile. A tile that merely looks or sounds different has no believable link to a safe a few steps away; a plate is where the pickup housing is, which is why the stethoscope works there and not at the dial's face.
+- **Visual (hint 1):** the plate is drawn, with wear around it where someone has knelt. It is subtle and unlabelled, and no wire is drawn to it (the optional job should be harder than a normal safe). Visible to every sighted seat.
+- **Audio (hint 5):** a step on the plate sounds different (metal over a hollow), for a hearing seat in earshot, including Can't see. A new step variant needs its own `parity.test.ts` row, a client sound, a caption and a test; nothing says whose it is.
+- **Unchanged:** the tumbler itself (stethoscope holder within 1.5 tiles of the plate, when a teammate turns the dial onto the answer).
+- **Authoring rules for the six chambers:** keep the plate within about two tiles of the dial (room 4's back is two tiles from its anchor), inside the chamber; put the stethoscope inside the chamber too, so the clue is reachable without leaving it.
+- **Fixture:** move `spec/fixtures/rooms-cache/01-cache-a`'s `back` from (1,6) to a tile two from the dial, and re-run `chamber.test.ts` and the linters.
+- **Watch in playtest:** that the step cue does not solve the chamber on its own for Can't see.
+- Out of scope: a flickering lamp on the back box, a plaque hinting where to stand (revisit only if playtest finds the clue too hard).
+

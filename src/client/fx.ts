@@ -1,3 +1,4 @@
+import type { RoleView } from "../game/perception.ts";
 import type { ItemId } from "../game/rooms/format.ts";
 import type { Vec } from "../game/types.ts";
 import type { EntityView } from "../net/protocol.ts";
@@ -8,24 +9,41 @@ import type { EntityView } from "../net/protocol.ts";
 // reconnect simply shows none. Each lasts FX_MS and is one fading shape: nothing
 // here flashes, and with reduced motion it fades in place instead of growing.
 export const FX_MS = 600;
-export const STASH_MS = 1000; // the stash moment: the panel, the plate rising, a spark, a ring (and, in reduced motion, a star held a second)
+export const LIFT_MS = 1000; // a take: the item lifting off its plinth to the owner (reduced motion: a cross-fade)
 export const FX_MAX = 24; // however busy the room, never more than this at once
 
 export type FxTone = "goal" | "danger" | "ui" | "muted";
 export interface Fx {
   // swing: a bell rung; arc: gear handed from `pos` to `to`; cloud: the dye pack's paint puff;
-  // uncover: a cache's hidden panel slides aside; stash: a cache's stash opens on its item
-  kind: "ring" | "dust" | "spark" | "swing" | "arc" | "cloud" | "uncover" | "stash";
+  // slide: a cache's secret door slides into the floor; lift: the keepsake rises off its plinth
+  kind: "ring" | "dust" | "spark" | "swing" | "arc" | "cloud" | "slide" | "lift";
   pos: Vec;
   tone: FxTone;
   big?: boolean;
   to?: Vec;
   item?: EntityView["item"];
-  keep?: ItemId; // stash: the keepsake that was found
+  keep?: ItemId; // lift: the keepsake that was taken
 }
 
-// How long an effect lives: the stash moment is longer than the rest, which last FX_MS.
-export const fxMs = (f: Fx): number => (f.kind === "stash" ? STASH_MS : FX_MS);
+// How long an effect lives: the lift is longer than the rest, which last FX_MS.
+export const fxMs = (f: Fx): number => (f.kind === "lift" ? LIFT_MS : FX_MS);
+
+// A cache's door opening or its keepsake taken, from the one team-wide signal the server sends for
+// it (RoleView.cacheEvent). Not worked out from entities: a door or the keepsake coming into or
+// leaving line of sight looks the same, and a closed secret door is no entity at all.
+export function fxOfCacheEvent(event: NonNullable<RoleView["cacheEvent"]>): Fx[] {
+  const { at } = event;
+  if (event.result === "taken")
+    return [
+      { kind: "lift", pos: at, tone: "goal", ...(event.item ? { keep: event.item } : {}) },
+      { kind: "spark", pos: at, tone: "goal" },
+      { kind: "ring", pos: at, tone: "goal", big: true },
+    ];
+  return [
+    { kind: "slide", pos: at, tone: "ui" },
+    { kind: "dust", pos: at, tone: "muted" },
+  ];
+}
 
 const key = (e: EntityView): string => `${e.id}@${e.pos.x},${e.pos.y}`;
 
@@ -51,22 +69,6 @@ export function detectFx(prev: EntityView[], next: EntityView[]): Fx[] {
       const now = e.progress ?? 0;
       if (now > was) out.push({ kind: "ring", pos: e.pos, tone: "goal" });
       else if (now < was) out.push({ kind: "ring", pos: e.pos, tone: "danger" });
-    } else if (
-      e.kind === "station" &&
-      !wasById.has(e.id) &&
-      prev.some((o) => o.kind === "motiftile" && o.id.startsWith(`${e.id}.m`))
-    ) {
-      // a station appears where its motif tiles were already drawn: a cache was uncovered (caches
-      // FR9). A plain station coming into sight has no tiles, so it is not one.
-      out.push({ kind: "uncover", pos: e.pos, tone: "ui" });
-    } else if (
-      e.kind === "station" &&
-      e.station?.stash &&
-      wasById.has(e.id) &&
-      !wasById.get(e.id)?.station?.stash
-    ) {
-      // a cache's stash opened: its own moment, in place of the plain solved ring (caches FR10)
-      out.push({ kind: "stash", pos: e.pos, tone: "goal", big: true, keep: e.station.stash });
     } else if (
       e.kind === "station" &&
       e.station?.solved &&

@@ -126,6 +126,7 @@ export interface EntityView {
     stash?: ItemId; // a found cache's item (caches FR10), for the sighted
   };
   keep?: ItemId; // a keepsake: the item standing in an open vault
+  secret?: true; // a door: one of a cache's two secret doors (open, so already known to every sighted seat)
   card?: number[]; // a target card's lamps: lit (1) or hollow (0), sighted only
   motifs?: Motif[]; // an order clue: the motif of each vault socket's wing, in socket order
   motif?: Motif; // a motif tile's symbol
@@ -299,6 +300,7 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
     if (world.tick < world.dyedUntil) e.dyed = true;
     return e;
   });
+  const secretIds = new Set(secretDoors(world.room).flatMap((d) => [d.chamber.id, d.vault.id]));
   const rung = (kind: "bell" | "lamp", id: string) =>
     world.events.some((e) => e.kind === kind && e.id === id);
   for (const o of world.room.objects) {
@@ -319,9 +321,10 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
       }
     } else if (o.kind === "door") {
       if (secretClosed(world).has(o.id)) continue; // a closed secret door is wall to every view
+      const secret = secretIds.has(o.id); // only ever sent open, so it tells nothing a view lacks
       for (const t of o.tiles) {
         const state = world.doorOpen[o.id] ? "open" : "closed";
-        out.push({ id: o.id, kind: "door", pos: centre(t), state });
+        out.push({ id: o.id, kind: "door", pos: centre(t), state, ...(secret ? { secret } : {}) });
       }
     } else if (o.kind === "exit") {
       for (const t of o.tiles) {

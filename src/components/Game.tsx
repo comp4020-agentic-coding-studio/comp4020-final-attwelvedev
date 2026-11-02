@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { createAudio, type GameAudio } from "../client/audio.ts";
 import { creditRows } from "../client/credits.ts";
 import { faceImage, preloadFaces } from "../client/faces.ts";
-import { detectFx, FX_MAX, type Fx, fxMs } from "../client/fx.ts";
+import { detectFx, FX_MAX, type Fx, fxMs, fxOfCacheEvent } from "../client/fx.ts";
 import {
   CALLOUT_WORD,
   type CueCaption,
@@ -322,14 +322,19 @@ function onView(rt: Runtime, view: RoleView, audio: GameAudio, names: readonly s
   const started = performance.now();
   hearCues(rt.cueHold, cueCaptions(view.sounds, names), started); // every view, so a one-tick sound is not missed
   const fresh = detectFx(rt.prevEntities, view.entities);
-  const moment = cacheMoment(fresh, view.sounds, names);
+  // a secret door opening or the keepsake taken: the one team-wide signal (see fxOfCacheEvent)
+  const moment = cacheMoment(view.cacheEvent, names);
+  if (view.cacheEvent) fresh.push(...fxOfCacheEvent(view.cacheEvent));
   if (moment) rt.moment = { text: moment, until: started + CACHE_MOMENT_MS };
   rt.fx = [
     ...rt.fx.filter((f) => started - f.at < fxMs(f.fx)),
     ...fresh.map((fx) => ({ fx, at: started })),
   ].slice(-FX_MAX);
   rt.at = performance.now();
-  if (view.tiles) rt.tiles = view.tiles;
+  if (view.tiles) {
+    rt.tiles = view.tiles;
+    rt.predictor?.setTiles(view.tiles); // the map is re-sent when a secret door opens: walk the new one
+  }
   const pos = view.you.pos;
   if (pos && rt.tiles) {
     rt.predictor ??= createPredictor(pos, rt.tiles);
@@ -617,6 +622,7 @@ function Hud({
   const [gear, setGear] = useState<GearItem | null>(null);
   const [lamp, setLamp] = useState<Role | null>(null);
   const [cache, setCache] = useState<RoleView["cache"]>(undefined);
+  const [keepsake, setKeepsake] = useState<RoleView["keepsake"]>(undefined);
   const [carried, setCarried] = useState<Partial<Record<Seat, GearItem>>>({});
   const [watchOpen, setWatchOpen] = useState(false);
   const [cleared, setCleared] = useState(false);
@@ -872,6 +878,7 @@ function Hud({
       setLoot(view.loot);
       setAct(view.act);
       setGear(view.gear ?? null);
+      setKeepsake(view.keepsake);
       setCache((old) =>
         old?.id === view.cache?.id && old?.state === view.cache?.state && old?.by === view.cache?.by
           ? old
@@ -952,7 +959,6 @@ function Hud({
   );
   // each role appears once in a crew, so the seat that has this page's role is this page's seat
   const me = reveal.crew.find((c) => c.role === role)?.seat ?? 0;
-  const names = seatNames(reveal.crew);
   const label = ROLE_LABEL[role];
   return (
     <div class="game" ref={root} style={{ "--frame": `var(--role-${role})` }}>
@@ -1085,7 +1091,7 @@ function Hud({
           role="img"
           aria-label={role === "blind" ? "No map. Listen to the room." : "Map of the room"}
         />
-        <SideJob cache={cache} names={names} me={me} />
+        <SideJob cache={cache} keepsake={keepsake} />
         {moment && (
           <div class="cache-moment" role="status">
             <p>{moment}</p>

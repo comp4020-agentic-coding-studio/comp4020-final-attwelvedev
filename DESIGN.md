@@ -166,7 +166,7 @@ When everyone is ready the game starts underneath the reveal and **rises**: over
 Room 1 (and, for the escape-room objects, every room: a station, gear, the hatch, bell, lamp, ink and held hands) carries glass chips with a leader line that name what each thing is for
 (`src/client/labels.ts` picks them, `src/client/render/labels.ts` draws them). They are a
 reference, not a notification: while a kind of thing (plate, crate, door, glass, vent, camera,
-guard, exit, loot) is in your line of sight, one chip floats above the nearest of it on `--glass`
+guard, exit, loot, and a cache's secret door, which has its own chip: "Secret door: it slid open from a hidden catch", never the ordinary door's plates line) is in your line of sight, one chip floats above the nearest of it on `--glass`
 with a one-sentence job, in the HUD's font. Out of sight, the chip goes; back in sight, it returns.
 At most three chips show on desktop and two on a phone (a canvas under 720 px), the nearest first.
 Chips wrap, stay inside the frame, and move to the nearest free spot rather than overlap. The
@@ -229,15 +229,15 @@ Reuse these before drawing something new. The test checks each name exists.
 - `ItemGlyph`: one of the six keepsakes a cache holds (gold watch, ledger, signet ring, silver goblet, fountain pen, pearl necklace), drawn as a stack of layers on a 64 grid (`src/client/items.ts`) that the canvas's `drawItem` reads too. Realistic rather than flat, lit from the north-west like the world: bodies are metal (a banded gradient: a lit edge, a dark band, a second light), matte (leather, paper) or pearl (radial), each with an edge tinted from its own token instead of the line colour, a bevel's worth of light and shade laid over them, a soft south-east drop shadow, and fine ink (a watch's hands and hour marks, a necklace's chain). Every tone is a world token (`--w-brass`, `--w-card`, `--w-steel`, `--w-crate-brace`, `--w-code-red`, `--w-code-black`) mixed toward white or black, so no new colour exists. Fine layers drop out at small sizes, and ink is never thinner than about 1.4 px on screen, so each item still reads at 24 px. High contrast is flat: plain token fills, `--w-line` edges, no gradient, shadow or shine. Decorative: the name goes beside it.
 - `KeepsakePlate`: the plate an item sits on: `--w-card` face, `--w-brass` rim, `--w-line` outline. A missed one is the same plate empty with a dashed `--ui-muted` rim and no item name, so found and missed differ by line and shape, never colour alone.
 - `MotifGlyph`: one of the six motifs (moon, star, wave, key, eye, leaf) as a flat shape in the text colour on a 24 grid, the HUD's mirror of the canvas `motifGlyph`. Shape alone says which; never colour. Decorative: the riddle beside it is the text.
-- `SideJob`: your private side job, a glass chip at the world's top-left, for its owner alone. **Unsolved:** the motif at 24 px, "Side job" and the riddle; on a phone the label alone, a tap shows the line. **Solved:** the keepsake on its `KeepsakePlate` at 32 px, its name beside a drawn tick, and "Found by Bo" (or "Found by you"); it pulses once as it lands (a 600 ms scale, none under reduced motion) and does not expand, since there is nothing more to read. The chip is at least 48 px tall; names wrap, never clip.
+- `SideJob`: your private side job, a glass chip at the world's top-left, for its owner alone, in four states. **Hidden or open:** the motif at 24 px, "Side job" and the riddle; on a phone the label alone, a tap shows the line. **In the vault:** the keepsake on its `KeepsakePlate` at 32 px, its name and "Waiting in the vault", with no tick, because nothing counts until it is taken. **Taken:** the item from your keepsake slot, its name beside a drawn tick and "Taken by you"; it pulses once as it lands (a 600 ms scale, none under reduced motion). The two later states do not expand, since there is nothing more to read. The chip is at least 48 px tall; names wrap, never clip.
 - The reveal's side-job row (`.reveal-cache`, in `RoleReveal`): the owner's motif at 48 px, "Your side job", the riddle and "Only you can read this". The other two seats have no row.
-- The cache moment (`.cache-moment`): a glass card at the top centre of the map for 4 s that never blocks play, like the vote card. It carries the words the cue says: "Something opened" (a secret door slid), then "Bo's side job open: the gold watch" (the vault opened), then "Bo took the gold watch" (a take, which is the loot cue and counts the loot). Can't hear has no sounds, so the pictures supply the same words ("Side job open: the gold watch"). The owner is named on the vault and the take only.
+- The cache moment (`.cache-moment`): a glass card at the top centre of the map for 4 s that never blocks play, like the vote card. It carries the words of the team-wide `cacheEvent`, so every role reads the same: "Something opened" (a secret door slid, naming nobody), "Bo's side job open: the gold watch" (the vault door slid) and "Bo took the gold watch" (a take, which is also the loot cue and counts the loot).
 
 Glass chips (anything over the world) sit on `--glass`.
 
 **Canvas helpers** (not components; in `src/client/render/`): `codeSwatch` (a code colour with its
 pattern and outline), `turnPad` (a floor pad with its arrow), `symbolGlyph` (a vault symbol),
-`splat` (a dye blotch), and `gearGlyph` (a gear item, which the HUD's `GearGlyph` will mirror), and `drawItem` (a keepsake, the canvas half of `ItemGlyph`), `drawMotifTile` (a cache's motif tile: a card square flush with the floor, the symbol in `--w-line`, drawn the same open or not so only the riddle tells the right one from a decoy).
+`splat` (a dye blotch), and `gearGlyph` (a gear item, which the HUD's `GearGlyph` will mirror), and `drawItem` (a keepsake, the canvas half of `ItemGlyph`), `drawKeepsake` (the item standing in an open vault: on a low stone plinth in `--w-card` and `--w-steel-front`, with a soft contact shadow, and no bob, so it never reads as the loot diamond), `drawSlide` (a secret door sinking into the floor), `drawMotifTile` (a cache's motif tile: a card square flush with the floor, the symbol in `--w-line`, drawn the same open or not so only the riddle tells the right one from a decoy).
 
 ## 5. Motion
 
@@ -251,7 +251,9 @@ pattern and outline), `turnPad` (a floor pad with its arrow), `symbolGlyph` (a v
 | Alarm | a steady border and banner, a pulse of about 1 Hz |
 | World rises (planned, Task 21) | 900 ms; reduced motion 300 ms cross-fade |
 | Dusk palette | 600 ms; instant under reduced motion |
-| Solved side-job chip | one 600 ms pulse; none under reduced motion |
+| Secret door (chamber or vault) | slides into the floor over 600 ms with a dust puff; reduced motion: a 300 ms cross-fade, no slide; the dust only fades |
+| Keepsake taken | the item lifts off its plinth and fades over 1 s with a spark burst and a `--goal` ring; reduced motion: it fades in place |
+| Taken side-job chip | one 600 ms pulse; none under reduced motion (the vault chip does not pulse) |
 
 **Cache sounds** (`uncover`, `stash`; team-wide, like `solved`): the uncover is one soft low thunk (a sine falling from 150 to 90 Hz and a dull knock); the stash is two soft rising triangle notes about half a second long, a fifth apart. Neither is the `solved` arpeggio (three rising sines) or the `dye` pomf. High contrast: the tile draws from the same world tokens, so it remaps by itself, and the item itself is flat (see `ItemGlyph`).
 

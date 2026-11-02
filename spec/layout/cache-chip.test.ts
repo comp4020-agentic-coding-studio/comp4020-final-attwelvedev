@@ -112,7 +112,7 @@ describe.each([
     }
   }, 60_000);
 
-  it("the cache moment never covers the side-job chip, and a long stash caption does not squeeze the other cues", async () => {
+  it("the cache moment never covers the side-job chip, and a long moment caption does not squeeze the other cues", async () => {
     const pages = await threePlayers(viewport);
     try {
       for (const page of pages) await page.getByRole("button", { name: "I'm ready" }).click();
@@ -127,7 +127,7 @@ describe.each([
       // card for the longest item and a long nickname, and a cue line with short cues beside it
       await owner.evaluate(() => {
         const chip = document.querySelector(".side-job") as HTMLElement;
-        chip.outerHTML = `<div class="side-job is-found"><span class="keepsake" style="--keep:32px"></span><span class="side-job-found"><span class="side-job-name">pearl necklace</span><span class="side-job-text">Found by Bo</span></span></div>`;
+        chip.outerHTML = `<div class="side-job is-found is-vault"><span class="keepsake" style="--keep:32px"></span><span class="side-job-found"><span class="side-job-name">pearl necklace</span><span class="side-job-text">Waiting in the vault</span></span></div>`;
         const frame = document.querySelector(".side-job")?.parentElement as HTMLElement;
         frame.insertAdjacentHTML(
           "beforeend",
@@ -159,7 +159,7 @@ describe.each([
     }
   }, 60_000);
 
-  it("the solved chip is as wide as a long item name needs, wraps it, and pulses once", async () => {
+  it("the taken chip is as wide as a long item name needs, wraps it, and pulses once; the vault chip does not pulse", async () => {
     const pages = await threePlayers(viewport);
     try {
       for (const page of pages) await page.getByRole("button", { name: "I'm ready" }).click();
@@ -175,7 +175,7 @@ describe.each([
       // game's, not this spec's. What is measured is the CSS and the markup's classes.
       await owner.evaluate(() => {
         const chip = document.querySelector(".side-job") as HTMLElement;
-        chip.outerHTML = `<div class="side-job is-found" id="solved"><span class="keepsake" style="--keep:32px"></span><span class="side-job-found"><span class="side-job-name">pearl necklace and a very long extra name</span><span class="side-job-text">Found by Bartholomew-Maximilian Featherstonehaugh</span></span></div>`;
+        chip.outerHTML = `<div class="side-job is-found is-taken" id="solved"><span class="keepsake" style="--keep:32px"></span><span class="side-job-found"><span class="side-job-name">pearl necklace and a very long extra name</span><span class="side-job-text">Taken by Bartholomew-Maximilian Featherstonehaugh and then some more words</span></span></div>`;
       });
       const solved = owner.locator("#solved");
       const box = await solved.boundingBox();
@@ -198,6 +198,11 @@ describe.each([
       expect(await anim()).toEqual({ name: "side-job-pulse", count: "1" });
       await owner.emulateMedia({ reducedMotion: "reduce" });
       expect((await anim()).name).toBe("none");
+      await owner.emulateMedia({ reducedMotion: "no-preference" });
+      await owner.evaluate(() => {
+        document.getElementById("solved")?.classList.replace("is-taken", "is-vault");
+      });
+      expect((await anim()).name).toBe("none"); // nothing counts yet: the vault chip stays still
     } finally {
       await close(pages);
     }

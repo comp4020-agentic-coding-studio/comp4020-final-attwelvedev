@@ -326,6 +326,14 @@ describe("the chamber in the views (Task 64)", () => {
     expect(viewFor(world(), 0, "blind", true).tiles).toBeUndefined();
   });
 
+  it("(b2) an open secret door is marked secret in the entity list, an ordinary door is not", () => {
+    const w = world();
+    press(w, MOON, 1);
+    const doors = entityIds(w, 1).filter((e) => e.kind === "door");
+    expect(doors.length).toBeGreaterThan(0);
+    for (const d of doors) expect(d.secret).toBe(true);
+  });
+
   it("(b) no entity list holds a secret door while it is closed", () => {
     const w = world();
     const ids = doorIds(w);

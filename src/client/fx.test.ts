@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EntityView } from "../net/protocol.ts";
-import { detectFx, FX_MS, fxMs } from "./fx.ts";
+import { detectFx, FX_MS, fxMs, fxOfCacheEvent } from "./fx.ts";
 
 const e = (over: Partial<EntityView> & Pick<EntityView, "id" | "kind">): EntityView => ({
   pos: { x: 5.5, y: 2.5 },
@@ -116,41 +116,49 @@ describe("detectFx: small effects for what just changed between two views", () =
     expect(FX_MS).toBeLessThan(800);
   });
 
-  describe("caches", () => {
-    const station = (over: Partial<EntityView> = {}) =>
-      e({
-        id: "Q1",
-        kind: "station",
-        station: { type: "dial", shows: [], solved: false, parts: [] },
-        ...over,
-      });
-    const stashed = (item: "watch" = "watch"): EntityView =>
-      station({ station: { type: "dial", shows: [], solved: true, parts: [], stash: item } });
+  describe("a cache's doors and keepsake come from cacheEvent (caches FR9 to FR11)", () => {
+    const at = { x: 3.5, y: 5.5 };
     const other = e({ id: "P0", kind: "player", seat: 0 });
 
-    const tile = e({ id: "Q1.m0", kind: "motiftile", motif: "moon", pos: { x: 2.5, y: 2.5 } });
+    it("slides the door and puffs dust at the event, for an uncover and for a solve", () => {
+      for (const result of ["uncover", "solved"] as const) {
+        expect(fxOfCacheEvent({ result, at, owner: 1 }).map((f) => f.kind)).toEqual([
+          "slide",
+          "dust",
+        ]);
+        expect(fxOfCacheEvent({ result, at, owner: 1 })[0]).toMatchObject({ pos: at, tone: "ui" });
+      }
+    });
 
-    it("shows the uncover moment once, when a station appears where its motif tiles were drawn", () => {
-      expect(detectFx([other, tile], [other, tile, station()])).toMatchObject([
-        { kind: "uncover", pos: station().pos },
+    it("lifts the item, sparks and rings at the plinth on a take", () => {
+      const fx = fxOfCacheEvent({ result: "taken", at, owner: 1, item: "watch" });
+      expect(fx).toMatchObject([
+        { kind: "lift", keep: "watch", pos: at, tone: "goal" },
+        { kind: "spark", pos: at, tone: "goal" },
+        { kind: "ring", pos: at, tone: "goal", big: true },
       ]);
-      expect(detectFx([other, tile, station()], [other, tile, station()])).toEqual([]);
     });
 
-    it("shows nothing for a station that merely comes into sight, or on the first view", () => {
-      expect(detectFx([other], [other, station()])).toEqual([]);
-      expect(detectFx([], [other, tile, station()])).toEqual([]);
+    it("lets the lift live a second and a slide the usual 600 ms", () => {
+      expect(fxMs({ kind: "lift", pos: at, tone: "goal" })).toBe(1000);
+      expect(fxMs({ kind: "slide", pos: at, tone: "ui" })).toBe(FX_MS);
     });
 
-    it("shows the stash moment once, when stash is set, with the item, and no plain solved ring", () => {
-      const fx = detectFx([other, station()], [other, stashed()]);
-      expect(fx).toMatchObject([{ kind: "stash", keep: "watch" }]);
-      expect(detectFx([other, stashed()], [other, stashed()])).toEqual([]);
+    it("makes nothing from a door or keepsake that merely comes into or leaves sight", () => {
+      const door = e({ id: "Q1.d", kind: "door", state: "open", pos: at });
+      const keep = e({ id: "Q1.keep", kind: "keepsake", keep: "watch" });
+      expect(detectFx([other], [other, door, keep])).toEqual([]);
+      expect(detectFx([other, door, keep], [other])).toEqual([]);
     });
 
-    it("lets the stash live a second, for the reduced-motion star, and no other effect", () => {
-      expect(fxMs({ kind: "stash", pos: { x: 0, y: 0 }, tone: "goal" })).toBe(1000);
-      expect(fxMs({ kind: "ring", pos: { x: 0, y: 0 }, tone: "goal" })).toBe(FX_MS);
+    it("no longer makes an uncover or stash effect from a station", () => {
+      const tile = e({ id: "Q1.m0", kind: "motiftile", motif: "moon" });
+      const station = e({
+        id: "Q1",
+        kind: "station",
+        station: { type: "dial", shows: [], solved: true, parts: [], stash: "watch" },
+      });
+      expect(detectFx([other, tile], [other, tile, station])).toEqual([]);
     });
   });
 });

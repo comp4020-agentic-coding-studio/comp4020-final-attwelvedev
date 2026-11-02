@@ -5,6 +5,7 @@ export interface Predictor {
   apply(input: PlayerInput, dtMs: number): Vec; // predicted own position
   reconcile(serverPos: Vec, ack: number): Vec; // drops acked inputs, replays the rest
   observe(entities: EntityView[]): void; // open doors and crates, as last seen
+  setTiles(tiles: string[]): void; // the map was re-sent (a secret door opened): walk the new one
 }
 
 // The client may not import the simulation (src/client/ is browser-only), so
@@ -19,7 +20,8 @@ const MAX_PENDING = 200; // a seat that is never acked (blind) must not grow wit
 
 const key = (x: number, y: number): string => `${x},${y}`;
 
-export function createPredictor(start: Vec, tiles: string[]): Predictor {
+export function createPredictor(start: Vec, initial: string[]): Predictor {
+  let tiles = initial;
   let pos: Vec = { ...start };
   let pending: { input: PlayerInput; dtMs: number }[] = [];
   let openDoors = new Set<string>();
@@ -73,6 +75,9 @@ export function createPredictor(start: Vec, tiles: string[]): Predictor {
   };
 
   return {
+    setTiles(next) {
+      tiles = next;
+    },
     apply(input, dtMs) {
       pending.push({ input, dtMs });
       if (pending.length > MAX_PENDING) pending = pending.slice(-MAX_PENDING);

@@ -390,21 +390,27 @@ describe("cacheMoment: the words on the chip at the top of the map", () => {
   });
   const NAMES = ["Ana", "Bo", "Cy"];
 
-  it("a hearing seat gets the cue's words, the owner named on a stash only", () => {
-    expect(cacheMoment([], [cue("uncover", { n: 1 })], NAMES)).toBe("Something opened");
-    expect(cacheMoment([], [cue("stash", { n: 1, item: "watch" })], NAMES)).toBe(
-      "Bo's side job open: the gold watch",
-    );
-  });
-
-  it("Can't hear gets no sounds, so the pictures say it, without an owner they cannot know", () => {
-    const at = { x: 1, y: 1 };
-    expect(cacheMoment([{ kind: "uncover", pos: at, tone: "ui" }], [], NAMES)).toBe(
+  it("reads cacheEvent: a door opening names nobody, a solve names the owner and the item, a take the taker", () => {
+    expect(cacheMoment({ result: "uncover", at: { x: 1, y: 1 }, owner: 1 }, NAMES)).toBe(
       "Something opened",
     );
-    expect(cacheMoment([{ kind: "stash", pos: at, tone: "goal", keep: "watch" }], [], NAMES)).toBe(
-      "Side job open: the gold watch",
-    );
+    expect(
+      cacheMoment({ result: "solved", at: { x: 1, y: 1 }, owner: 1, item: "watch" }, NAMES),
+    ).toBe("Bo's side job open: the gold watch");
+    expect(
+      cacheMoment({ result: "taken", at: { x: 1, y: 1 }, owner: 1, item: "watch" }, NAMES),
+    ).toBe("Bo took the gold watch");
+  });
+
+  it("is the same words whatever the role hears, since it reads the event and not the sounds", () => {
+    const ev = { result: "solved", at: { x: 1, y: 1 }, owner: 2, item: "ring" } as const;
+    expect(cacheMoment(ev, NAMES)).toBe("Cy's side job open: the signet ring");
+  });
+
+  it("falls back to 'Someone' for a seat with no name, which seatNames gives as an empty string", () => {
+    const taken = { result: "taken", at: { x: 0, y: 0 }, owner: 1, item: "watch" } as const;
+    expect(cacheMoment(taken, [])).toBe("Someone took the gold watch");
+    expect(cacheMoment(taken, ["Ana", "", "Cy"])).toBe("Someone took the gold watch");
   });
 
   // Task 64 (i): the new words. A stash says whose side job opened and what is in it; a take is a loot
@@ -426,7 +432,7 @@ describe("cacheMoment: the words on the chip at the top of the map", () => {
     ]);
   });
 
-  it("is null when neither happened", () => {
-    expect(cacheMoment([], [], NAMES)).toBeNull();
+  it("is null when there was no event", () => {
+    expect(cacheMoment(undefined, NAMES)).toBeNull();
   });
 });
