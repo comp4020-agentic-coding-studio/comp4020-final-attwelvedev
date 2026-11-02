@@ -1,7 +1,15 @@
 import type { Stamp } from "./channels.ts";
 import { subtractRects } from "./clip.ts";
 import { visiblePolygon } from "./cone.ts";
-import { cacheOf, flipsOf, type ItemId, isMotif, type Motif } from "./rooms/format.ts";
+import {
+  cacheOf,
+  flipsOf,
+  type ItemId,
+  inRect,
+  isMotif,
+  type Motif,
+  secretDoors,
+} from "./rooms/format.ts";
 import { beside, carried, gearOn, hatchBeside, objectOn, onSill, partner } from "./sim/gear.ts";
 import {
   cameraApex,
@@ -64,6 +72,7 @@ export interface EntityView {
     | "bell"
     | "lamp"
     | "ink" // UV ink, sent only while a torch lights it
+    | "keepsake" // a solved cache's item standing in its open vault: `keep`; for the sighted
     | "motiftile" // a cache's motif tile: `motif`; drawn for the sighted whether or not the cache is open
     | "card" // a switches station's target card: `card`
     | "lever" // a practice lever: `state` is "on" while it is flipped
@@ -116,6 +125,7 @@ export interface EntityView {
     reveal?: number; // a solved wing's symbol, for the vault (clues FR2)
     stash?: ItemId; // a found cache's item (caches FR10), for the sighted
   };
+  keep?: ItemId; // a keepsake: the item standing in an open vault
   card?: number[]; // a target card's lamps: lit (1) or hollow (0), sighted only
   motifs?: Motif[]; // an order clue: the motif of each vault socket's wing, in socket order
   motif?: Motif; // a motif tile's symbol
@@ -213,9 +223,13 @@ export interface RoleView {
     motif: Motif;
     riddle: string;
     item: ItemId;
-    state: "hidden" | "open" | "found";
-    by?: Seat;
+    state: "hidden" | "open" | "vault" | "taken";
+    by?: Seat; // who solved it
   };
+  keepsake?: ItemId; // your own slot: the item you took, kept apart from gear (every role knows it)
+  // this tick's secret-door moment or take, for every role: the sighted slide the door, the hearing
+  // hear the cue, the rest read the caption (caches FR9). Only the solve and the take name the item.
+  cacheEvent?: { result: "uncover" | "solved" | "taken"; at: Vec; owner: Seat; item?: ItemId };
   lamp?: { seat: Seat; tick: number }; // the lamp flashed this tick: for the sighted only
   act?: string; // what Act would do here, phrased from what this role perceives
 }
@@ -304,6 +318,7 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
         });
       }
     } else if (o.kind === "door") {
+      if (secretClosed(world).has(o.id)) continue; // a closed secret door is wall to every view
       for (const t of o.tiles) {
         const state = world.doorOpen[o.id] ? "open" : "closed";
         out.push({ id: o.id, kind: "door", pos: centre(t), state });
@@ -441,6 +456,21 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
         kind: o.kind,
         pos: centre(o.tiles[0] as Vec),
         ...(rung(o.kind, o.id) ? { state: "on" as const } : {}),
+      });
+    }
+  }
+  // a solved cache's item stands in its open vault until its owner takes it: for the sighted, and
+  // its name is public from the solve (the cleared card shows it to everyone)
+  if (role !== "blind") {
+    for (const o of world.room.objects) {
+      const cache = cacheOf(o);
+      if (!cache || world.cacheBy[o.id] === undefined || world.cacheTaken[o.id] !== undefined)
+        continue;
+      out.push({
+        id: `${o.id}.keep`,
+        kind: "keepsake",
+        pos: centre(cache.chamber.vault.item),
+        keep: cache.item,
       });
     }
   }
@@ -585,10 +615,21 @@ function soundsFor(world: World, seat: Seat): SoundCue[] {
       out.push({ kind: "dye", pan: 0, gain: 1 });
     } else if (e.kind === "cache") {
       // team-wide, like "solved": the whole crew hears it opened and found, wherever they stand
-      const kind = e.result === "uncover" ? "uncover" : "stash";
-      // `n` is whose cache it is; only the stash says what was in it (an opened panel shows nothing yet)
       const obj = world.room.objects.find((o) => o.id === e.id);
       const cache = obj ? cacheOf(obj) : null;
+      if (e.result === "taken") {
+        // the take counts the loot: the same chime as any loot, naming whose and what
+        out.push({
+          kind: "loot",
+          pan: panOf(e.at, me),
+          gain: 1,
+          ...(cache ? { n: cache.owner - 1, item: cache.item } : {}),
+          ...dirTo(e.at, me),
+        });
+        continue;
+      }
+      const kind = e.result === "uncover" ? "uncover" : "stash";
+      // `n` is whose cache it is; only the stash says what was in it (an opened panel shows nothing yet)
       const who = cache ? { n: cache.owner - 1 } : {};
       const what = kind === "stash" && cache ? { item: cache.item } : {};
       out.push({ kind, pan: panOf(e.at, me), gain: 1, ...who, ...what, ...dirTo(e.at, me) });
@@ -804,6 +845,42 @@ function inSight(
   return out;
 }
 
+// The secret doors still shut, by door id: a closed one is wall to every sighted view and in no list.
+function secretClosed(world: World): Set<string> {
+  const out = new Set<string>();
+  for (const d of secretDoors(world.room)) {
+    if (!world.doorOpen[d.chamber.id]) out.add(d.chamber.id);
+    if (!world.doorOpen[d.vault.id]) out.add(d.vault.id);
+  }
+  return out;
+}
+
+// The tile grid a sighted seat or a watcher is sent: every chamber and vault not yet open, and its
+// secret door tile, reads "#", exactly as the wall around it (ADR 0007: nothing tells a role a
+// chamber exists). The chamber opens with its door, the vault with its own.
+function maskCache(world: World, grid: string[]): string[] {
+  const hide: { rect: [number, number, number, number]; doors: Vec[] }[] = [];
+  for (const d of secretDoors(world.room)) {
+    const cache = cacheOf(world.room.objects.find((o) => o.id === d.id) as never);
+    if (!cache) continue;
+    if (!world.doorOpen[d.chamber.id]) {
+      hide.push({ rect: cache.chamber.rect, doors: [...d.chamber.tiles] });
+    } else if (!world.doorOpen[d.vault.id]) {
+      hide.push({ rect: cache.chamber.vault.rect, doors: [...d.vault.tiles] });
+    }
+  }
+  if (hide.length === 0) return grid;
+  return grid.map((row, y) =>
+    [...row]
+      .map((ch, x) =>
+        hide.some((h) => inRect(h.rect, { x, y }) || h.doors.some((t) => t.x === x && t.y === y))
+          ? "#"
+          : ch,
+      )
+      .join(""),
+  );
+}
+
 function maskTiles(grid: string[], zones: Zone[]): string[] {
   return grid.map((row, y) =>
     [...row].map((ch, x) => (inAny(zones, { x: x + 0.5, y: y + 0.5 }) ? " " : ch)).join(""),
@@ -822,8 +899,40 @@ export function cacheFor(world: World, seat: Seat): RoleView["cache"] {
       motif: cache.motif,
       riddle: cache.riddle,
       item: cache.item,
-      state: by !== undefined ? "found" : world.cacheUncovered.includes(o.id) ? "open" : "hidden",
+      state:
+        world.cacheTaken[o.id] !== undefined
+          ? "taken"
+          : by !== undefined
+            ? "vault"
+            : world.cacheUncovered.includes(o.id)
+              ? "open"
+              : "hidden",
       ...(by !== undefined ? { by } : {}),
+    };
+  }
+  return undefined;
+}
+
+// The item a seat took, for its own view: the keepsake slot, apart from gear.
+function keepsakeFor(world: World, seat: Seat): ItemId | undefined {
+  for (const o of world.room.objects) {
+    const cache = cacheOf(o);
+    if (cache && world.cacheTaken[o.id] === seat) return cache.item;
+  }
+  return undefined;
+}
+
+// This tick's secret-door moment or take: team-wide, so the same for every role (sensory parity).
+function cacheEventOf(world: World): RoleView["cacheEvent"] {
+  for (const e of world.events) {
+    if (e.kind !== "cache") continue;
+    const cache = cacheOf(world.room.objects.find((o) => o.id === e.id) as never);
+    if (!cache) continue;
+    return {
+      result: e.result,
+      at: e.at,
+      owner: (cache.owner - 1) as Seat,
+      ...(e.result === "uncover" ? {} : { item: cache.item }),
     };
   }
   return undefined;
@@ -852,6 +961,10 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
   if (hand !== undefined) view.you.hand = hand; // own state (FR22)
   const cache = cacheFor(world, seat);
   if (cache) view.cache = cache;
+  const kept = keepsakeFor(world, seat);
+  if (kept) view.keepsake = kept;
+  const moment = cacheEventOf(world);
+  if (moment) view.cacheEvent = moment;
   const hint = actHint(world, seat, role);
   if (hint) view.act = hint; // phrased per role: never a colour for Can't see
   const alarm = world.tick < world.alarmUntil;
@@ -875,7 +988,10 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
       ),
       ...uvLight(world, role, seen, zones),
     ];
-    if (full) view.tiles = zones.length === 0 ? world.room.grid : maskTiles(world.room.grid, zones);
+    if (full) {
+      const grid = maskCache(world, world.room.grid);
+      view.tiles = zones.length === 0 ? grid : maskTiles(grid, zones);
+    }
     // the lamp (FR25) is a light: for the sighted only
     const lamp = world.events.find((e) => e.kind === "lamp");
     if (lamp?.kind === "lamp") view.lamp = { seat: lamp.seat, tick: world.tick };
@@ -921,7 +1037,9 @@ export function spectatorView(
     dark: false,
     gear: follow === null ? null : (carried(world, seat)?.item ?? null),
   };
-  if (full) view.tiles = world.room.grid;
+  if (full) view.tiles = maskCache(world, world.room.grid); // a watcher sees the room, masked like the sighted
+  const moment = cacheEventOf(world);
+  if (moment) view.cacheEvent = moment;
   return view;
 }
 
@@ -962,6 +1080,15 @@ function uvLight(world: World, role: Role, seen: Visible, zones: Zone[]): Entity
   return out;
 }
 
+const ITEM_WORDS: Record<ItemId, string> = {
+  watch: "gold watch",
+  ledger: "ledger",
+  ring: "signet ring",
+  goblet: "silver goblet",
+  pen: "fountain pen",
+  necklace: "pearl necklace",
+};
+
 const GEAR_NAME: Record<GearItem, string> = {
   earpiece: "earpiece",
   goggles: "goggles",
@@ -994,6 +1121,15 @@ function actHint(world: World, seat: Seat, role: Role): string | undefined {
     if (part.key === "bells") return `Strike bell ${n}`;
     if (part.key === "buttons") return `Press button ${n}`;
     return `Turn socket ${n}`;
+  }
+  for (const obj of world.room.objects) {
+    const cache = cacheOf(obj);
+    const item = cache?.chamber.vault.item;
+    if (!cache || !item || item.x !== tile.x || item.y !== tile.y) continue;
+    if (world.cacheBy[obj.id] === undefined || world.cacheTaken[obj.id] !== undefined) continue;
+    return seat === cache.owner - 1
+      ? `Take the ${ITEM_WORDS[cache.item]}`
+      : "Only its owner can take this";
   }
   const mine = carried(world, seat);
   const lying = gearOn(world, tile);

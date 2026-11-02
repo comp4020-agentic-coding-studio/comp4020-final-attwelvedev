@@ -57,18 +57,23 @@ describe("SideJob", () => {
     },
   );
 
-  it("solved: the plate, the item's name, a tick and who found it, never the riddle", () => {
-    mount({ ...base, state: "found", by: 1 });
-    expect(chip().querySelector(".keepsake")).not.toBeNull();
-    expect(chip().textContent).toContain("gold watch");
-    expect(chip().textContent).toContain("Found by Bo");
-    expect(chip().querySelector(".side-job-tick")).not.toBeNull();
-    expect(chip().textContent).not.toContain(base.riddle);
-    expect(chip().getAttribute("aria-label")).toBe("Side job found: gold watch, with Bo");
-  });
+  // Task 64's stopgap: both the open vault and the taken item show the old solved chip until Task 56
+  // (14-03) gives each its own.
+  it.each(["vault", "taken"] as const)(
+    "%s: the plate, the item's name, a tick and who found it, never the riddle",
+    (state) => {
+      mount({ ...base, state, by: 1 });
+      expect(chip().querySelector(".keepsake")).not.toBeNull();
+      expect(chip().textContent).toContain("gold watch");
+      expect(chip().textContent).toContain("Found by Bo");
+      expect(chip().querySelector(".side-job-tick")).not.toBeNull();
+      expect(chip().textContent).not.toContain(base.riddle);
+      expect(chip().getAttribute("aria-label")).toBe("Side job found: gold watch, with Bo");
+    },
+  );
 
   it("says Found by you when you pressed it", () => {
-    mount({ ...base, state: "found", by: 0 }, 0);
+    mount({ ...base, state: "vault", by: 0 }, 0);
     expect(chip().textContent).toContain("Found by you");
     expect(chip().getAttribute("aria-label")).toBe("Side job found: gold watch, with you");
   });
@@ -79,7 +84,7 @@ describe("SideJob", () => {
     chip().click();
     await new Promise((r) => setTimeout(r, 0)); // preact re-renders after the click, not during it
     expect(document.querySelector(".side-job-text.is-open")).not.toBeNull();
-    mount({ ...base, state: "found", by: 1 });
+    mount({ ...base, state: "vault", by: 1 });
     expect(chip().hasAttribute("aria-expanded")).toBe(false);
   });
 });

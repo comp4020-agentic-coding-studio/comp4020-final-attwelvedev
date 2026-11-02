@@ -133,9 +133,12 @@ const EVERYWHERE = new Set<SoundCue["kind"]>([
 
 // Some sounds carry a count: how many are at the flag or the exit, how many plates are done.
 function word(s: SoundCue, names?: readonly string[]): string {
-  // a stash names whose side job it was and what it held (the cleared card says the same to all)
+  // a stash names whose side job it was and what waits in its vault (the cleared card names the item to all)
   if (s.kind === "stash" && s.item && s.n !== undefined)
-    return `${names?.[s.n] ?? "Someone"}'s side job found: the ${ITEM_NAMES[s.item]}`;
+    return `${names?.[s.n] ?? "Someone"}'s side job open: the ${ITEM_NAMES[s.item]}`;
+  // the take is a loot cue that carries its owner and item: who took what (ordinary loot has neither)
+  if (s.kind === "loot" && s.item && s.n !== undefined)
+    return `${names?.[s.n] ?? "Someone"} took the ${ITEM_NAMES[s.item]}`;
   if (s.kind === "flag" || s.kind === "exit") return `${CUE_WORD[s.kind]} ${s.n ?? 0}/3`;
   if (s.kind === "seq-ok") return `${CUE_WORD[s.kind]}: ${s.n ?? 0} done`;
   if (s.kind === "clue") return `${CUE_WORD[s.kind]} ×${s.n ?? 1}`;
@@ -154,7 +157,7 @@ function word(s: SoundCue, names?: readonly string[]): string {
 // The words on the chip at the top of the map when a cache opens or its stash is found (caches
 // FR9): a hearing seat reads what its cue says, Can't hear (no sounds) what the picture just
 // did. The stash wins over the opening if both land at once. The owner is named only where the
-// cue carries it, so Can't hear's version says "Side job found".
+// cue carries it, so Can't hear's version says "Side job open".
 export function cacheMoment(
   fx: readonly Fx[],
   sounds: SoundCue[],
@@ -163,7 +166,7 @@ export function cacheMoment(
   const cue = sounds.find((s) => s.kind === "stash") ?? sounds.find((s) => s.kind === "uncover");
   if (cue) return word(cue, names);
   const shown = fx.find((f) => f.kind === "stash") ?? fx.find((f) => f.kind === "uncover");
-  if (shown?.kind === "stash" && shown.keep) return `Side job found: the ${ITEM_NAMES[shown.keep]}`;
+  if (shown?.kind === "stash" && shown.keep) return `Side job open: the ${ITEM_NAMES[shown.keep]}`;
   return shown ? CUE_WORD.uncover : null;
 }
 

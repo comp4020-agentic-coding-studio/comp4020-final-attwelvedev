@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { cueCaptions } from "../../client/hud.ts";
 import { spectatorView, viewFor } from "../perception.ts";
+import { secretDoors } from "../rooms/format.ts";
 import type { Seat, Vec } from "../types.ts";
 import { step } from "./step.ts";
 import { input, place, withChamber, worldWith } from "./testing.ts";
@@ -176,7 +177,7 @@ describe("a cache in the views", () => {
     expect(view(w, 1).cache?.state).toBe("open");
     rig(w);
     press(w, ANCHOR, 2);
-    expect(view(w, 1).cache).toMatchObject({ state: "found", by: 2 });
+    expect(view(w, 1).cache).toMatchObject({ state: "vault", by: 2 });
   });
 
   it("is in no one's view and has no Act hint until it is uncovered; then the sighted see it and Can't see hears it", () => {
@@ -241,7 +242,7 @@ describe("a cache in the views", () => {
       const stash = view(w, seat).sounds.filter((s) => s.kind === "stash");
       expect(stash).toHaveLength(1);
       expect(cueCaptions(view(w, seat).sounds, ["Ana", "Bo", "Cy"]).map((c) => c.text)).toContain(
-        "Bo's side job found: the gold watch",
+        "Bo's side job open: the gold watch",
       );
     }
     expect(view(w, 1).sounds).toEqual([]);
@@ -262,10 +263,199 @@ describe("a cache in the views", () => {
     expect(stash?.item).toBe("watch");
     const names = ["Ana", "Bo", "Cy"];
     expect(cueCaptions(view(w, 0).sounds, names).map((c) => c.text)).toContain(
-      "Bo's side job found: the gold watch",
+      "Bo's side job open: the gold watch",
     );
     expect(cueCaptions(view(w, 0).sounds, names).map((c) => c.text)).not.toContain(
       "Something opened Bo",
     );
+  });
+});
+
+// Task 64: the chamber in the views. Owner is seat 1 (owner: 2). The chamber rect is [2,5,5,5]: floor at
+// (2,5) and (3,5), the vault door at (4,5), the vault (the keepsake's tile) at (5,5), the secret door at (2,4).
+describe("the chamber in the views (Task 64)", () => {
+  const ROLES = ["blind", "deaf", "mute"] as const;
+  const OWNER = 1 as Seat;
+  const rect = CHAMBER.rect;
+  const cell = (x: number, y: number) => ({ x, y });
+  const DOOR = cell(CHAMBER.door[0], CHAMBER.door[1]);
+  const VDOOR = cell(CHAMBER.vault.door[0], CHAMBER.vault.door[1]);
+  const ITEM = cell(CHAMBER.vault.item[0], CHAMBER.vault.item[1]);
+  const mid = (t: Vec) => ({ x: t.x + 0.5, y: t.y + 0.5 });
+  const doorIds = (w: World) => {
+    const d = secretDoors(w.room)[0] as ReturnType<typeof secretDoors>[number];
+    return { chamber: d.chamber.id, vault: d.vault.id };
+  };
+  const tilesFor = (w: World, seat: Seat) => viewFor(w, seat, ROLES[seat], true).tiles as string[];
+  const at = (rows: string[], t: Vec) => rows[t.y]?.[t.x];
+  const watcher = (w: World, follow: Seat) =>
+    spectatorView(w, follow, [...ROLES], true).tiles as string[];
+  const solveIt = (w: World) => {
+    press(w, MOON, 1);
+    rig(w);
+    press(w, ANCHOR, 2);
+  };
+  const entityIds = (w: World, follow: Seat) =>
+    spectatorView(w, follow, [...ROLES], false).entities;
+
+  it("(a) the chamber, the vault and both doors read # on the sighted map until each opens", () => {
+    const w = world();
+    const real = w.room.grid; // what the room really holds, masked or not
+    for (const rows of [tilesFor(w, 1), tilesFor(w, 2), watcher(w, 1), watcher(w, 2)]) {
+      for (const t of [DOOR, cell(2, 5), cell(3, 5), VDOOR, ITEM]) expect(at(rows, t)).toBe("#");
+      expect(rows[3]).toBe(real[3]); // the rest of the room is not touched
+    }
+    expect(at(real, DOOR)).toBe("D"); // the masked tiles are not walls in the sim
+    expect(at(real, cell(2, 5))).toBe(".");
+    press(w, MOON, 1); // the chamber opens
+    for (const rows of [tilesFor(w, 1), tilesFor(w, 2), watcher(w, 1)]) {
+      expect(at(rows, DOOR)).toBe("D");
+      expect(at(rows, cell(2, 5))).toBe(".");
+      expect(at(rows, cell(3, 5))).toBe(".");
+      expect(at(rows, VDOOR)).toBe("#"); // the vault is still closed
+      expect(at(rows, ITEM)).toBe("#");
+    }
+    rig(w);
+    press(w, ANCHOR, 2); // the vault opens
+    for (const rows of [tilesFor(w, 1), tilesFor(w, 2), watcher(w, 1)]) {
+      expect(rows.join("\n")).toBe(real.join("\n"));
+    }
+  });
+
+  it("(a) Can't see gets no tiles at all, as before", () => {
+    expect(viewFor(world(), 0, "blind", true).tiles).toBeUndefined();
+  });
+
+  it("(b) no entity list holds a secret door while it is closed", () => {
+    const w = world();
+    const ids = doorIds(w);
+    const seen = (follow: Seat) => entityIds(w, follow).filter((e) => e.kind === "door");
+    for (const follow of [1, 2] as const) expect(seen(follow).map((e) => e.id)).toEqual([]);
+    press(w, MOON, 1);
+    for (const follow of [1, 2] as const) {
+      expect(seen(follow).map((e) => [e.id, e.state])).toEqual([[ids.chamber, "open"]]);
+    }
+    rig(w);
+    press(w, ANCHOR, 2);
+    expect(
+      seen(1)
+        .map((e) => [e.id, e.state])
+        .sort(),
+    ).toEqual(
+      [
+        [ids.chamber, "open"],
+        [ids.vault, "open"],
+      ].sort(),
+    );
+  });
+
+  it("(c) the keepsake stands for the sighted from the solve until the take, never for Can't see", () => {
+    const w = world();
+    const keep = (follow: Seat) => entityIds(w, follow).filter((e) => e.kind === "keepsake");
+    expect(keep(1)).toEqual([]);
+    solveIt(w);
+    for (const follow of [1, 2] as const) {
+      expect(keep(follow)).toEqual([expect.objectContaining({ pos: mid(ITEM), keep: "watch" })]);
+    }
+    expect(keep(0)).toEqual([]);
+    place(w, 1, { x: 3, y: 5 }); // inside the chamber, the vault door open: in sight
+    expect(viewFor(w, 1, "deaf", false).entities.filter((e) => e.kind === "keepsake")).toHaveLength(
+      1,
+    );
+    place(w, 0, ITEM);
+    expect(viewFor(w, 0, "blind", false).entities).toEqual([]);
+    press(w, ITEM, OWNER);
+    expect(keep(1)).toEqual([]);
+  });
+
+  it("(d) cacheEvent is in the tick of the event for every role, and gone the next", () => {
+    const w = world();
+    const events = (kind?: string) =>
+      ([0, 1, 2] as const).map((s) => view(w, s).cacheEvent).filter((e) => !kind || e);
+    act(w, MOON, 1);
+    for (const e of events()) {
+      expect(e).toEqual({ result: "uncover", at: mid(DOOR), owner: OWNER });
+      expect(e && "item" in e).toBe(false);
+    }
+    step(w, { 1: input(0, 0, false) });
+    for (const e of events()) expect(e).toBeUndefined();
+    rig(w);
+    act(w, ANCHOR, 2);
+    for (const e of events()) {
+      expect(e).toEqual({ result: "solved", at: mid(VDOOR), owner: OWNER, item: "watch" });
+    }
+    step(w, { 2: input(0, 0, false) });
+    act(w, ITEM, OWNER);
+    for (const e of events()) {
+      expect(e).toEqual({ result: "taken", at: mid(ITEM), owner: OWNER, item: "watch" });
+    }
+    step(w, { 1: input(0, 0, false) });
+    for (const e of events()) expect(e).toBeUndefined();
+  });
+
+  it("(e) the owner's cache state walks hidden, open, vault, taken; nobody else has one", () => {
+    const w = world();
+    const state = () => view(w, OWNER).cache?.state;
+    expect(state()).toBe("hidden");
+    press(w, MOON, 1);
+    expect(state()).toBe("open");
+    rig(w);
+    press(w, ANCHOR, 2);
+    expect(state()).toBe("vault");
+    expect(view(w, OWNER).cache?.by).toBe(2);
+    press(w, ITEM, OWNER);
+    expect(state()).toBe("taken");
+    for (const seat of [0, 2] as const) {
+      expect(view(w, seat).cache).toBeUndefined();
+      expect(view(w, seat).keepsake).toBeUndefined();
+    }
+  });
+
+  it("(e) before the solve no other seat's view carries the riddle or the item's name", () => {
+    const w = world();
+    press(w, MOON, 1);
+    for (const seat of [0, 2] as const) {
+      const json = JSON.stringify(viewFor(w, seat, ROLES[seat], true));
+      expect(json).not.toContain("listen twice");
+      expect(json).not.toContain("watch");
+    }
+    expect(JSON.stringify(spectatorView(w, 0, [...ROLES], true))).not.toContain("watch");
+  });
+
+  it("(f) keepsake is the item for the owner after the take, and absent for everyone else", () => {
+    const w = world();
+    solveIt(w);
+    expect(view(w, OWNER).keepsake).toBeUndefined();
+    press(w, ITEM, OWNER);
+    expect(view(w, OWNER).keepsake).toBe("watch");
+    for (const seat of [0, 2] as const) expect(view(w, seat).keepsake).toBeUndefined();
+  });
+
+  it("(g) the Act hint on the item: the owner takes it, others are told, none before the solve", () => {
+    const w = world();
+    place(w, OWNER, ITEM);
+    expect(view(w, OWNER).act).toBeUndefined();
+    solveIt(w);
+    place(w, OWNER, ITEM);
+    place(w, 0, ITEM);
+    expect(view(w, OWNER).act).toBe("Take the gold watch");
+    expect(view(w, 0).act).toBe("Only its owner can take this");
+    press(w, ITEM, OWNER);
+    place(w, 0, { x: 1, y: 1 }); // a teammate beside you would offer to hold hands instead
+    place(w, OWNER, ITEM);
+    expect(view(w, OWNER).act).toBeUndefined(); // taken: nothing left to take
+  });
+
+  it("(i) a take is a loot cue with its owner and item, for every hearing seat", () => {
+    const w = world();
+    solveIt(w);
+    place(w, 0, { x: 1, y: 1 });
+    act(w, ITEM, OWNER);
+    for (const seat of [0, 2] as const) {
+      const loot = view(w, seat).sounds.filter((s) => s.kind === "loot");
+      expect(loot).toHaveLength(1);
+      expect(loot[0]).toMatchObject({ n: OWNER, item: "watch" });
+    }
+    expect(view(w, 1).sounds).toEqual([]);
   });
 });

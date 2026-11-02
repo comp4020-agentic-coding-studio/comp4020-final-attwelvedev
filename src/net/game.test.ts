@@ -140,6 +140,44 @@ describe("inputs and views", () => {
     expect(next.get(1)?.full).toBe(false);
   });
 
+  // Task 64 (h): a secret door opening changes the map, so the sighted get it the tick it happens,
+  // even when no seat was owed a full view; an ordinary tick sends none.
+  it("sends tiles to every seat the tick a chamber door or a vault door opens, and not otherwise", () => {
+    const cacheRooms = loadRooms("./spec/fixtures/rooms-cache");
+    const game = startGame(lobby("a", "b", "c"), cacheRooms);
+    const w = game.world;
+    const moon = { x: 2.5, y: 4.5 };
+    const anchor = { x: 5.5, y: 8.5 };
+    tickGame(game); // an ordinary tick
+    expect([0, 1, 2].map((i) => tickGame(game).views.get(i as Seat)?.tiles)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ]);
+    let seq = 100;
+    const actAt = (seatNo: Seat, at: { x: number; y: number }) => {
+      w.players[seatNo].pos = { ...at };
+      applyInput(game, seatNo, { seq: ++seq, move: { x: 0, y: 0 }, act: true });
+      const views = tickGame(game).views;
+      applyInput(game, seatNo, { seq: ++seq, move: { x: 0, y: 0 }, act: false });
+      return views;
+    };
+    const uncover = actAt(0, moon);
+    expect(w.cacheUncovered).toEqual(["Q1"]);
+    for (const i of [1, 2] as const)
+      expect(uncover.get(i)?.tiles, `uncover, seat ${i}`).toBeDefined();
+    expect(uncover.get(0)?.tiles).toBeUndefined(); // Can't see has no map
+    const station = w.stations.Q1 as NonNullable<(typeof w.stations)[string]>;
+    station.answer = [3, 4];
+    station.input = [3, 4];
+    const solved = actAt(1, anchor);
+    expect(w.cacheBy.Q1).toBe(1);
+    for (const i of [1, 2] as const) expect(solved.get(i)?.tiles, `solve, seat ${i}`).toBeDefined();
+    const after = tickGame(game).views;
+    expect(after.get(1)?.tiles).toBeUndefined();
+    expect(after.get(2)?.tiles).toBeUndefined();
+  });
+
   it("keeps a view of room 01 under 2 KB unless it is a full view", () => {
     const game = started();
     tickGame(game);

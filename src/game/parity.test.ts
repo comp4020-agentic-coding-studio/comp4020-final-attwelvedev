@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { cueCaptions } from "../client/hud.ts";
 import { type EntityView, type RoleView, type SoundCue, viewFor } from "./perception.ts";
+import { syncCacheDoors } from "./sim/cache.ts";
 import { tuneGroups } from "./sim/chimes.ts";
 import { step } from "./sim/step.ts";
-import { gather, hold, input, place, worldWith } from "./sim/testing.ts";
+import { gather, hold, input, place, withChamber, worldWith } from "./sim/testing.ts";
 import { TICK_MS, type World, type WorldEvent } from "./sim/world.ts";
 
 // THE SENSORY PARITY PROMISE. Whatever happens in a room reaches every role
@@ -100,6 +101,24 @@ const CACHE_AT = {
   ],
 };
 
+const doors = (v: RoleView) => v.entities.filter((e) => e.kind === "door");
+const keeps = (v: RoleView) => v.entities.filter((e) => e.kind === "keepsake");
+// a cache whose chamber hangs under the room: the moon tile (10,1) opens it, the dial Q1 stands at (6,1)
+const cacheWorld = () => {
+  // BASE with the dial's anchor at (6,1), and a chamber bolted under it (withChamber adds a row of
+  // wall with the secret door, a row of chamber floor with the vault door, and the sealing wall)
+  const built = withChamber(put([6, 1, "Q"]), 14);
+  return worldWith(built.grid, {
+    Q1: {
+      type: "dial",
+      pads: PADS,
+      back: [6, 3],
+      digits: 1,
+      cache: { ...CACHE_AT, chamber: built.chamber },
+    },
+  });
+};
+const CHAMBER_INSIDE = { x: 14, y: BASE.length };
 const PARITY: Record<SoundCue["kind"], Scenario> = {
   tick: (() => {
     const world = stationAt({ type: "dial", pads: PADS, back: [6, 3], digits: 1 });
@@ -324,24 +343,30 @@ const PARITY: Record<SoundCue["kind"], Scenario> = {
       sees: (b, a) => !solvedIn(b) && solvedIn(a),
     };
   })(),
+  // The cache moments (phase 14): a secret door slides, a vault opens, an item is taken. Each has a
+  // sound for Can't see and a picture for Can't hear in the same tick: the door as an open `door`
+  // entity, the item standing as a `keepsake` entity, its taking as the keepsake gone.
   uncover: (() => {
-    const world = stationAt({ type: "dial", pads: PADS, back: [6, 3], digits: 1, cache: CACHE_AT });
+    const world = cacheWorld();
+    place(world, DEAF, { x: 14, y: 3 }); // on the floor in front of the secret door, which is in sight
     return {
       world,
       act: () => actBy(world, MUTE, { x: 10, y: 1 }),
-      sees: (b, a) => ent(b, "Q1") === undefined && ent(a, "Q1") !== undefined,
+      sees: (b, a) =>
+        doors(b).length === 0 && doors(a).length === 1 && doors(a)[0]?.state === "open",
     };
   })(),
   stash: (() => {
-    const world = stationAt({ type: "dial", pads: PADS, back: [6, 3], digits: 1, cache: CACHE_AT });
+    const world = cacheWorld();
     world.cacheUncovered.push("Q1");
+    syncCacheDoors(world);
     const s = world.stations.Q1;
     if (s) s.input = [s.answer[0] as number];
+    place(world, DEAF, CHAMBER_INSIDE);
     return {
       world,
       act: () => actBy(world, MUTE, { x: 6, y: 1 }),
-      sees: (b, a) =>
-        ent(b, "Q1")?.station?.stash === undefined && ent(a, "Q1")?.station?.stash === "watch",
+      sees: (b, a) => keeps(b).length === 0 && keeps(a)[0]?.keep === "watch",
     };
   })(),
   footsteps: (() => {
@@ -621,6 +646,27 @@ describe("sensory parity: every sound has a sight, and every sound is captioned"
       if (scenario.exempt) expect(scenario.exempt.length).toBeGreaterThan(20); // a real reason
     });
   }
+
+  // Task 64 (j): a cache's take is the same `loot` cue as the floor chest (it counts the loot), and
+  // there is only one row per cue, so the take has its own parity check: Can't see hears the cue,
+  // Can't hear sees the keepsake leave its vault, both in the tick of the take.
+  it("a take: heard by Can't see as the loot cue, seen by Can't hear as the item leaving", () => {
+    const world = cacheWorld();
+    world.cacheUncovered.push("Q1");
+    world.cacheBy.Q1 = MUTE;
+    syncCacheDoors(world);
+    place(world, DEAF, { x: 16, y: BASE.length });
+    const before = viewFor(world, DEAF, "deaf", false);
+    expect(keeps(before)).toHaveLength(1);
+    actBy(world, 1, { x: 17, y: BASE.length }); // the owner is seat 1 (owner: 2)
+    const heard = viewFor(world, BLIND, "blind", false).sounds.find((s) => s.kind === "loot");
+    expect(heard).toMatchObject({ n: 1, item: "watch" });
+    const after = viewFor(world, DEAF, "deaf", false);
+    expect(after.sounds).toEqual([]);
+    expect(keeps(after)).toHaveLength(0);
+    expect(after.cacheEvent).toMatchObject({ result: "taken", owner: 1, item: "watch" });
+    expect(viewFor(world, BLIND, "blind", false).cacheEvent).toEqual(after.cacheEvent);
+  });
 
   it("captions every sound, except your own steps, which you made yourself", () => {
     for (const kind of Object.keys(PARITY) as SoundCue["kind"][]) {

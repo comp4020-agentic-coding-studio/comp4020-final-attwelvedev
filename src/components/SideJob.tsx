@@ -19,7 +19,8 @@ export function SideJob({
 }) {
   const [open, setOpen] = useState(false);
   if (!cache) return null;
-  if (cache.state === "found") {
+  // the vault is open or the item taken: the old solved chip, until Task 56 (14-03) redesigns it
+  if (cache.state === "vault" || cache.state === "taken") {
     const item = ITEM_NAMES[cache.item];
     const who =
       cache.by === undefined

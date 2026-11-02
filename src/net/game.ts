@@ -476,9 +476,14 @@ export function tickGame(
     if (said.message.method === "mark") addStamp(game.world, said.message.id, said.message.at);
   }
   step(game.world, game.inputs, TICK_MS);
+  // a secret door opening changes the map the sighted hold, so every seat gets it this tick (a
+  // chamber hidden as wall appears the moment its door slides, never a tick later or on a reload)
+  const mapChanged = game.world.events.some(
+    (e) => e.kind === "cache" && (e.result === "uncover" || e.result === "solved"),
+  );
   const views = new Map<Seat, RoleView>();
   for (const seat of [0, 1, 2] as const) {
-    views.set(seat, viewFor(game.world, seat, game.roles[seat], full.has(seat)));
+    views.set(seat, viewFor(game.world, seat, game.roles[seat], mapChanged || full.has(seat)));
   }
   // who was caught, by what, and where the team went back to: told to everyone
   const caught = game.world.events.flatMap((e) =>

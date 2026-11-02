@@ -202,7 +202,7 @@ view with `full = true`, so the sighted get the unmasked map the same tick.
   the snapshot, let `floorNear` pick a chamber tile, push a `door` event on uncover); `pnpm test:unit` green; `src/game/bots` still never reads cache state.
 - **Depends on:** 62.
 
-### Task 64: The masked map, the standing item and the team moment in the view
+### Task 64: The masked map, the standing item and the team moment in the view [x]
 
 - **Description:** a sighted seat's map hides the chamber until its door opens; the item is an entity; the owner's slot and the moment are in the
   view; captions say the new words; the map is re-sent the tick a door opens.

@@ -393,7 +393,7 @@ describe("cacheMoment: the words on the chip at the top of the map", () => {
   it("a hearing seat gets the cue's words, the owner named on a stash only", () => {
     expect(cacheMoment([], [cue("uncover", { n: 1 })], NAMES)).toBe("Something opened");
     expect(cacheMoment([], [cue("stash", { n: 1, item: "watch" })], NAMES)).toBe(
-      "Bo's side job found: the gold watch",
+      "Bo's side job open: the gold watch",
     );
   });
 
@@ -403,8 +403,27 @@ describe("cacheMoment: the words on the chip at the top of the map", () => {
       "Something opened",
     );
     expect(cacheMoment([{ kind: "stash", pos: at, tone: "goal", keep: "watch" }], [], NAMES)).toBe(
-      "Side job found: the gold watch",
+      "Side job open: the gold watch",
     );
+  });
+
+  // Task 64 (i): the new words. A stash says whose side job opened and what is in it; a take is a loot
+  // cue that says who took what; an uncover still says nothing of whose.
+  it("the stash cue reads 'side job open: the item' and a take reads 'took the item'", () => {
+    expect(cueCaptions([cue("stash", { n: 1, item: "watch" })], NAMES).map((c) => c.text)).toEqual([
+      "Bo's side job open: the gold watch",
+    ]);
+    const take: SoundCue = { kind: "loot", pan: 0, gain: 1, n: 1, item: "watch" };
+    expect(cueCaptions([take], NAMES).map((c) => c.text)).toEqual(["Bo took the gold watch"]);
+    expect(cueCaptions([cue("uncover", { n: 1 })], NAMES).map((c) => c.text)).toEqual([
+      "Something opened",
+    ]);
+  });
+
+  it("a loot cue with no owner or item (ordinary loot) keeps its plain word", () => {
+    expect(cueCaptions([{ kind: "loot", pan: 0, gain: 1 }], NAMES).map((c) => c.text)).toEqual([
+      "loot chime",
+    ]);
   });
 
   it("is null when neither happened", () => {
