@@ -1134,3 +1134,23 @@ The call that beat the obvious one was making the seal a lint, not an authoring 
 written by hand in Task 58, and each is one misplaced wall from a free item. It was checked by breaking each chamber
 rule on purpose (the border check, the open-to-spawn check, the object-in-rect check, the control-tile check, the
 door-rule exemption, the jobs rule, and the seal) and watching its test go red, then restoring the code.
+
+## 2026-11-03 — Derive an event from state only when state can't change for another reason
+
+dd4d657
+
+Task 56's plan had the client work out "a secret door slid open" and "the item was taken" by diffing entities between
+two views. Writing the red tests showed why that fails: a door or the keepsake also appears and vanishes whenever it
+enters or leaves line of sight, and a closed secret door is no entity at all, so an opening out of sight would make
+nothing. The agent stopped before building it and put the choice to me.
+
+The obvious path was to follow the plan and add a `secret` flag to the door entity so the diff could tell. I chose to
+drive both effects from `view.cacheEvent` instead, the team-wide signal the server already sends on exactly the tick of
+the event, through a pure `fxOfCacheEvent`. It adds nothing to the wire and works for a seat that cannot see the door.
+
+What caught the rest was looking, not testing. A throwaway harness played the fixture chamber in three real browsers at
+1280 and 375, in normal, reduced-motion and high contrast, and showed the item hidden behind the chamber's south wall,
+which every unit test of `drawKeepsake` had passed. Playing it myself found a secret door wearing the ordinary door's
+"plates" chip, and a stethoscope clue no player would find (a bare tile four steps from the safe); I settled on a floor
+plate as the object, since a merely different tile has no believable link to a safe. Breaking twelve guarded lines on
+purpose found one test that could not fail (the empty-name fallback). Corrections are in 14-03 §9.
