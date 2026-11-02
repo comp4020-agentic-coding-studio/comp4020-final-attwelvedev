@@ -4,6 +4,7 @@ import type { Role } from "../game/types.ts";
 import {
   CUE_HOLD_MS,
   CUE_WORD,
+  cacheMoment,
   captionFor,
   caughtText,
   crewChangeText,
@@ -377,5 +378,36 @@ describe("crewChangeText", () => {
   it("says nothing when the crew is the same", () => {
     const crew = [person(0, "Ana"), person(1, "Bo"), bot(2)];
     expect(crewChangeText(crew, crew)).toBeNull();
+  });
+});
+
+describe("cacheMoment: the words on the chip at the top of the map", () => {
+  const cue = (kind: "uncover" | "stash", extra = {}): SoundCue => ({
+    kind,
+    pan: 0,
+    gain: 1,
+    ...extra,
+  });
+  const NAMES = ["Ana", "Bo", "Cy"];
+
+  it("a hearing seat gets the cue's words, the owner named on a stash only", () => {
+    expect(cacheMoment([], [cue("uncover", { n: 1 })], NAMES)).toBe("Something opened");
+    expect(cacheMoment([], [cue("stash", { n: 1, item: "watch" })], NAMES)).toBe(
+      "Bo's side job found: the gold watch",
+    );
+  });
+
+  it("Can't hear gets no sounds, so the pictures say it, without an owner they cannot know", () => {
+    const at = { x: 1, y: 1 };
+    expect(cacheMoment([{ kind: "uncover", pos: at, tone: "ui" }], [], NAMES)).toBe(
+      "Something opened",
+    );
+    expect(cacheMoment([{ kind: "stash", pos: at, tone: "goal", keep: "watch" }], [], NAMES)).toBe(
+      "Side job found: the gold watch",
+    );
+  });
+
+  it("is null when neither happened", () => {
+    expect(cacheMoment([], [], NAMES)).toBeNull();
   });
 });

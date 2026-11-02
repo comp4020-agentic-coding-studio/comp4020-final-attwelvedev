@@ -711,8 +711,14 @@ body.playing main {
   color: var(--bg);
 }
 
+/* a long cue (a stash names its owner and item) wraps as a whole, on its own line, and never squeezes
+   the short ones beside it into a letter a line */
+.captions p.cue {
+  flex-wrap: wrap;
+}
 .cue-item {
   display: inline-flex;
+  max-width: 100%;
   align-items: center;
   gap: var(--s-1);
   margin-right: var(--s-3);
@@ -1582,13 +1588,17 @@ fieldset.settings {
   font: inherit;
   font-size: var(--t-14);
 }
-/* the side job: a chip at the frame's top-left, past the notch; tap for the whole line */
+/* the side job: a chip at the frame's top-left, past the notch; tap for the whole line. Unsolved it
+   is the motif and the riddle; solved it is the keepsake on its plate, its name, a tick and who
+   found it. Shape and words carry it, never colour alone. */
 .side-job {
   position: absolute;
   top: var(--s-2);
   left: calc(var(--s-2) + 32px);
   z-index: 3;
-  display: grid;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
   max-width: min(22rem, 70%);
   min-height: var(--target);
   padding: var(--s-1) var(--s-2);
@@ -1602,6 +1612,26 @@ fieldset.settings {
   text-align: left;
   cursor: pointer;
 }
+.side-job.is-found {
+  cursor: default;
+}
+.side-job .motif-glyph {
+  flex: none;
+}
+.side-job-lines,
+.side-job-found {
+  display: grid;
+  min-width: 0;
+}
+.side-job-name {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  overflow-wrap: anywhere;
+}
+.side-job-tick {
+  flex: none;
+}
 .side-job-text {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1610,10 +1640,82 @@ fieldset.settings {
 }
 .side-job-text.is-open {
   white-space: normal;
+  overflow-wrap: anywhere;
+}
+.side-job.is-found .side-job-text {
+  white-space: normal;
 }
 @media (max-width: 719px) {
-  .side-job-text:not(.is-open) {
+  .side-job-lines .side-job-text:not(.is-open) {
     display: none;
+  }
+}
+/* the solved chip lands with one pulse (not under reduced motion, nor on a page that loads it solved) */
+@media (prefers-reduced-motion: no-preference) {
+  .side-job.is-found {
+    animation: side-job-pulse 600ms ease-out 1;
+  }
+}
+@keyframes side-job-pulse {
+  0% {
+    transform: scale(0.94);
+  }
+  60% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+/* the reveal's side-job row: the motif at 48 px beside the riddle, for its owner alone */
+.reveal-cache {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3);
+  border: 2px solid var(--ui-muted);
+  border-radius: var(--r);
+}
+.reveal-cache .motif-glyph {
+  flex: none;
+}
+.reveal-cache p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.reveal-cache-title {
+  font-weight: 700;
+}
+/* what a cache's opening or stash says, at the top centre of the map for a few seconds, like a vote
+   card: it never blocks play */
+.cache-moment {
+  position: absolute;
+  top: var(--s-2);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: max-content;
+  max-width: min(calc(100% - var(--s-4)), 26rem);
+  min-height: var(--target);
+  padding: var(--s-2) var(--s-3);
+  border: 2px solid var(--ui);
+  border-radius: var(--r);
+  background: var(--glass);
+  color: var(--ui);
+  font-weight: 700;
+  pointer-events: none;
+}
+.cache-moment p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+/* a phone's frame is too narrow for the chip and the card side by side: the card goes under the chip */
+@media (max-width: 719px) {
+  .cache-moment {
+    top: calc(var(--s-2) + 4.5rem);
   }
 }
 /* phone: the gear slot is a 48 px button at the world's bottom right, clear of the touch controls */

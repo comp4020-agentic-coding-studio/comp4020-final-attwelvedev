@@ -2,6 +2,8 @@ import { type Callout, CLIPS, type Stamp } from "../game/channels.ts";
 import type { StationType } from "../game/sim/world.ts";
 import type { Role } from "../game/types.ts";
 import type { ChannelMessage, EntityView, SoundCue } from "../net/protocol.ts";
+import type { Fx } from "./fx.ts";
+import { ITEM_NAMES } from "./items.ts";
 
 export const ROLE_GLYPH: Record<Role, string> = { blind: "●", deaf: "■", mute: "▲" };
 
@@ -130,7 +132,10 @@ const EVERYWHERE = new Set<SoundCue["kind"]>([
 ]);
 
 // Some sounds carry a count: how many are at the flag or the exit, how many plates are done.
-function word(s: SoundCue): string {
+function word(s: SoundCue, names?: readonly string[]): string {
+  // a stash names whose side job it was and what it held (the cleared card says the same to all)
+  if (s.kind === "stash" && s.item && s.n !== undefined)
+    return `${names?.[s.n] ?? "Someone"}'s side job found: the ${ITEM_NAMES[s.item]}`;
   if (s.kind === "flag" || s.kind === "exit") return `${CUE_WORD[s.kind]} ${s.n ?? 0}/3`;
   if (s.kind === "seq-ok") return `${CUE_WORD[s.kind]}: ${s.n ?? 0} done`;
   if (s.kind === "clue") return `${CUE_WORD[s.kind]} ×${s.n ?? 1}`;
@@ -144,6 +149,22 @@ function word(s: SoundCue): string {
   if (s.kind === "practice" && s.n !== undefined)
     return `${CUE_WORD[s.kind]}: ${s.of === "bellnote" ? "bell" : "key"} ${s.n + 1}`;
   return CUE_WORD[s.kind];
+}
+
+// The words on the chip at the top of the map when a cache opens or its stash is found (caches
+// FR9): a hearing seat reads what its cue says, Can't hear (no sounds) what the picture just
+// did. The stash wins over the opening if both land at once. The owner is named only where the
+// cue carries it, so Can't hear's version says "Side job found".
+export function cacheMoment(
+  fx: readonly Fx[],
+  sounds: SoundCue[],
+  names?: readonly string[],
+): string | null {
+  const cue = sounds.find((s) => s.kind === "stash") ?? sounds.find((s) => s.kind === "uncover");
+  if (cue) return word(cue, names);
+  const shown = fx.find((f) => f.kind === "stash") ?? fx.find((f) => f.kind === "uncover");
+  if (shown?.kind === "stash" && shown.keep) return `Side job found: the ${ITEM_NAMES[shown.keep]}`;
+  return shown ? CUE_WORD.uncover : null;
 }
 
 export type Dir8 = "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW";
@@ -161,12 +182,12 @@ export interface CueCaption {
 }
 
 // What the room sounds like right now, as captions: one per sound and direction.
-export function cueCaptions(sounds: SoundCue[]): CueCaption[] {
+export function cueCaptions(sounds: SoundCue[], names?: readonly string[]): CueCaption[] {
   const out = new Map<string, CueCaption>();
   for (const s of sounds) {
     if (s.kind === "step") continue; // you made it: nothing to caption
     const dir = s.kind === "hum" || EVERYWHERE.has(s.kind) || !s.dir ? null : dirOf(s.dir);
-    const text = s.kind === "hum" ? "hum" : word(s);
+    const text = s.kind === "hum" ? "hum" : word(s, names);
     out.set(`${text}|${dir}`, { text, dir });
   }
   return [...out.values()];

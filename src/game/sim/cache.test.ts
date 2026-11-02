@@ -236,8 +236,32 @@ describe("a cache in the views", () => {
     for (const seat of [0, 2] as const) {
       const stash = view(w, seat).sounds.filter((s) => s.kind === "stash");
       expect(stash).toHaveLength(1);
-      expect(cueCaptions(view(w, seat).sounds).map((c) => c.text)).toContain("Stash found");
+      expect(cueCaptions(view(w, seat).sounds, ["Ana", "Bo", "Cy"]).map((c) => c.text)).toContain(
+        "Bo's side job found: the gold watch",
+      );
     }
     expect(view(w, 1).sounds).toEqual([]);
+  });
+
+  it("says whose cache it is on both cues, and what was found on the stash cue only", () => {
+    const w = world();
+    place(w, 0, { x: 1, y: 1 });
+    act(w, MOON, 2);
+    const open = view(w, 0).sounds.find((s) => s.kind === "uncover");
+    expect(open?.n).toBe(1); // CACHE.owner 2 is seat 1
+    expect(open?.item).toBeUndefined(); // an opened panel has not shown what it hides
+    step(w, { 2: input(0, 0, false) });
+    rig(w);
+    act(w, ANCHOR, 2);
+    const stash = view(w, 0).sounds.find((s) => s.kind === "stash");
+    expect(stash?.n).toBe(1);
+    expect(stash?.item).toBe("watch");
+    const names = ["Ana", "Bo", "Cy"];
+    expect(cueCaptions(view(w, 0).sounds, names).map((c) => c.text)).toContain(
+      "Bo's side job found: the gold watch",
+    );
+    expect(cueCaptions(view(w, 0).sounds, names).map((c) => c.text)).not.toContain(
+      "Something opened Bo",
+    );
   });
 });

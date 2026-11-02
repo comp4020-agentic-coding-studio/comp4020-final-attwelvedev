@@ -8,7 +8,8 @@ export const sendsOf = (role: Role): Page[] => PAGES.filter((p) => canSend(role,
 // Talk is the callout, text and voice together: a role gets the page if it receives any of them.
 export const getsOf = (role: Role): Page[] => PAGES.filter((p) => canReceive(role, PAGE_METHOD[p]));
 
-import type { CrewMember } from "../net/protocol.ts";
+import type { Reveal } from "../components/Game.tsx";
+import type { CrewMember, ServerMsg } from "../net/protocol.ts";
 import { receiversOf } from "./wheel.ts";
 
 // Who hears a wheel page, by name: the page's method decides (talk is the callout).
@@ -90,4 +91,25 @@ export function readyStatus(input: { you: boolean; ready: number; total: number 
   if (!you) return { text: `${ready} of ${total} ready`, waiting: false };
   if (ready >= total) return { text: "Everyone is ready", waiting: false };
   return { text: `You're ready. Waiting for the others · ${ready} of ${total}`, waiting: true };
+}
+
+// The page's Reveal from the server's reveal message, field by field: a field the server sends and
+// this leaves out never reaches the screen (the owner's side job did not, until this was a function
+// with a test). `old` is the reveal this page already showed, if any; a new room morphs from its role.
+export function revealOf(m: Extract<ServerMsg, { t: "reveal" }>, old: Reveal | null): Reveal {
+  return {
+    room: m.room,
+    name: m.name,
+    index: m.index,
+    role: m.role,
+    crew: m.crew,
+    real: m.real,
+    cues: m.cues,
+    rooms: m.rooms,
+    sittingOut: m.sittingOut,
+    played: m.played,
+    ...(m.cache ? { cache: m.cache } : {}),
+    // a reveal for the room you are already in (a reconnect) has nothing to morph from
+    ...(old && old.index !== m.index ? { from: old.role } : {}),
+  };
 }

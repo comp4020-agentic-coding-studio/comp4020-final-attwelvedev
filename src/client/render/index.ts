@@ -16,6 +16,7 @@ import { drawEdgePills, drawPops } from "./pops.ts";
 import { type Camera, camera, LIVE, setRise, tileWindow, toScreen } from "./project.ts";
 import { drawMist, inSight, lightPolygon, nightTile, seenOf } from "./sight.ts";
 import { drawBell, drawHatch, drawLampSwitch, drawLever } from "./signals.ts";
+import { drawMotifTile } from "./stash.ts";
 import {
   drawLink,
   drawOrder,
@@ -102,7 +103,7 @@ const FAINT_MARK = 0.35; // a mark in a tile you cannot see
 const isBlock = (ch: string | undefined) => ch === "#" || ch === "%" || ch === "=" || ch === "H";
 
 // Entities drawn flat on the floor, under everything standing up in their row.
-const FLAT: EntityView["kind"][] = ["plate", "exit", "hide", "sign", "door"];
+const FLAT: EntityView["kind"][] = ["plate", "exit", "hide", "sign", "door", "motiftile"];
 // Things that stand up out of the floor, and the figures, in painter's order within a row.
 const STANDING: EntityView["kind"][] = [
   "door",
@@ -178,7 +179,7 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
   }
   for (const e of scene.entities)
     if (FLAT.includes(e.kind) && !(e.kind === "door" && e.state !== "open"))
-      drawFlat(ctx, e, cam, scene);
+      e.kind === "motiftile" ? drawMotifTile(ctx, e, cam) : drawFlat(ctx, e, cam, scene);
   for (const e of scene.entities) if (e.kind === "sight") drawSight(ctx, e, cam);
   for (const e of scene.entities) if (e.kind === "station") drawStationFloor(ctx, e, cam, scene);
   // a station stands in each row it has a standing part in (the safe, the panel, the lamps...)
@@ -217,7 +218,9 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
     }
     for (const { e, path } of linksByRow.get(y) ?? [])
       if (e.station) drawLink(ctx, e.station, cam, scene, path);
-    for (const e of stationsByRow.get(y) ?? []) drawStationStanding(ctx, e, cam, scene, y);
+    for (const e of stationsByRow.get(y) ?? []) {
+      drawStationStanding(ctx, e, cam, scene, y);
+    }
     for (const kind of STANDING) {
       for (const e of byRow.get(y) ?? []) {
         if (e.kind !== kind) continue;
@@ -300,6 +303,10 @@ function drawFx(ctx: CanvasRenderingContext2D, scene: Scene, cam: Camera) {
     ctx.strokeStyle = fxColor(f.tone);
     ctx.fillStyle = fxColor(f.tone);
     ctx.lineWidth = 3;
+    if (f.kind === "uncover" || f.kind === "stash") {
+      ctx.restore(); // drawn by Task 56 (14-03); nothing until then
+      continue;
+    }
     if (f.kind === "cloud") {
       ctx.restore(); // the cloud fades itself
       drawCloud(ctx, toScreen(cam, f.pos.x, f.pos.y, 0.5), cam.scale, f.age, !!scene.reducedMotion);

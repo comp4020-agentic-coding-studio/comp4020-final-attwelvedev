@@ -13,6 +13,7 @@ import type { BriefingCue } from "../game/cues.ts";
 import type { RoleView } from "../game/perception.ts";
 import { ROLE_LABEL, type Role, type Seat } from "../game/types.ts";
 import type { CrewMember, RealLife } from "../net/protocol.ts";
+import { MotifGlyph } from "./MotifGlyph.tsx";
 import { ReceiverLine } from "./ReceiverLine.tsx";
 import { RoleShape } from "./RoleShape.tsx";
 import { SoundBriefing } from "./SoundBriefing.tsx";
@@ -117,13 +118,18 @@ export function RoleReveal({
             <dt>You get</dt>
             <dd>{pagesText(gets)}</dd>
           </div>
-          {cache && (
-            <div>
-              <dt>Your side job</dt>
-              <dd>{cache.riddle}</dd>
-            </div>
-          )}
         </dl>
+
+        {cache && (
+          <div class="reveal-cache">
+            <MotifGlyph motif={cache.motif} size={48} />
+            <div>
+              <p class="reveal-cache-title">Your side job</p>
+              <p class="reveal-cache-riddle">{cache.riddle}</p>
+              <p class="muted">Only you can read this</p>
+            </div>
+          </div>
+        )}
 
         <ul class="reveal-lines" aria-label="Who gets what you send">
           {sends.map((page) => (

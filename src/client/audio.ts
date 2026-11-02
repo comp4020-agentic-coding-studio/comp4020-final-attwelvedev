@@ -317,6 +317,15 @@ export function createAudio(): GameAudio {
           [523, 659, 784].forEach((hz, i) => {
             tone(c, s, "sine", hz, hz, 0.3, 0.3, i * 0.1);
           });
+        } else if (s.kind === "uncover") {
+          // a panel sliding aside: one soft low thunk, a sine falling a little, with a brief dull knock
+          tone(c, s, "sine", 150, 90, 0.18, 0.4);
+          burst(c, s, "lowpass", 300, 0.5);
+        } else if (s.kind === "stash") {
+          // two soft rising notes, about half a second: a fifth apart, triangle, gentler than the
+          // solved arpeggio (three sines) and nothing like the dye's low pomf
+          tone(c, s, "triangle", 587, 587, 0.22, 0.28);
+          tone(c, s, "triangle", 880, 880, 0.3, 0.28, 0.2);
         } else if (s.kind === "cleared") {
           [523, 659, 784, 1047].forEach((hz, i) => {
             tone(c, s, "sine", hz, hz, 0.45, 0.3, i * 0.12);

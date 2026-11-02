@@ -1,7 +1,7 @@
 # Escape-room heist: side jobs as hidden caches
 
 - **Date:** 2026-11-02
-- **Status:** Draft
+- **Status:** Draft (amended 2026-11-02 after Task 56's first build was rejected on human review: a cache is now a secret chamber and a keepsake; see §7)
 - **Approved by user:** yes, 2026-11-02 (design agreed in the brainstorm; the UI proposal approved
   after a full `frontend-design` pass)
 - **Supersedes, in `specs/2026-10-28-escape-room-heist.md`:** FR28 (side jobs: a private bonus
@@ -25,71 +25,87 @@ as part of the result.
 **The cache**
 
 1. Rooms 4 to 9 each have exactly one **cache**: an optional station of a type the heist has
-   already taught (a room's cache is never the first appearance of its type), hidden until
-   uncovered. Until then it is not drawn, labelled, heard or listed in any view.
+   already taught (a room's cache is never the first appearance of its type) inside a **side
+   chamber** in the room's own grid, branching up or down off the room behind a **secret door**.
+   Until the door opens the chamber and its door read as solid wall in every sighted or watcher map,
+   and the station is not drawn, labelled, heard or listed in any view.
 2. Each cache has an **owner**, a spawn seat. The owner rotates by room (room 4 seat 1, room 5
    seat 2, room 6 seat 3, then again), so every player owns two.
 3. The owner has a private **riddle**: a motif (moon, star, wave, key, eye or leaf) and one
    sentence ("Where the moon watches, listen twice."). It is in the owner's view and reveal card
    only. No other seat's view, message or log carries it.
 4. **Uncovering.** The room holds motif tiles, drawn for the sighted. An Act on the motif tile
-   that matches the riddle's motif uncovers the cache (a decoy motif tile of another motif may
-   stand beside it, so the riddle must be matched, not just any tile pressed). Once uncovered the
-   cache appears for everyone who can perceive it, with the controls and clue of its station type.
+   that matches the riddle's motif opens the secret door (a decoy motif tile of another motif may
+   stand beside it, so the riddle must be matched, not just any tile pressed). Once open, **anyone
+   of any role may walk in**, and the station appears for everyone who can perceive it, with the
+   controls and clue of its station type. The door is not a plate-door: it opens by cache state
+   and makes no ordinary door click.
 5. **Solving.** The cache is worked like any station of its type. A wrong answer re-draws only the
    cache (no dye pack, no send-back, no wrong-answer event beyond the station's own), the rule
    teaching stations already follow.
 6. **Presence.** No single role can both uncover and solve a cache alone: the existing presence
    rule (lint) holds for the cache's own controls and clue, and the uncover tile must be
    perceivable by a role other than the one that perceives the cache's clue.
-7. **Reward.** Solving a cache opens a stash revealing one drawn **picture item** worth 1 loot,
-   counted in `loot` and `lootTotal` (so a room's loot of 5 includes it). Rooms 4 to 9 carry these
-   six: gold watch, ledger, signet ring, silver goblet, fountain pen, pearl necklace. On a send-back
-   to a checkpoint taken before the cache was solved, the cache closes and the loot is taken back,
-   as loot is. There is nothing on the floor to pick up.
-8. **Bots** never uncover or work a cache. A crew can therefore be unable to finish one when the
+7. **Reward.** Solving the station opens a **second secret door** inside the chamber, on a vault
+   alcove where one drawn **item** stands as a real object, worth 1 loot, counted in `lootTotal`
+   (so a room's loot of 5 includes it) but in `loot` **only when it is taken**. Rooms 4 to 9 carry
+   these six: gold watch, ledger, signet ring, silver goblet, fountain pen, pearl necklace. **Only
+   the owner can take it**: an Act on its tile by the owner puts it in a **keepsake slot** separate
+   from the gear slot (gear is untouched), adds the loot and counts it as taken for good; an Act by
+   anyone else does nothing, and their Act hint says only the owner can take it. On a send-back to
+   a checkpoint taken before any step, both doors shut again, the item stands in the vault again
+   and the loot is taken back, as loot is; a checkpoint taken after the take keeps it. A cache is
+   **found** when its item is taken; **opened** when its vault door opened.
+8. **Bots** never uncover, enter, work or take a cache or its chamber. A crew can therefore be unable to finish one when the
    only role that perceives a needed clue is a bot's; that costs the crew one loot and is accepted.
    Rooms still clear with perception-only bots (ADR 0018), whether or not a cache is solved.
 
 **Feedback: the team moment (same tick for every role)**
 
-9. **Uncovering** a cache plays a team moment: sighted see a panel slide aside and the cache
-   appear; hearing seats hear a short `uncover` cue; Can't see also gets a caption ("A side job
-   opened up near the moon"). Can't hear gets the picture and the caption, no sound.
-10. **Solving** plays the stash opening: a steel panel slides into the floor, the item rises on
-    its keepsake plate, one spark burst and a goal ring; hearing seats hear a new `stash` chime
-    (global, like the goal cue, with a row in `parity.test.ts`); a glass chip at the top of the map
-    reads "Ana's side job found: the gold watch" for 4 seconds; Can't see gets the chime and the
-    same line as a caption; Can't hear gets the picture and the caption. The item then stays
-    drawn, still (it never bobs, so it never reads as the loot diamond).
-11. Under **reduced motion** the panel does not slide (the stash is open in one frame), the item
-    cross-fades in over 300 ms, and the spark is a static four-ray star for 1 second. Under
-    **high contrast** every fill and outline comes from the remapped tokens.
+9. **Uncovering** plays a team moment: the sighted see the secret door slide into the floor and
+   the re-sent map show the chamber; hearing seats hear the `uncover` cue (a soft low thunk, **not**
+   the ordinary door click); Can't see also gets the caption "Something opened". Can't hear gets the
+   picture and the caption, no sound. The owner is not named.
+10. **Solving** opens the vault door the same way and plays the `stash` chime (global, like the goal
+    cue, with a row in `parity.test.ts`); a glass chip at the top of the map reads "Ana's side job
+    open: the gold watch" for 4 seconds; Can't see gets the chime and the line as a caption; Can't
+    hear gets the picture and the caption. The item then **stands in the vault**, still on a plinth
+    (it never bobs, so it never reads as the loot diamond). **Taking** it plays the existing `loot`
+    chime (a take is loot) with the caption "Ana took the gold watch", the item lifts away and the
+    owner's chip takes it.
+11. Under **reduced motion** a door does not slide: the wall cross-fades to the open slot over
+    300 ms; the take is a cross-fade. Under **high contrast** every fill and outline comes from the
+    remapped tokens.
 
 **The owner's surfaces**
 
 12. **Reveal card:** a row "Your side job" with the motif at 48 px, the riddle, and a muted "Only
     you can read this". Seats that do not own a cache get no row and no placeholder.
 13. **HUD chip, unsolved:** the motif, "Side job" and the riddle (short on a phone, tap expands).
-    **Solved:** the keepsake plate, the item's name, a drawn tick and "Found by Bo" (or "Found by
-    you"); it pulses once (skipped under reduced motion) and stays for the room. The solved chip
-    does not expand.
+    **Vault open:** the keepsake plate, the item's name and "Waiting in the vault" (no tick yet).
+    **Taken:** the plate, the name, a drawn tick and "Taken by you"; it pulses once (skipped under
+    reduced motion) and stays for the room. Neither later state expands.
 
 **Results**
 
 14. **Room cleared** gets a **side-job tile** after the credits and before the buttons, at the
-    same width and weight as a player's credit. *Found:* the item on its plate at 48 px, its name,
-    a drawn tick and "Ana's side job, found by Bo. Worth 1 loot.", in a solid `--goal` outline.
-    *Missed:* an empty plate with the motif outline and "Side job not found: where the moon
-    watches, listen twice." in a dashed `--ui-muted` outline; the riddle is shown, the answer
-    never. Rooms 1 to 3 show no tile.
-15. **Credits** name the solver honestly: the server knows who worked the station, not who gave
-    the clue, so a line reads "found by Bo", or "found by you" when the owner worked it. A
-    teammate is a `{seat}` token the page fills in, never a name in the server's data or log.
+    same width and weight as a player's credit. *Taken:* the item on its plate at 48 px, its name,
+    a drawn tick and "Ana took the gold watch. Bo opened the way. Worth 1 loot." (when the owner
+    also opened it: "Ana opened the vault and took the gold watch. Worth 1 loot."), in a solid
+    `--goal` outline. *Opened but left:* an empty plate and "Side job opened, but the gold watch was
+    left behind." in a dashed `--ui-muted` outline (the item was seen, so it is named). *Not found:*
+    an empty plate with the motif outline and "Side job not found: where the moon watches, listen
+    twice." in a dashed `--ui-muted` outline; the riddle is shown, the answer never. Rooms 1 to 3
+    show no tile.
+15. **Credits** name who opened the way and who took the item honestly: the server knows who worked
+    the station and who took the item, not who gave the clue. The solver's line reads "opened the
+    vault: the gold watch" (or "opened {owner}'s vault: the gold watch"); the owner, after a take,
+    "took the gold watch". A teammate is a `{seat}` token the page fills in, never a name in the
+    server's data or log.
 16. **Heist complete** shows a **keepsake shelf** above the rank line: six plates in room order,
-    found ones with the item and its name, missed ones empty and dashed with "Room 7, not found".
-    It shows even at 0 of 6. This needs the server to keep, per room, whether the cache was found
-    and which item it held, across the heist.
+    taken ones with the item and its name, the rest empty and dashed with "Room 7, not found" (an
+    item left in the vault is not found). It shows even at 0 of 6. This needs the server to keep,
+    per room, whether the item was taken and which item it held, across the heist.
 
 **Pictures**
 
@@ -100,17 +116,19 @@ as part of the result.
 
 **Logging**
 
-18. Caches go through `logGame` as kinds only: `cache` with `kind` `uncover` or `solved`. Never the
-    item, the riddle, the motif, whose it is or who solved it.
+18. Caches go through `logGame` as kinds only: `cache` with `kind` `uncover`, `solved` or `taken`.
+    Never the item, the riddle, the motif, whose it is or who opened or took it.
 
 ### 2.2 Non-functional requirements
 
 - **Perception and parity:** the riddle is an own-only view field, gated in `viewFor` and checked
-  against the role tables. Team-wide events (uncover, solve) reach every role in the same tick,
-  each in its own channel. `uncover` and `stash` have rows in `parity.test.ts`.
+  against the role tables, as is the keepsake slot. The chamber is masked in the map until its door opens. Team-wide events (uncover, solve, take) reach every role in the same tick,
+  each in its own channel. `uncover` and `stash` have rows in `parity.test.ts`; the take reuses `loot`.
 - **Linting:** the clue-path linter proves, per cache, that its motif has an uncover tile, that the
   tile and the cache's clue are each perceivable by some role, and that no one role has both.
-  A cache whose station type is a first appearance fails the pacing rule.
+  It also proves the chamber is sealed (unreachable from a spawn with both secret doors shut),
+  holds only its own station, borders correctly at both doors and keeps the station's controls
+  inside. A cache whose station type is a first appearance fails the pacing rule.
 - **Accessibility:** never colour alone (found is a picture and a tick, missed is dashed outline
   and words); phone targets at least 48 px; reduced motion and high contrast as above; names and
   item names wrap, never clip.
@@ -123,7 +141,8 @@ as part of the result.
   dropped: optional bonus, large build).
 - Caches that give anything but loot (a hint, a spare charge): rejected, it would make skipping
   one cost the team later.
-- Side jobs in rooms 1 to 3, and more than one cache a room.
+- Side jobs in rooms 1 to 3, and more than one cache (or chamber) a room.
+- Bots opening a chamber or taking the item; dropping or handing on the keepsake once taken.
 - A stuck-for-N-minutes hint for caches.
 - Ambience and music (overhaul phase 07).
 
@@ -135,7 +154,9 @@ as part of the result.
 - The riddle is a motif plus a sentence, and teammates convey it by their own channels (user).
 - A missed cache shows its riddle on the cleared card (user).
 - The six items and the keepsake-plate design (user approved the design pass, 2026-11-02).
-- The item counts toward loot and `lootTotal` (my recommendation, approved with the proposal).
+- The item counts toward `lootTotal` from the start, and toward loot when taken (my recommendation, approved with the proposal; the take timing is the 2026-11-02 amendment).
+- A chamber hangs off the room in its own grid; the secret doors are hidden by the map, not by a new tile (user, 2026-11-02).
+- Anyone may enter the chamber; only the owner may take the item, into a slot separate from gear (user, 2026-11-02).
 
 ## 3. Existing context
 
@@ -162,14 +183,17 @@ Verified in the repo on 2026-11-02.
 
 ## 4. Design
 
-**A cache is a station that starts hidden.** A `Q` object takes `cache: { owner, motif, riddle,
-item }`. A hidden station is not in any role's entities, sounds or `act` hint, and an Act on its
-tiles does nothing, until a motif tile marked for it is pressed. Everything after that is the
-existing station: controls, clue, presence, feedback sounds, `solvedBy`. The only new rules are
-hidden/uncovered state, the stash reward and re-drawing only itself on a wrong answer.
+**A cache is a station in a hidden chamber.** A `Q` object takes `cache: { owner, motif, riddle, item, tiles, chamber }`. The
+`chamber` names a rectangle of the room's own grid (a side room hung off the room, up or down), the secret `D` tile that is its door, and
+inside it a vault alcove with its own secret `D` tile and the floor tile the item stands on. The station's parts lie inside the chamber. Until
+the motif tile is pressed the chamber, the vault and both doors are sent to sighted seats and watchers as `#` (the view masks them, as it masks
+dark zones), the station is in no role's entities, sounds or `act` hint, and an Act on its tiles does nothing. A secret door opens by cache state
+(`cacheUncovered`, `cacheBy`), not by plates, and is opened without a `door` event, so it makes no ordinary door click. Everything inside is the
+existing station: controls, clue, presence, feedback sounds, `solvedBy`. The new rules are the sealed chamber, the two doors, the standing item,
+the owner-only take into a separate slot, loot at the take, and re-drawing only itself on a wrong answer.
 
 **Uncovering is a puzzle in itself.** The riddle names a motif; the room has two or three motif
-tiles. Pressing Act on the right one uncovers the cache. A decoy makes "which moon?" matter, and
+tiles. Pressing Act on the right one opens the secret door. A decoy makes "which moon?" matter, and
 the riddle's sentence points at the clue the cache will want ("listen twice" for a dial heard
 through a stethoscope). The owner has to say the motif; someone who can see the walls has to
 find it; someone with the right sense solves what appears.
@@ -186,10 +210,18 @@ find it; someone with the right sense solves what appears.
 - **Reframe: drop discovery and make the riddle the puzzle.** Leaves nothing to do in the room.
 - **Carry-back** (the picker brings the item to the owner, like gear). The strongest collaborative
   rule, but a new mechanic with HUD and bot cost; superseded by making the cache itself require
-  two senses.
+  two senses. The owner-only take (2026-11-02) is a lighter form of the same idea: the owner must
+  get to the item, so the owner is never skipped, and no carry-back state is needed.
+- **A station that appears in place behind a sliding panel, the item a picture on a plate** (the
+  first design, built as Task 56 and rejected on 2026-11-02): a panel "hides a whole safe" and a
+  picture is not something a heist takes. Replaced by the chamber and the standing item.
+- **A visible closed secret door.** Simpler (no masked map, no re-send), but it gives the room
+  away and weakens the motif hunt. Rejected by the user, who chose invisible until opened.
+- **Anyone takes the item.** Simplest, but the owner could be skipped entirely. Rejected: only the
+  owner takes it.
 
-**Data kept across rooms.** The heist record gains `caches: { room; found; item }[]`, written by
-`attach.ts` at each clear and read by `HeistComplete` for the shelf.
+**Data kept across rooms.** The heist record gains `caches: { room; found; item }[]` (`found` = taken), written by
+`attach.ts` at each clear and read by `HeistComplete` for the shelf; the cleared message adds `opened` so the tile can say "left behind".
 
 **What stays of Task 28, and what goes.** Kept: the `j` owner/text fields (now carried on the cache),
 owner-only view, `creditsOf` and its lines, the `sidejob` log event (renamed `cache`), the reveal
@@ -209,24 +241,27 @@ one-shot spark; sounds `uncover` and `stash`; the copy strings. Reused: `RoomCle
 `HeistComplete`, `SideJob`, `RoleReveal`, `RoleShape`, `Captions`, `VotePrompt` (placement of the
 glass chip), `motifGlyph`, the door slide, and fx sparks.
 
+The wireframes below are the cleared-card and chip states as amended on 2026-11-02 (three states; "taken" replaces "found").
+
 ```
 Reveal (owner only)        | (moon 48) Your side job
                            |          Where the moon watches, listen twice.
                            |          Only you can read this.
 
 Chip, unsolved             | (moon 24) Side job  Where the moon watches, li/      (phone: tap expands)
-Chip, solved               | [watch plate] Gold watch (tick)   Found by Bo        (pulses once)
+Chip, vault open          | [watch plate] Gold watch   Waiting in the vault      (no tick yet)
+Chip, taken                | [watch plate] Gold watch (tick)   Taken by you       (pulses once)
 
-Cleared, found             | [plate 48] Gold watch                              (tick)
-                           |            Ana's side job, found by Bo. Worth 1 loot.   solid --goal
-Cleared, missed            | [empty plate] Side job not found: where the moon
+Cleared, taken             | [plate 48] Gold watch                              (tick)
+                           |            Ana took the gold watch. Bo opened the way. Worth 1 loot.   solid --goal
+Cleared, left behind       | [empty plate] Side job opened, but the gold watch was left behind.     dashed muted
+Cleared, not found         | [empty plate] Side job not found: where the moon
                            |               watches, listen twice.                    dashed muted
 
 Heist shelf                | [P] [P] [P] [ ] [P] [ ]    names under; "Room 7, not found"; room order
 ```
 
-Motion: panel slides 400 ms; item plate rises 6 px and scales 0.8 to 1 at 300 to 600 ms; one spark
-burst at 400 ms; goal ring at 600 ms; top-centre chip fades after 4 s. Never flashes more than
+Motion: a secret door slides into the floor over 600 ms with a dust puff (cross-fade over 300 ms under reduced motion); the item stands still on a plinth in the vault; on a take it lifts away with one spark burst and a goal ring at the plinth; top-centre chip fades after 4 s. Never flashes more than
 three times a second. Items: gold watch, ledger, signet ring, silver goblet, fountain pen, pearl
 necklace; the watch and the necklace are the least legible at 24 px and must be checked at that
 size. The proposal's open questions are settled in §5.
@@ -254,7 +289,7 @@ size. The proposal's open questions are settled in §5.
 | 17 | gap | Desktop essentials above the fold with a new tile | A layout spec measures the buttons' bottom edge against the frame; shrink tile padding first. |
 | 18 | assumption | Legibility of the watch and necklace at 24 px | To check at real size when drawn; recorded as a risk. |
 
-## 6. Handoff notes for planning
+## 6. Handoff notes for planning (first planning pass, 2026-11-02; superseded where §7 says so)
 
 - **Tier: Architecture.** It changes the room format, the sim, `viewFor`, both linters, rendering,
   sound, the heist record and the wire format of `cleared` and `heist`.
@@ -273,3 +308,19 @@ size. The proposal's open questions are settled in §5.
   the cache, the credits and shelf layouts, and the lint rules for motif, perception and pacing.
 - **Risks knowingly accepted:** a crew with a bot in the clue's role cannot finish a cache; the
   watch and necklace may need redrawing after a real-size look.
+
+## 7. Amendment of 2026-11-02: a place and an object
+
+The user played Task 56's first build (a steel panel sliding off a station in place, the item a picture on a plate) and rejected it. The
+panel "is hiding a whole safe", and a picture "feels weird as a picture". Their rulings:
+
+- The cache is a **side chamber** in the room's own grid, off the room up or down, behind a **secret door** that animates; anyone of any role may enter.
+- Can't see hears a door-opening sound unlike the ordinary door (the accepted `uncover` thunk, with no `door` event); the existing sounds are ok.
+- Solving the station opens a **second secret door** on a vault; the item stands there as a real object (the six drawings stay).
+- It is **picked up like gear but in a separate slot**; loot counts only at the pickup; **only the owner takes it**.
+- Settled in the planning restatement: both secret doors are invisible (solid wall in the map) until they open; a send-back shuts them and puts the item back;
+  "found" means taken, and the results show a third state, "opened but left behind"; bots never use a chamber.
+
+Requirements 1, 4, 7 to 11, 13 to 16 and 18 and the assumptions above are amended in place. What stays as built: the six item drawings, `MotifGlyph`, the sounds,
+`revealOf`, the cue payload (`n` owner, `item` on the stash), the chip, the reveal row and the moment card. What is replaced: the panel, plate and stash drawing,
+and the rule that solving gives loot at once. Handed to `plan-feature`; the plan is `plans/2026-11-02-escape-room-heist-14-0*-*.md` (new Tasks 61 to 65, Tasks 56, 57, 58 and 59 rewritten).

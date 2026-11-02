@@ -1103,3 +1103,18 @@ The same loop of 160 runs under the same load then found nothing.
 
 The lesson for the harness is the same as `settledHash`'s: a reading of a moving thing is a flake
 waiting for load. This one applies to every spec that calls `axeViolations`, not just the wheel's.
+
+## 2026-11-02 — Task 56 rejected on a local build: the cache should be a place and an object
+
+(not yet committed; cite the commit that lands the replacement)
+
+Task 56 drew a cache as a station with a steel panel sliding aside and its item as a picture on a plate.
+Every check was green: 1954 tests, layout specs measured, screenshots read at 1280 and 375. I rejected it on
+looking at the real game: a panel "hides a whole safe", and a picture is not something you take in a heist.
+I asked for a side room that branches up or down behind a hidden door that animates, the item in it as a
+real object picked up like gear, and loot counted only on pickup.
+
+The call that beat the obvious one was the order: the agent did not patch the drawing. A rejection that
+changes the approach goes back to the plan (and the spec, and ADR 0020 which is still proposed) before any
+code, so the work is not built twice. The review itself caught what no test could: the checks measured
+that the panel and plate were drawn well, not whether a panel was the right thing to draw.

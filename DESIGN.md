@@ -228,13 +228,16 @@ Reuse these before drawing something new. The test checks each name exists.
 - `LampLight`: the lamp's flash in a sighted HUD, four rays and the puller's role shape, for a second.
 - `ItemGlyph`: one of the six keepsakes a cache holds (gold watch, ledger, signet ring, silver goblet, fountain pen, pearl necklace), drawn as a stack of layers on a 64 grid (`src/client/items.ts`) that the canvas's `drawItem` reads too. Realistic rather than flat, lit from the north-west like the world: bodies are metal (a banded gradient: a lit edge, a dark band, a second light), matte (leather, paper) or pearl (radial), each with an edge tinted from its own token instead of the line colour, a bevel's worth of light and shade laid over them, a soft south-east drop shadow, and fine ink (a watch's hands and hour marks, a necklace's chain). Every tone is a world token (`--w-brass`, `--w-card`, `--w-steel`, `--w-crate-brace`, `--w-code-red`, `--w-code-black`) mixed toward white or black, so no new colour exists. Fine layers drop out at small sizes, and ink is never thinner than about 1.4 px on screen, so each item still reads at 24 px. High contrast is flat: plain token fills, `--w-line` edges, no gradient, shadow or shine. Decorative: the name goes beside it.
 - `KeepsakePlate`: the plate an item sits on: `--w-card` face, `--w-brass` rim, `--w-line` outline. A missed one is the same plate empty with a dashed `--ui-muted` rim and no item name, so found and missed differ by line and shape, never colour alone.
-- `SideJob`: your private side job, a glass chip at the world's top-left; on a phone the label alone, a tap shows the line.
+- `MotifGlyph`: one of the six motifs (moon, star, wave, key, eye, leaf) as a flat shape in the text colour on a 24 grid, the HUD's mirror of the canvas `motifGlyph`. Shape alone says which; never colour. Decorative: the riddle beside it is the text.
+- `SideJob`: your private side job, a glass chip at the world's top-left, for its owner alone. **Unsolved:** the motif at 24 px, "Side job" and the riddle; on a phone the label alone, a tap shows the line. **Solved:** the keepsake on its `KeepsakePlate` at 32 px, its name beside a drawn tick, and "Found by Bo" (or "Found by you"); it pulses once as it lands (a 600 ms scale, none under reduced motion) and does not expand, since there is nothing more to read. The chip is at least 48 px tall; names wrap, never clip.
+- The reveal's side-job row (`.reveal-cache`, in `RoleReveal`): the owner's motif at 48 px, "Your side job", the riddle and "Only you can read this". The other two seats have no row.
+- The cache moment (`.cache-moment`): a glass card at the top centre of the map for 4 s that never blocks play, like the vote card. It carries the words the cue says: "Something opened", then "Bo's side job found: the gold watch". Can't hear has no sounds, so the pictures supply the same words ("Side job found: the gold watch"). The owner is named on the stash only.
 
 Glass chips (anything over the world) sit on `--glass`.
 
 **Canvas helpers** (not components; in `src/client/render/`): `codeSwatch` (a code colour with its
 pattern and outline), `turnPad` (a floor pad with its arrow), `symbolGlyph` (a vault symbol),
-`splat` (a dye blotch), and `gearGlyph` (a gear item, which the HUD's `GearGlyph` will mirror), and `drawItem` (a keepsake, the canvas half of `ItemGlyph`).
+`splat` (a dye blotch), and `gearGlyph` (a gear item, which the HUD's `GearGlyph` will mirror), and `drawItem` (a keepsake, the canvas half of `ItemGlyph`), `drawMotifTile` (a cache's motif tile: a card square flush with the floor, the symbol in `--w-line`, drawn the same open or not so only the riddle tells the right one from a decoy).
 
 ## 5. Motion
 
@@ -248,6 +251,9 @@ pattern and outline), `turnPad` (a floor pad with its arrow), `symbolGlyph` (a v
 | Alarm | a steady border and banner, a pulse of about 1 Hz |
 | World rises (planned, Task 21) | 900 ms; reduced motion 300 ms cross-fade |
 | Dusk palette | 600 ms; instant under reduced motion |
+| Solved side-job chip | one 600 ms pulse; none under reduced motion |
+
+**Cache sounds** (`uncover`, `stash`; team-wide, like `solved`): the uncover is one soft low thunk (a sine falling from 150 to 90 Hz and a dull knock); the stash is two soft rising triangle notes about half a second long, a fifth apart. Neither is the `solved` arpeggio (three rising sines) or the `dye` pomf. High contrast: the tile draws from the same world tokens, so it remaps by itself, and the item itself is flat (see `ItemGlyph`).
 
 **Reduced motion** (`prefers-reduced-motion`): no pulses, no hop or squash, no
 dust, no water drift, no morph (a plain cross-fade), no wall rise. State changes

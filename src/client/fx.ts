@@ -1,3 +1,4 @@
+import type { ItemId } from "../game/rooms/format.ts";
 import type { Vec } from "../game/types.ts";
 import type { EntityView } from "../net/protocol.ts";
 
@@ -7,18 +8,24 @@ import type { EntityView } from "../net/protocol.ts";
 // reconnect simply shows none. Each lasts FX_MS and is one fading shape: nothing
 // here flashes, and with reduced motion it fades in place instead of growing.
 export const FX_MS = 600;
+export const STASH_MS = 1000; // the stash moment: the panel, the plate rising, a spark, a ring (and, in reduced motion, a star held a second)
 export const FX_MAX = 24; // however busy the room, never more than this at once
 
 export type FxTone = "goal" | "danger" | "ui" | "muted";
 export interface Fx {
-  // swing: a bell rung; arc: gear handed from `pos` to `to`; cloud: the dye pack's paint puff
-  kind: "ring" | "dust" | "spark" | "swing" | "arc" | "cloud";
+  // swing: a bell rung; arc: gear handed from `pos` to `to`; cloud: the dye pack's paint puff;
+  // uncover: a cache's hidden panel slides aside; stash: a cache's stash opens on its item
+  kind: "ring" | "dust" | "spark" | "swing" | "arc" | "cloud" | "uncover" | "stash";
   pos: Vec;
   tone: FxTone;
   big?: boolean;
   to?: Vec;
   item?: EntityView["item"];
+  keep?: ItemId; // stash: the keepsake that was found
 }
+
+// How long an effect lives: the stash moment is longer than the rest, which last FX_MS.
+export const fxMs = (f: Fx): number => (f.kind === "stash" ? STASH_MS : FX_MS);
 
 const key = (e: EntityView): string => `${e.id}@${e.pos.x},${e.pos.y}`;
 
@@ -44,6 +51,22 @@ export function detectFx(prev: EntityView[], next: EntityView[]): Fx[] {
       const now = e.progress ?? 0;
       if (now > was) out.push({ kind: "ring", pos: e.pos, tone: "goal" });
       else if (now < was) out.push({ kind: "ring", pos: e.pos, tone: "danger" });
+    } else if (
+      e.kind === "station" &&
+      !wasById.has(e.id) &&
+      prev.some((o) => o.kind === "motiftile" && o.id.startsWith(`${e.id}.m`))
+    ) {
+      // a station appears where its motif tiles were already drawn: a cache was uncovered (caches
+      // FR9). A plain station coming into sight has no tiles, so it is not one.
+      out.push({ kind: "uncover", pos: e.pos, tone: "ui" });
+    } else if (
+      e.kind === "station" &&
+      e.station?.stash &&
+      wasById.has(e.id) &&
+      !wasById.get(e.id)?.station?.stash
+    ) {
+      // a cache's stash opened: its own moment, in place of the plain solved ring (caches FR10)
+      out.push({ kind: "stash", pos: e.pos, tone: "goal", big: true, keep: e.station.stash });
     } else if (
       e.kind === "station" &&
       e.station?.solved &&

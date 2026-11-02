@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { createAudio, type GameAudio } from "../client/audio.ts";
 import { creditRows } from "../client/credits.ts";
 import { faceImage, preloadFaces } from "../client/faces.ts";
-import { detectFx, FX_MAX, FX_MS, type Fx } from "../client/fx.ts";
+import { detectFx, FX_MAX, type Fx, fxMs } from "../client/fx.ts";
 import {
   CALLOUT_WORD,
   type CueCaption,
+  cacheMoment,
   captionFor,
   caughtText,
   crewChangeText,
@@ -106,6 +107,7 @@ interface Runtime {
   // when the sender is out of sight and so not among the entities
   pops: { seat: number; id: string; at: number; from?: Vec; name?: string; mark?: Stamp }[];
   cueHold: HeldCues; // cue captions and when to let each go
+  moment: { text: string; until: number } | null; // a cache opening or its stash found, on a chip for CACHE_MOMENT_MS
   fx: { fx: Fx; at: number }[]; // small effects for what just changed, by when they started
   soundOn: boolean;
   // The world rising out of the reveal (FR25): when it began, and whether it is the 300 ms
@@ -126,6 +128,9 @@ interface Runtime {
 const RISE_MS = 900; // the world rises out of the reveal
 const FADE_MS = 300; // reduced motion: a cross-fade instead
 const CAPTION_MS = 5000;
+const seatNames = (crew: readonly { seat: number; nickname: string }[]): string[] =>
+  [0, 1, 2].map((i) => crew.find((c) => c.seat === i)?.nickname ?? "");
+const CACHE_MOMENT_MS = 4000; // the top-centre chip for a cache opening or its stash
 const PILL_MS = 4000; // an edge pill outlasts the face on it (FACE_POP_MS) by a few seconds
 const LAMP_MS = 1000; // the lamp's light shows this long in a sighted HUD (spec §4.1)
 const fadeOut = (leftMs: number) => Math.min(1, leftMs / 300);
@@ -236,8 +241,8 @@ function useDraw(
         rise: flat ? 0 : riseNow(rt, now),
         pops,
         fx: rt.fx
-          .filter((f) => now - f.at < FX_MS)
-          .map((f) => ({ ...f.fx, age: (now - f.at) / FX_MS })),
+          .filter((f) => now - f.at < fxMs(f.fx))
+          .map((f) => ({ ...f.fx, age: (now - f.at) / fxMs(f.fx) })),
         alarm: view.alarm,
         nowMs: now,
         reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
@@ -303,7 +308,7 @@ function ownMotion(rt: Runtime, role: Role): Motion {
   return { facing: rt.facing, moving: motion?.moving ?? false, blocked: motion?.blocked ?? false };
 }
 
-function onView(rt: Runtime, view: RoleView, audio: GameAudio): void {
+function onView(rt: Runtime, view: RoleView, audio: GameAudio, names: readonly string[]): void {
   // the tick going backwards means the room was restarted: forget what we predicted
   if (rt.view && view.tick < rt.view.tick) {
     rt.predictor = null;
@@ -315,10 +320,13 @@ function onView(rt: Runtime, view: RoleView, audio: GameAudio): void {
   rt.prevEntities = rt.view?.entities ?? [];
   rt.view = view;
   const started = performance.now();
-  hearCues(rt.cueHold, cueCaptions(view.sounds), started); // every view, so a one-tick sound is not missed
+  hearCues(rt.cueHold, cueCaptions(view.sounds, names), started); // every view, so a one-tick sound is not missed
+  const fresh = detectFx(rt.prevEntities, view.entities);
+  const moment = cacheMoment(fresh, view.sounds, names);
+  if (moment) rt.moment = { text: moment, until: started + CACHE_MOMENT_MS };
   rt.fx = [
-    ...rt.fx.filter((f) => started - f.at < FX_MS),
-    ...detectFx(rt.prevEntities, view.entities).map((fx) => ({ fx, at: started })),
+    ...rt.fx.filter((f) => started - f.at < fxMs(f.fx)),
+    ...fresh.map((fx) => ({ fx, at: started })),
   ].slice(-FX_MAX);
   rt.at = performance.now();
   if (view.tiles) rt.tiles = view.tiles;
@@ -374,6 +382,7 @@ export function Game({
     pops: [],
     fx: [],
     cueHold: new Map(),
+    moment: null,
     soundOn: true,
     rise: null,
     cam: null,
@@ -400,6 +409,8 @@ export function Game({
   // Registered as soon as the reveal shows, so the first (full) view is never missed. The reveal
   // is sent a view of the room at tick 0 to draw behind its card; the game has started once a view
   // from a later tick arrives.
+  const crewRef = useRef(reveal.crew); // the latest crew, for the view listener below (it subscribes once)
+  crewRef.current = reveal.crew;
   useEffect(() => {
     audio.current = createAudio();
     // The game has started: the first view from a later tick. If this page watched the reveal it
@@ -415,12 +426,12 @@ export function Game({
     };
     // the view that came with the reveal, before this listener existed
     if (early.view && rt.current.view === null) {
-      onView(rt.current, early.view, audio.current);
+      onView(rt.current, early.view, audio.current, seatNames(crewRef.current));
       if (early.view.tick > 0) start(false);
     }
     const off = socket.on("view", (m) => {
       const sawReveal = rt.current.view?.tick === 0;
-      if (audio.current) onView(rt.current, m.view, audio.current);
+      if (audio.current) onView(rt.current, m.view, audio.current, seatNames(crewRef.current));
       if (m.view.tick > 0) start(sawReveal);
     });
     return () => {
@@ -635,6 +646,7 @@ function Hud({
   const [settings, setSettings] = useState<SettingsState>(() => loadSettings(role));
   const [lines, setLines] = useState<CaptionLine[]>([]);
   const [cues, setCues] = useState<CueCaption[]>([]);
+  const [moment, setMoment] = useState<string | null>(null); // the cache chip's words, while on show
   const [typing, setTyping] = useState(false);
   const [writing, setWriting] = useState(false);
   const field = useRef<HTMLInputElement>(null);
@@ -888,6 +900,8 @@ function Hud({
           ? heardCues(rt.cueHold, now)
           : [];
       setCues((old) => (cueKey(old) === cueKey(heard) ? old : heard));
+      const shown = rt.moment && rt.moment.until > now ? rt.moment.text : null;
+      setMoment((old) => (old === shown ? old : shown));
     }, 100);
     return () => {
       document.body.classList.remove("playing");
@@ -938,6 +952,7 @@ function Hud({
   );
   // each role appears once in a crew, so the seat that has this page's role is this page's seat
   const me = reveal.crew.find((c) => c.role === role)?.seat ?? 0;
+  const names = seatNames(reveal.crew);
   const label = ROLE_LABEL[role];
   return (
     <div class="game" ref={root} style={{ "--frame": `var(--role-${role})` }}>
@@ -1070,7 +1085,12 @@ function Hud({
           role="img"
           aria-label={role === "blind" ? "No map. Listen to the room." : "Map of the room"}
         />
-        <SideJob cache={cache} />
+        <SideJob cache={cache} names={names} me={me} />
+        {moment && (
+          <div class="cache-moment" role="status">
+            <p>{moment}</p>
+          </div>
+        )}
         <Captions lines={lines} cues={cues} />
         {!cleared && (
           <div class="hud-dock">

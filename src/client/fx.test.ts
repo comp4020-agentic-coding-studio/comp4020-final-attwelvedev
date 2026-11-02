@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EntityView } from "../net/protocol.ts";
-import { detectFx, FX_MS } from "./fx.ts";
+import { detectFx, FX_MS, fxMs } from "./fx.ts";
 
 const e = (over: Partial<EntityView> & Pick<EntityView, "id" | "kind">): EntityView => ({
   pos: { x: 5.5, y: 2.5 },
@@ -114,5 +114,43 @@ describe("detectFx: small effects for what just changed between two views", () =
 
   it("lasts well under a second, so effects never pile into flashing", () => {
     expect(FX_MS).toBeLessThan(800);
+  });
+
+  describe("caches", () => {
+    const station = (over: Partial<EntityView> = {}) =>
+      e({
+        id: "Q1",
+        kind: "station",
+        station: { type: "dial", shows: [], solved: false, parts: [] },
+        ...over,
+      });
+    const stashed = (item: "watch" = "watch"): EntityView =>
+      station({ station: { type: "dial", shows: [], solved: true, parts: [], stash: item } });
+    const other = e({ id: "P0", kind: "player", seat: 0 });
+
+    const tile = e({ id: "Q1.m0", kind: "motiftile", motif: "moon", pos: { x: 2.5, y: 2.5 } });
+
+    it("shows the uncover moment once, when a station appears where its motif tiles were drawn", () => {
+      expect(detectFx([other, tile], [other, tile, station()])).toMatchObject([
+        { kind: "uncover", pos: station().pos },
+      ]);
+      expect(detectFx([other, tile, station()], [other, tile, station()])).toEqual([]);
+    });
+
+    it("shows nothing for a station that merely comes into sight, or on the first view", () => {
+      expect(detectFx([other], [other, station()])).toEqual([]);
+      expect(detectFx([], [other, tile, station()])).toEqual([]);
+    });
+
+    it("shows the stash moment once, when stash is set, with the item, and no plain solved ring", () => {
+      const fx = detectFx([other, station()], [other, stashed()]);
+      expect(fx).toMatchObject([{ kind: "stash", keep: "watch" }]);
+      expect(detectFx([other, stashed()], [other, stashed()])).toEqual([]);
+    });
+
+    it("lets the stash live a second, for the reduced-motion star, and no other effect", () => {
+      expect(fxMs({ kind: "stash", pos: { x: 0, y: 0 }, tone: "goal" })).toBe(1000);
+      expect(fxMs({ kind: "ring", pos: { x: 0, y: 0 }, tone: "goal" })).toBe(FX_MS);
+    });
   });
 });

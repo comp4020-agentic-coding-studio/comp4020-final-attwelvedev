@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import roomText from "../../rooms/01-first-steps.room?raw";
 import { faceImage } from "../client/faces.ts";
-import { detectFx, FX_MAX, FX_MS, type Fx } from "../client/fx.ts";
+import { detectFx, FX_MAX, type Fx, fxMs } from "../client/fx.ts";
 import { captionFor, cueCaptions, type HeldCues, hearCues, heardCues } from "../client/hud.ts";
 import { draw, type FacePop, type Scene } from "../client/render.ts";
 import { type AttractTick, createAttract } from "../game/bots/attract.ts";
@@ -68,7 +68,7 @@ function advance(run: Run, now: number) {
   for (const seat of [0, 1, 2] as const) {
     const view = tick.views[seat];
     run.fx[seat] = [
-      ...run.fx[seat].filter((f) => now - f.at < FX_MS),
+      ...run.fx[seat].filter((f) => now - f.at < fxMs(f.fx)),
       ...detectFx(run.last.views[seat].entities, view.entities).map((fx) => ({ fx, at: now })),
     ].slice(-FX_MAX);
     hearCues(run.cues[seat] as HeldCues, cueCaptions(view.sounds), now);
@@ -135,8 +135,8 @@ function paint(canvas: HTMLCanvasElement, run: Run, seat: Seat, now: number, cal
     self: FEED_ROLES[seat] === "blind" ? null : self,
     layout: "fit",
     fx: run.fx[seat]
-      ?.filter((f) => now - f.at < FX_MS)
-      .map((f) => ({ ...f.fx, age: (now - f.at) / FX_MS })),
+      ?.filter((f) => now - f.at < fxMs(f.fx))
+      .map((f) => ({ ...f.fx, age: (now - f.at) / fxMs(f.fx) })),
     pops: run.pops[seat]?.flatMap((p): FacePop[] => {
       const img = faceImage(p.id);
       const age = now - p.at;

@@ -175,7 +175,8 @@ export interface SoundCue {
   // unit vector from the listener to the source, rounded to 0.01, for a sound that comes from
   // somewhere: what a caption's arrow points along. Absent for your own and team-wide sounds.
   dir?: Vec;
-  n?: number; // flag, exit, seq-ok, pip: a count; key, bellnote, earpiece, practice: which note
+  n?: number; // flag, exit, seq-ok, pip: a count; key, bellnote, earpiece, practice: which note; uncover, stash: the owner's seat
+  item?: ItemId; // stash: what was found (the cleared card names it to everyone too)
   of?: "key" | "bellnote"; // practice: whether the note was a keypad key or a bell
 }
 
@@ -585,7 +586,12 @@ function soundsFor(world: World, seat: Seat): SoundCue[] {
     } else if (e.kind === "cache") {
       // team-wide, like "solved": the whole crew hears it opened and found, wherever they stand
       const kind = e.result === "uncover" ? "uncover" : "stash";
-      out.push({ kind, pan: panOf(e.at, me), gain: 1, ...dirTo(e.at, me) });
+      // `n` is whose cache it is; only the stash says what was in it (an opened panel shows nothing yet)
+      const obj = world.room.objects.find((o) => o.id === e.id);
+      const cache = obj ? cacheOf(obj) : null;
+      const who = cache ? { n: cache.owner - 1 } : {};
+      const what = kind === "stash" && cache ? { item: cache.item } : {};
+      out.push({ kind, pan: panOf(e.at, me), gain: 1, ...who, ...what, ...dirTo(e.at, me) });
     }
   }
   stationAmbience(world, seat, out);

@@ -6,6 +6,9 @@
 - **Part of:** `plans/2026-11-02-escape-room-heist-14-00-overview.md`. Read it first: the demo script (§2), shared types and
   cache metadata (§4), coverage (§7).
 - **Depends on phases:** 11 (Tasks 28 to 30, committed first; see this file's Task 51 step 0), 13.
+- **Amended 2026-11-02:** done as first built; the cache later became a secret chamber (`plans/2026-11-02-escape-room-heist-14-02b-chamber.md`). Superseded there: Task 51's rule that
+  solving gives loot (Task 63 moves it to the take), the cache station appearing in place (Task 62 and 64 hide a chamber instead), `RoleView.cache.state` `"found"` (now
+  `"vault"` and `"taken"`), and `station.stash` (replaced by the `keepsake` entity). Everything else here stands as built.
 
 ## 1. Summary
 

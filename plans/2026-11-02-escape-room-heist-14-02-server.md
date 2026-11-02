@@ -5,6 +5,7 @@
 - **Requirements confirmed by user:** yes, 2026-11-02
 - **Part of:** `plans/2026-11-02-escape-room-heist-14-00-overview.md`. Read it first (shared types §4, demo §2).
 - **Depends on phases:** 14-01 (Tasks 51, 52).
+- **Amended 2026-11-02:** done as built; Task 65 (`plans/2026-11-02-escape-room-heist-14-02b-chamber.md`) changes what `found` means (taken, not solved), adds `opened`, and adds the `taken` log kind.
 
 ## 1. Summary
 

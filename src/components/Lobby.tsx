@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { readNickname, saveNickname } from "../client/nickname.ts";
 import { loadSetup, saveSetup } from "../client/preferences.ts";
 import { qrSvg } from "../client/qr.ts";
+import { revealOf } from "../client/reveal.ts";
 import { forecast, nextRoomFor } from "../client/rotation.ts";
 import { MAX_PEOPLE } from "../game/crew.ts";
 import { sharesRoom } from "../game/setup.ts";
@@ -90,22 +91,7 @@ export function Lobby({ code }: { code: string }) {
       socket.on("ready", (m) => {
         early.current.ready = m.seats;
       }),
-      socket.on("reveal", (m) =>
-        setReveal((old) => ({
-          room: m.room,
-          name: m.name,
-          index: m.index,
-          role: m.role,
-          crew: m.crew,
-          real: m.real,
-          cues: m.cues,
-          rooms: m.rooms,
-          sittingOut: m.sittingOut,
-          played: m.played,
-          // a reveal for the room you are already in (a reconnect) has nothing to morph from
-          ...(old && old.index !== m.index ? { from: old.role } : {}),
-        })),
-      ),
+      socket.on("reveal", (m) => setReveal((old) => revealOf(m, old))),
       socket.on("error", (m) => {
         // a refused send (too soon, not allowed, not in sight) is the wheel's to show, never the lobby failing
         if (m.code === "cooldown" || m.code === "cant-send" || m.code === "not-in-sight") return;
