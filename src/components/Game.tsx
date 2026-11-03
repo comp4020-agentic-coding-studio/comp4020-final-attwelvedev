@@ -99,6 +99,7 @@ export interface Reveal {
 interface Runtime {
   view: RoleView | null;
   prevEntities: RoleView["entities"];
+  prevSeen: { has(x: number, y: number): boolean } | null; // the tiles in sight the view before
   at: number; // when `view` arrived
   tiles: string[] | null;
   predictor: Predictor | null;
@@ -321,10 +322,13 @@ function onView(rt: Runtime, view: RoleView, audio: GameAudio, names: readonly s
     rt.walking = { moving: false, blocked: false };
   }
   rt.prevEntities = rt.view?.entities ?? [];
+  rt.prevSeen = rt.view?.seen ? seenOf(rt.view.seen) : null;
   rt.view = view;
   const started = performance.now();
   hearCues(rt.cueHold, cueCaptions(view.sounds, names), started); // every view, so a one-tick sound is not missed
-  const fresh = detectFx(rt.prevEntities, view.entities);
+  // the tiles in sight the view before: a door out of sight reads closed, so one that opens into view
+  // is told from one that opened in view by whether its tile was seen then
+  const fresh = detectFx(rt.prevEntities, view.entities, rt.prevSeen);
   // a secret door opening or the keepsake taken: the one team-wide signal (see fxOfCacheEvent)
   const moment = cacheMoment(view.cacheEvent, names);
   if (view.cacheEvent) fresh.push(...fxOfCacheEvent(view.cacheEvent));
@@ -380,6 +384,7 @@ export function Game({
   const rt = useRef<Runtime>({
     view: null,
     prevEntities: [],
+    prevSeen: null,
     at: 0,
     tiles: null,
     predictor: null,

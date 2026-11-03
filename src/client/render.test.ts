@@ -1,8 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EntityView } from "../net/protocol.ts";
+import { drawStanding } from "./render/blocks.ts";
+import { drawPlayer } from "./render/figures.ts";
+import { drawGear } from "./render/gear.ts";
+import { drawHazard } from "./render/hazards.ts";
+import { SWEEP_TILES } from "./render/index.ts";
 import { figureCover, wallAlpha } from "./render/occlusion.ts";
 import { easeCamera, setRise, TILT, toScreen } from "./render/project.ts";
 import { decodeSeen } from "./render/sight.ts";
+import { drawBell, drawLampSwitch } from "./render/signals.ts";
 import { camera, draw, type Scene } from "./render.ts";
 import { COLOR, MAP, MIST, ROLE_COLOR, setContrast, WORLD } from "./tokens.ts";
 
@@ -359,8 +365,17 @@ function recorder() {
     {
       get: (_t, name) => {
         if (String(name) in state) return state[String(name)]; // a property reads back what was set
-        if (name === "save") return () => saved.push({ ...state });
-        if (name === "restore") return () => Object.assign(state, saved.pop());
+        // save and restore also go in the trace, so a test can tell which clip a draw is inside
+        if (name === "save")
+          return () => {
+            saved.push({ ...state });
+            ops.push({ name: "save", args: [], ...state } as unknown as Op);
+          };
+        if (name === "restore")
+          return () => {
+            Object.assign(state, saved.pop());
+            ops.push({ name: "restore", args: [], ...state } as unknown as Op);
+          };
         if (name === "setLineDash")
           return (...args: unknown[]) => {
             state.lineDash = args[0];
@@ -2232,6 +2247,220 @@ describe("what stands out of the light is cut by the light, not re-drawn (review
     expect(lightClips(ops)).toContain(k);
   });
 
+  // The user: a figure against the top wall had its head cut off. The light polygon is the floor's
+  // outline, but what stands rises above the floor on screen, so the clip must reach up as far as the
+  // tallest thing that stands (a wall-hung panel, a figure's head).
+  it("clips to the light swept upward, so a figure at a wall keeps its head", () => {
+    const { ctx, ops } = recorder();
+    const s = scene({
+      layout: "fit",
+      w: 600,
+      h: 320,
+      tiles: TILES,
+      self: at(2.5, 3.5),
+      seat: 1,
+      seen: SEEN_ALL,
+      entities: [player(2, 4.5, 1.2)],
+    });
+    draw(ctx, s);
+    const cam = camera(s);
+    // the first light clip is the flat floor layer's; the next is the row clip of what stands, which is swept
+    expect(lightClips(ops).length, "a floor clip and a row clip").toBeGreaterThanOrEqual(2);
+    const clip = lightClips(ops)[1] as number;
+    let k = clip - 1;
+    while (k >= 0 && ops[k]?.name !== "beginPath") k--;
+    const ys = ops
+      .slice(k, clip)
+      .filter((o) => o.name === "moveTo" || o.name === "lineTo")
+      .map((o) => o.args[1] as number);
+    // the mist's polygon is the floor outline: its top edge is the north wall's foot
+    const full = ops.findIndex((o) => o.name === "rect" && o.args[0] === 0 && o.args[1] === 0);
+    const close = ops.findIndex((o, i) => i > full && o.name === "closePath");
+    const floorTop = Math.min(
+      ...ops
+        .slice(full, close)
+        .filter((o) => o.name === "moveTo" || o.name === "lineTo")
+        .map((o) => o.args[1] as number),
+    );
+    expect(
+      Math.min(...ys),
+      "the clip reaches above the floor outline by a wall's height",
+    ).toBeLessThanOrEqual(floorTop - cam.scale * 0.9);
+  });
+
+  // The same cut head, on a crate pushed against the north wall (the user's second screenshot). Whatever
+  // stands is covered by the clip, so test the region itself: a point a crate's height above the floor
+  // edge, and above a figure's head, must be inside it.
+  it("keeps a crate and a figure against the north wall whole: the clip reaches up past the floor edge", () => {
+    const { ctx, ops } = recorder();
+    const sc = scene({
+      layout: "fit",
+      w: 600,
+      h: 320,
+      tiles: TILES,
+      self: at(2.5, 3.5),
+      seat: 1,
+      seen: SEEN_ALL,
+      entities: [{ id: "B1", kind: "crate", pos: at(4.5, 1.5) }],
+    });
+    draw(ctx, sc);
+    const cam = camera(sc);
+    // the first light clip is the flat floor layer's; the next is the row clip of what stands, which is swept
+    expect(lightClips(ops).length, "a floor clip and a row clip").toBeGreaterThanOrEqual(2);
+    const clip = lightClips(ops)[1] as number;
+    let k = clip - 1;
+    while (k >= 0 && ops[k]?.name !== "beginPath") k--;
+    // rebuild the pieces the clip was made of and test a point above the crate's tile (row 1, col 4)
+    const pieces: { x: number; y: number }[][] = [];
+    for (const o of ops.slice(k, clip)) {
+      if (o.name === "moveTo") pieces.push([{ x: o.args[0] as number, y: o.args[1] as number }]);
+      else if (o.name === "lineTo")
+        pieces.at(-1)?.push({ x: o.args[0] as number, y: o.args[1] as number });
+    }
+    const inPiece = (pts: { x: number; y: number }[], x: number, y: number) => {
+      let c = false;
+      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        const a = pts[i] as { x: number; y: number };
+        const b = pts[j] as { x: number; y: number };
+        if (a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) c = !c;
+      }
+      return c;
+    };
+    const top = toScreen(cam, 4.5, 1, 0.8); // the crate's upper edge, a little under a wall's height up
+    expect(
+      pieces.some((p) => inPiece(p, top.x, top.y)),
+      "a point above the crate is inside the clip",
+    ).toBe(true);
+  });
+
+  // The user: a camera was drawn although the cone below it, on veiled floor, was not. The swept clip
+  // reaches up past the floor edge for heads and crates, so it must not be what decides whether a thing
+  // is there: an object whose own tile the light does not touch is not drawn at all.
+  it("does not draw a thing standing on a tile the light does not reach, even just above lit floor", () => {
+    // a wall row at y = 2 with the viewer south of it; the camera is on the far side, one tile north of lit floor
+    const tiles = [
+      "############",
+      "#..........#",
+      "############",
+      "#..........#",
+      "#..........#",
+      "############",
+    ];
+    const seen = ["3:0-10", "4:0-10", "2:0-11", "0:0-11", "1:0-11", "5:0-11"];
+    const camera = {
+      id: "C1",
+      kind: "camera" as const,
+      pos: at(8.5, 1.5),
+      state: "watching" as const,
+      facing: { x: 0, y: 1 },
+    };
+    const crate = { id: "B1", kind: "crate" as const, pos: at(8.5, 1.5) };
+    const lit = { id: "B2", kind: "crate" as const, pos: at(8.5, 3.5) };
+    const strokes = (e: EntityView) => {
+      const ops = frame({ tiles, seen, self: at(2.5, 3.5), entities: [e] });
+      return ops.filter((o) => o.name === "fill" || o.name === "stroke" || o.name === "fillRect")
+        .length;
+    };
+    const none = frame({ tiles, seen, self: at(2.5, 3.5), entities: [] });
+    const base = none.filter(
+      (o) => o.name === "fill" || o.name === "stroke" || o.name === "fillRect",
+    ).length;
+    expect(strokes(lit), "a crate on lit floor is drawn").toBeGreaterThan(base);
+    expect(strokes(crate), "a crate behind the wall, on unlit floor, is not").toBe(base);
+    expect(strokes(camera), "a camera on unlit floor is not").toBe(base);
+  });
+
+  // The clip to the light is made for every row and layer of a frame; sweeping it upward by one quad per
+  // edge of the light polygon made five times the canvas calls (86,000 a frame in room 7) and stalled
+  // every walking spec. It must stay a small multiple of the polygon, not of its edges times the rows.
+  it("builds the clip to the light cheaply: a few path points per vertex, not a quad per edge", () => {
+    const ops = frame({ entities: [keypad()] });
+    const clips = lightClips(ops);
+    expect(clips.length).toBeGreaterThan(0);
+    const points = ops.filter((o) => o.name === "moveTo" || o.name === "lineTo").length;
+    const perClip = points / (clips.length + 1);
+    // a polygon of n vertices, projected, plus a copy lifted by a wall's height, plus its two joins
+    const light = ops.slice(
+      ops.findIndex((o) => o.name === "rect" && o.args[0] === 0 && o.args[1] === 0),
+    );
+    const closeAt = light.findIndex((o) => o.name === "closePath");
+    const n = light
+      .slice(0, closeAt)
+      .filter((o) => o.name === "moveTo" || o.name === "lineTo").length;
+    expect(perClip, "path points per clip").toBeLessThanOrEqual(4 * n + 8);
+  });
+
+  // The user: a door far from them was "invisible, just mist"; close up it was a door. A closed door is
+  // a block like a wall, so it is drawn with the walls, under the veil, whether or not the light reaches
+  // it: a door inside the clip to the light was cut away to nothing outside it.
+  it("draws a closed door's block outside the clip to the light, as a wall is", () => {
+    const door: EntityView = { id: "D1", kind: "door", pos: at(9.5, 3.5), state: "closed" };
+    const ops = frame({ entities: [door], self: at(2.5, 3.5) });
+    // a closed door is a top, a front and then a seam: nothing on the floor layer draws all three
+    const seam = ops.findIndex((o) => o.name === "fillRect" && o.fillStyle === WORLD.doorSeam);
+    expect(seam, "the closed door is drawn").toBeGreaterThan(-1);
+    // walk back from its seam to the nearest clip or restore: it must not be a clip to the light
+    let k = seam - 1;
+    while (k >= 0 && ops[k]?.name !== "clip" && ops[k]?.name !== "restore") k--;
+    expect(lightClips(ops), "not inside a clip to the light").not.toContain(k);
+  });
+
+  // The user: the camera's cone vanished with the camera, but it should clip cleanly with the light cone.
+  // A camera's body stands on its own tile (dropped when that tile is not lit); its cone is a floor shape
+  // that reaches onto lit floor, so it is drawn whenever any of it is in the light.
+  it("draws a camera's cone on lit floor even when the camera's own tile is not in the light", () => {
+    // the camera is on the far side of a wall row, one tile north of lit floor, looking south through glass
+    const tiles = [
+      "############",
+      "#..........#",
+      "######=#####",
+      "#..........#",
+      "#..........#",
+      "############",
+    ];
+    const seen = ["3:0-10", "4:0-10", "2:0-11", "0:0-11", "1:0-11", "5:0-11"];
+    const cam: EntityView = {
+      id: "C1",
+      kind: "camera",
+      pos: at(6.5, 1.5),
+      state: "watching",
+      facing: { x: 0, y: 1 },
+      cone: { fovDeg: 90, range: 6 },
+    };
+    const ops = frame({ tiles, seen, self: at(2.5, 3.5), entities: [cam] });
+    // the cone is hatched (a fillRect at the 0.18 wash, then diagonal strokes): its colour is the watch colour
+    const cone = ops.filter((o) => o.name === "fillRect" && o.fillStyle === WORLD.watch).length;
+    expect(cone, "the cone is drawn on the lit floor").toBeGreaterThan(0);
+    // and the camera's body (its lens, an arc) is not: its own tile is not lit
+    const none = frame({ tiles, seen, self: at(2.5, 3.5), entities: [] });
+    const arcs = (o: Op[]) => o.filter((x) => x.name === "arc").length;
+    expect(arcs(ops), "the camera body is not drawn").toBe(arcs(none));
+  });
+
+  // What lies flat on the floor is cut by the exact outline of the lit floor; only what stands is swept
+  // up, so a cone or a slot at a wall does not show above the lit edge.
+  it("cuts the floor layer by the exact light outline, with no sweep upward", () => {
+    const door: EntityView = { id: "D1", kind: "door", pos: at(9.5, 3.5), state: "open" };
+    const ops = frame({ entities: [door], self: at(2.5, 3.5) });
+    const slot = ops.findIndex(
+      (o) => o.name === "setLineDash" && (o.args[0] as number[]).length > 0,
+    );
+    let k = slot - 1;
+    while (k >= 0 && ops[k]?.name !== "clip") k--;
+    let start = k;
+    while (start > 0 && ops[start]?.name !== "beginPath") start--;
+    // the polygon's own point count is the mist's; a swept clip adds a quad per up-facing edge
+    const full = ops.findIndex((o) => o.name === "rect" && o.args[0] === 0 && o.args[1] === 0);
+    const closeAt = ops.findIndex((o, i) => i > full && o.name === "closePath");
+    const n = ops
+      .slice(full, closeAt)
+      .filter((o) => o.name === "moveTo" || o.name === "lineTo").length;
+    const points = ops
+      .slice(start, k)
+      .filter((o) => o.name === "moveTo" || o.name === "lineTo").length;
+    expect(points, "the floor clip is the polygon alone").toBe(n);
+  });
+
   it("draws no clip to the light for a watcher, who has no light", () => {
     const ops = frame({ entities: [keypad()], seen: undefined, self: undefined });
     expect(lightClips(ops)).toEqual([]);
@@ -2292,5 +2521,88 @@ describe("label chips", () => {
         const apart = ax + aw <= bx || bx + bw <= ax || ay + ah <= by || by + bh <= ay;
         expect(apart, `${a} vs ${b}`).toBe(true);
       }
+  });
+});
+
+// The clip to the light is swept up by SWEEP_TILES so what stands is not cut at the floor's edge. It
+// must cover the tallest thing that stands: measured here from the real draw routines, so a thing drawn
+// taller later fails this instead of being quietly cut off at a wall (a head, an arrow, a camera).
+describe("the sweep of the clip to the light covers everything that stands", () => {
+  const cam = { scale: 50, ox: 0, oy: 0 };
+  const foot = toScreen(cam, 5.5, 3.5);
+  const reach = (run: (ctx: CanvasRenderingContext2D) => void): number => {
+    let minY = Number.POSITIVE_INFINITY;
+    const state: Record<string, unknown> = {};
+    const note = (y: unknown) => {
+      if (typeof y === "number") minY = Math.min(minY, y);
+    };
+    const ctx = new Proxy(
+      {},
+      {
+        get: (_t, n) => {
+          if (String(n) in state) return state[String(n)];
+          if (n === "measureText") return () => ({ width: 10 });
+          if (n === "createLinearGradient") return () => ({ addColorStop() {} });
+          return (...a: unknown[]) => {
+            const k = String(n);
+            if (k === "arc" || k === "ellipse") note((a[1] as number) - (a[2] as number));
+            else if (k === "quadraticCurveTo") note(a[1]), note(a[3]);
+            else if (k === "bezierCurveTo") note(a[1]), note(a[3]), note(a[5]);
+            else if (
+              [
+                "moveTo",
+                "lineTo",
+                "rect",
+                "fillRect",
+                "strokeRect",
+                "roundRect",
+                "fillText",
+              ].includes(k)
+            )
+              note(a[1]);
+          };
+        },
+        set: (_t, n, v) => {
+          state[String(n)] = v;
+          return true;
+        },
+      },
+    ) as unknown as CanvasRenderingContext2D;
+    run(ctx);
+    return (foot.y - minY) / cam.scale;
+  };
+  const sc = {
+    layout: "fit",
+    w: 600,
+    h: 320,
+    role: "deaf",
+    seat: 1,
+    roles: ["blind", "deaf", "mute"],
+    tiles: [],
+    entities: [],
+    self: { x: 5.5, y: 3.5 },
+  } as unknown as Scene;
+  const at = { x: 5.5, y: 3.5 };
+
+  it("reaches above you and your arrow, a crate, a camera, a bell, a lamp switch and gear", () => {
+    const tallest = Math.max(
+      reach((c) => drawPlayer(c, { id: "P1", kind: "player", pos: at, seat: 1 } as never, cam, sc)),
+      reach((c) => drawStanding(c, { id: "B1", kind: "crate", pos: at } as never, cam, sc)),
+      reach((c) =>
+        drawHazard(
+          c,
+          { id: "C1", kind: "camera", pos: at, state: "watching", facing: { x: 0, y: 1 } } as never,
+          cam,
+          sc,
+        ),
+      ),
+      reach((c) => drawBell(c, { id: "b1", kind: "bell", pos: at } as never, cam, sc)),
+      reach((c) => drawLampSwitch(c, { id: "l1", kind: "lamp", pos: at } as never, cam)),
+      reach((c) =>
+        drawGear(c, { id: "g1", kind: "gear", pos: at, item: "goggles" } as never, cam, false),
+      ),
+    );
+    expect(tallest, "the tallest standing thing").toBeGreaterThan(3);
+    expect(SWEEP_TILES, "the sweep covers it").toBeGreaterThanOrEqual(tallest);
   });
 });

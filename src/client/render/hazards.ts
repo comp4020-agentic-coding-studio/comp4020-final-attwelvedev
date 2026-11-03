@@ -199,6 +199,22 @@ function drawBeam(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera) {
   ctx.restore();
 }
 
+// What a hazard lays on the floor: a camera's or a guard's cone, a laser's beam. Drawn in the floor layer
+// (cut by the light like a plate), apart from the hazard's body, so the cone is still there, cut cleanly
+// by the light, when the body stands on a tile the light does not reach.
+export function drawHazardFloor(
+  ctx: CanvasRenderingContext2D,
+  e: EntityView,
+  cam: Camera,
+  scene: Scene,
+) {
+  if (e.kind === "camera") drawCone(ctx, e, cam, scene, WORLD.watch, e.state === "watching");
+  else if (e.kind === "laser") drawBeam(ctx, e, cam);
+  else if (e.kind === "guard") drawCone(ctx, e, cam, scene, WORLD.laser, true);
+}
+
+// A hazard's body: the camera on its bracket, the laser's post, the guard. Its cone and beam are
+// `drawHazardFloor`'s.
 export function drawHazard(
   ctx: CanvasRenderingContext2D,
   e: EntityView,
@@ -207,10 +223,8 @@ export function drawHazard(
 ) {
   const s = cam.scale;
   if (e.kind === "camera") {
-    drawCone(ctx, e, cam, scene, WORLD.watch, e.state === "watching");
     drawCamera(ctx, e, toScreen(cam, e.pos.x, e.pos.y, 0.7), s * 1.25);
   } else if (e.kind === "laser") {
-    drawBeam(ctx, e, cam);
     // the emitter: a small post with a lit lens
     const foot = toScreen(cam, e.pos.x, e.pos.y);
     const top = toScreen(cam, e.pos.x, e.pos.y, 0.8);
@@ -248,7 +262,6 @@ export function drawHazard(
       ctx.restore();
     }
   } else if (e.kind === "guard") {
-    drawCone(ctx, e, cam, scene, WORLD.laser, true);
     // a larger slate figure: a shadow, a body, and a diamond cap
     const foot = toScreen(cam, e.pos.x, e.pos.y);
     ctx.fillStyle = WORLD.line;

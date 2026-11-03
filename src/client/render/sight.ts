@@ -70,21 +70,38 @@ export function inLight(light: readonly Vec[], at: Vec): boolean {
   return inside;
 }
 
-// What stands out of the exact light is not drawn. The server sends a figure when its tile is touched
-// by a ray, but the picture is cut by the light's true edge, so a figure on a partly lit tile (round a
-// corner) was drawn whole and then veiled. Here another figure is kept only if its feet are in the
-// light, and so is anything that stands (gear, loot, a crate, a bell...). Never dropped: your own figure, a mark (a teammate's message, shown faintly through the haze
-// by design), a cone of sight, and the floor's own layout (plates, doors, exits...), which the veil
-// is meant to leave readable. A station is cut by its parts (`cutToSight`); a watcher has no light.
+// Whether any part of a tile is in the light: a corner or the centre inside the polygon, or a vertex of
+// the polygon inside the tile (a thin wedge can cross a tile and touch neither a corner nor the centre).
+export function tileTouched(light: readonly Vec[], tx: number, ty: number): boolean {
+  const pts = [
+    { x: tx + 0.5, y: ty + 0.5 },
+    { x: tx + 0.05, y: ty + 0.05 },
+    { x: tx + 0.95, y: ty + 0.05 },
+    { x: tx + 0.05, y: ty + 0.95 },
+    { x: tx + 0.95, y: ty + 0.95 },
+  ];
+  if (pts.some((p) => inLight(light, p))) return true;
+  return light.some((v) => v.x >= tx && v.x <= tx + 1 && v.y >= ty && v.y <= ty + 1);
+}
+
+// What stands is drawn only where the light touches its footprint (its own tile). The server sends a
+// thing when its tile is touched by a ray, but a tile the cone grazes at a corner is sent too, and the
+// swept clip that keeps a figure's head and a crate's top from being cut also reaches up over the unlit
+// tile behind a wall, which is how a camera on veiled floor was drawn at full strength. A thing in a
+// tile the light does not touch is dropped; one in a touched tile is drawn whole, and the clip then cuts
+// it at the cone's edge. Never dropped: your own figure, a mark (a teammate's message, shown faintly
+// through the haze by design), a cone of sight, and the floor's own layout (plates, doors, exits...),
+// which the veil is meant to leave readable. A watcher has no light and keeps everything.
 export function litEntities(
   entities: EntityView[],
   light: readonly Vec[] | null,
   mySeat: number,
 ): EntityView[] {
   if (light === null) return entities;
+  const touched = (e: EntityView) => tileTouched(light, Math.floor(e.pos.x), Math.floor(e.pos.y));
   return entities.filter((e) => {
-    if (e.kind === "player") return e.seat === mySeat || inLight(light, e.pos);
-    return !STANDS.has(e.kind) || inLight(light, e.pos);
+    if (e.kind === "player") return e.seat === mySeat || touched(e);
+    return !STANDS.has(e.kind) || touched(e);
   });
 }
 

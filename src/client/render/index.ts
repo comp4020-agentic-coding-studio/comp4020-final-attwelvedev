@@ -10,13 +10,13 @@ import { drawKeepsake, drawMotifTile, drawSlide } from "./chamber.ts";
 import { drawCloud } from "./dye.ts";
 import { drawHidden, drawOwnBlind, drawPlayer } from "./figures.ts";
 import { drawGear, drawGoggles, drawHold, drawUv, gearGlyph } from "./gear.ts";
-import { drawHazard, drawSight } from "./hazards.ts";
+import { drawHazard, drawHazardFloor, drawSight } from "./hazards.ts";
 import { drawItem } from "./items.ts";
 import { drawLabels } from "./labels.ts";
 import { figureCover, wallAlpha } from "./occlusion.ts";
 import { drawEdgePills, drawPops } from "./pops.ts";
 import { type Camera, camera, LIVE, setRise, tileWindow, toScreen } from "./project.ts";
-import { drawMist, inSight, lightPolygon, nightTile, seenOf } from "./sight.ts";
+import { drawMist, inSight, lightPolygon, litEntities, nightTile, seenOf } from "./sight.ts";
 import { drawBell, drawHatch, drawLampSwitch, drawLever } from "./signals.ts";
 import {
   drawLink,
@@ -73,6 +73,7 @@ export interface Scene {
   // Filled by draw with the boxes it placed (canvas px), so a spec can measure that no chip sits on a
   // plaque: the picture alone cannot say. Absent, nothing is recorded.
   report?: { chips: Box[]; plaques: Box[] };
+  floorEntities?: EntityView[]; // every entity sent, before what stands out of the light is dropped: the floor layer reads these (a hazard's cone outlives its body)
 }
 
 export interface Box {
@@ -127,8 +128,23 @@ const STANDING: EntityView["kind"][] = [
 
 // Draws one frame. Can't see gets a black field and a dim ring and nothing
 // else; the renderer is told nothing more than that player was sent.
-export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
-  drawScene(ctx, scene);
+export function draw(ctx: CanvasRenderingContext2D, given: Scene): void {
+  // what stands in a tile the light does not touch is not drawn; the rest is drawn whole and cut by the
+  // clip to the light (see lightOf and clipToLight)
+  const light = lightOf(given);
+  const scene = light
+    ? {
+        ...given,
+        entities: litEntities(given.entities, light, given.seat),
+        floorEntities: given.entities,
+      }
+    : given;
+  try {
+    drawScene(ctx, scene);
+  } finally {
+    // the label code replaces `report` on the scene it draws: hand it back to the caller's scene
+    if (scene !== given && scene.report) given.report = scene.report;
+  }
 }
 
 // The exact region the sighted viewer can see, or null (Can't see, a watcher, no map yet). The mist is
@@ -143,17 +159,67 @@ function lightOf(scene: Scene): Vec[] | null {
   return lightPolygon(scene.self, scene.tiles, (tx, ty) => closed.has(`${tx},${ty}`));
 }
 
-// Limits what is drawn next to the lit region (no light, no limit: a watcher sees the whole room).
-function clipToLight(ctx: CanvasRenderingContext2D, cam: Camera, light: readonly Vec[] | null) {
+// Limits what is drawn next to the lit region (no light, no limit: a watcher sees the whole room). The
+// light is the outline of lit floor, but what stands rises above its tile on screen (a figure's head, a
+// crate, a wall-hung panel), so the region is that outline swept straight up by a wall's height. A shift
+// straight up only grows the region where an edge faces up, so the sweep is the polygon plus one quad
+// for each edge that faces up; every piece is wound the same way, so under the non-zero rule they add up
+// to their union and none cancels another. (A quad for every edge made five times the canvas calls.)
+// It is built once a frame and reused by every row and layer.
+// How far up the clip reaches, in tiles: the tallest thing that stands (a camera on the wall is the
+// tallest, 3.2 tiles above its foot; a bell 2.9; you with your arrow 1.5), with a margin. A test
+// measures the real draw routines against it, so a taller thing added later cannot be silently cut.
+export const SWEEP_TILES = 3.5;
+function flatLight(cam: Camera, light: readonly Vec[]): { x: number; y: number }[] {
+  return light.map((p) => toScreen(cam, p.x, p.y));
+}
+const swept = new WeakMap<readonly Vec[], Map<number, { x: number; y: number }[][]>>();
+function sweptLight(cam: Camera, light: readonly Vec[]): { x: number; y: number }[][] {
+  const key = cam.scale * 1e6 + cam.ox * 1e3 + cam.oy;
+  const known = swept.get(light)?.get(key);
+  if (known) return known;
+  const at = (p: Vec, lift = 0) => toScreen(cam, p.x, p.y, lift);
+  const area = (pts: { x: number; y: number }[]) =>
+    pts.reduce((sum, a, i) => {
+      const b = pts[(i + 1) % pts.length] as { x: number; y: number };
+      return sum + (a.x * b.y - b.x * a.y);
+    }, 0);
+  const floor = light.map((p) => at(p));
+  const sign = Math.sign(area(floor)) || 1;
+  const wound = (pts: { x: number; y: number }[]) =>
+    Math.sign(area(pts)) === sign ? pts : [...pts].reverse();
+  const pieces = [wound(floor)];
+  for (const [i, p] of light.entries()) {
+    const n = light[(i + 1) % light.length] as Vec;
+    const a = at(p);
+    const b = at(n);
+    // an edge faces up if the region lies below it on screen: skip edges that run level or face down
+    if (Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5) continue;
+    pieces.push(wound([a, b, at(n, SWEEP_TILES), at(p, SWEEP_TILES)]));
+  }
+  if (!swept.has(light)) swept.set(light, new Map());
+  swept.get(light)?.set(key, pieces);
+  return pieces;
+}
+
+// `reach` is how far up the region is swept (tiles): SWEEP_TILES for what stands, 0 for what lies flat,
+// which is cut by the exact outline of the lit floor.
+function clipToLight(
+  ctx: CanvasRenderingContext2D,
+  cam: Camera,
+  light: readonly Vec[] | null,
+  reach = SWEEP_TILES,
+) {
   if (!light || light.length < 3) return;
   ctx.beginPath();
-  for (const [i, p] of light.entries()) {
-    const at = toScreen(cam, p.x, p.y);
-    if (i === 0) ctx.moveTo(at.x, at.y);
-    else ctx.lineTo(at.x, at.y);
+  for (const piece of reach > 0 ? sweptLight(cam, light) : [flatLight(cam, light)]) {
+    for (const [i, q] of piece.entries()) {
+      if (i === 0) ctx.moveTo(q.x, q.y);
+      else ctx.lineTo(q.x, q.y);
+    }
+    ctx.closePath();
   }
-  ctx.closePath();
-  ctx.clip();
+  ctx.clip("nonzero");
 }
 
 function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
@@ -218,7 +284,11 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
   }
   // what lies on the floor (plates, an open door's slot, the exit...) is cut by the light like what stands
   ctx.save();
-  clipToLight(ctx, cam, light);
+  clipToLight(ctx, cam, light, 0);
+  for (const e of scene.floorEntities ?? scene.entities) {
+    if (e.kind === "camera" || e.kind === "laser" || e.kind === "guard")
+      drawHazardFloor(ctx, e, cam, scene);
+  }
   for (const e of scene.entities)
     if (FLAT.includes(e.kind) && !(e.kind === "door" && e.state !== "open"))
       e.kind === "motiftile" ? drawMotifTile(ctx, e, cam) : drawFlat(ctx, e, cam, scene);
@@ -259,8 +329,18 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
       else glass(ctx, cam, x, y);
       ctx.restore();
     }
+    // a closed door is a block like a wall: drawn with them, under the veil, not cut away by the light
+    // (a door outside the light was "just mist")
+    for (const e of byRow.get(y) ?? [])
+      if (e.kind === "door" && e.state === "closed") drawStanding(ctx, e, cam, scene);
     // what stands in this row is cut by the light's edge: drawn whole, in its one fixed place, inside a
     // clip to the lit region (a figure's outline behind a wall, a mark and the layout are drawn apart)
+    // (a row with nothing in it makes no clip: most rows are empty, and a clip is the costly part)
+    const hasStanding =
+      (linksByRow.get(y)?.length ?? 0) > 0 ||
+      (stationsByRow.get(y)?.length ?? 0) > 0 ||
+      (byRow.get(y) ?? []).some((e) => STANDING.includes(e.kind) && e.kind !== "door");
+    if (!hasStanding) continue;
     ctx.save();
     clipToLight(ctx, cam, light);
     for (const { e, path } of linksByRow.get(y) ?? [])
@@ -271,7 +351,7 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
     for (const kind of STANDING) {
       for (const e of byRow.get(y) ?? []) {
         if (e.kind !== kind) continue;
-        if (kind === "door" && e.state === "open") continue;
+        if (kind === "door") continue; // an open door is only its slot (the floor layer); a closed one is drawn above
         if (kind === "stamp" && !inSight(seenNow, e.pos)) continue; // drawn through the mist, below
         if (kind === "camera" || kind === "laser" || kind === "guard")
           drawHazard(ctx, e, cam, scene);

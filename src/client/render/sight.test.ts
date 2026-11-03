@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { Vec } from "../../game/types.ts";
 import type { EntityView } from "../../net/protocol.ts";
-import { cutToSight, decodeSeen, inLight, lightPolygon, litEntities } from "./sight.ts";
+import {
+  cutToSight,
+  decodeSeen,
+  inLight,
+  lightPolygon,
+  litEntities,
+  tileTouched,
+} from "./sight.ts";
 
 // The region you can see from a point, as the polygon the mist is cut out of. It has to be exact:
 // the edge of the light runs through the corners of walls, the way a camera's cone does, not along
@@ -202,20 +209,21 @@ describe("inLight / litEntities: what stands out of the exact light is not drawn
     expect(inLight(light, { x: 9.5, y: 3.5 }), "straight behind the block").toBe(false);
   });
 
-  it("drops a figure whose tile the light touches but whose feet are in the shadow (round a corner)", () => {
-    // the block at (6,3) shades the tiles behind it; a figure on its far side near the corner stands in a
-    // tile a ray grazes, so the server would send it, yet its feet are in shadow
-    const corner = { x: 6.9, y: 3.95 };
-    expect(inLight(light, corner), "the feet are in shadow").toBe(false);
-    const tileTouched =
-      light.some(
-        (p) => Math.floor(p.x) === Math.floor(corner.x) && Math.floor(p.y) === Math.floor(corner.y),
-      ) ||
-      [0.1, 0.5, 0.9].some((fx) =>
-        inLight(light, { x: Math.floor(corner.x) + fx, y: Math.floor(corner.y) + 0.5 }),
-      );
-    expect(tileTouched, "the tile itself is partly in the light").toBe(true);
-    expect(litEntities([player("P2", corner.x, corner.y, 2)], light, 0)).toEqual([]);
+  it("keeps a figure on a tile the light only grazes (the clip then cuts it at the cone's edge), and drops one on a tile it never touches", () => {
+    // the block at (6,3) shades the tiles behind it. A figure at the corner stands on a tile a ray
+    // grazes: it is kept whole and the clip to the light cuts the shadowed part off. One straight
+    // behind the block, in a tile no ray reaches, is dropped.
+    const grazed = { x: 6.9, y: 3.95 };
+    expect(inLight(light, grazed), "its feet are in shadow").toBe(false);
+    expect(
+      tileTouched(light, Math.floor(grazed.x), Math.floor(grazed.y)),
+      "its tile is grazed",
+    ).toBe(true);
+    expect(litEntities([player("P2", grazed.x, grazed.y, 2)], light, 0).map((e) => e.id)).toEqual([
+      "P2",
+    ]);
+    expect(tileTouched(light, 9, 3), "a tile straight behind the block").toBe(false);
+    expect(litEntities([player("P2", 9.5, 3.5, 2)], light, 0)).toEqual([]);
   });
 
   it("keeps your own figure, marks, cones and floor layout whatever the light says", () => {

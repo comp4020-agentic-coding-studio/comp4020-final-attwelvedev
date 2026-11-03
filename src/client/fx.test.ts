@@ -21,6 +21,25 @@ describe("detectFx: small effects for what just changed between two views", () =
     expect(detectFx([down], [up])).toMatchObject([{ kind: "ring", tone: "muted" }]);
   });
 
+  // A door out of your sight is sent closed, whatever the truth, so walking into range flips an open
+  // door from closed to open without it having opened. That is not an opening: no ring.
+  it("rings a door that opens while it is in sight, and not one that only comes into sight open", () => {
+    const closed = e({ id: "D1", kind: "door", state: "closed", pos: { x: 5.5, y: 2.5 } });
+    const open = { ...closed, state: "open" as const };
+    const seesIt = { has: (x: number, y: number) => x === 5 && y === 2 };
+    const seesNothing = { has: () => false };
+    expect(detectFx([closed], [open], seesIt), "seen last view: it opened").toMatchObject([
+      { kind: "ring", tone: "ui" },
+    ]);
+    expect(detectFx([closed], [open], seesNothing), "unseen last view: it came into view").toEqual(
+      [],
+    );
+    expect(
+      detectFx([closed], [open]),
+      "no sight data (a watcher): every change counts",
+    ).toHaveLength(1);
+  });
+
   it("rings a door the moment it opens", () => {
     const closed = e({ id: "D1", kind: "door", state: "closed" });
     expect(detectFx([closed], [{ ...closed, state: "open" }])).toMatchObject([
