@@ -1,6 +1,7 @@
 import type { Stamp } from "./channels.ts";
 import { subtractRects } from "./clip.ts";
 import { visiblePolygon } from "./cone.ts";
+import { lightTouches } from "./light.ts";
 import {
   cacheOf,
   flipsOf,
@@ -11,6 +12,7 @@ import {
   type RoomObject,
   secretDoors,
 } from "./rooms/format.ts";
+import { indexOf, tileKey } from "./sim/collide.ts";
 import { beside, carried, gearOn, hatchBeside, objectOn, onSill, partner } from "./sim/gear.ts";
 import {
   cameraApex,
@@ -850,8 +852,24 @@ function inSight(
   seat: Seat,
   seen: Visible,
   zones: Zone[],
+  touches: (t: Vec) => boolean,
 ): EntityView[] {
   const out: EntityView[] = [];
+  // a tile is in view when the tile set has it or the exact light the client draws touches any of it:
+  // the client already draws that light, so sending what it touches tells nothing new, and a station
+  // the light reached but the tile set missed used to pop in at a tile boundary as you moved a hair
+  // (a tile is asked about for its display and again for its furniture, and an untouched one costs a
+  // full sweep of rays, so the answer is kept for the view)
+  const asked = new Map<string, boolean>();
+  const lit = (t: Vec) => {
+    if (seen.has(t.x, t.y)) return true;
+    const key = `${t.x},${t.y}`;
+    const known = asked.get(key);
+    if (known !== undefined) return known;
+    const hit = touches(t);
+    asked.set(key, hit);
+    return hit;
+  };
   for (const e of entities) {
     if (e.kind === "stamp" || e.kind === "sight" || (e.kind === "player" && e.seat === seat)) {
       out.push(e);
@@ -861,11 +879,9 @@ function inSight(
       // furniture is drawn from any part in sight, with nothing of its state. A display in a dark
       // zone shows nothing without the goggles (FR19), wherever the station's anchor stands.
       const o = world.room.objects.find((x) => x.id === e.id);
-      const shown = (o ? displayTiles(o) : []).some(
-        (t) => seen.has(t.x, t.y) && !inAny(zones, centre(t)),
-      );
+      const shown = (o ? displayTiles(o) : []).some((t) => lit(t) && !inAny(zones, centre(t)));
       const parts = e.station?.parts ?? [];
-      const furniture = parts.some((p) => p.at.some((t) => seen.has(t.x, t.y)));
+      const furniture = parts.some((p) => p.at.some(lit));
       if (shown) out.push(e);
       else if (furniture && e.station)
         out.push({ ...e, station: { ...e.station, shows: [], furniture: true } });
@@ -884,6 +900,42 @@ function inSight(
     }
   }
   return out;
+}
+
+// Whether a door tile is shut, as the client's light reads it: a tile with no door in the index counts
+// as shut, exactly as `blocksSight` does.
+const closedAt = (world: World) => (tx: number, ty: number) => {
+  const id = indexOf(world.room).doorAt.get(tileKey(tx, ty));
+  return !id || !world.doorOpen[id];
+};
+
+// Whether the exact light from `me` touches a tile, kept per world, per standing place and door state.
+// A view asks about every station part the tile set missed, each a sweep of rays, and the linter and the
+// bots ask again and again from places that have not moved; the answer depends on nothing else (the
+// grid with the secret doors shut, and which doors are open), so the key is the place and the doors.
+const TOUCH_PLACES = 24; // places kept per world: three seats and a few recent steps
+const touched = new WeakMap<World, Map<string, Map<string, boolean>>>();
+function touchesFrom(world: World, me: Vec): (t: Vec) => boolean {
+  const places = touched.get(world) ?? new Map<string, Map<string, boolean>>();
+  touched.set(world, places);
+  const key = `${me.x},${me.y}|${JSON.stringify(world.doorOpen)}`;
+  let known = places.get(key);
+  if (!known) {
+    if (places.size >= TOUCH_PLACES) places.delete(places.keys().next().value as string);
+    known = new Map<string, boolean>();
+    places.set(key, known);
+  }
+  const memo = known;
+  let grid: string[] | null = null;
+  return (t) => {
+    const at = `${t.x},${t.y}`;
+    const have = memo.get(at);
+    if (have !== undefined) return have;
+    grid ??= maskCache(world, world.room.grid);
+    const hit = lightTouches(me, grid, closedAt(world), t.x, t.y);
+    memo.set(at, hit);
+    return hit;
+  };
 }
 
 // What opens an ordinary door, when it is not held plates: a sequence, or a station solved. The room
@@ -1027,6 +1079,7 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
     view.alarm = alarm;
     const seen = visibleFrom(world, me);
     view.seen = encodeSeen(seen.tiles);
+    const touches = touchesFrom(world, me);
     view.entities = [
       ...inSight(
         world,
@@ -1034,6 +1087,7 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
         seat,
         seen,
         zones,
+        touches,
       ),
       ...uvLight(world, role, seen, zones),
     ];
