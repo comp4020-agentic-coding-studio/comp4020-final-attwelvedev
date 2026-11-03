@@ -6,7 +6,7 @@ import {
   STAMP_LIFE_MS,
 } from "../channels.ts";
 import type { EntityView, RoleView, SoundCue } from "../perception.ts";
-import type { Room } from "../rooms/format.ts";
+import { cacheOf, type Room } from "../rooms/format.ts";
 import { blockedAt } from "../sim/collide.ts";
 import { laserBeam } from "../sim/hazards.ts";
 import { stationParts, tilesOf } from "../sim/stations.ts";
@@ -751,6 +751,7 @@ function lookAtDoor(room: Room, known: Known, from: Vec, goal: Vec): Vec {
 function inkPost(room: Room, known: Known): Vec | null {
   for (const o of room.objects) {
     if (o.kind !== "station" || o.params?.type !== "wires" || o.params.numbered !== true) continue;
+    if (cacheOf(o)) continue; // bots ignore caches: nobody opens one, so its ink is never worth a post
     if (known.stations[o.id]?.solved) continue;
     const doors = room.objects.filter((d) => d.kind === "door" && d.opensWhen?.includes(o.id));
     if (doors.length > 0 && doors.every((d) => known.doorOpen[d.id] === true)) continue;

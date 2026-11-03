@@ -38,7 +38,9 @@ export function RoomBoard({ board, onFull }: { board: Board; onFull: () => void 
                 <td>{board.mine.rank}</td>
                 <td class="team">You</td>
                 <td>{formatTime(board.mine.ms)}</td>
-                <td />
+                <td>
+                  {board.mine.lootTotal > 0 ? `${board.mine.loot}/${board.mine.lootTotal}` : "—"}
+                </td>
               </tr>
             )}
           </tbody>

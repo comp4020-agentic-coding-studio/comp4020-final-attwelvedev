@@ -594,7 +594,8 @@ describe("lintRoom: caches", () => {
   };
   // The clue-path faults only. The chamber's own rules (a control tile outside the chamber, a
   // sealed vault...) have their own describe below, and these rooms keep the station in the room.
-  const CHAMBER_RULE = /control tile .* outside its chamber/;
+  const CHAMBER_RULE =
+    /control tile .* outside its chamber|back tile|needs a stethoscope somewhere in its room/;
   const faults = (r: Room) =>
     lintRoom(r)
       .map((i) => i.message)
@@ -847,16 +848,16 @@ describe("lintRoom: a cache's chamber", () => {
     door: [3, 5],
     vault: { rect: [8, 8, 9, 8], door: [7, 8], item: [9, 8] },
   };
-  const objects = (over: { chamber?: unknown; q?: object } = {}) => ({
+  const objects = (over: { chamber?: unknown; q?: object; gear?: boolean } = {}) => ({
     D1: { opensWhen: ["p1", "p2", "p3"] },
-    g1: { item: "stethoscope" },
+    ...(over.gear === false ? {} : { g1: { item: "stethoscope" } }),
     Q1: {
       type: "dial",
       pads: [
         [4, 8],
         [6, 8],
       ],
-      back: [1, 6],
+      back: [5, 6], // 2 tiles from the dial, over 1.5 from each pad, so no pad can hear the tumbler
       digits: 2,
       range: 10,
       ...over.q,
@@ -928,6 +929,67 @@ describe("lintRoom: a cache's chamber", () => {
       const g = swap(GRID, 2, 7, ch);
       expect(faults(build(g)), ch).toContainEqual(expect.stringMatching(/lies inside its chamber/));
     }
+  });
+
+  describe("a dial cache's inspection plate and a stethoscope in its room (Task 66)", () => {
+    const withBack = (back: number[], grid = GRID) => faults(build(grid, { q: { back } }));
+    it.each([
+      ["no back tile", () => faults(build(GRID, { q: { back: undefined } })), /no back tile/],
+      [
+        "a back tile outside the chamber",
+        () => withBack([3, 4]),
+        /back tile .* outside its chamber/,
+      ],
+      [
+        "a back tile on a wall",
+        () => withBack([5, 6], swap(GRID, 5, 6, "#")),
+        /back tile .* not a floor tile/,
+      ],
+      ["a back tile too far from the dial", () => withBack([1, 6]), /back tile .* from its dial/],
+      [
+        "no stethoscope anywhere in the room",
+        () => faults(build(swap(GRID, 2, 4, "."), { gear: false })),
+        /needs a stethoscope somewhere in its room/,
+      ],
+    ])("flags %s", (_name, run, message) => {
+      expect(run()).toContainEqual(expect.stringMatching(message));
+    });
+
+    it("passes the well-formed plate with the room's own stethoscope, and gear inside the chamber fails", () => {
+      expect(faults(build())).toEqual([]);
+      // the chamber holds only its own station again: any gear tile in it, a stethoscope included, fails
+      for (const item of ["uv", "stethoscope"]) {
+        const objs = JSON.parse(JSON.stringify(objects()));
+        objs.g2 = { item };
+        const r = parseRoom(
+          `${JSON.stringify({
+            id: "t",
+            name: "T",
+            version: 1,
+            beats: [{ name: "B", x: [0, 19], intent: { blind: "b", deaf: "d", mute: "m" } }],
+            objects: objs,
+            hints: { jobs: [{ beat: 1, goTo: "E", all: true }] },
+          })}\n---\n${swap(GRID, 2, 7, "g").join("\n")}\n`,
+        );
+        expect(faults(r), item).toContainEqual(expect.stringMatching(/lies inside its chamber/));
+      }
+    });
+
+    it("asks nothing of a chamber whose station is not a dial", () => {
+      const keypad = {
+        type: "keypad",
+        keys: [
+          [4, 8],
+          [5, 8],
+          [6, 8],
+        ],
+        length: 1,
+        back: undefined,
+      };
+      expect(faults(build(swap(GRID, 2, 7, "."), { q: keypad }))).not.toContainEqual(
+        expect.stringMatching(/back tile|stethoscope somewhere/),
+      );
+    });
   });
 
   it("flags a station control tile outside the chamber, but not a clue tile", () => {

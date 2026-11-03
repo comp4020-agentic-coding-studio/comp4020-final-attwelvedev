@@ -463,6 +463,13 @@ export function stationNaming(world: World, id: string): StationState | undefine
   return s && !s.solved ? s : undefined;
 }
 
+// Whether a clue object belongs to a cache that is still hidden: it is silent until the chamber
+// opens, so a hidden cache gives nothing away (caches FR1).
+export function hiddenCacheClue(world: World, id: string): boolean {
+  const o = stationObjects(world).find((s) => s.params?.clue === id);
+  return o !== undefined && !cacheOpen(world, o.id);
+}
+
 // The note of `station`'s code whose group of chimes starts this tick, if one does. A keypad's slot
 // (clues FR3) rests: its note is the digit of the radio that feeds it, found there and nowhere else.
 export function noteOf(world: World, station: StationState): number | undefined {

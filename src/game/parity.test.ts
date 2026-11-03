@@ -379,6 +379,31 @@ const PARITY: Record<SoundCue["kind"], Scenario> = {
       sees: (b, a) => (ent(a, "P2")?.pos.x ?? 0) > (ent(b, "P2")?.pos.x ?? 0),
     };
   })(),
+  hollow: (() => {
+    // a cache's dial with its back tile at (20,2): a teammate walking onto it is heard as a hollow step
+    // by a hearing seat in earshot, and the sighted see the same walker move in the view
+    const built = withChamber(
+      put([6, 1, "Q"]).map((r, y) => (y === 2 ? `${r.slice(0, 1)}2${r.slice(2)}` : r)),
+      14,
+    );
+    const world = worldWith(built.grid, {
+      Q1: {
+        type: "dial",
+        pads: PADS,
+        back: [20, 2],
+        digits: 1,
+        cache: { ...CACHE_AT, chamber: built.chamber },
+      },
+    });
+    place(world, BLIND, { x: 17, y: 2 });
+    place(world, MUTE, { x: 20, y: 2 }); // on the plate, walking on it
+    place(world, DEAF, { x: 5, y: 3 });
+    return {
+      world,
+      act: () => step(world, east(MUTE), TICK_MS),
+      sees: (b, a) => (ent(a, "P2")?.pos.x ?? 0) > (ent(b, "P2")?.pos.x ?? 0),
+    };
+  })(),
   step: (() => {
     const world = worldWith(BASE);
     return {

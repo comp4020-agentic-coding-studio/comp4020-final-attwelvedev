@@ -477,9 +477,13 @@ export function tickGame(
   }
   step(game.world, game.inputs, TICK_MS);
   // a secret door opening changes the map the sighted hold, so every seat gets it this tick (a
-  // chamber hidden as wall appears the moment its door slides, never a tick later or on a reload)
+  // chamber hidden as wall appears the moment its door slides, never a tick later or on a reload).
+  // A send-back shuts them again, so it is a map change too: otherwise a client keeps the open
+  // chamber drawn and predicts it walkable while the server treats it as wall.
   const mapChanged = game.world.events.some(
-    (e) => e.kind === "cache" && (e.result === "uncover" || e.result === "solved"),
+    (e) =>
+      e.kind === "caught" ||
+      (e.kind === "cache" && (e.result === "uncover" || e.result === "solved")),
   );
   const views = new Map<Seat, RoleView>();
   for (const seat of [0, 1, 2] as const) {

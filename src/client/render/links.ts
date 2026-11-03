@@ -10,13 +10,15 @@ const STEPS: readonly [number, number][] = [
 const centre = (t: Vec): Vec => ({ x: t.x + 0.5, y: t.y + 0.5 });
 
 // The wire from a station's anchor to its remote part (a safe's back, a music box's tune), as points
-// in tile space: along wall tiles from one beside the anchor to one beside the remote part, found
+// in tile space: along wall tiles (a door in a wall counts) from one beside the anchor to one beside the remote part, found
 // by breadth-first search. With no such wall route, or one more than twice the Manhattan distance
 // (it would wander round a room for a short gap), it is a straight line. No remote tile, no wire.
 export function linkPath(tiles: readonly string[], anchor: Vec, remote: Vec | undefined): Vec[] {
   if (!remote) return [];
   const straight = [centre(anchor), centre(remote)];
-  const wall = (x: number, y: number) => tiles[y]?.[x] === "#";
+  // a door in a wall row is part of that wall to a wire (it runs over the lintel), so a secret door
+  // between a corridor and a chamber does not break the run
+  const wall = (x: number, y: number) => tiles[y]?.[x] === "#" || tiles[y]?.[x] === "D";
   const key = (x: number, y: number) => `${x},${y}`;
   const beside = (t: Vec) =>
     STEPS.map(([dx, dy]) => ({ x: t.x + dx, y: t.y + dy })).filter((n) => wall(n.x, n.y));

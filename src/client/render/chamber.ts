@@ -1,3 +1,4 @@
+import type { Vec } from "../../game/types.ts";
 import type { EntityView } from "../../net/protocol.ts";
 import { WORLD } from "../tokens.ts";
 import { drawItem } from "./items.ts";
@@ -83,4 +84,35 @@ export function drawSlide(
   ctx.fillStyle = WORLD.doorSeam;
   ctx.fillRect(t.x + s / 2 - 1, f.y + drop, 2, h);
   ctx.restore();
+}
+
+// A cache dial's inspection plate: the whole floor tile is a steel plate set flush in the floor,
+// washed so faintly that the floor still shows through (still grey, close to the floor's own tone),
+// with a thin outline for high contrast and a rivet at each end. Flat, unlabelled and with no wire to
+// it: it reads as a different slab of floor, not a box or a button. Drawn at the dial's `back` tile
+// when the station is a cache's.
+const PLATE_WASH = 0.4;
+export function drawInspectionPlate(ctx: CanvasRenderingContext2D, t: Vec, cam: Camera) {
+  const s = cam.scale;
+  const top = toScreen(cam, t.x, t.y);
+  const w = s;
+  const h = s * LIVE.depth;
+  ctx.save();
+  ctx.globalAlpha = PLATE_WASH;
+  ctx.fillStyle = WORLD.steel;
+  ctx.fillRect(top.x, top.y, w, h);
+  ctx.restore();
+  ctx.save();
+  ctx.globalAlpha = 0.55;
+  ctx.strokeStyle = WORLD.line;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(top.x + 1, top.y + 1, w - 2, h - 2);
+  ctx.restore();
+  // two rivets: a plate, not a button
+  ctx.fillStyle = WORLD.line;
+  for (const dx of [0.22, 0.78]) {
+    ctx.beginPath();
+    ctx.ellipse(top.x + w * dx, top.y + h / 2, s * 0.03, s * LIVE.depth * 0.03, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }

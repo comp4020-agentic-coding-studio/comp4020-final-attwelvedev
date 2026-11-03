@@ -1,5 +1,6 @@
 import type { SoundCue } from "../net/protocol.ts";
 import { chimePlan, isChimeCue, practiceChimes } from "./chimeSound.ts";
+import { hollowPlan, tumblerPlan } from "./hollowSound.ts";
 
 export interface GameAudio {
   resume(): Promise<void>; // call from a tap or key press: browsers keep audio off until then
@@ -272,9 +273,8 @@ export function createAudio(): GameAudio {
         else if (s.kind === "tick")
           tone(c, s, "square", 2200, 2200, 0.025, 0.22); // a dial's notch
         else if (s.kind === "tumbler") {
-          // lower and duller than the tick, and doubled: the click of a pin dropping
-          tone(c, s, "triangle", 420, 300, 0.07, 0.45);
-          tone(c, s, "triangle", 380, 260, 0.06, 0.3, 0.05);
+          // a pin dropping: long enough to carry over the dial's own tick (hollowSound.ts)
+          for (const t of tumblerPlan()) tone(c, s, t.type, t.from, t.to, t.secs, t.level, t.at);
         } else if (isChimeCue(s)) {
           // a group of chimes, n + 1 of them rising: the note is the count (chimeSound.ts)
           const cue = s.kind === "earpiece" ? { ...s, pan: 0 } : s; // the earpiece is in the holder's head
@@ -336,6 +336,22 @@ export function createAudio(): GameAudio {
       if (own && now - lastOwnStep >= OWN_STEP_GAP_MS) {
         lastOwnStep = now;
         ownStep(c, own);
+      }
+      // a step on a cache dial's plate replaces the step it stands in for, at the same pace: your own
+      // (centred) at the own-step gap, someone else's (panned) at the footsteps gap
+      const ownHollow = sounds.find((s) => s.kind === "hollow" && s.dir === undefined);
+      if (ownHollow && now - lastOwnStep >= OWN_STEP_GAP_MS) {
+        lastOwnStep = now;
+        for (const t of hollowPlan())
+          tone(c, ownHollow, t.type, t.from, t.to, t.secs, t.level, t.at);
+      }
+      const otherHollow = sounds
+        .filter((s) => s.kind === "hollow" && s.dir !== undefined)
+        .sort((a, b) => b.gain - a.gain)[0];
+      if (otherHollow && now - lastStep >= STEP_GAP_MS) {
+        lastStep = now;
+        for (const t of hollowPlan())
+          tone(c, otherHollow, t.type, t.from, t.to, t.secs, t.level, t.at);
       }
       const bump = sounds.find((s) => s.kind === "bump");
       if (bump && now - lastBump >= BUMP_GAP_MS) {

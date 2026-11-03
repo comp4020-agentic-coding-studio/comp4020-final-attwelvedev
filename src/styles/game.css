@@ -1633,22 +1633,18 @@ fieldset.settings {
   flex: none;
 }
 .side-job-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 400;
-}
-.side-job-text.is-open {
   white-space: normal;
   overflow-wrap: anywhere;
+  font-weight: 400;
 }
-.side-job.is-found .side-job-text {
-  white-space: normal;
+/* the riddle is shown whole; the chevron says a click hides it, and points up when it is shown */
+.side-job-chevron {
+  flex: none;
+  margin-left: var(--s-1);
+  opacity: 0.7;
 }
-@media (max-width: 719px) {
-  .side-job-lines .side-job-text:not(.is-open) {
-    display: none;
-  }
+.side-job-chevron[data-open="true"] {
+  transform: rotate(180deg);
 }
 /* the taken chip lands with one pulse (not under reduced motion, nor on a page that loads it taken) */
 @media (prefers-reduced-motion: no-preference) {

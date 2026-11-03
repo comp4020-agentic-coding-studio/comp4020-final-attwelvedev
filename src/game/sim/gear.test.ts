@@ -171,6 +171,34 @@ describe("gear: the hatch sill", () => {
     const w = fresh();
     expect(blockedAt(w, { x: 6.5, y: 2.5 })).toBe(true);
   });
+
+  // The user: "through the sill, players should be able to take gear with G, not just space".
+  it("G puts your gear on a sill beside you, and takes it from the other side into an empty slot", () => {
+    const w = fresh();
+    at(w, 0, { x: 3, y: 2 });
+    press(w, 0, "gear"); // G takes the gear under you
+    expect(gearOf(w, "g1").heldBy).toBe(0);
+    at(w, 0, { x: 5, y: 2 }); // beside the hatch
+    expect(press(w, 0, "gear")).toContainEqual(
+      expect.objectContaining({ kind: "gear", id: "g1", action: "sill" }),
+    );
+    expect(gearOf(w, "g1")).toMatchObject({ heldBy: null, at: null, sill: "H1" });
+    at(w, 1, { x: 7, y: 2 });
+    expect(press(w, 1, "gear")).toContainEqual(
+      expect.objectContaining({ kind: "gear", id: "g1", action: "take", seat: 1 }),
+    );
+    expect(gearOf(w, "g1")).toMatchObject({ heldBy: 1, at: null, sill: null });
+  });
+
+  it("G still hands your gear to a teammate beside you before it uses a sill", () => {
+    const w = fresh();
+    at(w, 0, { x: 3, y: 2 });
+    press(w, 0, "gear");
+    at(w, 0, { x: 5, y: 2 });
+    at(w, 1, { x: 5, y: 1 }); // a teammate with an empty slot, beside you
+    press(w, 0, "gear");
+    expect(gearOf(w, "g1")).toMatchObject({ heldBy: 1, sill: null });
+  });
 });
 
 describe("gear: a checkpoint reset", () => {

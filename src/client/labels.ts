@@ -17,6 +17,8 @@ export const LABEL_COPY: Record<string, string> = {
   cratePlate: "Crate plate: only a crate's weight holds it",
   crate: "Crate: lean on it to push it, and it can sit on a plate",
   door: "Door: opens while its plates are held",
+  stationdoor: "Door: opens once its stations are solved",
+  sequencedoor: "Door: opens when its plates are pressed in order",
   secretdoor: "Secret door: it slid open from a hidden catch",
   loot: "Loot: walk over it to take it",
   camera: "Camera: stay out of its cone while it watches",
@@ -60,6 +62,8 @@ export const ESCAPE_KINDS = new Set([
   "lever",
   "gear",
   "hands",
+  "stationdoor",
+  "sequencedoor",
 ]);
 const STATION_KIND: Record<NonNullable<EntityView["station"]>["type"], string> = {
   dial: "safe",
@@ -102,6 +106,9 @@ const KIND_OF: Partial<Record<EntityView["kind"], string>> = {
 function kindOf(e: EntityView): string | undefined {
   if (e.kind === "station" && e.station) return STATION_KIND[e.station.type];
   if (e.kind === "door" && e.secret) return "secretdoor";
+  // how a door opens decides what its chip says: held plates, a solved station, or a sequence
+  if (e.kind === "door" && e.opens === "stations") return "stationdoor";
+  if (e.kind === "door" && e.opens === "sequence") return "sequencedoor";
   if (e.kind === "sign" && e.text) return "plaque";
   if (e.kind === "plate" && e.crateOnly) return "cratePlate";
   if (e.kind === "player")

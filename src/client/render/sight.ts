@@ -1,4 +1,5 @@
 import type { Vec } from "../../game/types.ts";
+import type { EntityView } from "../../net/protocol.ts";
 import { MIST, WORLD } from "../tokens.ts";
 import { type Camera, LIVE, toScreen } from "./project.ts";
 
@@ -34,6 +35,72 @@ export function seenOf(rows: readonly string[]): Seen {
 // Whether a point (in tiles) is in a tile you can see.
 export const inSight = (seen: Seen | null, at: Vec): boolean =>
   seen === null || seen.has(Math.floor(at.x), Math.floor(at.y));
+
+// A station is sent whole when any one of its parts is in your light (so its furniture can be drawn
+// from where you can see it), but a part behind a wall is not in your light: it is cut here, so wires,
+// a music box or a back box that stand in the dark are not drawn at all, and a station none of whose
+// parts you can see is dropped. A watcher has no `seen`, and every part stays.
+export function cutToSight(entities: EntityView[], seen: Seen | null): EntityView[] {
+  if (seen === null) return entities;
+  const out: EntityView[] = [];
+  for (const e of entities) {
+    const st = e.station;
+    if (e.kind !== "station" || !st) {
+      out.push(e);
+      continue;
+    }
+    const parts = st.parts
+      .map((p) => ({ ...p, at: p.at.filter((t) => seen.has(t.x, t.y)) }))
+      .filter((p) => p.at.length > 0);
+    if (parts.length > 0) out.push({ ...e, station: { ...st, parts } });
+  }
+  return out;
+}
+
+// Whether a point (in tiles) is inside the light polygon (even-odd): the exact region you can see,
+// whose edge is the true ray past a wall's corner, not a tile's edge.
+export function inLight(light: readonly Vec[], at: Vec): boolean {
+  let inside = false;
+  for (let i = 0, j = light.length - 1; i < light.length; j = i++) {
+    const a = light[i] as Vec;
+    const b = light[j] as Vec;
+    if (a.y > at.y !== b.y > at.y && at.x < ((b.x - a.x) * (at.y - a.y)) / (b.y - a.y) + a.x)
+      inside = !inside;
+  }
+  return inside;
+}
+
+// What stands out of the exact light is not drawn. The server sends a figure when its tile is touched
+// by a ray, but the picture is cut by the light's true edge, so a figure on a partly lit tile (round a
+// corner) was drawn whole and then veiled. Here another figure is kept only if its feet are in the
+// light, and so is anything that stands (gear, loot, a crate, a bell...). Never dropped: your own figure, a mark (a teammate's message, shown faintly through the haze
+// by design), a cone of sight, and the floor's own layout (plates, doors, exits...), which the veil
+// is meant to leave readable. A station is cut by its parts (`cutToSight`); a watcher has no light.
+export function litEntities(
+  entities: EntityView[],
+  light: readonly Vec[] | null,
+  mySeat: number,
+): EntityView[] {
+  if (light === null) return entities;
+  return entities.filter((e) => {
+    if (e.kind === "player") return e.seat === mySeat || inLight(light, e.pos);
+    return !STANDS.has(e.kind) || inLight(light, e.pos);
+  });
+}
+
+// The things that stand on the floor and read as "something is there": gone when out of the light.
+const STANDS = new Set<EntityView["kind"]>([
+  "crate",
+  "loot",
+  "gear",
+  "bell",
+  "lamp",
+  "lever",
+  "keepsake",
+  "card",
+  "guard",
+  "camera",
+]);
 
 const STIPPLE_PX = 4;
 

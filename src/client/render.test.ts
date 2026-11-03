@@ -791,7 +791,17 @@ describe("mist, night and marks out of sight (FR5, FR7, FR8)", () => {
           near(o.args[2] as number, camera(s).scale + 0.5),
       );
       expect(tileRects, "no tile-sized rectangle of mist on top of it").toEqual([]);
-      expect(ops.filter((o) => o.name === "clip").length, "the floor is the one clip").toBe(1);
+      // The floor veil's clip is made from the floor tiles' rectangles; what stands is clipped to the
+      // light as well (one clip per row, plus the plates), but those are made from the light polygon
+      // (moveTo and lineTo), never from rectangles. So the clips built from rects are the mist's, and
+      // there is one, however many tiles it covers.
+      const rectClips = ops.filter((o, i) => {
+        if (o.name !== "clip") return false;
+        let k = i - 1;
+        while (k >= 0 && ops[k]?.name !== "beginPath") k--;
+        return ops.slice(k, i).some((x) => x.name === "rect");
+      });
+      expect(rectClips.length, "the floor is the one clip").toBe(1);
     });
 
     it("never veils a pixel twice: no seam where two veiled tiles meet", () => {
@@ -874,7 +884,16 @@ describe("mist, night and marks out of sight (FR5, FR7, FR8)", () => {
         const behind = toScreen(cam, 5, 2);
         // the veil's clip is the floor; the light polygon is what is cut out. Is the point behind the
         // wall inside the polygon? The polygon's vertices are in the recorded lineTo calls.
-        const verts = trace(s)
+        // (what stands is clipped to the same polygon too, so take the one the mist cuts out: the path that
+        // follows its full-canvas rectangle)
+        const ops = trace(s);
+        const full = ops.findIndex(
+          (o) =>
+            o.name === "rect" && o.args[0] === 0 && o.args[1] === 0 && (o.args[2] as number) >= 480,
+        );
+        const closeAt = ops.findIndex((o, i) => i > full && o.name === "closePath");
+        const verts = ops
+          .slice(full, closeAt)
           .filter((o) => o.name === "moveTo" || o.name === "lineTo")
           .map((o) => ({ x: o.args[0] as number, y: o.args[1] as number }));
         let inside = false;
@@ -1441,6 +1460,58 @@ describe("stations, gear and signals", () => {
     );
   });
 
+  it("draws a cache dial's back tile as a flat inspection plate with no wire, and a safe's as a plinth (Task 66)", () => {
+    const dial = (cache: boolean): EntityView => ({
+      ...station(
+        "Q1",
+        "dial",
+        at(1.5, 1.5),
+        [],
+        [
+          { key: "anchor", at: [at(1, 1)] },
+          { key: "back", at: [at(4, 3)] },
+        ],
+      ),
+      station: {
+        type: "dial",
+        shows: [],
+        solved: false,
+        parts: [
+          { key: "anchor", at: [at(1, 1)] },
+          { key: "back", at: [at(4, 3)] },
+        ],
+        ...(cache ? { cache: true as const } : {}),
+      },
+    });
+    const ops = (cache: boolean) => {
+      const { ctx, ops } = recorder();
+      // a wall lies between the dial and its back, which wires an ordinary safe
+      draw(
+        ctx,
+        room({ tiles: grid(7, 12, [[3, 2]]), entities: [dial(cache), player(1, 3.5, 3.5)] }),
+      );
+      return ops;
+    };
+    const wire = (o: ReturnType<typeof ops>) =>
+      o.filter(
+        (x) =>
+          x.name === "stroke" &&
+          x.strokeStyle === WORLD.line &&
+          x.globalAlpha < 1 &&
+          x.lineDash.length > 0,
+      ).length;
+    // the plate is the one faint steel wash laid flat over the tile; the plinth is a block with no wash
+    const plates = (o: ReturnType<typeof ops>) =>
+      o.filter((x) => x.name === "fillRect" && x.fillStyle === WORLD.steel && x.globalAlpha < 0.6)
+        .length;
+    const cacheOps = ops(true);
+    const safeOps = ops(false);
+    expect(plates(cacheOps), "a cache dial draws the plate").toBe(1);
+    expect(plates(safeOps), "an ordinary safe draws no plate").toBe(0);
+    expect(wire(cacheOps), "no wire to a cache dial's plate").toBe(0);
+    expect(wire(safeOps), "an ordinary safe is still wired through the wall").toBeGreaterThan(0);
+  });
+
   it("ends a bells wire at the middle of the bells, not at the first bell (Task 47)", () => {
     const bells = [at(1, 1), at(2, 1), at(3, 1), at(4, 1)];
     const st = station(
@@ -1970,6 +2041,47 @@ describe("clues drawn (escape-room Task 11)", () => {
     expect(count(b.ops)).toBeGreaterThan(count(a.ops) + 4);
   });
 
+  // The user: in room 9 the "Safe" name plate hid the safe's symbol, and the symbol hid the solved tick.
+  // Three plates, one tile: each must have a spot of its own.
+  it("a solved safe that reveals a symbol keeps its name plate, symbol and tick from covering each other", () => {
+    const parts = [{ key: "anchor" as const, at: [at(5, 3)] }];
+    const safe: EntityView = {
+      id: "Q1",
+      kind: "station",
+      pos: at(5.5, 3.5),
+      station: { type: "dial", shows: [4], solved: true, parts, motif: "star", reveal: 2 },
+    };
+    const { ctx, ops } = recorder();
+    draw(ctx, base([safe, player(1, 3.5, 5.5)]));
+    // the three plates are the card-coloured symbol plate (0.5 tile square), the brass tick plate
+    // (0.44 x 0.32) and the brass name plate (its width is its text)
+    const rects = ops
+      .filter((o) => o.name === "roundRect")
+      .map((o) => {
+        const [x, y, w, h] = o.args as number[];
+        return {
+          x: x as number,
+          y: y as number,
+          w: w as number,
+          h: h as number,
+          fill: o.fillStyle,
+        };
+      });
+    const symbol = rects.find((r) => r.fill === WORLD.card && Math.abs(r.w - r.h) < 1 && r.w > 12);
+    const brass = rects.filter((r) => r.fill === WORLD.brass);
+    expect(symbol, "the symbol plate is drawn").toBeDefined();
+    expect(brass.length, "the tick plate and the name plate are drawn").toBeGreaterThanOrEqual(2);
+    const overlap = (a: (typeof rects)[number], b: (typeof rects)[number]) =>
+      a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+    for (const plate of brass) {
+      if (!symbol) continue;
+      expect(overlap(symbol, plate), "a brass plate covers the symbol").toBe(false);
+    }
+    for (const [i, a] of brass.entries())
+      for (const b of brass.slice(i + 1))
+        expect(overlap(a, b), "the tick and the name overlap").toBe(false);
+  });
+
   it("lights the teaching safe's lamp only when shows[1] is 1", () => {
     const parts = [{ key: "anchor" as const, at: [at(5, 2)] }];
     const safe = (shows: number[]): EntityView => ({
@@ -1989,6 +2101,143 @@ describe("clues drawn (escape-room Task 11)", () => {
 });
 
 // Label chips (DESIGN.md 4.6): each stays readable, never under another, however many crowd one edge.
+// What stands out of your light is cut by the light's edge, the way a cone of light cuts an object in a
+// dark room: the object is drawn whole and in its one fixed place, inside a clip to the lit region, so a
+// half-lit object shows its lit half and an unlit one shows nothing. It is never re-laid-out by what part
+// of it you can see (the user saw a keypad's keys, and a "Wires" label, move as the cone moved).
+describe("what stands out of the light is cut by the light, not re-drawn (review rounds 2 and 3)", () => {
+  const TILES = [
+    "############",
+    "#..........#",
+    "#..........#",
+    "#..........#",
+    "#..........#",
+    "############",
+  ];
+  const at = (x: number, y: number) => ({ x, y });
+  const SEEN_ALL = Array.from({ length: 6 }, (_, y) => `${y}:0-11`);
+  const keypad = (): EntityView => ({
+    id: "Q1",
+    kind: "station",
+    pos: at(7.5, 2.5),
+    station: {
+      type: "keypad",
+      shows: [],
+      solved: false,
+      furniture: true,
+      parts: [
+        {
+          key: "keys",
+          at: [
+            at(7, 2),
+            at(8, 2),
+            at(9, 2),
+            at(7, 3),
+            at(8, 3),
+            at(9, 3),
+            at(7, 4),
+            at(8, 4),
+            at(9, 4),
+          ],
+        },
+      ],
+    },
+  });
+  const frame = (over: Partial<Scene>) => {
+    const { ctx, ops } = recorder();
+    draw(
+      ctx,
+      scene({
+        layout: "fit",
+        w: 600,
+        h: 320,
+        tiles: TILES,
+        self: at(2.5, 3.5),
+        seat: 1,
+        seen: SEEN_ALL,
+        entities: [],
+        ...over,
+      }),
+    );
+    return ops;
+  };
+  const labelsDrawn = (ops: Op[]) =>
+    ops
+      .filter((o) => o.name === "fillText")
+      .map((o) => `${o.args[0]}@${Math.round(o.args[1] as number)}`);
+
+  it("draws a station whole, in the same place, whatever part of it the light reaches", () => {
+    // one tile of the keypad lit, then all of it: the keys' labels must come out identical
+    const oneTile = ["1:0-7", "2:0-7", "3:0-7", "4:0-7", "0:0-11", "5:0-11"];
+    const a = labelsDrawn(frame({ entities: [keypad()], seen: oneTile }));
+    const b = labelsDrawn(frame({ entities: [keypad()], seen: SEEN_ALL }));
+    expect(a).toEqual(b);
+    expect(a.filter((l) => /^\d@/.test(l)).length, "nine numbered keys, none renumbered").toBe(9);
+  });
+
+  it("draws the name plate where it always is, not at the middle of the part you can see", () => {
+    const plate = (seen: string[]) =>
+      labelsDrawn(frame({ entities: [keypad()], seen })).find((l) => l.startsWith("Keypad"));
+    expect(plate(["1:0-7", "2:0-7", "3:0-7", "4:0-7", "0:0-11", "5:0-11"])).toBe(plate(SEEN_ALL));
+  });
+
+  // the clips made from the light polygon (a path of lines), as opposed to the mist's (a path of rects)
+  const lightClips = (ops: Op[]) =>
+    ops.flatMap((o, i) => {
+      if (o.name !== "clip") return [];
+      let k = i - 1;
+      while (k >= 0 && ops[k]?.name !== "beginPath") k--;
+      return ops.slice(k, i).some((x) => x.name === "lineTo") ? [i] : [];
+    });
+
+  it("draws a half-lit object inside a clip to the light, cut by its edge rather than dropped", () => {
+    // the lamp switch at (5.5, 3.5), the viewer high up at (2.5, 1.5): the light reaches only part of it
+    const lamp = { id: "l1", kind: "lamp" as const, pos: at(5.5, 3.5) };
+    const ops = frame({ entities: [lamp], self: at(2.5, 1.5) });
+    const clips = lightClips(ops);
+    expect(clips.length, "what stands is drawn under a clip made from the light").toBeGreaterThan(
+      0,
+    );
+    // the lamp's own drawing (a stroke in the line colour) comes after one of those clips, before its restore
+    const drawnUnder = clips.some((c) => {
+      for (let k = c + 1; k < ops.length && ops[k]?.name !== "restore"; k++)
+        if (ops[k]?.name === "stroke" || ops[k]?.name === "fill") return true;
+      return false;
+    });
+    expect(drawnUnder, "and it is drawn inside that clip").toBe(true);
+  });
+
+  it("draws the name plate inside a clip to the light, so a name behind a wall is not drawn", () => {
+    const ops = frame({ entities: [keypad()], self: at(2.5, 3.5) });
+    const plateAt = ops.findIndex((o) => o.name === "fillText" && o.args[0] === "Keypad");
+    expect(plateAt, "the plate is drawn").toBeGreaterThan(-1);
+    // walk back from the plate: the first restore or clip met must be a clip made from the light
+    let k = plateAt - 1;
+    while (k >= 0 && ops[k]?.name !== "clip" && ops[k]?.name !== "restore") k--;
+    expect(ops[k]?.name, "the plate is under a clip, not after a restore").toBe("clip");
+    expect(lightClips(ops), "and that clip is the light's").toContain(k);
+  });
+
+  // the user saw an open door's dashed slot flicker in and out as they moved by a hair
+  it("clips an open door's floor slot to the light, like the rest of what is on the floor", () => {
+    const door: EntityView = { id: "D1", kind: "door", pos: at(9.5, 3.5), state: "open" };
+    const ops = frame({ entities: [door] });
+    const dashAt = ops.findIndex(
+      (o) => o.name === "setLineDash" && (o.args[0] as number[]).length > 0,
+    );
+    expect(dashAt, "the slot is drawn").toBeGreaterThan(-1);
+    let k = dashAt - 1;
+    while (k >= 0 && ops[k]?.name !== "clip" && ops[k]?.name !== "restore") k--;
+    expect(ops[k]?.name, "under a clip, not after a restore").toBe("clip");
+    expect(lightClips(ops)).toContain(k);
+  });
+
+  it("draws no clip to the light for a watcher, who has no light", () => {
+    const ops = frame({ entities: [keypad()], seen: undefined, self: undefined });
+    expect(lightClips(ops)).toEqual([]);
+  });
+});
+
 describe("label chips", () => {
   it("never sit on a plaque's text, even a chip that points at the plaque (Task 34)", () => {
     const { ctx, ops } = recorder();

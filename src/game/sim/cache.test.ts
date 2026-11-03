@@ -467,3 +467,36 @@ describe("the chamber in the views (Task 64)", () => {
     expect(view(w, 1).sounds).toEqual([]);
   });
 });
+
+describe("a keypad cache's clue stays silent while the cache is hidden (Task 58)", () => {
+  const KEYS = [0, 1, 2].map((x) => [3 + x, 1]);
+  const keypadWorld = () => {
+    const withClue = BASE.map((r, y) => (y === 2 ? `${r.slice(0, 12)}c${r.slice(13)}` : r));
+    const built = withChamber(withClue, 2);
+    return worldWith(built.grid, {
+      Q1: {
+        type: "keypad",
+        keys: KEYS,
+        length: 3,
+        clue: "c1",
+        cache: { ...CACHE, chamber: built.chamber },
+      },
+      c1: {},
+    });
+  };
+  const chimes = (w: World, ticks: number) => {
+    let n = 0;
+    for (let i = 0; i < ticks; i++) {
+      step(w, {});
+      n += w.events.filter((e) => e.kind === "clue").length;
+    }
+    return n;
+  };
+
+  it("makes no chime until the chamber is opened, then plays the keypad's code", () => {
+    const w = keypadWorld();
+    expect(chimes(w, 200)).toBe(0);
+    w.cacheUncovered.push("Q1");
+    expect(chimes(w, 200)).toBeGreaterThan(0);
+  });
+});

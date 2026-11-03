@@ -62,7 +62,7 @@ export interface ClearedMsg {
       lootTotal: number;
       mine: boolean;
     }[];
-    mine: { rank: number; ms: number } | null;
+    mine: { rank: number; ms: number; loot: number; lootTotal: number } | null;
   };
   credits: { seat: number; lines: string[] }[];
 }

@@ -31,6 +31,13 @@ describe("cuesIn", () => {
     }
   });
 
+  it("does not brief the hollow step: a dial cache's room briefs exactly what its dial always did (Task 66)", () => {
+    const [cache] = loadRooms("./spec/fixtures/rooms-cache");
+    if (!cache) throw new Error("no cache fixture");
+    expect(cuesIn(cache)).toEqual(["hum", "door", "tick", "tumbler"]);
+    expect(cuesIn(cache)).not.toContain("hollow" as never);
+  });
+
   it("briefs the station sounds Can't see must learn: a dial's tick and tumbler, a radio's static, the bell", () => {
     const [draft] = loadRooms("./spec/fixtures/drafts");
     if (!draft) throw new Error("no draft");

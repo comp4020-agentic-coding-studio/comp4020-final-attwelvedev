@@ -7,6 +7,7 @@ import { alarmOn, type Catch, findCatch, guardParams, tileOf } from "./hazards.t
 import {
   DYE_MS,
   drawStations,
+  hiddenCacheClue,
   solved,
   stationNaming,
   tuneNote,
@@ -220,7 +221,7 @@ function updateFlags(world: World) {
 // keypad names (its `clue`) plays that keypad's code instead, one key (n = key + 1) a note (FR9).
 function updateClues(world: World) {
   for (const o of world.room.objects) {
-    if (o.kind !== "clue") continue;
+    if (o.kind !== "clue" || hiddenCacheClue(world, o.id)) continue;
     const note = tuneNote(world, o.id);
     if (note !== undefined) {
       world.events.push({ kind: "clue", id: o.id, n: note + 1, at: tileCentre(o.tiles[0] as Vec) });

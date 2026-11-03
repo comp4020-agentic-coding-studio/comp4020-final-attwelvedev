@@ -30,6 +30,26 @@ describe("labelsFor", () => {
     expect(labelsFor([plate, crate, door], undefined, me, true)).toEqual(first);
   });
 
+  // The user: "opens while its plates are held" is wrong for a door that a solved station opens.
+  it("says how a door opens: plates, a solved station, or a sequence, each its own chip", () => {
+    const byStation: EntityView = { ...door, id: "D2", opens: "stations" };
+    const bySequence: EntityView = { ...door, id: "D3", opens: "sequence" };
+    const byPlates: EntityView = door; // plates are the default and carry no field
+    const text = (e: EntityView) => labelsFor([e], undefined, me, true)[0]?.text;
+    expect(text(byPlates)).toMatch(/plates/);
+    expect(text(byStation)).toMatch(/solv/i);
+    expect(text(byStation)).not.toMatch(/plates/);
+    expect(text(bySequence)).toMatch(/order/i);
+    expect(text(bySequence)).not.toMatch(/held/);
+    // a door whose way is unknown keeps the plates line, and a room's doors of two kinds each get a chip
+    expect(text(door)).toBe(LABEL_COPY.door);
+    expect(
+      labelsFor([byPlates, byStation], undefined, me, true)
+        .map((l) => l.kind)
+        .sort(),
+    ).toEqual(["door", "stationdoor"]);
+  });
+
   it("labels a secret door as its own kind, never with the ordinary door's plates line", () => {
     const got = labelsFor([secretDoor], undefined, me, true);
     expect(got.map((l) => l.kind)).toEqual(["secretdoor"]);

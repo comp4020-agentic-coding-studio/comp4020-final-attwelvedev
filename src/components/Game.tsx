@@ -32,6 +32,7 @@ import {
   type Motion,
   type Scene,
 } from "../client/render.ts";
+import { afterRestart } from "../client/restart.ts";
 import { loadSettings, type Settings as SettingsState, saveSettings } from "../client/settings.ts";
 import type { ConnectionState, GameSocket } from "../client/socket.ts";
 import { browserSpeech } from "../client/speech.ts";
@@ -876,7 +877,11 @@ function Hud({
   // A restart that passed puts everyone back at spawn: drop what this page remembered of the room.
   function restarted() {
     lastSent.current = null;
-    setSummary(null);
+    // the room's summary and, after the last room, the heist's result: either left behind would sit
+    // over the restarted room (the page shows the heist-complete screen in place of it)
+    const left = afterRestart({ summary, heist });
+    setSummary(left.summary);
+    setHeist(left.heist);
   }
 
   useEffect(() => {

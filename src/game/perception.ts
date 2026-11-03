@@ -8,6 +8,7 @@ import {
   inRect,
   isMotif,
   type Motif,
+  type RoomObject,
   secretDoors,
 } from "./rooms/format.ts";
 import { beside, carried, gearOn, hatchBeside, objectOn, onSill, partner } from "./sim/gear.ts";
@@ -124,9 +125,11 @@ export interface EntityView {
     motif?: Motif; // drawn on it, and on the station it feeds or is fed by (clues FR3)
     reveal?: number; // a solved wing's symbol, for the vault (clues FR2)
     stash?: ItemId; // a found cache's item (caches FR10), for the sighted
+    cache?: true; // a cache's dial: its `back` tile is drawn as an inspection plate (the entity exists only once open)
   };
   keep?: ItemId; // a keepsake: the item standing in an open vault
   secret?: true; // a door: one of a cache's two secret doors (open, so already known to every sighted seat)
+  opens?: "stations" | "sequence"; // a door: what opens it, when not held plates (the room shows its plates and stations)
   card?: number[]; // a target card's lamps: lit (1) or hollow (0), sighted only
   motifs?: Motif[]; // an order clue: the motif of each vault socket's wing, in socket order
   motif?: Motif; // a motif tile's symbol
@@ -163,6 +166,7 @@ export interface SoundCue {
     | "step" // your own footstep: centred, softer, and never the same cue as someone else's
     | "bump" // you are pushing at a wall, door or crate and getting nowhere
     | "tick" // a dial turned a notch
+    | "hollow" // a step on a cache dial's inspection plate: metal over a hollow, in place of step and footsteps
     | "tumbler" // a dial reached the right number: only with the stethoscope, at the safe's back
     | "key" // a keypad key; `n` is which, and sets the pitch
     | "snap" // a wire cut
@@ -247,6 +251,7 @@ const RANGE: Partial<Record<SoundCue["kind"], number>> = {
   hide: 6,
   clue: 8,
   tick: 6,
+  hollow: 6, // a step on the plate carries only a little way
   tumbler: 1.5, // touch range: beside the safe's back
   key: 6,
   snap: 6,
@@ -324,7 +329,15 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
       const secret = secretIds.has(o.id); // only ever sent open, so it tells nothing a view lacks
       for (const t of o.tiles) {
         const state = world.doorOpen[o.id] ? "open" : "closed";
-        out.push({ id: o.id, kind: "door", pos: centre(t), state, ...(secret ? { secret } : {}) });
+        const opens = doorOpens(world, o);
+        out.push({
+          id: o.id,
+          kind: "door",
+          pos: centre(t),
+          state,
+          ...(secret ? { secret } : {}),
+          ...(opens ? { opens } : {}),
+        });
       }
     } else if (o.kind === "exit") {
       for (const t of o.tiles) {
@@ -423,6 +436,7 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
           ...(isMotif(o.params?.motif) ? { motif: o.params.motif } : {}),
           ...(s.solved && s.reveal !== undefined ? { reveal: s.reveal } : {}),
           ...(item && world.cacheBy[o.id] !== undefined ? { stash: item } : {}),
+          ...(item && s.type === "dial" ? { cache: true as const } : {}),
         },
       });
     } else if (o.kind === "card") {
@@ -533,21 +547,36 @@ function dirTo(source: Vec, listener: Vec): { dir: Vec } | Record<string, never>
 // (a vent lets it through).
 function cue(world: World, kind: SoundCue["kind"], source: Vec, listener: Vec): SoundCue | null {
   const range = RANGE[kind] ?? HEARING_RANGE;
-  const gain = 1 - Math.hypot(source.x - listener.x, source.y - listener.y) / range;
-  if (gain <= 0 || !soundReaches(world, source, listener)) return null;
+  const reach = 1 - Math.hypot(source.x - listener.x, source.y - listener.y) / range;
+  if (reach <= 0 || !soundReaches(world, source, listener)) return null;
+  // the tumbler is a touch-range sound: inside its 1.5 tiles it is the whole clue, so it fades only a
+  // little (to 0.6 at the edge) instead of to nothing, where a click this short is lost under the
+  // dial's own tick
+  const gain = kind === "tumbler" ? 0.6 + 0.4 * reach : reach;
   return { kind, pan: panOf(source, listener), gain, ...dirTo(source, listener) };
 }
 
 // What a hearing role is told: others' footsteps, a hum while standing on a
 // plate, and a click when a door opens. Sound is how the Can't-see player
 // learns anything about the room.
+// Whether a body stands on the inspection plate of a cache's dial: the dial's `back` tile, where the
+// stethoscope is listened with (an ordinary safe has no plate, so its back tile sounds like any floor).
+function onInspectionPlate(world: World, pos: Vec): boolean {
+  const tile = { x: Math.floor(pos.x), y: Math.floor(pos.y) };
+  return world.room.objects.some((o) => {
+    if (o.kind !== "station" || !cacheOf(o) || world.stations[o.id]?.type !== "dial") return false;
+    const back = o.params?.back;
+    return Array.isArray(back) && Number(back[0]) === tile.x && Number(back[1]) === tile.y;
+  });
+}
+
 function soundsFor(world: World, seat: Seat): SoundCue[] {
   const me = world.players[seat].pos;
   const out: SoundCue[] = [];
   for (const p of world.players) {
     // someone pressed against a wall is not walking, so makes no footsteps
     if (p.seat === seat || !p.moving || p.blocked) continue;
-    const c = cue(world, "footsteps", p.pos, me);
+    const c = cue(world, onInspectionPlate(world, p.pos) ? "hollow" : "footsteps", p.pos, me);
     if (c) out.push(c);
   }
   // Your own movement, so Can't see knows they are moving or stopped. Centred and a
@@ -558,7 +587,11 @@ function soundsFor(world: World, seat: Seat): SoundCue[] {
     out.push(
       mine.blocked
         ? { kind: "bump", pan: 0, gain: BUMP_GAIN }
-        : { kind: "step", pan: 0, gain: OWN_STEP_GAIN },
+        : {
+            kind: onInspectionPlate(world, mine.pos) ? "hollow" : "step",
+            pan: 0,
+            gain: OWN_STEP_GAIN,
+          },
     );
   }
   const tile = { x: Math.floor(me.x), y: Math.floor(me.y) };
@@ -843,9 +876,22 @@ function inSight(
       }
     } else if (seen.has(Math.floor(e.pos.x), Math.floor(e.pos.y))) {
       out.push(e);
+    } else if (e.kind === "door" && !e.secret) {
+      // a door is part of the map every sighted player holds, so it is sent whether or not its tile is
+      // in the light (its outline used to pop in and out as you moved by a hair); out of sight it reads
+      // closed, whatever the truth, so no state leaks
+      out.push({ ...e, state: "closed" });
     }
   }
   return out;
+}
+
+// What opens an ordinary door, when it is not held plates: a sequence, or a station solved. The room
+// already shows both, so the view tells nothing it does not; the door's chip says it truthfully.
+function doorOpens(world: World, door: RoomObject): "stations" | "sequence" | undefined {
+  if (door.mode === "sequence") return "sequence";
+  const stations = (door.opensWhen ?? []).some((id) => id in world.stations);
+  return stations ? "stations" : undefined;
 }
 
 // The secret doors still shut, by door id: a closed one is wall to every sighted view and in no list.

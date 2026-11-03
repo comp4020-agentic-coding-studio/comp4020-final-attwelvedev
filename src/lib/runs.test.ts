@@ -149,7 +149,7 @@ describe("roomBoard", () => {
     const board = roomBoard(db, mine);
     expect(board.top).toHaveLength(5);
     expect(board.top.some((r) => r.mine)).toBe(false);
-    expect(board.mine).toEqual({ rank: 6, ms: 90_000 });
+    expect(board.mine).toEqual({ rank: 6, ms: 90_000, loot: 2, lootTotal: 3 });
   });
 
   it("is only this run on a first clear", () => {

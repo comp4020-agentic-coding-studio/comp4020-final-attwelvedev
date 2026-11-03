@@ -92,21 +92,7 @@ export function actOn(world: World, seat: Seat): void {
   }
   const mine = carried(world, seat);
   if (!mine && takeUnder(world, seat, tile)) return;
-  const hatch = hatchBeside(world, tile);
-  if (hatch) {
-    const sill = onSill(world, hatch.id);
-    const at = centre(hatch.tiles[0] as Vec);
-    if (mine && !sill) {
-      Object.assign(mine, { heldBy: null, sill: hatch.id });
-      world.events.push({ kind: "gear", id: mine.id, action: "sill", seat, at });
-      return;
-    }
-    if (!mine && sill) {
-      Object.assign(sill, { heldBy: seat, sill: null });
-      world.events.push({ kind: "gear", id: sill.id, action: "take", seat, at });
-      return;
-    }
-  }
+  if (useSill(world, seat, tile)) return;
   const near = beside(world, seat);
   const mate = partner(world, seat);
   if (mate !== undefined && near.includes(mate)) {
@@ -139,13 +125,35 @@ export function actOn(world: World, seat: Seat): void {
   takeUnder(world, seat, tile);
 }
 
-// G: take the gear under you into an empty slot; else hand yours to the nearest teammate beside
-// you with an empty slot; else swap it for the gear under you; else drop it here.
+// A hatch beside you: put your gear on its sill, or take what lies there into an empty slot. True if
+// it did either (Act and G both do this).
+function useSill(world: World, seat: Seat, tile: Vec): boolean {
+  const hatch = hatchBeside(world, tile);
+  if (!hatch) return false;
+  const mine = carried(world, seat);
+  const sill = onSill(world, hatch.id);
+  const at = centre(hatch.tiles[0] as Vec);
+  if (mine && !sill) {
+    Object.assign(mine, { heldBy: null, sill: hatch.id });
+    world.events.push({ kind: "gear", id: mine.id, action: "sill", seat, at });
+    return true;
+  }
+  if (!mine && sill) {
+    Object.assign(sill, { heldBy: seat, sill: null });
+    world.events.push({ kind: "gear", id: sill.id, action: "take", seat, at });
+    return true;
+  }
+  return false;
+}
+
+// G: take the gear under you into an empty slot, or from a hatch sill beside you; else hand yours to
+// the nearest teammate beside you with an empty slot; else put it on a sill beside you; else swap it
+// for the gear under you; else drop it here.
 export function gearPress(world: World, seat: Seat): void {
   const mine = carried(world, seat);
   const tile = tileOf(world.players[seat].pos);
   if (!mine) {
-    takeUnder(world, seat, tile);
+    if (!takeUnder(world, seat, tile)) useSill(world, seat, tile);
     return;
   }
   const to = beside(world, seat).find((s) => !carried(world, s));
@@ -154,6 +162,7 @@ export function gearPress(world: World, seat: Seat): void {
     world.events.push({ kind: "gear", id: mine.id, action: "give", seat, at: centre(tile) });
     return;
   }
+  if (useSill(world, seat, tile)) return;
   if (takeUnder(world, seat, tile)) return;
   Object.assign(mine, { heldBy: null, at: tile });
   world.events.push({ kind: "gear", id: mine.id, action: "drop", seat, at: centre(tile) });

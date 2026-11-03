@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { botRef, rolesFor } from "../game/crew.ts";
+import { secretDoors } from "../game/rooms/format.ts";
 import { loadRooms } from "../game/rooms/load.ts";
+import { syncCacheDoors } from "../game/sim/cache.ts";
 import type { Seat } from "../game/types.ts";
 import {
   advanceRoom,
@@ -176,6 +178,30 @@ describe("inputs and views", () => {
     const after = tickGame(game).views;
     expect(after.get(1)?.tiles).toBeUndefined();
     expect(after.get(2)?.tiles).toBeUndefined();
+  });
+
+  // A send-back shuts a chamber that was open, so the sighted must be sent the map again that tick:
+  // otherwise their client keeps the open chamber drawn and predicts it walkable while the server
+  // treats it as wall (the user saw a door that stayed open on screen and could not be walked through).
+  it("sends tiles to the sighted seats the tick a send-back shuts an open chamber", () => {
+    const room4 = loadRooms("./rooms").find((r) => r.id === "04-the-safe");
+    if (!room4) throw new Error("no room 4");
+    const g = startGame(lobby("a", "b", "c"), [room4]);
+    const world = g.world;
+    world.cacheUncovered.push("Q3");
+    syncCacheDoors(world);
+    tickGame(g, new Set<Seat>([0, 1, 2])); // everyone holds the open map
+    expect(world.doorOpen[secretDoors(world.room)[0]?.chamber.id as string]).toBe(true);
+    // a wrong answer on the ordinary dial Q2 sends the team back to the spawns
+    const q2 = world.stations.Q2 as NonNullable<(typeof world.stations)[string]>;
+    q2.answer = [3, 3];
+    q2.input = [5];
+    world.players[1].pos = { x: 20.5, y: 1.5 }; // Q2's anchor tile
+    applyInput(g, 1, { seq: 900, move: { x: 0, y: 0 }, act: true });
+    const views = tickGame(g).views;
+    expect(world.attempt, "the wrong answer sent the team back").toBe(1);
+    expect(world.doorOpen[secretDoors(world.room)[0]?.chamber.id as string]).toBe(false);
+    for (const i of [1, 2] as const) expect(views.get(i)?.tiles, `seat ${i}`).toBeDefined();
   });
 
   it("keeps a view of room 01 under 2 KB unless it is a full view", () => {

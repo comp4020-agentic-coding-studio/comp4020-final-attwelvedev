@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { spectatorView, viewFor } from "./perception.ts";
-import type { RoomObject } from "./rooms/format.ts";
+import { type RoomObject, secretDoors } from "./rooms/format.ts";
 import { loadRooms } from "./rooms/load.ts";
+import { syncCacheDoors } from "./sim/cache.ts";
 import { tuneGroups } from "./sim/chimes.ts";
 import { caughtBy } from "./sim/hazards.ts";
 import { stationParts } from "./sim/stations.ts";
 import { step } from "./sim/step.ts";
-import { gather, place, tap, worldFrom, worldWith } from "./sim/testing.ts";
+import { gather, place, tap, withChamber, worldFrom, worldWith } from "./sim/testing.ts";
 import { decodeSeen } from "./sim/visibility.ts";
 import { createWorld, TICK_MS } from "./sim/world.ts";
 
@@ -1006,6 +1007,36 @@ describe("viewFor: stations, gear and signals", () => {
     expect(JSON.stringify(blind)).not.toContain("shows");
   });
 
+  // The user heard the caption "Tumbler" and no sound: a click at a third of its level, 0.07 s long, on the
+  // same tick as the dial's own louder tick. Within touch range it must carry, not fade to nothing.
+  it("the tumbler is still plainly audible at the edge of touch range, and absent beyond it", () => {
+    const grid = ["############", "#1.....Q...#", "#2.........#", "#3....g....#", "############"];
+    const dial = {
+      type: "dial",
+      pads: [
+        [6, 1],
+        [8, 1],
+      ],
+      back: [7, 3],
+      digits: 1,
+    };
+    const gainAt = (x: number, y: number) => {
+      const w = worldWith(grid, { Q1: dial, g1: { item: "stethoscope" } });
+      holdGear(w, "g1", 0);
+      place(w, 0, { x, y });
+      const s = w.stations.Q1;
+      if (!s) throw new Error("no Q1");
+      s.input[0] = ((s.answer[0] as number) + 9) % 10;
+      place(w, 2, { x: 8, y: 1 });
+      pressAct(w, 2);
+      return viewFor(w, 0, "blind", false).sounds.find((c) => c.kind === "tumbler")?.gain;
+    };
+    expect(gainAt(7, 3), "on the back").toBeGreaterThanOrEqual(0.6);
+    expect(gainAt(6, 3), "a tile away").toBeGreaterThanOrEqual(0.6);
+    expect(gainAt(6, 2), "a tile and a half away, diagonally").toBeGreaterThanOrEqual(0.6);
+    expect(gainAt(3, 3), "four tiles away").toBeUndefined();
+  });
+
   it("the tumbler reaches only a hearing holder of the stethoscope beside the back", () => {
     const grid = ["############", "#1.....Q...#", "#2.........#", "#3....g....#", "############"];
     const dial = {
@@ -1456,3 +1487,220 @@ describe("viewFor: clue fields (escape-room Task 11)", () => {
     }
   });
 });
+
+describe("viewFor: the hollow step on a cache dial's inspection plate (Task 66)", () => {
+  const BASE_GRID = [
+    "##############################",
+    "#1...........................#",
+    "#2...........................#",
+    "#3...........................#",
+    "##############################",
+  ];
+  const PLATE = { x: 20, y: 2 };
+  // a dial at (6,1) whose back tile is (20,2); `cache` makes it a cache with a chamber under the room
+  const dialWorld = (cache: boolean) => {
+    const grid = BASE_GRID.map((r, y) => (y === 1 ? `#1.....Q${r.slice(8)}` : r));
+    const built = withChamber(grid, 14);
+    const dial = {
+      type: "dial",
+      pads: [
+        [5, 1],
+        [7, 1],
+      ],
+      back: [PLATE.x, PLATE.y],
+      digits: 1,
+    };
+    return worldWith(built.grid, {
+      Q1: cache
+        ? {
+            ...dial,
+            cache: {
+              owner: 2,
+              motif: "moon",
+              riddle: "Where the moon watches, listen twice.",
+              item: "watch",
+              tiles: [
+                { at: [10, 1], motif: "moon" },
+                { at: [12, 1], motif: "star" },
+              ],
+              chamber: built.chamber,
+            },
+          }
+        : dial,
+    });
+  };
+  const walk = (w: ReturnType<typeof worldWith>, seat: 0 | 1 | 2, at: { x: number; y: number }) => {
+    place(w, seat, at);
+    w.players[seat].moving = true;
+    w.players[seat].blocked = false;
+  };
+  const kinds = (
+    w: ReturnType<typeof worldWith>,
+    seat: 0 | 1 | 2,
+    role: "blind" | "deaf" | "mute",
+  ) => viewFor(w, seat, role, false).sounds.map((s) => s.kind);
+
+  it("a walker on the plate hears hollow in place of their own step", () => {
+    const w = dialWorld(true);
+    walk(w, 0, PLATE);
+    expect(kinds(w, 0, "blind")).toContain("hollow");
+    expect(kinds(w, 0, "blind")).not.toContain("step");
+  });
+
+  it("a hearing teammate in earshot hears hollow, with a direction, not footsteps", () => {
+    const w = dialWorld(true);
+    place(w, 0, { x: 17, y: 2 });
+    walk(w, 2, PLATE);
+    const heard = viewFor(w, 0, "blind", false).sounds;
+    expect(heard.map((s) => s.kind)).toContain("hollow");
+    expect(heard.map((s) => s.kind)).not.toContain("footsteps");
+    expect(heard.find((s) => s.kind === "hollow")?.dir).toEqual({ x: 1, y: 0 });
+  });
+
+  it("hollow carries 6 tiles and is stopped by a wall", () => {
+    const w = dialWorld(true);
+    walk(w, 2, PLATE);
+    place(w, 0, { x: 13, y: 2 }); // 7 tiles away: out of range
+    expect(kinds(w, 0, "blind")).not.toContain("hollow");
+    place(w, 0, { x: 15, y: 2 }); // 5 tiles away: in range
+    expect(kinds(w, 0, "blind")).toContain("hollow");
+    const walled = dialWorld(true);
+    walled.room.grid[2] = `${walled.room.grid[2]?.slice(0, 18)}#${walled.room.grid[2]?.slice(19)}`;
+    walk(walled, 2, PLATE);
+    place(walled, 0, { x: 17, y: 2 });
+    expect(kinds(walled, 0, "blind")).not.toContain("hollow");
+  });
+
+  it("another tile, and a non-cache dial's back tile, keep the ordinary step and footsteps", () => {
+    const w = dialWorld(true);
+    walk(w, 0, { x: 19, y: 2 });
+    walk(w, 2, { x: 18, y: 2 });
+    expect(kinds(w, 0, "blind")).toEqual(expect.arrayContaining(["step", "footsteps"]));
+    expect(kinds(w, 0, "blind")).not.toContain("hollow");
+    const plain = dialWorld(false);
+    walk(plain, 0, PLATE);
+    walk(plain, 2, { x: 18, y: 2 });
+    expect(kinds(plain, 0, "blind")).toContain("step");
+    expect(kinds(plain, 0, "blind")).not.toContain("hollow");
+    place(plain, 1, { x: 15, y: 2 });
+    walk(plain, 2, PLATE);
+    expect(kinds(plain, 1, "mute")).toContain("footsteps");
+    expect(kinds(plain, 1, "mute")).not.toContain("hollow");
+  });
+
+  it("a walker pressed against a wall on the plate makes no hollow; Can't hear is told nothing", () => {
+    const w = dialWorld(true);
+    walk(w, 2, PLATE);
+    w.players[2].blocked = true;
+    place(w, 0, { x: 17, y: 2 });
+    expect(kinds(w, 0, "blind")).not.toContain("hollow");
+    w.players[2].blocked = false;
+    place(w, 1, { x: 17, y: 2 });
+    expect(viewFor(w, 1, "deaf", false).sounds).toEqual([]);
+  });
+
+  it("marks a cache dial's station entity, and not an ordinary dial's", () => {
+    const open = dialWorld(true);
+    open.cacheUncovered.push("Q1");
+    syncCacheDoors(open);
+    const station = (w: ReturnType<typeof worldWith>) =>
+      viewFor(w, 1, "deaf", false).entities.find((e) => e.id === "Q1")?.station;
+    expect(station(open)?.cache).toBe(true);
+    expect(station(dialWorld(false))?.cache).toBeUndefined();
+  });
+});
+
+// The door chip says how a door opens, so the view must carry it for every door of every shipped room
+// (the user found "opens while its plates are held" on a door that waits for solved stations).
+describe("viewFor: how every door in every room opens", () => {
+  const shipped = loadRooms("./rooms");
+  const doorsIn = (id: string) => {
+    const room = shipped.find((r) => r.id === id);
+    if (!room) throw new Error(`no room ${id}`);
+    const w = createWorld(room);
+    const view = viewFor(w, 1, "deaf", true);
+    return { room, view };
+  };
+
+  it("marks a door that waits for a station, and leaves a plates-only door unmarked", () => {
+    let withStation = 0;
+    let plateOnly = 0;
+    for (const room of shipped) {
+      const { view } = doorsIn(room.id);
+      for (const door of room.objects.filter(
+        (o) => o.kind === "door" && !secretDoorIds(room).has(o.id),
+      )) {
+        const shown = view.entities.find((e) => e.kind === "door" && e.id === door.id);
+        if (!shown) continue; // out of the spawn's sight
+        const needsStation = (door.opensWhen ?? []).some((id) =>
+          room.objects.some((o) => o.id === id && o.kind === "station"),
+        );
+        if (door.mode === "sequence") expect(shown.opens, `${room.id} ${door.id}`).toBe("sequence");
+        else if (needsStation) {
+          expect(shown.opens, `${room.id} ${door.id}`).toBe("stations");
+          withStation++;
+        } else {
+          expect(shown.opens, `${room.id} ${door.id}`).toBeUndefined();
+          plateOnly++;
+        }
+      }
+    }
+    expect(withStation, "some shipped door waits on a station").toBeGreaterThan(0);
+    expect(plateOnly, "some shipped door is plates only").toBeGreaterThan(0);
+  });
+});
+
+// A door is part of the map every sighted player holds, so it is sent whole whether or not its tile is
+// in your light (it used to be sent only when seen, and its outline popped in and out as you moved by a
+// hair). What is not sent is its state out of sight: it reads closed there, whatever the truth.
+describe("viewFor: a door out of sight is sent, as closed", () => {
+  const GRID = [
+    "####################",
+    "#1.....#.....#.....#",
+    "#2.....D.....D....E#",
+    "#3.....#.....#.....#",
+    "####################",
+  ];
+  const doors = (w: ReturnType<typeof worldWith>) =>
+    viewFor(w, 1, "deaf", true).entities.filter((e) => e.kind === "door");
+
+  it("sends a door the viewer cannot see, and says it is closed", () => {
+    const w = worldWith(GRID, { D1: { opensWhen: ["p1"] }, D2: { opensWhen: ["p1"] } });
+    w.doorOpen.D2 = true; // open, but behind the first door: out of sight
+    place(w, 1, { x: 3, y: 2 });
+    const got = doors(w);
+    expect(got.map((d) => d.id).sort()).toEqual(["D1", "D2"]);
+    expect(got.find((d) => d.id === "D2")?.state, "an unseen door reads closed").toBe("closed");
+  });
+
+  it("tells the truth about a door that is in sight", () => {
+    const w = worldWith(GRID, { D1: { opensWhen: ["p1"] }, D2: { opensWhen: ["p1"] } });
+    w.doorOpen.D1 = true;
+    place(w, 1, { x: 3, y: 2 });
+    expect(doors(w).find((d) => d.id === "D1")?.state).toBe("open");
+  });
+});
+
+describe("viewFor: a sequence door says it opens in order", () => {
+  it("carries opens: sequence on a door in sequence mode", () => {
+    const w = worldWith(
+      [
+        "####################",
+        "#1..p.p.p..#.......#",
+        "#2.....S...D.....E.#",
+        "#3.........#.......#",
+        "####################",
+      ],
+      {
+        D1: { mode: "sequence", opensWhen: ["p2", "p1", "p3"] },
+        S1: { shows: ["p2", "p1", "p3"] },
+      },
+    );
+    place(w, 1, { x: 9, y: 2 });
+    const door = viewFor(w, 1, "deaf", true).entities.find((e) => e.kind === "door");
+    expect(door?.opens).toBe("sequence");
+  });
+});
+
+const secretDoorIds = (room: ReturnType<typeof loadRooms>[number]) =>
+  new Set(secretDoors(room).flatMap((d) => [d.chamber.id, d.vault.id]));

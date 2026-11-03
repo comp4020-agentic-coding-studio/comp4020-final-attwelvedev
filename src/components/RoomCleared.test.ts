@@ -96,10 +96,13 @@ describe("RoomCleared", () => {
       lootTotal: 0,
       mine: false,
     }));
-    mount({ ms: 95_000, board: { top, mine: { rank: 9, ms: 95_000 } } });
+    mount({
+      ms: 95_000,
+      board: { top, mine: { rank: 9, ms: 95_000, loot: 1, lootTotal: 2 } },
+    });
     const rows = [...document.querySelectorAll(".room-board tbody tr")];
     expect(rows).toHaveLength(6);
-    expect(rows[5]?.textContent).toMatch(/^9.*You.*1:35/);
+    expect(rows[5]?.textContent).toMatch(/^9.*You.*1:35.*1\/2/);
     expect(rows[5]?.classList.contains("mine")).toBe(true);
   });
 

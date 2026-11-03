@@ -80,16 +80,39 @@ describe("SideJob", () => {
     expect(chip().textContent).toContain("signet ring");
   });
 
-  it("an unsolved chip expands on a tap; the two later states do not", async () => {
+  it("an unsolved chip shows the whole riddle at first, and a click hides it down to 'Side job' and back", async () => {
     mount(base);
-    expect(chip().getAttribute("aria-expanded")).toBe("false");
+    const text = () => document.querySelector(".side-job-text");
+    expect(chip().getAttribute("aria-expanded")).toBe("true");
+    expect(text()?.textContent).toBe(base.riddle);
     chip().click();
     await new Promise((r) => setTimeout(r, 0)); // preact re-renders after the click, not during it
-    expect(document.querySelector(".side-job-text.is-open")).not.toBeNull();
+    expect(chip().getAttribute("aria-expanded")).toBe("false");
+    expect(text()).toBeNull();
+    expect(chip().textContent).toContain("Side job");
+    expect(chip().textContent).not.toContain(base.riddle);
+    chip().click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(text()?.textContent).toBe(base.riddle);
+  });
+
+  it("carries a small drawn chevron that says the chip can be shown or hidden, pointing the way it will go", async () => {
+    mount(base);
+    const chevron = () => chip().querySelector(".side-job-chevron");
+    expect(chevron()).not.toBeNull();
+    expect(chevron()?.getAttribute("aria-hidden")).toBe("true");
+    const shown = chevron()?.getAttribute("data-open");
+    chip().click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(chevron()?.getAttribute("data-open")).not.toBe(shown);
+  });
+
+  it("the two later states are not toggles", () => {
     for (const state of ["vault", "taken"] as const) {
       mount({ ...base, state });
       expect(chip().hasAttribute("aria-expanded")).toBe(false);
       expect(chip().tagName).toBe("DIV");
+      expect(chip().querySelector(".side-job-chevron")).toBeNull();
     }
   });
 });

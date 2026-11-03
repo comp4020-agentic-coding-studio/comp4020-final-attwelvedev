@@ -5,7 +5,8 @@ import { KeepsakePlate } from "./KeepsakePlate.tsx";
 import { MotifGlyph } from "./MotifGlyph.tsx";
 
 // Your private side job, a chip at the frame's top-left, through four states. Hidden or open: the
-// motif and the riddle (a tap shows the whole line on a phone). In the vault: the item on its plate
+// motif and the whole riddle, shown from the start; a click hides it down to "Side job" and a
+// small chevron says it can be shown again. In the vault: the item on its plate
 // and "Waiting in the vault", no tick yet, because nothing counts until you take it. Taken: the
 // item from your keepsake slot, a drawn tick and "Taken by you" (the owner is the only viewer); it
 // pulses once as it lands (game.css). Neither later state has more to say, so neither expands.
@@ -16,7 +17,7 @@ export function SideJob({
   cache: RoleView["cache"];
   keepsake?: RoleView["keepsake"];
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   if (!cache) return null;
   if (cache.state === "vault" || cache.state === "taken") {
     const taken = cache.state === "taken";
@@ -62,8 +63,26 @@ export function SideJob({
       <MotifGlyph motif={cache.motif} size={24} />
       <span class="side-job-lines">
         <span class="side-job-label">Side job</span>
-        <span class={open ? "side-job-text is-open" : "side-job-text"}>{cache.riddle}</span>
+        {open && <span class="side-job-text">{cache.riddle}</span>}
       </span>
+      <svg
+        class="side-job-chevron"
+        data-open={open ? "true" : "false"}
+        width="12"
+        height="12"
+        viewBox="0 0 12 12"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <path
+          d="M2 4.5l4 4 4-4"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
     </button>
   );
 }

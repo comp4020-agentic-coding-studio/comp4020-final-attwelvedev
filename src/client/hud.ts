@@ -73,6 +73,7 @@ export function captionFor(m: ChannelMessage): Caption | null {
 
 export const CUE_WORD: Record<SoundCue["kind"], string> = {
   footsteps: "footsteps",
+  hollow: "hollow step", // a step on a cache dial's plate: named for a source with a direction, like footsteps
   hum: "hum",
   door: "door click",
   guard: "guard footsteps",

@@ -14,6 +14,24 @@ describe("linkPath (Task 35): a station's wire to its remote part", () => {
     expect(path.length).toBeGreaterThan(2);
   });
 
+  // The user: a music box's wire ran as a straight line instead of snaking along the walls. Its route
+  // along the wall row between the corridor and the chamber was broken by the secret door in that row.
+  it("runs along a wall row over a door in it, and does not cut straight across the rooms", () => {
+    // room 8's rows 5 to 8: a corridor, the wall row with its secret door at x = 4, and the chamber
+    const tiles = [
+      "#...................#",
+      "#...................#",
+      "####D###############",
+      "##....#.............",
+    ];
+    // the tune box in the corridor at (2,1), the bells' anchor in the chamber at (6,3)
+    const path = linkPath(tiles, at(6, 3), at(2, 1));
+    expect(path.length, "a route along the wall, not two points").toBeGreaterThan(2);
+    for (const p of path.slice(1, -1)) {
+      expect(["#", "D"], `${p.x},${p.y}`).toContain(tiles[Math.floor(p.y)]?.[Math.floor(p.x)]);
+    }
+  });
+
   it("is a straight line when no wall tile touches the anchor or the remote part", () => {
     const open = [".....", ".....", ".....", ".....", "....."];
     expect(linkPath(open, at(0, 0), at(4, 4))).toEqual([at(0.5, 0.5), at(4.5, 4.5)]);

@@ -703,6 +703,7 @@ function lintChamber(
       issue(`${name}: its vault item cannot be walked to, even with every door open`);
     }
   }
+  const isDial = o.params?.type === "dial";
   const vaultDoorId = secretDoors(room).find((d) => d.id === o.id)?.vault.id;
   for (const x of room.objects) {
     if (x.id === o.id || x.id === vaultDoorId) continue;
@@ -710,11 +711,47 @@ function lintChamber(
       issue(`${name}: ${x.kind} ${x.id} lies inside its chamber, which holds only its own station`);
     }
   }
+  if (isDial) lintInspectionPlate(room, o, chamber.rect, issue);
   for (const t of controls(o)) {
     if (!inRect(chamber.rect, t)) {
       issue(`${name}: its control tile (${t.x},${t.y}) lies outside its chamber`);
     }
   }
+}
+
+// A dial cache's clue is listened for with a stethoscope at the dial's `back` tile, so that tile is
+// an inspection plate in the chamber's floor, close to the dial, and a stethoscope lies in the
+// room: the clue is reachable (Task 66). Other station types ask neither.
+const PLATE_REACH = 2.5; // tiles, centre to centre, from the dial's own tile to its plate
+function lintInspectionPlate(
+  room: Room,
+  o: RoomObject,
+  rect: [number, number, number, number],
+  issue: (message: string) => void,
+): void {
+  const name = `cache ${o.id}`;
+  const raw = o.params?.back;
+  const back =
+    Array.isArray(raw) && raw.length === 2 ? { x: Number(raw[0]), y: Number(raw[1]) } : null;
+  if (!back) {
+    issue(`${name}: its dial has no back tile, so there is no inspection plate to listen at`);
+  } else if (!inRect(rect, back)) {
+    issue(`${name}: its back tile (${back.x},${back.y}) lies outside its chamber`);
+  } else if (room.grid[back.y]?.[back.x] !== ".") {
+    issue(`${name}: its back tile (${back.x},${back.y}) is not a floor tile`);
+  } else {
+    const dial = at(o);
+    if (Math.hypot(back.x - dial.x, back.y - dial.y) > PLATE_REACH) {
+      issue(
+        `${name}: its back tile (${back.x},${back.y}) is more than ${PLATE_REACH} tiles from its dial`,
+      );
+    }
+  }
+  // the clue is listened for with a stethoscope, carried from wherever the room keeps one
+  const stethoscope = room.objects.some(
+    (g) => g.kind === "gear" && g.params?.item === "stethoscope",
+  );
+  if (!stethoscope) issue(`${name}: a dial cache needs a stethoscope somewhere in its room`);
 }
 
 // The floor tiles a body can walk to from `start` with every door open (glass, vents, hatches and

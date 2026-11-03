@@ -128,6 +128,35 @@ const STANDING: EntityView["kind"][] = [
 // Draws one frame. Can't see gets a black field and a dim ring and nothing
 // else; the renderer is told nothing more than that player was sent.
 export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
+  drawScene(ctx, scene);
+}
+
+// The exact region the sighted viewer can see, or null (Can't see, a watcher, no map yet). The mist is
+// cut out of it, and what stands is drawn inside a clip to it, so the cone's edge cuts an object the
+// way it would in a dark room.
+function lightOf(scene: Scene): Vec[] | null {
+  if (!scene.seen || !scene.self || !scene.tiles) return null;
+  const closed = new Set<string>();
+  for (const e of scene.entities)
+    if (e.kind === "door" && e.state === "closed")
+      closed.add(`${Math.floor(e.pos.x)},${Math.floor(e.pos.y)}`);
+  return lightPolygon(scene.self, scene.tiles, (tx, ty) => closed.has(`${tx},${ty}`));
+}
+
+// Limits what is drawn next to the lit region (no light, no limit: a watcher sees the whole room).
+function clipToLight(ctx: CanvasRenderingContext2D, cam: Camera, light: readonly Vec[] | null) {
+  if (!light || light.length < 3) return;
+  ctx.beginPath();
+  for (const [i, p] of light.entries()) {
+    const at = toScreen(cam, p.x, p.y);
+    if (i === 0) ctx.moveTo(at.x, at.y);
+    else ctx.lineTo(at.x, at.y);
+  }
+  ctx.closePath();
+  ctx.clip();
+}
+
+function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
   ctx.clearRect(0, 0, scene.w, scene.h);
   setRise(scene.rise ?? 1);
   if ((scene.role === "blind" && !scene.spectator) || !scene.tiles) {
@@ -153,8 +182,12 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
   const tiles = scene.tiles;
   const cam = scene.cam ?? camera(scene);
   drawBackdrop(ctx, scene, cam);
+  // a station is drawn only where it stands in your light: a part behind a wall is cut away (a station
+  // is sent whole when any one part is seen), and the rest of the frame reads the cut scene
 
   const win = tileWindow(cam, scene.w, scene.h, tiles[0]?.length ?? 0, tiles.length);
+  // the exact light, once: what lies or stands is drawn inside a clip to it, and the mist is cut out of it
+  const light = lightOf(scene);
   const byRow = new Map<number, EntityView[]>();
   for (const e of scene.entities) {
     const shown =
@@ -183,9 +216,13 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
       else if (ch === "=" || ch === "H") floorTop(ctx, cam, x, y, WORLD.floor); // glass and hatches stand on the floor
     }
   }
+  // what lies on the floor (plates, an open door's slot, the exit...) is cut by the light like what stands
+  ctx.save();
+  clipToLight(ctx, cam, light);
   for (const e of scene.entities)
     if (FLAT.includes(e.kind) && !(e.kind === "door" && e.state !== "open"))
       e.kind === "motiftile" ? drawMotifTile(ctx, e, cam) : drawFlat(ctx, e, cam, scene);
+  ctx.restore();
   for (const e of scene.entities) if (e.kind === "sight") drawSight(ctx, e, cam);
   for (const e of scene.entities) if (e.kind === "station") drawStationFloor(ctx, e, cam, scene);
   // a station stands in each row it has a standing part in (the safe, the panel, the lamps...)
@@ -222,6 +259,10 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
       else glass(ctx, cam, x, y);
       ctx.restore();
     }
+    // what stands in this row is cut by the light's edge: drawn whole, in its one fixed place, inside a
+    // clip to the lit region (a figure's outline behind a wall, a mark and the layout are drawn apart)
+    ctx.save();
+    clipToLight(ctx, cam, light);
     for (const { e, path } of linksByRow.get(y) ?? [])
       if (e.station) drawLink(ctx, e.station, cam, scene, path);
     for (const e of stationsByRow.get(y) ?? []) {
@@ -246,18 +287,12 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
         else drawStanding(ctx, e, cam, scene);
       }
     }
+    ctx.restore();
   }
   // the mist: everything outside your line of sight, the edge of it the true ray from where you stand.
   // Only the sighted have one: Can't see has no map, and a watcher (no `seen`) sees the whole room.
   const seen = scene.seen ? seenOf(scene.seen) : null;
-  if (seen && scene.self) {
-    const closed = new Set<string>();
-    for (const e of scene.entities)
-      if (e.kind === "door" && e.state === "closed")
-        closed.add(`${Math.floor(e.pos.x)},${Math.floor(e.pos.y)}`);
-    const light = lightPolygon(scene.self, tiles, (tx, ty) => closed.has(`${tx},${ty}`));
-    drawMist(ctx, cam, tiles, light, win);
-  }
+  if (seen && light) drawMist(ctx, cam, tiles, light, win);
   // a mark in a place you can't see shows faintly through the haze: only a teammate's message,
   // never room state
   for (const e of scene.entities) {
@@ -270,9 +305,13 @@ export function draw(ctx: CanvasRenderingContext2D, scene: Scene): void {
   // each station's name plate, over everything standing so no figure or wall hides the name
   // a chip's text starts with the thing's name ("Safe: ..."), which is the plate under it
   const chipped = new Set((scene.labels ?? []).map((l) => l.text.split(":")[0] ?? ""));
+  // (inside the light as well: a name behind a wall is not drawn, and one at the cone's edge is cut)
+  ctx.save();
+  clipToLight(ctx, cam, light);
   for (const e of scene.entities) if (e.kind === "station") drawStationPlates(ctx, e, cam, chipped);
   // a sign's own words (a plaque), over everything standing, like the names
   for (const e of scene.entities) if (e.kind === "sign" && e.text) drawPlaque(ctx, e, cam, scene);
+  ctx.restore();
   // the UV pool and its ink: the one bold effect, over the mist (it is only sent where it is seen)
   drawUv(ctx, scene, cam);
   // the outline of a figure a wall hides: the figure itself, outline only, over the wall
@@ -301,7 +340,11 @@ const fxColor = (tone: "goal" | "danger" | "ui" | "muted") =>
 // unless the player asked for reduced motion, in which case it only fades. Rings lie on the
 // floor, so the tilt squashes them.
 function drawFx(ctx: CanvasRenderingContext2D, scene: Scene, cam: Camera) {
+  // an effect at a place you cannot see is not drawn (a door sliding behind a wall would tell you where
+  // it is): the sighted see only what is in their light; a watcher has no `seen` and sees them all
+  const seen = scene.seen ? seenOf(scene.seen) : null;
   for (const f of scene.fx ?? []) {
+    if (!inSight(seen, f.pos)) continue;
     const at = toScreen(cam, f.pos.x, f.pos.y);
     const { x, y } = at;
     const grow = scene.reducedMotion ? 1 : 0.3 + 0.7 * f.age;

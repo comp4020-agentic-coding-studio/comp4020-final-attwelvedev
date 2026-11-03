@@ -4,6 +4,7 @@ import type { Vec } from "../../game/types.ts";
 import type { EntityView } from "../../net/protocol.ts";
 import { COLOR, WORLD, type WorldTokens } from "../tokens.ts";
 import { block } from "./blocks.ts";
+import { drawInspectionPlate } from "./chamber.ts";
 import type { Scene } from "./index.ts";
 import { linkPath } from "./links.ts";
 import { type Camera, LIVE, TILT, toScreen } from "./project.ts";
@@ -449,7 +450,16 @@ export function drawStationPlates(
   for (const { at, name } of plateAt(st, anchor)) {
     if (chipped.has(name)) continue; // the chip over it says the name already
     const wall = st.type === "wires" || st.type === "vault";
-    const lift = wall ? LIVE.wall * 1.05 : FLOOR.has(name) ? LIVE.block * 0.35 : LIVE.block * 1.15;
+    // a station that shows a symbol plate over itself (a solved wing, clues FR2) carries its name above
+    // that plate, never over it
+    const above = st.reveal !== undefined && !wall && !FLOOR.has(name);
+    const lift = wall
+      ? LIVE.wall * 1.05
+      : FLOOR.has(name)
+        ? LIVE.block * 0.35
+        : above
+          ? LIVE.block * 2.35
+          : LIVE.block * 1.15;
     const c = toScreen(cam, at.x, at.y - (FLOOR.has(name) ? 0.15 : 0.3), lift);
     namePlate(ctx, name, c.x, c.y, cam.scale);
   }
@@ -521,9 +531,11 @@ function floorKey(
 }
 
 // The solved plate: a drawn tick on brass, raised over the station, and a goal ring on the floor.
-function solvedPlate(ctx: CanvasRenderingContext2D, cam: Camera, at: Vec) {
+function solvedPlate(ctx: CanvasRenderingContext2D, cam: Camera, at: Vec, below = false) {
   const s = cam.scale;
-  const c = toScreen(cam, at.x, at.y, 0.9);
+  // a station that shows a symbol plate over itself keeps its tick lower, on its face, so the symbol
+  // plate never covers it
+  const c = toScreen(cam, at.x, at.y + (below ? 0.35 : 0), below ? 0.25 : 0.9);
   ctx.fillStyle = WORLD.brass;
   ctx.strokeStyle = WORLD.line;
   ctx.lineWidth = 2;
@@ -570,7 +582,7 @@ export function linkOf(st: Station, scene: Scene): Vec[] | null {
     return null;
   // a safe's back box is wired only when something solid is between it and the dial (the same open
   // floor needs no wire to be understood); a music box's tune box always is
-  if (st.type === "dial" && !wallBetween(scene.tiles, anchor, remote)) return null;
+  if (st.type === "dial" && (st.cache || !wallBetween(scene.tiles, anchor, remote))) return null;
   const path = linkPath(scene.tiles, anchor, remote);
   return path.length < 2 ? null : path;
 }
@@ -711,7 +723,13 @@ export function drawStationStanding(
         });
       }
     }
-    for (const b of partsOf(st, "back")) if (inRow(b)) plinth(ctx, cam, b, 0.25, 0.3);
+    if (!st.cache)
+      for (const b of partsOf(st, "back")) if (inRow(b)) plinth(ctx, cam, b, 0.25, 0.3);
+  }
+  // a cache's back tile is an inspection plate in the floor (Task 66), drawn in its own row
+  // wherever it lies relative to the dial; an ordinary safe's is a plinth, above
+  if (st.type === "dial" && st.cache) {
+    for (const b of partsOf(st, "back")) if (inRow(b)) drawInspectionPlate(ctx, b, cam);
   }
   if (st.type === "wires") {
     // the panel on the wall: one patterned swatch per wire, a brass rail across the top
@@ -835,7 +853,7 @@ export function drawStationStanding(
     }
     ctx.stroke();
   }
-  if (st.solved && inRow(anchor)) solvedPlate(ctx, cam, centre(anchor));
+  if (st.solved && inRow(anchor)) solvedPlate(ctx, cam, centre(anchor), st.reveal !== undefined);
   if (inRow(anchor) && st.motif) {
     // the link's motif, on a disc at the anchor's front corner (the other end carries the same)
     const m = toScreen(cam, anchor.x + 0.85, anchor.y + 0.9, LIVE.block * 0.5);

@@ -146,7 +146,7 @@ export interface BoardRow {
 }
 export interface RoomBoard {
   top: BoardRow[];
-  mine: { rank: number; ms: number } | null;
+  mine: { rank: number; ms: number; loot: number; lootTotal: number } | null;
 }
 
 export function roomBoard(db: Db, run: RunRow): RoomBoard {
@@ -158,5 +158,10 @@ export function roomBoard(db: Db, run: RunRow): RoomBoard {
     lootTotal: r.lootTotal,
     mine: r.id === run.id,
   }));
-  return { top, mine: top.some((r) => r.mine) ? null : { rank: run.rank, ms: run.ms } };
+  return {
+    top,
+    mine: top.some((r) => r.mine)
+      ? null
+      : { rank: run.rank, ms: run.ms, loot: run.loot, lootTotal: run.lootTotal },
+  };
 }
