@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EntityView } from "../net/protocol.ts";
 import { drawStanding } from "./render/blocks.ts";
+import { HEIGHT } from "./render/column.ts";
 import { drawPlayer } from "./render/figures.ts";
 import { drawGear } from "./render/gear.ts";
 import { drawHazard } from "./render/hazards.ts";
-import { SWEEP_TILES } from "./render/index.ts";
 import { figureCover, wallAlpha } from "./render/occlusion.ts";
 import { easeCamera, setRise, TILT, toScreen } from "./render/project.ts";
 import { decodeSeen } from "./render/sight.ts";
@@ -737,12 +737,6 @@ describe("mist, night and marks out of sight (FR5, FR7, FR8)", () => {
       self: { x: 2.5, y: 2.5 }, // inside the room: the light is cast from where you stand
       ...over,
     });
-  const wash = (s: Scene) => {
-    const { ctx, ops } = recorder();
-    draw(ctx, s);
-    return ops.filter((o) => o.name === "fillRect" && o.fillStyle === WORLD.mist);
-  };
-
   const veilOf = (s: Scene) => {
     const { ctx, ops } = recorder();
     draw(ctx, s);
@@ -2205,6 +2199,28 @@ describe("what stands out of the light is cut by the light, not re-drawn (review
       return ops.slice(k, i).some((x) => x.name === "lineTo") ? [i] : [];
     });
 
+  // The polygons a clip was made of (a path of lines), and whether a screen point is inside one.
+  const clipPieces = (ops: Op[], clip: number) => {
+    let k = clip - 1;
+    while (k >= 0 && ops[k]?.name !== "beginPath") k--;
+    const pieces: { x: number; y: number }[][] = [];
+    for (const o of ops.slice(k, clip)) {
+      if (o.name === "moveTo") pieces.push([{ x: o.args[0] as number, y: o.args[1] as number }]);
+      else if (o.name === "lineTo")
+        pieces.at(-1)?.push({ x: o.args[0] as number, y: o.args[1] as number });
+    }
+    return pieces;
+  };
+  const insidePiece = (pts: { x: number; y: number }[], x: number, y: number) => {
+    let c = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const a = pts[i] as { x: number; y: number };
+      const b = pts[j] as { x: number; y: number };
+      if (a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) c = !c;
+    }
+    return c;
+  };
+
   it("draws a half-lit object inside a clip to the light, cut by its edge rather than dropped", () => {
     // the lamp switch at (5.5, 3.5), the viewer high up at (2.5, 1.5): the light reaches only part of it
     const lamp = { id: "l1", kind: "lamp" as const, pos: at(5.5, 3.5) };
@@ -2250,7 +2266,7 @@ describe("what stands out of the light is cut by the light, not re-drawn (review
   // The user: a figure against the top wall had its head cut off. The light polygon is the floor's
   // outline, but what stands rises above the floor on screen, so the clip must reach up as far as the
   // tallest thing that stands (a wall-hung panel, a figure's head).
-  it("clips to the light swept upward, so a figure at a wall keeps its head", () => {
+  it("clips a figure at a wall by its own column, so it keeps its head", () => {
     const { ctx, ops } = recorder();
     const s = scene({
       layout: "fit",
@@ -2264,34 +2280,24 @@ describe("what stands out of the light is cut by the light, not re-drawn (review
     });
     draw(ctx, s);
     const cam = camera(s);
-    // the first light clip is the flat floor layer's; the next is the row clip of what stands, which is swept
-    expect(lightClips(ops).length, "a floor clip and a row clip").toBeGreaterThanOrEqual(2);
-    const clip = lightClips(ops)[1] as number;
-    let k = clip - 1;
-    while (k >= 0 && ops[k]?.name !== "beginPath") k--;
-    const ys = ops
-      .slice(k, clip)
-      .filter((o) => o.name === "moveTo" || o.name === "lineTo")
-      .map((o) => o.args[1] as number);
-    // the mist's polygon is the floor outline: its top edge is the north wall's foot
-    const full = ops.findIndex((o) => o.name === "rect" && o.args[0] === 0 && o.args[1] === 0);
-    const close = ops.findIndex((o, i) => i > full && o.name === "closePath");
-    const floorTop = Math.min(
-      ...ops
-        .slice(full, close)
-        .filter((o) => o.name === "moveTo" || o.name === "lineTo")
-        .map((o) => o.args[1] as number),
-    );
+    // the first light clip is the flat floor layer's; the next is the figure's own column
+    expect(lightClips(ops).length, "a floor clip and a figure's clip").toBeGreaterThanOrEqual(2);
+    const pieces = clipPieces(ops, lightClips(ops)[1] as number);
+    // a point at the height of the figure's head, straight above its feet: above the floor outline
+    // (the north wall's foot is y = 1), so a clip that stopped at the floor line would cut it off
+    const head = toScreen(cam, 4.5, 1.2, 1.4);
+    const floorEdge = toScreen(cam, 4.5, 1);
+    expect(head.y, "the head is above the floor outline on screen").toBeLessThan(floorEdge.y);
     expect(
-      Math.min(...ys),
-      "the clip reaches above the floor outline by a wall's height",
-    ).toBeLessThanOrEqual(floorTop - cam.scale * 0.9);
+      pieces.some((p) => insidePiece(p, head.x, head.y)),
+      "a point on the figure's head is inside its clip",
+    ).toBe(true);
   });
 
   // The same cut head, on a crate pushed against the north wall (the user's second screenshot). Whatever
   // stands is covered by the clip, so test the region itself: a point a crate's height above the floor
   // edge, and above a figure's head, must be inside it.
-  it("keeps a crate and a figure against the north wall whole: the clip reaches up past the floor edge", () => {
+  it("keeps a crate against the north wall whole: its top is inside its own clip", () => {
     const { ctx, ops } = recorder();
     const sc = scene({
       layout: "fit",
@@ -2305,31 +2311,14 @@ describe("what stands out of the light is cut by the light, not re-drawn (review
     });
     draw(ctx, sc);
     const cam = camera(sc);
-    // the first light clip is the flat floor layer's; the next is the row clip of what stands, which is swept
-    expect(lightClips(ops).length, "a floor clip and a row clip").toBeGreaterThanOrEqual(2);
-    const clip = lightClips(ops)[1] as number;
-    let k = clip - 1;
-    while (k >= 0 && ops[k]?.name !== "beginPath") k--;
-    // rebuild the pieces the clip was made of and test a point above the crate's tile (row 1, col 4)
-    const pieces: { x: number; y: number }[][] = [];
-    for (const o of ops.slice(k, clip)) {
-      if (o.name === "moveTo") pieces.push([{ x: o.args[0] as number, y: o.args[1] as number }]);
-      else if (o.name === "lineTo")
-        pieces.at(-1)?.push({ x: o.args[0] as number, y: o.args[1] as number });
-    }
-    const inPiece = (pts: { x: number; y: number }[], x: number, y: number) => {
-      let c = false;
-      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-        const a = pts[i] as { x: number; y: number };
-        const b = pts[j] as { x: number; y: number };
-        if (a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) c = !c;
-      }
-      return c;
-    };
-    const top = toScreen(cam, 4.5, 1, 0.8); // the crate's upper edge, a little under a wall's height up
+    expect(lightClips(ops).length, "a floor clip and the crate's clip").toBeGreaterThanOrEqual(2);
+    const pieces = clipPieces(ops, lightClips(ops)[1] as number);
+    // the crate's top face, near its back edge: above the floor outline on screen
+    const top = toScreen(cam, 4.5, 1.15, TILT.block);
+    expect(top.y, "the top is above the floor outline").toBeLessThan(toScreen(cam, 4.5, 1).y);
     expect(
-      pieces.some((p) => inPiece(p, top.x, top.y)),
-      "a point above the crate is inside the clip",
+      pieces.some((p) => insidePiece(p, top.x, top.y)),
+      "a point on the crate's top is inside its clip",
     ).toBe(true);
   });
 
@@ -2653,25 +2642,55 @@ describe("the sweep of the clip to the light covers everything that stands", () 
   } as unknown as Scene;
   const at = { x: 5.5, y: 3.5 };
 
-  it("reaches above you and your arrow, a crate, a camera, a bell, a lamp switch and gear", () => {
-    const tallest = Math.max(
-      reach((c) => drawPlayer(c, { id: "P1", kind: "player", pos: at, seat: 1 } as never, cam, sc)),
-      reach((c) => drawStanding(c, { id: "B1", kind: "crate", pos: at } as never, cam, sc)),
-      reach((c) =>
-        drawHazard(
-          c,
-          { id: "C1", kind: "camera", pos: at, state: "watching", facing: { x: 0, y: 1 } } as never,
-          cam,
-          sc,
+  it("gives each standing thing a column at least as tall as it is drawn", () => {
+    const measured: [string, number][] = [
+      [
+        "player",
+        reach((c) =>
+          drawPlayer(c, { id: "P1", kind: "player", pos: at, seat: 1 } as never, cam, sc),
         ),
-      ),
-      reach((c) => drawBell(c, { id: "b1", kind: "bell", pos: at } as never, cam, sc)),
-      reach((c) => drawLampSwitch(c, { id: "l1", kind: "lamp", pos: at } as never, cam)),
-      reach((c) =>
-        drawGear(c, { id: "g1", kind: "gear", pos: at, item: "goggles" } as never, cam, false),
-      ),
+      ],
+      [
+        "crate",
+        reach((c) => drawStanding(c, { id: "B1", kind: "crate", pos: at } as never, cam, sc)),
+      ],
+      [
+        "camera",
+        reach((c) =>
+          drawHazard(
+            c,
+            {
+              id: "C1",
+              kind: "camera",
+              pos: at,
+              state: "watching",
+              facing: { x: 0, y: 1 },
+            } as never,
+            cam,
+            sc,
+          ),
+        ),
+      ],
+      ["bell", reach((c) => drawBell(c, { id: "b1", kind: "bell", pos: at } as never, cam, sc))],
+      ["lamp", reach((c) => drawLampSwitch(c, { id: "l1", kind: "lamp", pos: at } as never, cam))],
+      [
+        "gear",
+        reach((c) =>
+          drawGear(c, { id: "g1", kind: "gear", pos: at, item: "goggles" } as never, cam, false),
+        ),
+      ],
+    ];
+    expect(Math.max(...measured.map(([, h]) => h)), "the tallest standing thing").toBeGreaterThan(
+      3,
     );
-    expect(tallest, "the tallest standing thing").toBeGreaterThan(3);
-    expect(SWEEP_TILES, "the sweep covers it").toBeGreaterThanOrEqual(tallest);
+    for (const [kind, drawn] of measured) {
+      const column = HEIGHT[kind] as number;
+      expect(column, `${kind}: its column covers what is drawn`).toBeGreaterThanOrEqual(drawn);
+      // and no taller by more than a hair: the mist leaves the column out, so every extra tile of it is
+      // an unveiled patch above the thing, over whatever veiled floor or wall is behind
+      expect(column, `${kind}: its column is no taller than it is drawn`).toBeLessThanOrEqual(
+        drawn + 0.12,
+      );
+    }
   });
 });

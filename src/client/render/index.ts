@@ -7,6 +7,7 @@ import { drawAlarm } from "./alarm.ts";
 import { drawBackdrop } from "./backdrop.ts";
 import { block, drawFlat, drawStanding, floorTop, glass, vent, wall } from "./blocks.ts";
 import { drawKeepsake, drawMotifTile, drawSlide } from "./chamber.ts";
+import { clipToColumns, drawCut, groundSlice, HEIGHT, type Part } from "./column.ts";
 import { drawCloud } from "./dye.ts";
 import { drawHidden, drawOwnBlind, drawPlayer } from "./figures.ts";
 import { drawGear, drawGoggles, drawHold, drawUv, gearGlyph } from "./gear.ts";
@@ -299,6 +300,12 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
   for (const e of scene.entities) if (e.kind === "station") drawStationFloor(ctx, e, cam, scene);
   ctx.restore();
   for (const e of scene.entities) if (e.kind === "sight") drawSight(ctx, e, cam);
+  // the floor is veiled now, before any wall or anything that stands: what stands is drawn over it, so a
+  // lit thing is never veiled and needs no hole cut for it. Only the sighted have a mist: Can't see has no
+  // map, and a watcher (no `seen`) sees the whole room.
+  const seen = scene.seen ? seenOf(scene.seen) : null;
+  const veiled = !!(seen && light);
+  if (veiled) drawMist(ctx, cam, tiles, light, win, "floor");
   // a station stands in each row it has a standing part in (the safe, the panel, the lamps...)
   const stationsByRow = new Map<number, EntityView[]>();
   for (const e of scene.entities)
@@ -333,50 +340,81 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
       else glass(ctx, cam, x, y);
       ctx.restore();
     }
+    // the walls of this row the light never reaches are veiled now, before what stands in the row
+    if (veiled) drawMist(ctx, cam, tiles, light, win, y);
     // a closed door is a block like a wall: drawn with them, under the veil, not cut away by the light
     // (a door outside the light was "just mist")
     for (const e of byRow.get(y) ?? [])
       if (e.kind === "door" && e.state === "closed") drawStanding(ctx, e, cam, scene);
-    // what stands in this row is cut by the light's edge: drawn whole, in its one fixed place, inside a
-    // clip to the lit region (a figure's outline behind a wall, a mark and the layout are drawn apart)
-    // (a row with nothing in it makes no clip: most rows are empty, and a clip is the costly part)
+    // what stands in this row is cut by the exact light, straight up: each thing is drawn whole inside a
+    // clip to the lit part of its own footprint, swept up by its own height (a figure's outline behind a
+    // wall, a mark and the layout are drawn apart). A row with nothing in it makes no clip.
     const hasStanding =
       (linksByRow.get(y)?.length ?? 0) > 0 ||
       (stationsByRow.get(y)?.length ?? 0) > 0 ||
       (byRow.get(y) ?? []).some((e) => STANDING.includes(e.kind) && e.kind !== "door");
     if (!hasStanding) continue;
-    ctx.save();
-    clipToLight(ctx, cam, light);
+    const cut = (parts: Part[], height: number, draw: (c: CanvasRenderingContext2D) => void) => {
+      if (!light) return draw(ctx);
+      drawCut(ctx, cam, light, parts, height, draw);
+    };
     for (const { e, path } of linksByRow.get(y) ?? [])
-      if (e.station) drawLink(ctx, e.station, cam, scene, path);
+      if (e.station)
+        cut(
+          path.map((q) => ({ foot: groundSlice(tiles, q.x, q.y, 0.5) })),
+          HEIGHT.link as number,
+          (c) => drawLink(c, e.station as NonNullable<typeof e.station>, cam, scene, path),
+        );
     for (const e of stationsByRow.get(y) ?? []) {
-      drawStationStanding(ctx, e, cam, scene, y);
+      const st = e.station;
+      const anchor = st?.parts.find((q) => q.key === "anchor")?.at[0];
+      // the safe's body is a box on its anchor tile; every other piece stands on its own tile's ground
+      const parts: Part[] = (st?.parts ?? []).flatMap((q) =>
+        q.at.map((t): Part => {
+          const box = st?.type === "dial" && anchor && t.x === anchor.x && t.y === anchor.y;
+          return box
+            ? {
+                foot: { x0: t.x + 0.1, x1: t.x + 0.9, y0: t.y + 0.15, y1: t.y + 0.85 },
+                body: LIVE.block,
+              }
+            : { foot: groundSlice(tiles, t.x + 0.5, t.y + 0.5, 0.5) };
+        }),
+      );
+      cut(parts, (st?.type && HEIGHT[st.type]) || (HEIGHT.station as number), (c) =>
+        drawStationStanding(c, e, cam, scene, y),
+      );
     }
     for (const kind of STANDING) {
       for (const e of byRow.get(y) ?? []) {
         if (e.kind !== kind) continue;
         if (kind === "door") continue; // an open door is only its slot (the floor layer); a closed one is drawn above
         if (kind === "stamp" && !inSight(seenNow, e.pos)) continue; // drawn through the mist, below
-        if (kind === "camera" || kind === "laser" || kind === "guard")
-          drawHazard(ctx, e, cam, scene);
-        else if (kind === "player") drawPlayer(ctx, e, cam, scene);
-        else if (kind === "gear")
-          drawGear(ctx, e, cam, hatches.has(`${Math.floor(e.pos.x)},${Math.floor(e.pos.y)}`));
-        else if (kind === "bell") drawBell(ctx, e, cam, scene);
-        else if (kind === "lamp") drawLampSwitch(ctx, e, cam);
-        else if (kind === "lever") drawLever(ctx, e, cam);
-        else if (kind === "keepsake") drawKeepsake(ctx, e, cam);
-        else if (kind === "card") drawTargetCard(ctx, e, cam);
-        else if (kind === "order") drawOrder(ctx, e, cam);
-        else drawStanding(ctx, e, cam, scene);
+        const box = kind === "crate" || kind === "checkpoint";
+        const foot = box
+          ? {
+              x0: Math.floor(e.pos.x),
+              x1: Math.floor(e.pos.x) + 1,
+              y0: Math.floor(e.pos.y),
+              y1: Math.floor(e.pos.y) + 1,
+            }
+          : groundSlice(tiles, e.pos.x, e.pos.y, kind === "player" ? 0.3 : 0.5);
+        cut([box ? { foot, body: LIVE.block } : { foot }], HEIGHT[kind] ?? 1.5, (c) => {
+          if (kind === "camera" || kind === "laser" || kind === "guard")
+            drawHazard(c, e, cam, scene);
+          else if (kind === "player") drawPlayer(c, e, cam, scene);
+          else if (kind === "gear")
+            drawGear(c, e, cam, hatches.has(`${Math.floor(e.pos.x)},${Math.floor(e.pos.y)}`));
+          else if (kind === "bell") drawBell(c, e, cam, scene);
+          else if (kind === "lamp") drawLampSwitch(c, e, cam);
+          else if (kind === "lever") drawLever(c, e, cam);
+          else if (kind === "keepsake") drawKeepsake(c, e, cam);
+          else if (kind === "card") drawTargetCard(c, e, cam);
+          else if (kind === "order") drawOrder(c, e, cam);
+          else drawStanding(c, e, cam, scene);
+        });
       }
     }
-    ctx.restore();
   }
-  // the mist: everything outside your line of sight, the edge of it the true ray from where you stand.
-  // Only the sighted have one: Can't see has no map, and a watcher (no `seen`) sees the whole room.
-  const seen = scene.seen ? seenOf(scene.seen) : null;
-  if (seen && light) drawMist(ctx, cam, tiles, light, win);
   // a mark in a place you can't see shows faintly through the haze: only a teammate's message,
   // never room state
   for (const e of scene.entities) {
@@ -390,10 +428,26 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
   // a chip's text starts with the thing's name ("Safe: ..."), which is the plate under it
   const chipped = new Set((scene.labels ?? []).map((l) => l.text.split(":")[0] ?? ""));
   // (inside the light as well: a name behind a wall is not drawn, and one at the cone's edge is cut)
+  // each name is cut by the column of ground under the thing it names, like the thing itself
+  for (const e of scene.entities) {
+    if (e.kind !== "station" || !e.station) continue;
+    const st = e.station;
+    const anchor = st.parts.find((q) => q.key === "anchor")?.at[0];
+    const under: Part[] = (anchor ? [anchor] : st.parts.flatMap((q) => q.at)).map((t) => ({
+      foot: groundSlice(tiles, t.x + 0.5, t.y + 0.5, 1.5),
+    }));
+    if (!light) {
+      drawStationPlates(ctx, e, cam, chipped);
+      continue;
+    }
+    ctx.save();
+    clipToColumns(ctx, cam, light, under, HEIGHT.plate as number);
+    drawStationPlates(ctx, e, cam, chipped);
+    ctx.restore();
+  }
+  // a sign's own words (a plaque), over everything standing, like the names
   ctx.save();
   clipToLight(ctx, cam, light);
-  for (const e of scene.entities) if (e.kind === "station") drawStationPlates(ctx, e, cam, chipped);
-  // a sign's own words (a plaque), over everything standing, like the names
   for (const e of scene.entities) if (e.kind === "sign" && e.text) drawPlaque(ctx, e, cam, scene);
   ctx.restore();
   // the UV pool and its ink: the one bold effect, over the mist (it is only sent where it is seen)

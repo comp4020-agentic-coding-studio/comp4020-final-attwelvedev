@@ -213,7 +213,7 @@ describe("a glass pane does not flicker at the edge of sight", () => {
     const state: Record<string, unknown> = { globalAlpha: 1, lineDash: [] };
     const saved: Record<string, unknown>[] = [];
     let path: { x: number; y: number; w: number; h: number }[] = [];
-    let veilPath: { x: number; y: number; w: number; h: number }[] = [];
+    const veilPath: { x: number; y: number; w: number; h: number }[] = [];
     const ctx = new Proxy(
       {},
       {
@@ -230,7 +230,8 @@ describe("a glass pane does not flicker at the edge of sight", () => {
             return (x: number, y: number, w: number, h: number) => path.push({ x, y, w, h });
           if (name === "fill")
             return () => {
-              if (state.fillStyle === WORLD.mist) veilPath = path.slice();
+              // the mist is painted in pieces (the floor, then each row's walls): take every one
+              if (state.fillStyle === WORLD.mist) veilPath.push(...path);
             };
           return () => {};
         },

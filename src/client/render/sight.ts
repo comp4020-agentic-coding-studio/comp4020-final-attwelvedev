@@ -203,34 +203,45 @@ function touchedTiles(light: readonly Vec[]): Set<number> {
 // unit tests record calls on a plain-Node context that has none.
 type Box = { x: number; y: number; w: number; h: number };
 
+const touchedCache = new WeakMap<readonly Vec[], Set<number>>();
+const touchedOf = (light: readonly Vec[]): Set<number> => {
+  const known = touchedCache.get(light);
+  if (known) return known;
+  const made = touchedTiles(light);
+  touchedCache.set(light, made);
+  return made;
+};
+
+// The mist is painted in pieces, in the order what stands is drawn, so nothing lit is ever veiled and no
+// hole has to be cut for it (a hole was a rectangle wider than the thing it was cut for): the floor
+// first, once, before any wall or anything standing; then each row's walls the light never reaches,
+// right after that row's blocks are drawn and before what stands in it. What stands in a row is drawn
+// over the veil of the walls behind it, and under the walls in front of it, as in the world.
+//   part "floor": the open floor, with the light punched out of it (one path, even-odd, one fill).
+//   part n (a row): the walls of that row, and its closed doors, that the light does not touch.
 export function drawMist(
   ctx: CanvasRenderingContext2D,
   cam: Camera,
   tiles: readonly string[],
   light: readonly Vec[] | null,
   win: { x0: number; x1: number; y0: number; y1: number },
+  part: "floor" | number,
 ) {
   if (!light) return;
-  const touched = touchedTiles(light);
   const s = cam.scale;
   const depth = s * LIVE.depth;
-  const open: Box[] = []; // floor: the light is cut out of it
-  const walls: Box[] = []; // walls the light never reaches: veiled whole
-  for (let y = win.y0; y <= win.y1; y++) {
-    const row = tiles[y] ?? "";
-    for (let x = win.x0; x <= win.x1; x++) {
-      if (row[x] === " ") continue; // a dark zone is night, not mist
-      const block = row[x] === "#" || row[x] === "%" || row[x] === "=" || row[x] === "H";
-      const lift = block ? LIVE.wall : 0;
-      const top = toScreen(cam, x, y, lift);
-      const box = { x: top.x, y: top.y, w: s, h: depth + lift * s };
-      if (!block) open.push(box);
-      else if (row[x] === "=" ? !glassLit(light, x, y) : !touched.has(y * 4096 + x))
-        walls.push(box);
+  if (part === "floor") {
+    const open: Box[] = []; // floor: the light is cut out of it
+    for (let y = win.y0; y <= win.y1; y++) {
+      const row = tiles[y] ?? "";
+      for (let x = win.x0; x <= win.x1; x++) {
+        const ch = row[x];
+        if (ch === " " || ch === "#" || ch === "%" || ch === "=" || ch === "H") continue; // night, or a block
+        const top = toScreen(cam, x, y);
+        open.push({ x: top.x, y: top.y, w: s, h: depth });
+      }
     }
-  }
-  ctx.save();
-  if (open.length > 0) {
+    if (open.length === 0) return;
     ctx.save();
     ctx.beginPath();
     for (const b of open) ctx.rect(b.x, b.y, b.w, b.h);
@@ -246,12 +257,23 @@ export function drawMist(
     ctx.closePath();
     paintVeil(ctx, "evenodd");
     ctx.restore();
+    return;
   }
-  if (walls.length > 0) {
-    ctx.beginPath();
-    for (const b of walls) ctx.rect(b.x, b.y, b.w, b.h);
-    paintVeil(ctx, "nonzero");
+  const touched = touchedOf(light);
+  const walls: Box[] = []; // walls the light never reaches: veiled whole
+  const row = tiles[part] ?? "";
+  for (let x = win.x0; x <= win.x1; x++) {
+    const ch = row[x];
+    if (ch !== "#" && ch !== "%" && ch !== "=" && ch !== "H") continue;
+    const top = toScreen(cam, x, part, LIVE.wall);
+    const box = { x: top.x, y: top.y, w: s, h: depth + LIVE.wall * s };
+    if (ch === "=" ? !glassLit(light, x, part) : !touched.has(part * 4096 + x)) walls.push(box);
   }
+  if (walls.length === 0) return;
+  ctx.save();
+  ctx.beginPath();
+  for (const b of walls) ctx.rect(b.x, b.y, b.w, b.h);
+  paintVeil(ctx, "nonzero");
   ctx.restore();
 }
 
