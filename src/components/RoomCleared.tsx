@@ -4,6 +4,7 @@ import type { RoomBoard as Board } from "../net/protocol.ts";
 import { ConfirmButton } from "./ConfirmButton.tsx";
 import { RoleShape } from "./RoleShape.tsx";
 import { RoomBoard } from "./RoomBoard.tsx";
+import { SideJobTile, type TileCache } from "./SideJobTile.tsx";
 
 // Shown over the map when the team is on the exit. The host moves on to the next room; anyone
 // may ask to play this one again, or the whole heist, which the others vote on. There is
@@ -21,6 +22,8 @@ export function RoomCleared({
   board,
   onBoard,
   credits,
+  cache,
+  names,
 }: {
   ms: number;
   loot: number;
@@ -33,6 +36,8 @@ export function RoomCleared({
   board?: Board; // the room's board, once the `cleared` message brings it
   onBoard: () => void; // open the full leaderboard panel
   credits?: CreditRow[]; // who did what, names filled in by the page
+  cache?: TileCache; // the room's side job, if it had one
+  names?: string[]; // nicknames by seat, for the tile
 }) {
   return (
     <div class="overlay" role="status">
@@ -71,6 +76,7 @@ export function RoomCleared({
             ))}
           </ul>
         )}
+        {cache && <SideJobTile cache={cache} names={names ?? []} />}
         {last && <p class="muted">That was the last room.</p>}
         <div class="cleared-actions">
           {host && !last && (

@@ -1866,3 +1866,84 @@ fieldset.settings {
   border: 3px dashed var(--ui-muted);
   outline: none;
 }
+
+/* the cleared card's side-job tile: one box for all three states (taken solid; left behind and not
+   found dashed in --ui-muted), so the card never changes height with the result */
+.side-job-tile {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: calc(var(--keep, 32px) + 2 * var(--s-3) + 10px);
+  padding: var(--s-3);
+  background: var(--panel);
+  border: 2px solid var(--ui);
+  border-radius: var(--r);
+  text-align: left;
+}
+.side-job-tile.is-left,
+.side-job-tile.is-unfound {
+  border-style: dashed;
+  border-color: var(--ui-muted);
+}
+.side-job-tile-text {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--t-14);
+}
+.side-job-tile-text .side-job-tick {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: var(--s-1);
+}
+
+/* the heist-complete shelf: a plate per side job, in room order */
+.keepsake-shelf {
+  display: grid;
+  gap: var(--s-2);
+  justify-items: center;
+  width: 100%;
+}
+.keepsake-shelf h3 {
+  margin: 0;
+  font-size: var(--t-18);
+}
+.keepsake-shelf ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: var(--s-2);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.keepsake-shelf li {
+  display: grid;
+  justify-items: center;
+  gap: var(--s-1);
+  padding: var(--s-2);
+  text-align: center;
+  font-size: var(--t-14);
+  overflow-wrap: anywhere;
+}
+.keepsake-shelf li.is-missed {
+  color: var(--ui-muted);
+}
+
+/* a shelf slot is always three lines: the room's title, its number, then the item or "Not found" */
+.keepsake-label {
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+}
+.keepsake-room {
+  font-weight: 700;
+}
+.keepsake-num {
+  color: var(--ui-muted);
+}
+.keepsake-shelf li.is-missed .keepsake-what {
+  font-style: italic;
+}

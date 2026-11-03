@@ -40,6 +40,7 @@ import { quickSlot } from "../client/wheel.ts";
 import { FACE_POP_MS, type Stamp } from "../game/channels.ts";
 import { botRef } from "../game/crew.ts";
 import type { BriefingCue } from "../game/cues.ts";
+import type { ItemId } from "../game/rooms/format.ts";
 import type { GearItem } from "../game/sim/world.ts";
 import { ROLE_LABEL, type Role, type Seat, type Vec } from "../game/types.ts";
 import type {
@@ -65,6 +66,7 @@ import { RoleShape } from "./RoleShape.tsx";
 import { RoomCleared } from "./RoomCleared.tsx";
 import { Settings } from "./Settings.tsx";
 import { SideJob } from "./SideJob.tsx";
+import type { TileCache } from "./SideJobTile.tsx";
 import { TalkBar } from "./TalkBar.tsx";
 import { TouchControls } from "./TouchControls.tsx";
 import { useGone } from "./useGone.ts";
@@ -632,6 +634,7 @@ function Hud({
     lootTotal: number;
     board: RoomBoardData;
     credits: { seat: number; lines: string[] }[];
+    cache?: TileCache;
   } | null>(null);
   const [boardOpen, setBoardOpen] = useState<string | null>(null); // the leaderboard panel's first tab
   const [heist, setHeist] = useState<{
@@ -639,6 +642,7 @@ function Hud({
     loot: number;
     lootTotal: number;
     rank: number;
+    caches: { room: string; name: string; found: boolean; item: ItemId }[];
   } | null>(null);
   const { pause, secondsLeft, back } = usePause(socket);
   const [vote, setVote] = useState<OpenVote | null>(null); // a restart is being voted on
@@ -760,6 +764,7 @@ function Hud({
           lootTotal: m.lootTotal,
           board: m.board,
           credits: m.credits,
+          cache: m.cache,
         }),
       ),
     [socket],
@@ -768,7 +773,13 @@ function Hud({
   useEffect(
     () =>
       socket.on("heist", (m) =>
-        setHeist({ ms: m.ms, loot: m.loot, lootTotal: m.lootTotal, rank: m.rank }),
+        setHeist({
+          ms: m.ms,
+          loot: m.loot,
+          lootTotal: m.lootTotal,
+          rank: m.rank,
+          caches: m.caches,
+        }),
       ),
     [socket],
   );
@@ -1137,6 +1148,7 @@ function Hud({
             loot={heist.loot}
             lootTotal={heist.lootTotal}
             rank={heist.rank}
+            caches={heist.caches}
             onBoard={() => setBoardOpen("heist")}
           />
         ) : (
@@ -1152,6 +1164,8 @@ function Hud({
               onRestartHeist={() => ask("heist")}
               board={summary?.board}
               credits={summary ? creditRows(summary.credits, reveal.crew) : undefined}
+              cache={summary?.cache}
+              names={seatNames(reveal.crew)}
               onBoard={() => setBoardOpen(`room-${reveal.index + 1}`)}
             />
           )

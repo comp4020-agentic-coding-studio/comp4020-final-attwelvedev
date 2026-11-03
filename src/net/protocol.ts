@@ -162,7 +162,7 @@ export type ServerMsg =
       loot: number;
       lootTotal: number;
       rank: number;
-      caches: { room: string; found: boolean; item: ItemId }[];
+      caches: { room: string; name: string; found: boolean; item: ItemId }[];
     };
 
 const MAX_FRAME = 8 * 1024;

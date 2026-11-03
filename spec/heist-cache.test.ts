@@ -10,7 +10,7 @@ const baseUrl = inject("baseUrl");
 
 interface HeistMsg {
   t: "heist";
-  caches: { room: string; found: boolean; item: string }[];
+  caches: { room: string; name: string; found: boolean; item: string }[];
 }
 
 // What the server sends a team about a side job (caches FR15, FR16). Two fixture rooms that each
@@ -79,8 +79,8 @@ describe("the cleared card and the heist record carry the caches", () => {
 
     const heist = await players[0]?.socket.next<HeistMsg>("heist", 5000);
     expect(heist?.caches).toEqual([
-      { room: "01-cache-a", found: false, item: "watch" },
-      { room: "02-cache-b", found: false, item: "ring" },
+      { room: "01-cache-a", name: expect.any(String), found: false, item: "watch" },
+      { room: "02-cache-b", name: expect.any(String), found: false, item: "ring" },
     ]);
     await closeAll(players);
   }, 60_000);

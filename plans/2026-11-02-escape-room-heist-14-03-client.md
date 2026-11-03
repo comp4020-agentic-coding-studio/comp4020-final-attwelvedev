@@ -147,7 +147,7 @@ Three tile states (taken, opened but left behind, not found) and no-cache; the s
   doors' motion, the item's standing look, the chip and the card. (A fresh review: the first build was rejected.)
 - **Depends on:** 55, 61, 64.
 
-### Task 57: The cleared tile and the heist shelf
+### Task 57: The cleared tile and the heist shelf  [x] (human review accepted by the user 2026-11-03, after two rounds: room titles on the shelf, then three fixed lines a slot)
 
 - **Description:** make the side job important on the results, in three states.
 - **Files touched:** `src/components/SideJobTile.tsx` (new: taken, left behind, not found), `src/components/RoomCleared.tsx` (tile after the credits),
@@ -172,11 +172,11 @@ Three tile states (taken, opened but left behind, not found) and no-cache; the s
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 55 to 57 done and committed one each (Human review tasks only after acceptance); Task 55 is.
-- [ ] `pnpm test:unit` and `pnpm check` pass on a fresh check server.
-- [ ] Screenshots at 1280 and 375 read for every state in the spec's §4.1; layout specs measure the promises.
-- [ ] DESIGN.md names only tokens and components that exist (`spec/design.test.ts` green).
-- [ ] Tick this phase in the 14 overview §5 and commit.
+- [x] Tasks 55 to 57 done and committed one each (Human review tasks only after acceptance).
+- [x] `pnpm test:unit` and `pnpm check` pass on a fresh check server (140 files, 2028 tests, 2026-11-03).
+- [x] Screenshots at 1280 and 375 read for every state in the spec's §4.1; layout specs measure the promises (the cleared tile's browser spec waits for a chamber room: Task 58).
+- [x] DESIGN.md names only tokens and components that exist (`spec/design.test.ts` green).
+- [x] Tick this phase in the 14 overview §5 and commit.
 
 ## 7. Requirements coverage (this phase)
 
@@ -205,4 +205,6 @@ None open. Accepted: the watch and the necklace may need a redraw after the real
 - 2026-11-03, Task 56 (found by breaking each guarded line on purpose): nothing tested `cacheMoment`'s fallback to "Someone" for an empty name, though `seatNames` returns `""` for an unfilled seat and `??` would let it through. Test added with an empty name in the list.
 - 2026-11-03, Task 56 human review, first findings (not yet accepted). (1) The secret doors carry the ordinary door's chip, "Door: opens while its plates are held", which is false for them (no plates) and says they are nothing special. Expected the plan's "ordinary `door` entity" to be enough; the user wanted them told apart, since a secret door is "special, and isn't like the normal door". The client labels by entity kind and a secret door is a `door` entity, so nothing marked it. Fix: a `secret` marker on the door entity (it exists only once open, so it leaks nothing), its own label kind. (2) "Using the stethoscope against the safe, I can't hear any tumbler clicks": by the existing rule (spec: audible only at touch range, at the safe's back, with the stethoscope) the tumbler reaches a hearing holder within 1.5 tiles of the `back` tile, and only when someone else turns the dial onto the answer. A sim probe on `01-cache-a` heard it at (1,6) and (2,6) and not at the dial (5,8), where the fixture's `back` is 4 tiles away. Whether that rule or the fixture is what the user hit is open (asked in the report). (3) The user noticed a wrong answer re-draws the station free, so Act can be spammed until the answer is 0: a design issue, sent to `specs/backlog.md`, not changed here.
 - 2026-11-03, Task 56 human review: the stethoscope clue in a chamber is unfindable (the `back` tile is bare floor four tiles from the dial, and the wire to it is only drawn when a wall lies between). The user: a visual hint plus a different footstep would suit the optional task, but a merely different tile makes no physical sense; settled on a floor inspection plate as the object, ordinary safes unchanged. Not built in Task 56: written up as 14-04 §9 for `plan-feature`. Pattern: a clue placed by authoring needs something in the world that points at it; the lint checked that a role can perceive the clue, not that a player would think to stand there.
-
+- 2026-11-03, Task 57 human review: the shelf said only "Room 7, not found". The user asked for the room's name too, since names are easier to recall than numbers. The `heist` row had only the room id, so the server now sends `name` (the title from the room file) rather than the page guessing it from the slug. Expected a number to be enough to jog a player's memory; it is not.
+- 2026-11-03, Task 57 human review: with the name added as one sentence ("Night Shift (Room 7), not found") the text wrapped wherever the column ran out, so slots looked different from each other. The user asked for consistency. Every slot is now the same three lines (title, "Room N", item or "Not found"). Expected a label to be a string; a label that sits in a grid of peers is a fixed shape. Pattern: the first draft of a repeated cell built a sentence, not a layout.
+- 2026-11-03, Task 57 (found while editing): my scripted edit matched on text that Biome had already reflowed, so the whole edit aborted and I screenshotted the old layout once before noticing. Re-read before a scripted edit, as CLAUDE.md says; the Python script now asserts on every match, which is what caught it.

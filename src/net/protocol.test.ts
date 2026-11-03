@@ -359,9 +359,9 @@ describe("the cache fields on `cleared` and `heist` (Task 54)", () => {
       loot: 1,
       lootTotal: 2,
       rank: 1,
-      caches: [{ room: cache.room, found: cache.found, item: cache.item }],
+      caches: [{ room: cache.room, name: "The Safe", found: cache.found, item: cache.item }],
     };
-    expect(Object.keys(heist.caches[0] ?? {})).toEqual(["room", "found", "item"]);
+    expect(Object.keys(heist.caches[0] ?? {})).toEqual(["room", "name", "found", "item"]);
     expect(typeof cache.owner).toBe("number");
     // `found` is the take; `opened` is the vault door: the cleared card says which, the shelf only the take
     expect(cache.opened).toBe(true);

@@ -145,3 +145,33 @@ describe("RoomCleared", () => {
     expect(card?.querySelector(".cleared-actions")).not.toBeNull();
   });
 });
+
+describe("RoomCleared side-job tile", () => {
+  const cache = {
+    room: "04-the-safe",
+    found: true,
+    opened: true,
+    item: "watch" as const,
+    owner: 0,
+    by: 1,
+    riddle: "Where the moon watches, listen twice.",
+  };
+  const kids = () => [...(document.querySelector(".cleared") as Element).children];
+
+  it("sits after the credits and before the buttons", () => {
+    mount({
+      credits: [{ name: "Ana", role: "blind", lines: ["x"] }],
+      cache,
+      names: ["Ana", "Bo", "Cy"],
+    });
+    const at = (sel: string) => kids().findIndex((k) => k.matches(sel));
+    expect(at(".credits")).toBeGreaterThanOrEqual(0);
+    expect(at(".side-job-tile")).toBe(at(".credits") + 1);
+    expect(at(".side-job-tile")).toBeLessThan(at(".cleared-actions"));
+  });
+
+  it("is absent in a room with no side job", () => {
+    mount({});
+    expect(document.querySelector(".side-job-tile")).toBeNull();
+  });
+});

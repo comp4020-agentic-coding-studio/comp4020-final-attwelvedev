@@ -109,7 +109,7 @@ interface Running {
     loot: number;
     lootTotal: number;
     versions: string[];
-    caches: { room: string; found: boolean; item: ItemId }[];
+    caches: { room: string; name: string; found: boolean; item: ItemId }[];
   };
 }
 const games = new Map<string, Running>(); // lobby code → game
@@ -378,7 +378,12 @@ function tick(code: string): void {
     running.heist.lootTotal += world.lootTotal;
     running.heist.versions.push(String(world.room.version));
     if (cache)
-      running.heist.caches.push({ room: cache.room, found: cache.found, item: cache.item });
+      running.heist.caches.push({
+        room: cache.room,
+        name: world.room.name,
+        found: cache.found,
+        item: cache.item,
+      });
     const lastRoom = !roomList()[running.game.roomIndex + 1];
     if (lastRoom) {
       const heistRun = saveRun(db, {

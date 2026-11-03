@@ -1,4 +1,6 @@
 import { formatTime } from "../client/hud.ts";
+import type { ItemId } from "../game/rooms/format.ts";
+import { KeepsakeShelf } from "./KeepsakeShelf.tsx";
 
 // Shown over the map once the third room is cleared: the heist is over. There
 // is no Next here (there is no fourth room) and no Restart (restarting room 3
@@ -10,12 +12,14 @@ export function HeistComplete({
   lootTotal,
   rank,
   onBoard,
+  caches,
 }: {
   ms: number;
   loot: number;
   lootTotal: number;
   rank: number;
   onBoard: () => void; // open the leaderboard panel on the full-heist tab
+  caches?: { room: string; name: string; found: boolean; item: ItemId }[]; // one per room with a side job
 }) {
   return (
     <div class="overlay" role="status">
@@ -26,6 +30,7 @@ export function HeistComplete({
           Loot {loot} of {lootTotal}
         </p>
       )}
+      {caches && <KeepsakeShelf caches={caches} />}
       <p>
         Rank <strong>#{rank}</strong> on the board
       </p>
