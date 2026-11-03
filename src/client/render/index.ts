@@ -292,9 +292,10 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
   for (const e of scene.entities)
     if (FLAT.includes(e.kind) && !(e.kind === "door" && e.state !== "open"))
       e.kind === "motiftile" ? drawMotifTile(ctx, e, cam) : drawFlat(ctx, e, cam, scene);
+  // a station's floor parts (pads, keys, sockets) are part of the station: a veiled one is invisible too
+  for (const e of scene.entities) if (e.kind === "station") drawStationFloor(ctx, e, cam, scene);
   ctx.restore();
   for (const e of scene.entities) if (e.kind === "sight") drawSight(ctx, e, cam);
-  for (const e of scene.entities) if (e.kind === "station") drawStationFloor(ctx, e, cam, scene);
   // a station stands in each row it has a standing part in (the safe, the panel, the lamps...)
   const stationsByRow = new Map<number, EntityView[]>();
   for (const e of scene.entities)

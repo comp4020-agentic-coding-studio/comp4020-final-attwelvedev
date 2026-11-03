@@ -2461,6 +2461,29 @@ describe("what stands out of the light is cut by the light, not re-drawn (review
     expect(points, "the floor clip is the polygon alone").toBe(n);
   });
 
+  // The user (image 38): one pad lit, the other veiled, and the veiled one still showed through the mist.
+  // Every part of a station is invisible where the station is: the floor parts (pads, keys, sockets) are
+  // drawn inside the clip to the exact light, as what lies on the floor is.
+  it("draws a station's floor keys inside the clip to the light, so a veiled key is not shown", () => {
+    const ops = frame({ entities: [keypad()] });
+    const clips = new Set(lightClips(ops));
+    const strokes = ops.flatMap((o, i) => (o.name === "strokeRect" ? [i] : []));
+    expect(strokes.length, "the keypad's keys are drawn").toBeGreaterThan(0);
+    // is op `i` inside a clip to the light that is still open (its save not yet restored)?
+    const insideLightClip = (i: number) => {
+      let closed = 0;
+      for (let k = i - 1; k >= 0; k--) {
+        const name = ops[k]?.name;
+        if (name === "restore") closed++;
+        else if (name === "save") {
+          if (closed > 0) closed--;
+        } else if (name === "clip" && closed === 0 && clips.has(k)) return true;
+      }
+      return false;
+    };
+    for (const i of strokes) expect(insideLightClip(i), `key at op ${i}`).toBe(true);
+  });
+
   it("draws no clip to the light for a watcher, who has no light", () => {
     const ops = frame({ entities: [keypad()], seen: undefined, self: undefined });
     expect(lightClips(ops)).toEqual([]);
