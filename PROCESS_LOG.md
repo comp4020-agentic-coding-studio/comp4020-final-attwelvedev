@@ -1154,3 +1154,20 @@ which every unit test of `drawKeepsake` had passed. Playing it myself found a se
 "plates" chip, and a stethoscope clue no player would find (a bare tile four steps from the safe); I settled on a floor
 plate as the object, since a merely different tile has no believable link to a safe. Breaking twelve guarded lines on
 purpose found one test that could not fail (the empty-name fallback). Corrections are in 14-03 §9.
+
+## 2026-11-03 — The shelf label was a sentence; a cell in a grid of peers needs a fixed shape
+
+c1d8064
+
+Task 57's heist shelf first said "Room 7, not found". Looking at it, I asked for the room's name as well, because
+people remember "Night Shift" better than a number. The agent did not guess the title from the room id (a slug and a
+file title can differ); the server now sends `name` on each heist row, which is public and never logged.
+
+The first version of the name was one sentence, "Night Shift (Room 7), not found". I rejected it on sight: it wrapped
+wherever the column ran out, so no two slots looked alike. The obvious fix was a max-width or a shorter string. I asked
+for a layout instead: every slot is the same three lines (title, "Room N", item or "Not found"), so a taken slot and a
+missed one line up and nothing depends on how long a title is.
+
+The result was checked by looking, at 1280 and 375, and by a test that reads the three lines of all six slots in order.
+Breaking the room-number line turned it red. Pattern for the harness: a repeated cell should be built as fixed rows,
+not as a string that the browser wraps.
