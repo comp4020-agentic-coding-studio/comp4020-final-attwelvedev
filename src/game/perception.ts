@@ -909,33 +909,42 @@ const closedAt = (world: World) => (tx: number, ty: number) => {
   return !id || !world.doorOpen[id];
 };
 
-// Whether the exact light from `me` touches a tile, kept per world, per standing place and door state.
-// A view asks about every station part the tile set missed, each a sweep of rays, and the linter and the
-// bots ask again and again from places that have not moved; the answer depends on nothing else (the
-// grid with the secret doors shut, and which doors are open), so the key is the place and the doors.
+// What a standing place sees, kept per world, per place and door state. The tile set and the exact
+// light depend on nothing else (the grid with the secret doors shut, and which doors are open), and the
+// linter and the bots ask again and again from places that have not moved. A view asks about every
+// station part the tile set missed, each a sweep of rays, so those answers are kept too.
+interface Place {
+  seen: Visible;
+  encoded: string[];
+  touch: (t: Vec) => boolean;
+}
 const TOUCH_PLACES = 24; // places kept per world: three seats and a few recent steps
-const touched = new WeakMap<World, Map<string, Map<string, boolean>>>();
-function touchesFrom(world: World, me: Vec): (t: Vec) => boolean {
-  const places = touched.get(world) ?? new Map<string, Map<string, boolean>>();
-  touched.set(world, places);
+const places = new WeakMap<World, Map<string, Place>>();
+function placeOf(world: World, me: Vec): Place {
+  const all = places.get(world) ?? new Map<string, Place>();
+  places.set(world, all);
   const key = `${me.x},${me.y}|${JSON.stringify(world.doorOpen)}`;
-  let known = places.get(key);
-  if (!known) {
-    if (places.size >= TOUCH_PLACES) places.delete(places.keys().next().value as string);
-    known = new Map<string, boolean>();
-    places.set(key, known);
-  }
-  const memo = known;
+  const kept = all.get(key);
+  if (kept) return kept;
+  if (all.size >= TOUCH_PLACES) all.delete(all.keys().next().value as string);
+  const seen = visibleFrom(world, me);
+  const memo = new Map<string, boolean>();
   let grid: string[] | null = null;
-  return (t) => {
-    const at = `${t.x},${t.y}`;
-    const have = memo.get(at);
-    if (have !== undefined) return have;
-    grid ??= maskCache(world, world.room.grid);
-    const hit = lightTouches(me, grid, closedAt(world), t.x, t.y);
-    memo.set(at, hit);
-    return hit;
+  const place: Place = {
+    seen,
+    encoded: encodeSeen(seen.tiles),
+    touch: (t) => {
+      const at = `${t.x},${t.y}`;
+      const have = memo.get(at);
+      if (have !== undefined) return have;
+      grid ??= maskCache(world, world.room.grid);
+      const hit = lightTouches(me, grid, closedAt(world), t.x, t.y);
+      memo.set(at, hit);
+      return hit;
+    },
   };
+  all.set(key, place);
+  return place;
 }
 
 // What opens an ordinary door, when it is not held plates: a sequence, or a station solved. The room
@@ -1077,9 +1086,8 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
     const zones = carried(world, seat)?.item === "goggles" ? [] : dark;
     view.dark = inAny(dark, me);
     view.alarm = alarm;
-    const seen = visibleFrom(world, me);
-    view.seen = encodeSeen(seen.tiles);
-    const touches = touchesFrom(world, me);
+    const { seen, encoded, touch: touches } = placeOf(world, me);
+    view.seen = [...encoded]; // a copy: a view is the caller's to change
     view.entities = [
       ...inSight(
         world,

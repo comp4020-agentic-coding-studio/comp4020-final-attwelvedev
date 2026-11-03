@@ -1681,6 +1681,34 @@ describe("viewFor: a door out of sight is sent, as closed", () => {
   });
 });
 
+describe("viewFor: what a place sees is kept, but only while nothing that changes it has", () => {
+  const GRID = [
+    "####################",
+    "#1.....#.....#.....#",
+    "#2.....D.....D....E#",
+    "#3.....#.....#.....#",
+    "####################",
+  ];
+  const seenFrom = (w: ReturnType<typeof worldWith>) =>
+    decodeSeen(viewFor(w, 1, "deaf", false).seen ?? []);
+
+  it("shows what lies past a door once it opens, from a viewer who has not moved", () => {
+    const w = worldWith(GRID, { D1: { opensWhen: ["p1"] }, D2: { opensWhen: ["p1"] } });
+    place(w, 1, { x: 3, y: 2 });
+    expect(seenFrom(w).has("10,2"), "shut: the far side is not seen").toBe(false);
+    w.doorOpen.D1 = true;
+    expect(seenFrom(w).has("10,2"), "open: the same place now sees through").toBe(true);
+  });
+
+  it("gives each view its own `seen`, so a caller changing one cannot change the next", () => {
+    const w = worldWith(GRID, { D1: { opensWhen: ["p1"] }, D2: { opensWhen: ["p1"] } });
+    place(w, 1, { x: 3, y: 2 });
+    const first = viewFor(w, 1, "deaf", false);
+    first.seen?.splice(0, first.seen.length);
+    expect(viewFor(w, 1, "deaf", false).seen?.length).toBeGreaterThan(0);
+  });
+});
+
 describe("viewFor: a sequence door says it opens in order", () => {
   it("carries opens: sequence on a door in sequence mode", () => {
     const w = worldWith(
