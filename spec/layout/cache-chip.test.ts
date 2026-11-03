@@ -93,13 +93,19 @@ describe.each([
       const cb = await chip.boundingBox();
       expect(cb && cb.height >= 48).toBe(true);
       expect(cb && inside(cb, viewport)).toBe(true);
-      const g = await chip.locator("svg").boundingBox();
+      const g = await chip.locator("svg").first().boundingBox();
       expect(g && cb && g.x >= cb.x && g.x + g.width <= cb.x + cb.width).toBe(true);
-      // the riddle's whole line fits when it is opened: nothing is clipped by the chip's own box
-      await chip.click();
+      // the riddle is shown whole from the start: nothing is clipped by the chip's own box
       const text = chip.locator(".side-job-text");
+      expect(await text.innerText()).toContain("moon");
       const clipped = await text.evaluate((el) => el.scrollHeight > el.clientHeight + 1);
       expect(clipped).toBe(false);
+      // a click hides it down to the label (and the chip stays a 48 px target), another shows it again
+      await chip.click();
+      expect(await text.count()).toBe(0);
+      expect((await chip.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(48);
+      await chip.click();
+      expect(await text.count()).toBe(1);
       expect(
         await owner
           .locator(".side-job")

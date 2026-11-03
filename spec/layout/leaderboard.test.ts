@@ -1,3 +1,7 @@
+import { type ChildProcess, execSync, spawn } from "node:child_process";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Browser, Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 import {
@@ -9,7 +13,7 @@ import {
   PHONE,
   type Viewport,
 } from "../browser.ts";
-import { clearRoomOne } from "../heistPlay.ts";
+import { clearRoomOne, clearTinyRoom } from "../heistPlay.ts";
 import { closeAll, type Player, ready, startedGame } from "../play.ts";
 
 const baseUrl = inject("baseUrl");
@@ -176,5 +180,91 @@ describe.each([
     expect(page.url()).toBe(url);
     await page.context().close();
     await closeAll(players);
+  }, 120_000);
+});
+
+// The cleared card's side-job tile in a real cleared room that carries a cache (the fixture, on its
+// own app: the shared one loads rooms whose caches nobody opens). The tile sits after the credits and
+// before the buttons, inside the column, and never makes the buttons fall out of the frame.
+describe.each([
+  ["phone", PHONE],
+  ["desktop", DESKTOP],
+])("the side-job tile on the cleared card at %s width", (name, viewport) => {
+  const port = 23080 + Math.floor(Math.random() * 1000);
+  const ownUrl = `http://127.0.0.1:${port}`;
+  const dir = mkdtempSync(join(tmpdir(), "tile-spec-"));
+  let app: ChildProcess;
+
+  beforeAll(async () => {
+    if (!existsSync("dist/server/entry.mjs")) execSync("pnpm build", { stdio: "ignore" });
+    app = spawn("node", ["server.ts"], {
+      env: {
+        ...process.env,
+        PORT: String(port),
+        DATABASE_PATH: join(dir, "app.db"),
+        ROOMS_DIR: "spec/fixtures/rooms-cache",
+      },
+      stdio: "ignore",
+    });
+    for (let attempt = 0; attempt < 150; attempt++) {
+      try {
+        await fetch(ownUrl);
+        return;
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+    }
+    throw new Error(`the spec's own app never came up on ${ownUrl}`);
+  }, 40_000);
+  afterAll(() => {
+    app?.kill();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("sits after the credits and before the buttons, inside the column, with the buttons in the frame", async () => {
+    const { players, code } = await startedGame(ownUrl);
+    ready(players);
+    const player = players[1] as Player;
+    const eq = player.cookie.indexOf("=");
+    const context = await browser.newContext({ viewport });
+    await context.addCookies([
+      { name: player.cookie.slice(0, eq), value: player.cookie.slice(eq + 1), url: ownUrl },
+    ]);
+    await context.addInitScript((n) => localStorage.setItem("heist.nickname", n), "Bo");
+    const page = await context.newPage();
+    try {
+      await page.goto(new URL(`/lobby/${code}`, ownUrl).href);
+      await page.locator(".frame canvas").waitFor();
+      await clearTinyRoom(players);
+      const tile = page.locator(".side-job-tile");
+      await tile.waitFor();
+      const box = async (sel: string) => {
+        const b = await page.locator(sel).first().boundingBox();
+        if (!b) throw new Error(`no box for ${sel}`);
+        return b;
+      };
+      const card = await box(".overlay > .cleared");
+      const credits = await box(".credits");
+      const t = await box(".side-job-tile");
+      const actions = await box(".cleared-actions");
+      const frame = await box(".frame");
+      expect(t.y, "after the credits").toBeGreaterThanOrEqual(credits.y + credits.height - 1);
+      expect(t.y + t.height, "before the buttons").toBeLessThanOrEqual(actions.y + 1);
+      expect(t.x).toBeGreaterThanOrEqual(card.x - 1);
+      expect(t.x + t.width).toBeLessThanOrEqual(card.x + card.width + 1);
+      expect(actions.y + actions.height, "the buttons stay in the frame").toBeLessThanOrEqual(
+        frame.y + frame.height + 1,
+      );
+      // text not clipped: the tile's own text fits its box
+      const clipped = await tile
+        .locator(".side-job-tile-text")
+        .evaluate((el) => el.scrollWidth > el.clientWidth + 1);
+      expect(clipped).toBe(false);
+      expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
+      await page.screenshot({ path: `/tmp/cleared-tile-${name}.png` });
+    } finally {
+      await context.close();
+      await closeAll(players);
+    }
   }, 120_000);
 });

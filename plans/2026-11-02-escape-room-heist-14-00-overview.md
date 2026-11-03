@@ -6,7 +6,7 @@
 - **Requirements confirmed by user:** yes, 2026-11-02 (spec `specs/2026-11-02-escape-room-caches.md`; the chamber amendment
   confirmed in the plan-feature restatement, 2026-11-02; ADR 0020 proposed and amended in place)
 - **Part of:** `plans/2026-10-28-escape-room-heist-00-overview.md` (add a §5 row for phase 14, unticked).
-  Depends on phases 11 (narrowed: Tasks 28 to 30 done, committed), 12 and 13. Tasks 51 to 65.
+  Depends on phases 11 (narrowed: Tasks 28 to 30 done, committed), 12 and 13. Tasks 51 to 66 (66, the dial cache's inspection plate, was added 2026-11-03 and runs first in 14-04).
 - **Commits:** one per task once `pnpm check` is green, ending with
   `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`. Never push or deploy without the user's go-ahead.
 - **Review mode:** a task with a `Human review:` line is not committed until the user accepts it, on a local build
@@ -116,6 +116,8 @@ EntityView.kind += "motiftile" | "keepsake";   // motiftile: `motif`; keepsake: 
 EntityView.keep?: ItemId;
 RoleView.tiles for a sighted seat or a watcher: the chamber, the vault and both secret doors read "#" until each is open
 SoundCue += { n?: seat; item?: ItemId }     // "uncover" n = owner (no item); "stash" n = owner, item; "loot" from a take: n = owner, item
+SoundCue.kind += "hollow"                    // Task 66: a step on a dial cache's inspection plate; replaces `step`/`footsteps` there
+EntityView.station.cache?: true             // Task 66: a cache dial's station entity, so the client draws its `back` as a plate
 
 // src/net/protocol.ts (Tasks 54 and 65)
 { t: "cleared"; ...; cache?: { room: string; found: boolean; opened: boolean; item: ItemId; owner: Seat; by?: Seat; riddle: string } }
@@ -141,7 +143,7 @@ Each session loads this overview plus one file. Ordered by real dependency (the 
   doors, keepsake and loot-at-pickup in the sim, the masked view, the amended server results). Depends on 51 to 54.
 - [x] `2026-11-02-escape-room-heist-14-03-client.md`: Tasks 55 (done), 56 (rewritten: the chamber on the map, the chip, the keepsake slot),
   57 (the cleared tile and the shelf, three states). Depends on 62 to 65. Ends with screenshots and the user's reviews.
-- [ ] `2026-11-02-escape-room-heist-14-04-rooms-wrap.md`: Tasks 58 to 60 (six caches with chambers in rooms 4 to 9, wrap-up). Depends on 53,
+- [ ] `2026-11-02-escape-room-heist-14-04-rooms-wrap.md`: Tasks 66 (the inspection plate and its `hollow` step), then 58 to 60 (six caches with chambers, all below their rooms, in rooms 4 to 9; wrap-up). Depends on 53,
   62 to 65, 55 to 57.
 
 Add a §5 row for phase 14 to `plans/2026-10-28-escape-room-heist-00-overview.md` when the first file is started.
@@ -165,7 +167,7 @@ Add a §5 row for phase 14 to `plans/2026-10-28-escape-room-heist-00-overview.md
 | FR3 (riddle owner-only) | 52 |
 | FR4 (the motif tile opens the secret door, decoys; anyone may enter) | 51, 52, 63 |
 | FR5 (wrong re-draws only the cache) | 51 |
-| FR6 (presence, tile and clue by different roles) | 53, 62 |
+| FR6 (presence, tile and clue by different roles; the dial's clue findable) | 53, 62, 66 |
 | FR7 (item stands in the vault; only the owner takes it; loot +1 at pickup; undone by send-back) | 63 |
 | FR8 (bots ignore caches, rooms still clear) | 53, 62, 58, 59 |
 | FR9, FR10, FR11 (door moments, vault, take, reduced motion, contrast) | 52, 64 (events, sounds, captions), 56 (drawing) |

@@ -7,7 +7,12 @@
   {"name":"The real thing","x":[23,46],"intent":{"blind":"follows to the checkpoint","deaf":"lights the ink under the checkpoint and cuts the wire","mute":"reads the big card, waits for the nook door to open, then watches the six dark lamps and marks"}},
   {"name":"Six switches","x":[23,46],"intent":{"blind":"hears each switch clunk","deaf":"presses the marked switches","mute":"marks each switch until the lamps match"}},
   {"name":"Out","x":[47,51],"intent":{"blind":"walks out","deaf":"walks out","mute":"walks out"}}],
- "objects":{"Q1":{"type":"wires","wires":[[7,1],[8,1],[9,1]],"plaque":"u1","numbered":true,"teach":true},"Q2":{"type":"switches","buttons":[[13,2],[14,2],[15,2]],"cols":3,"lamps":[[18,2],[19,2],[20,2]],"teach":true},"Q3":{"type":"wires","wires":[[27,1],[28,1],[29,1],[30,1]],"plaque":"u2","numbered":true},"Q4":{"type":"switches","buttons":[[34,1],[35,1],[36,1],[34,2],[35,2],[36,2]],"cols":3,"lamps":[[40,1],[41,1],[42,1],[40,2],[41,2],[42,2]]},"Q5":{"type":"dial","pads":[[15,6],[17,6]],"teach":true,"range":6},"Q6":{"type":"dial","pads":[[36,6],[38,6]],"teach":true,"range":6},"T1":{"of":"Q4"},"T2":{"of":"Q2"},"g1":{"item":"goggles"},"g2":{"item":"uv"},"u1":{"text":""},"u2":{"text":""},"D1":{"opensWhen":["Q1"]},"D2":{"opensWhen":["Q3"]},"D3":{"opensWhen":["Q3","Q4","Q6"]},"D4":{"opensWhen":["Q1","Q2","Q5"]}},
+ "objects":{"Q1":{"type":"wires","wires":[[7,1],[8,1],[9,1]],"plaque":"u2","numbered":true,"teach":true},"Q2":{"type":"switches","buttons":[[13,2],[14,2],[15,2]],"cols":3,"lamps":[[18,2],[19,2],[20,2]],"teach":true},"Q3":{"type":"wires","wires":[[27,1],[28,1],[29,1],[30,1]],"plaque":"u3","numbered":true},"Q4":{"type":"switches","buttons":[[34,1],[35,1],[36,1],[34,2],[35,2],[36,2]],"cols":3,"lamps":[[40,1],[41,1],[42,1],[40,2],[41,2],[42,2]]},"Q5":{"type":"dial","pads":[[15,6],[17,6]],"teach":true,"range":6},"Q6":{"type":"dial","pads":[[36,6],[38,6]],"teach":true,"range":6},"T1":{"of":"Q4"},"T2":{"of":"Q2"},"Q7":{"type":"wires","wires":[[32,8],[33,8],[34,8]],"plaque":"u1","numbered":true,
+   "cache":{"owner":1,"motif":"moon","riddle":"Look where the moon sits, then cut what the ink says.","item":"goblet",
+    "tiles":[{"at":[8,5],"motif":"moon"},{"at":[12,5],"motif":"star"}],
+    "chamber":{"rect":[28,8,36,10],"door":[30,7],"vault":{"rect":[35,10,36,10],"door":[34,10],"item":[36,10]}}}},
+  "u3":{"text":""},
+  "g1":{"item":"goggles"},"g2":{"item":"uv"},"u1":{"text":""},"u2":{"text":""},"D1":{"opensWhen":["Q1"]},"D2":{"opensWhen":["Q3"]},"D3":{"opensWhen":["Q3","Q4","Q6"]},"D4":{"opensWhen":["Q1","Q2","Q5"]}},
  "hints":{"jobs":[
   {"beat":1,"take":"g2","prefer":"deaf"},
   {"beat":1,"take":"g1","prefer":"mute"},
@@ -25,10 +30,13 @@
 ---
 ###################################t################
 #1....Q....#..Q..#...####.Q.....#.....Q#...#########
-#2.........#.....#...####.......#......#...#########
+#2.........#.....#...####.......#.u....#...#########
 #3..g......#DDDDDDDDD####.......#DDDDDDDDDD#########
 ##........##g.........##.......................D..E#
 #......................D.K.....................D..E#
 #...............Q......D.............Q.........D.$E#
-##u######t###############u##########################
+##u######t###############u####D#####################
+############################.........###############
+############################..Q....#################
+############################......D..###############
 ####################################################
