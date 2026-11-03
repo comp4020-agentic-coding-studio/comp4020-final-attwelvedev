@@ -73,6 +73,9 @@ export interface Scene {
   // Filled by draw with the boxes it placed (canvas px), so a spec can measure that no chip sits on a
   // plaque: the picture alone cannot say. Absent, nothing is recorded.
   report?: { chips: Box[]; plaques: Box[] };
+  // Boxes the page has put over the canvas (canvas px), such as the riddle chip: no label chip sits on
+  // one, as it would be half hidden. Measured from the DOM by the game, so the chip may grow or wrap.
+  avoid?: Box[];
   floorEntities?: EntityView[]; // every entity sent, before what stands out of the light is dropped: the floor layer reads these (a hazard's cone outlives its body)
 }
 

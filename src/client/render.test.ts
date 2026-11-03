@@ -2526,6 +2526,52 @@ describe("label chips", () => {
     expect(apart, `plaque ${plaque[0]} vs chip ${chips[0]}`).toBe(true);
   });
 
+  // The user: the riddle chip is always open at the frame's top-left, and a label chip drawn under its
+  // corner was half hidden (room 8). The chip is DOM, so the game measures it and passes its box.
+  it("keep clear of a box the page says is taken, such as the riddle chip", () => {
+    const labels = [{ text: "Safe: a dial", at: { x: 2.5, y: 1.5 } }];
+    const tiles = [
+      "##########",
+      "#........#",
+      "#........#",
+      "#........#",
+      "#........#",
+      "##########",
+    ];
+    const chipsWith = (avoid?: [number, number, number, number][]) => {
+      const { ctx, ops } = recorder();
+      const sc = scene({
+        w: 1280,
+        h: 600,
+        tiles,
+        entities: [player(1, 2.5, 2.5)],
+        self: { x: 2.5, y: 2.5 },
+        labels,
+        report: { chips: [], plaques: [] },
+        ...(avoid ? { avoid: avoid.map(([x, y, w, h]) => ({ x, y, w, h })) } : {}),
+      });
+      draw(ctx, sc);
+      void ops;
+      return sc.report?.chips[0] as { x: number; y: number; w: number; h: number };
+    };
+    const free = chipsWith();
+    // the riddle chip sits over exactly where that label wanted to go
+    const taken: [number, number, number, number] = [
+      free.x - 10,
+      free.y - 10,
+      free.w + 20,
+      free.h + 20,
+    ];
+    const moved = chipsWith([taken]);
+    const [tx, ty, tw, th] = taken;
+    const apart =
+      tx + tw <= moved.x ||
+      moved.x + moved.w <= tx ||
+      ty + th <= moved.y ||
+      moved.y + moved.h <= ty;
+    expect(apart, `chip ${JSON.stringify(moved)} vs riddle ${taken}`).toBe(true);
+  });
+
   it("never draw one chip over another, even five crowded at the screen's right edge", () => {
     const { ctx, ops } = recorder();
     const labels = Array.from({ length: 5 }, (_, i) => ({

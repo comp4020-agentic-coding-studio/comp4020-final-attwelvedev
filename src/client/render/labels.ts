@@ -43,7 +43,7 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, maxW: number): string
 // sit on another moves to the nearest free place, so each stays readable; none is drawn over another.
 export function drawLabels(ctx: CanvasRenderingContext2D, scene: Scene, cam: Camera) {
   // a plaque's plate is already on the wall: no chip sits on its words, so it starts as taken
-  const placed: Rect[] = [];
+  const placed: Rect[] = (scene.avoid ?? []).map((b) => ({ x: b.x, y: b.y, w: b.w, h: b.h }));
   if (scene.report) scene.report = { chips: [], plaques: [] };
   for (const e of scene.entities) {
     const boxes: Rect[] = [];

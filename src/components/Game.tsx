@@ -226,9 +226,19 @@ function useDraw(
         for (const l of rt.labels) rt.roomKinds.add(l.kind);
         labels = rt.labels;
       }
+      // the side-job chip is DOM over the canvas: a label chip must not sit half under it, so its box
+      // (relative to the frame, in canvas px) is handed to the draw. Read only when there are labels.
+      let avoid: Scene["avoid"];
+      const chip = labels && labels.length > 0 ? box.querySelector(".side-job") : null;
+      if (chip) {
+        const c = chip.getBoundingClientRect();
+        const f = box.getBoundingClientRect();
+        avoid = [{ x: c.left - f.left, y: c.top - f.top, w: c.width, h: c.height }];
+      }
       const scene: Scene = {
         ...size,
         labels,
+        ...(avoid ? { avoid } : {}),
         report: { chips: [], plaques: [] },
         role,
         seat: view.you.seat,

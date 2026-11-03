@@ -1,5 +1,5 @@
 import { type ChildProcess, execSync, spawn } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Browser, Page } from "playwright";
@@ -53,8 +53,8 @@ async function threePlayers(viewport: Viewport): Promise<Page[]> {
   for (const page of pages) await page.locator(".reveal").waitFor();
   return pages;
 }
-const close = async (pages: Page[]) => {
-  for (const page of pages) await leaveGameAndClose(page, url).catch(() => {});
+const close = async (pages: Page[], at = url) => {
+  for (const page of pages) await leaveGameAndClose(page, at).catch(() => {});
 };
 const inside = (box: { x: number; y: number; width: number; height: number }, vp: Viewport) =>
   box.x >= 0 && box.y >= 0 && box.x + box.width <= vp.width && box.y + box.height <= vp.height;
@@ -214,3 +214,111 @@ describe.each([
     }
   }, 60_000);
 });
+
+// The user: the riddle chip is always open, and a label chip drawn under its corner was half hidden.
+// The chip is DOM and the labels are canvas, so the page measures the chip and the canvas keeps clear.
+// Its own app with only 02-cache-b, whose cache belongs to seat 3, the sighted one in room 1: the
+// other fixture's owner is Can't see, who has no map and so no label chips to hide.
+describe("the side-job chip and the label chips", () => {
+  const ownPort = 22080 + Math.floor(Math.random() * 1000);
+  const ownUrl = `http://127.0.0.1:${ownPort}`;
+  const ownDir = mkdtempSync(join(tmpdir(), "cache-chip-labels-"));
+  let ownApp: ChildProcess;
+  let ownBrowser: Browser;
+
+  beforeAll(async () => {
+    if (!existsSync("dist/server/entry.mjs")) execSync("pnpm build", { stdio: "ignore" });
+    copyFileSync("spec/fixtures/rooms-cache/02-cache-b.room", join(ownDir, "02-cache-b.room"));
+    ownApp = spawn("node", ["server.ts"], {
+      env: {
+        ...process.env,
+        PORT: String(ownPort),
+        DATABASE_PATH: join(ownDir, "app.db"),
+        ROOMS_DIR: ownDir,
+      },
+      stdio: "ignore",
+    });
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await fetch(ownUrl);
+        break;
+      } catch {
+        if (attempt >= 150) throw new Error(`the spec's own app never came up on ${ownUrl}`);
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+    }
+    ownBrowser = await launch();
+  }, 60_000);
+  afterAll(async () => {
+    ownApp?.kill();
+    rmSync(ownDir, { recursive: true, force: true });
+    await ownBrowser?.close();
+  }, 30_000);
+
+  it.each([
+    ["1280 desktop", DESKTOP],
+    ["375 phone", PHONE],
+  ])(
+    "no label chip sits under the side-job chip at %s",
+    async (_name, viewport) => {
+      const host = await createLobbyAs(ownBrowser, ownUrl, "Ana", viewport);
+      const pages = [host.page];
+      for (const name of ["Bo", "Cy"])
+        pages.push(await joinWithCode(ownBrowser, ownUrl, host.code, name, viewport));
+      try {
+        await host.page.getByRole("heading", { name: /^Players 3 of 6/ }).waitFor();
+        await host.page.getByRole("button", { name: /^Start/ }).click();
+        for (const page of pages) await page.getByRole("button", { name: "I'm ready" }).click();
+        for (const page of pages) await page.locator(".frame canvas").waitFor();
+        const owner = pages[2] as Page; // seat 3 in room 1: the one who sees
+        await owner.locator(".side-job").waitFor();
+        const canvas = owner.locator("canvas[data-camera]");
+        let drawn = 0;
+        // a count of samples, not a clock: each reads the chip and the labels as drawn at that moment.
+        // At more than one window height, because where a label lands depends on the frame's height
+        // and at one height the chip may happen to be clear.
+        for (const height of [viewport.height, 700, 420, 300]) {
+          await owner.setViewportSize({ width: viewport.width, height });
+          // wait for the canvas to be the new size, so no frame from before the resize stands in
+          await expect
+            .poll(async () => ((await canvas.boundingBox())?.height ?? 0) <= height)
+            .toBe(true);
+          for (let i = 0; i < 6; i++) {
+            const chip = await owner.locator(".side-job").boundingBox();
+            const frame = await canvas.boundingBox();
+            const raw = await canvas.getAttribute("data-label-boxes");
+            if (chip && frame && raw) {
+              const mine = {
+                x: chip.x - frame.x,
+                y: chip.y - frame.y,
+                w: chip.width,
+                h: chip.height,
+              };
+              const chips = (JSON.parse(raw) as { chips: Mine[] }).chips;
+              drawn += chips.length;
+              for (const c of chips)
+                expect(
+                  c.x + c.w <= mine.x ||
+                    mine.x + mine.w <= c.x ||
+                    c.y + c.h <= mine.y ||
+                    mine.y + mine.h <= c.y,
+                  `${height}: label ${JSON.stringify(c)} under riddle ${JSON.stringify(mine)}`,
+                ).toBe(true);
+            }
+            await owner.waitForTimeout(50);
+          }
+        }
+        expect(drawn, "a label chip was drawn, or this proved nothing").toBeGreaterThan(0);
+      } finally {
+        await close(pages, ownUrl);
+      }
+    },
+    60_000,
+  );
+});
+interface Mine {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
