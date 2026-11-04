@@ -148,9 +148,6 @@ export function nightTile(
   if (lit(x + 1, y)) ctx.fillRect(p.x + s - 2, p.y, 2, d + 0.5);
 }
 
-// The wall tiles the light touches. A wall is seen where a ray ends on its face, so it is lit when
-// the polygon has a vertex on its boundary: area would say a wall is dark, since the light stops at
-// its face and never fills it. A vertex on a corner touches up to four tiles.
 // The mist, cut exactly to your line of sight, drawn as ONE region filled ONCE. Per-tile rectangles
 // stepped along the edge of the light and doubled the veil's alpha where two overlapped by the half
 // pixel kept to hide seams, which at night showed as a pale outline round a tile.
