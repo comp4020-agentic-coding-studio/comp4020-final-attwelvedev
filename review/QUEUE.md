@@ -341,3 +341,26 @@ closed, which I cannot do for you.
   - **What I judged:** good at both widths, with no clipping or overflow. Nicknames are cut to 16
     characters by the server, so "Bartholomew-Feat" is the longest a name can be. It stays on one
     line beside "Not ready" even at 375.
+
+## Overnight run 2026-11-05, lane A (`auto/blind-purpose`), phase 03
+
+## PARKED
+
+- **Task 74 (room 4's braille plate, the Can't-see bot that reads it), parked on
+  `auto/blind-purpose-parked-03-task74` (commit "PARKED: room 4's braille plate…").**
+  - **Why:** the work is complete. Bots clear room 4 in all three rotations, in 31, 32 and 22 s of
+    the 240 s budget, and with the bot's read turned off all three fail, so the plate is truly
+    needed. But `src/game/rooms/pacing.test.ts` fails: room 4 now introduces **station, gear and
+    braille**, and the rule allows at most two new kinds of thing per room (clues FR9/FR10). The
+    spec's FR5 puts the first plate, with its teaching line, in room 4, so the two promises
+    conflict. Going green needs one of these, and each is your call:
+    1. count a braille plate as part of the station it serves (add `braille` to the pacing
+       test's not-counted set, with your ruling as the reason, like the side-job exemption)
+    2. move the first plate (and the teaching line) to room 5, which introduces only `clue` and
+       `sign` today, and give room 4 none (FR5 changes)
+    3. move the stethoscope's first appearance out of room 4
+  - **Recommendation:** option 1. A plate is the answer to a station already being taught, read
+    with a key printed on the card, so it adds less to learn than a new station does.
+  - **To resume:** `git merge auto/blind-purpose-parked-03-task74` into `auto/blind-purpose`, apply
+    the ruling, run `pnpm test:unit`, `pnpm vitest run spec/rooms.test.ts`, `pnpm lint:rooms`.
+    Then finish Task 75's human review on room 4 (see below) and close phase 03.

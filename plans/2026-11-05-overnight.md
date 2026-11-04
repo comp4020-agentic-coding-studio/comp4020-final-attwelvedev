@@ -43,3 +43,12 @@
   → the radio rule only checks `part === 0`; the decoy rule waits for Task 78. Also, the dial
   tumbler guard (Task 74's step 4) landed here with its perception test, because the lint's dial
   rule asks exactly that question. Reversible by moving the guard commit.
+- bp03/task74: `claimJobs` gives a seat one job per beat, and Can't see's beat-3 job is the listen →
+  the read job is in beat 2 and the plate at (18,3), beside the K1 flag where the team gathers,
+  because a beat-3 read would have taken the listen job off Can't see. The plate entity also shows
+  `state: "on"` while a hand is on it, because the one-tick `flash` was missed by a guide looking
+  elsewhere, which left the blind bot waiting forever. Reversible by moving the plate and job.
+- bp03/task74: PARKED. `pacing.test.ts` (at most two new kinds of thing per room) fails, because room 4
+  introduces station, gear and braille → parked on `auto/blind-purpose-parked-03-task74` rather than
+  exempting braille myself, because exempting it would loosen a guarded promise. Recommended ruling:
+  count a plate as part of its station. Reversible by merging that branch once ruled.
