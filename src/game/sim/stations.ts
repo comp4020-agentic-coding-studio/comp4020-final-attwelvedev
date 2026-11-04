@@ -184,6 +184,9 @@ function revealOn(world: World, o: RoomObject, s: StationState): void {
   s.reveal = Math.floor(rng(world.seed * 1000 + world.attempt + 500 + i)() * SYMBOLS);
 }
 
+// How long a teaching station or cache ignores input after a wrong answer (FR13).
+export const JAM_TICKS = Math.round(3000 / 50); // 3 s at TICK_MS = 50
+
 // A teaching station's wrong answer (clues FR7): this station alone is drawn again, from the tick,
 // with nothing entered. No dye and no send-back.
 export function redrawOne(world: World, o: RoomObject, s: StationState): void {
@@ -266,6 +269,8 @@ function act(
 ): boolean {
   const s = world.stations[o.id];
   if (!s || s.solved || !cacheOpen(world, o.id)) return false;
+  // jammed after a wrong answer (FR13): every part ignores Act until the jam ends
+  if (world.tick < (world.jammedUntil[o.id] ?? 0)) return false;
   const p = o.params ?? {};
   const anchor = o.tiles[0] as Vec;
   const cache = cacheOf(o) !== null;
@@ -285,7 +290,7 @@ function act(
     });
     return true;
   }
-  const say = (result: "turn" | "press" | "cut" | "solved" | "wrong", n?: number) =>
+  const say = (result: "turn" | "press" | "cut" | "solved" | "wrong" | "jam", n?: number) =>
     world.events.push({
       kind: "station",
       id: o.id,
@@ -309,8 +314,12 @@ function act(
   const fail = () => {
     say("wrong");
     // a cache's wrong answer, like a teaching station's, draws only itself again (caches FR5)
-    if (p.teach || cache) redrawOne(world, o, s);
-    else wrong.w ??= { id: o.id, seat };
+    // and jams for 3 s, so a guess per tick cannot brute-force it (FR13)
+    if (p.teach || cache) {
+      redrawOne(world, o, s);
+      world.jammedUntil[o.id] = world.tick + JAM_TICKS;
+      say("jam");
+    } else wrong.w ??= { id: o.id, seat };
   };
   const partIndex = (key: string) => tilesOf(p[key]).findIndex((t) => same(t, tile));
 

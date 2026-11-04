@@ -117,6 +117,7 @@ export interface World {
   cacheBy: Record<string, Seat>; // cache station id -> the seat whose Act solved it (the vault door is open)
   cacheTaken: Record<string, Seat>; // cache station id -> the seat that took the keepsake (its owner); +1 loot
   syncAt: Record<string, number[]>; // sync locks: the tick each key was last turned (-1 = not yet)
+  jammedUntil: Record<string, number>; // a teaching station or cache: ignores input until this tick (FR13)
 }
 
 export type WorldEvent =
@@ -135,7 +136,7 @@ export type WorldEvent =
   | {
       kind: "station";
       id: string;
-      result: "turn" | "press" | "cut" | "solved" | "wrong";
+      result: "turn" | "press" | "cut" | "solved" | "wrong" | "jam";
       n?: number;
       practice?: true; // a press while its practice lever is on: it plays and counts for nothing
       at: Vec;
@@ -268,6 +269,7 @@ export function createWorld(room: Room, seed = 1): World {
     cacheBy: {},
     cacheTaken: {},
     syncAt: {},
+    jammedUntil: {},
   };
   drawStations(world);
   return world;

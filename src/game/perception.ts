@@ -127,6 +127,7 @@ export interface EntityView {
     furniture?: true; // only its parts are in sight, not where it shows its state: `shows` is empty
     teach?: true; // a teaching station (clues FR7)
     practice?: true; // its practice lever is on: dimmed, and its keys and bells only play (Task 38)
+    jammed?: true; // a teaching station or cache after a wrong answer: it ignores input for 3 s (FR13)
     motif?: Motif; // drawn on it, and on the station it feeds or is fed by (clues FR3)
     reveal?: number; // a solved wing's symbol, for the vault (clues FR2)
     stash?: ItemId; // a found cache's item (caches FR10), for the sighted
@@ -185,6 +186,7 @@ export interface SoundCue {
     | "bellnote" // a music-box bell struck or played; `n` is which
     | "bell" // the bell rope: the whole room hears it
     | "dye" // the dye pack: a wrong answer, heard by the team
+    | "jam" // a teaching station or cache jammed by a wrong answer: a short buzz where it stands
     | "earpiece" // the earpiece's private tune: `n` is the note; only its holder hears it
     | "gear" // gear picked up, handed over, dropped or put on a sill
     | "uncover" // a cache uncovered: heard by the team, wherever it is
@@ -267,6 +269,7 @@ const RANGE: Partial<Record<SoundCue["kind"], number>> = {
   practice: 6,
   bellnote: 8,
   gear: 6,
+  jam: 6,
 };
 const UV_RADIUS = 2.5; // tiles a UV torch lights around its holder
 const UV_RAYS = 48;
@@ -442,6 +445,7 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
           ...(typeof o.params?.practice === "string" && world.levers[o.params.practice]
             ? { practice: true as const }
             : {}),
+          ...(world.tick < (world.jammedUntil[o.id] ?? 0) ? { jammed: true as const } : {}),
           ...(isMotif(o.params?.motif) ? { motif: o.params.motif } : {}),
           ...(s.solved && s.reveal !== undefined ? { reveal: s.reveal } : {}),
           ...(item && world.cacheBy[o.id] !== undefined ? { stash: item } : {}),
@@ -711,7 +715,12 @@ function stationSound(
     out.push({ kind: "solved", pan: panOf(e.at, me), gain: 1, ...dirTo(e.at, me) });
     return;
   }
-  if (e.result === "wrong") return; // the dye pack says it
+  if (e.result === "wrong") return; // the dye pack says it, or (teaching, cache) the jam
+  if (e.result === "jam") {
+    const c = cue(world, "jam", e.at, me);
+    if (c) out.push(c);
+    return;
+  }
   if (e.practice) {
     // a practice press: its own sound, never the key's or the bell's, so it is never taken for a solve
     // it carries the note and its source, so the client can play the real chime quietly (Task 42)

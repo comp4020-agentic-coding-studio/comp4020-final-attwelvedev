@@ -1518,6 +1518,35 @@ describe("viewFor: clue fields (escape-room Task 11)", () => {
   });
 });
 
+describe("viewFor: a jammed station (FR13)", () => {
+  it("shows station.jammed to the sighted while the jam lasts, and not after", () => {
+    const world = worldWith(
+      ["##########", "#1.......#", "#2..Q....#", "#3.......#", "##########"],
+      {
+        Q1: {
+          type: "dial",
+          pads: [
+            [3, 2],
+            [5, 2],
+          ],
+          digits: 1,
+          teach: true,
+        },
+      },
+    );
+    const jammed = () =>
+      viewFor(world, 1, "deaf", false).entities.find((e) => e.id === "Q1")?.station?.jammed;
+    expect(jammed()).toBeUndefined();
+    const s = world.stations.Q1 as NonNullable<(typeof world.stations)[string]>;
+    s.input = [((s.answer[0] as number) + 1) % 10];
+    place(world, 2, { x: 4, y: 2 });
+    step(world, { 2: { seq: 0, move: { x: 0, y: 0 }, act: true } }, TICK_MS);
+    expect(jammed()).toBe(true);
+    while (world.tick < (world.jammedUntil.Q1 ?? 0)) step(world, {}, TICK_MS);
+    expect(jammed()).toBeUndefined();
+  });
+});
+
 describe("viewFor: the hollow step on a cache dial's inspection plate (Task 66)", () => {
   const BASE_GRID = [
     "##############################",

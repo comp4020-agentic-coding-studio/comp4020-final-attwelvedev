@@ -117,7 +117,7 @@ See overview §2.4. The user ruled that a person with nothing played shows no Pl
 
 ## 5. Task breakdown
 
-### Task 81: Played roles as outline icons on the role screen (FR4)
+### Task 81: Played roles as outline icons on the role screen (FR4) [x] (review queued)
 
 - **Description:** each crew row shows the roles that person played earlier this heist as small
   outline shapes behind the word "Played", labelled "Already played: …".
@@ -148,7 +148,7 @@ See overview §2.4. The user ruled that a person with nothing played shows no Pl
   the user accepts.
 - **Depends on:** none.
 
-### Task 71: A wrong answer jams a teaching station or cache for 3 s (FR13)
+### Task 71: A wrong answer jams a teaching station or cache for 3 s (FR13) [x]
 
 - **Description:** after a wrong answer on a teaching station or cache, that station ignores input
   for 3 s, looks jammed, and sounds `jam`. Its redraw still happens.

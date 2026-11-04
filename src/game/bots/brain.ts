@@ -1101,7 +1101,11 @@ function press(
   const centred = Math.hypot(pos.x - (tile.x + 0.5), pos.y - (tile.y + 0.5)) < 0.15;
   const goal = job ? workGoal(room, m, job, known, m.seat) : null;
   const here = centred && goal !== null && goal.x === tile.x && goal.y === tile.y;
-  const pressed = job && here ? pressFor(room, m, known, job, view.tick) : null;
+  // a station seen jammed (FR13) ignores every press: the bot waits the jam out on its tile
+  const jammed =
+    job?.target.kind === "station" &&
+    view.entities.some((e) => e.id === (job.target as { id: string }).id && e.station?.jammed);
+  const pressed = job && here ? (jammed ? "wait" : pressFor(room, m, known, job, view.tick)) : null;
   // An Act from a towed seat lets go of the hand that leads it (sim/gear.ts: actOn), so a bot a
   // person is leading never presses one: it waits, and works once they let go. G is unaffected.
   const towed = view.you.hand !== undefined && known.holding[view.you.seat] !== undefined;

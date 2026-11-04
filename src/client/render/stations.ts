@@ -475,6 +475,43 @@ function floorKey(
 }
 
 // The solved plate: a drawn tick on brass, raised over the station, and a goal ring on the floor.
+// A teaching station or cache jammed by a wrong answer (FR13): its face greyed under a mist wash and a
+// small bar hatched in diagonal stripes over it, like a barrier tape, for the 3 s it ignores input.
+function jammedBar(ctx: CanvasRenderingContext2D, cam: Camera, at: Vec) {
+  const s = cam.scale;
+  const f = toScreen(cam, at.x, at.y, LIVE.block / 2);
+  ctx.save();
+  ctx.globalAlpha = 0.6;
+  ctx.fillStyle = WORLD.mist;
+  ctx.beginPath();
+  ctx.roundRect(f.x - s * 0.42, f.y - s * 0.4, s * 0.84, s * 0.8, s * 0.08);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  const w = s * 0.7;
+  const h = Math.max(6, s * 0.18);
+  const x = f.x - w / 2;
+  const y = f.y - h / 2;
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.fillStyle = WORLD.mist;
+  ctx.fill();
+  ctx.save();
+  ctx.clip();
+  ctx.strokeStyle = WORLD.line;
+  ctx.lineWidth = Math.max(2, h * 0.3);
+  ctx.beginPath();
+  for (let k = -h; k < w + h; k += h * 0.9) {
+    ctx.moveTo(x + k, y + h);
+    ctx.lineTo(x + k + h, y);
+  }
+  ctx.stroke();
+  ctx.restore();
+  ctx.strokeStyle = WORLD.line;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, w, h);
+  ctx.restore();
+}
+
 function solvedPlate(ctx: CanvasRenderingContext2D, cam: Camera, at: Vec, below = false) {
   const s = cam.scale;
   // a station that shows a symbol plate over itself keeps its tick lower, on its face, so the symbol
@@ -775,6 +812,7 @@ export function drawStationStanding(
     ctx.stroke();
   }
   if (st.solved && inRow(anchor)) solvedPlate(ctx, cam, centre(anchor), st.reveal !== undefined);
+  if (st.jammed && inRow(anchor)) jammedBar(ctx, cam, centre(anchor));
   if (inRow(anchor) && st.motif) {
     // the link's motif, on a disc at the anchor's front corner (the other end carries the same)
     const m = toScreen(cam, anchor.x + 0.85, anchor.y + 0.9, LIVE.block * 0.5);

@@ -30,7 +30,7 @@ export type GameEvent =
   | "bot.takeover" // the host let a bot take a dropped seat
   | "run.saved" // a room or heist run was written to the leaderboard
   | "voice.latency" // a receiver's voice latency over the last few seconds (numbers only)
-  | "station" // a station solved or answered wrong (detail kind only: never the answer)
+  | "station" // a station solved, answered wrong or jammed (detail kind only: never the answer)
   | "gear" // gear taken, given, dropped or put on a sill (detail kind)
   | "hold" // two players took or let go of hands (detail kind: on/off)
   | "signal" // the bell rung or the lamp flashed (detail kind: bell/lamp)
@@ -89,7 +89,10 @@ export interface EventLine {
 
 export function gameLinesFor(events: readonly WorldEvent[]): EventLine[] {
   return events.flatMap((e): EventLine[] => {
-    if (e.kind === "station" && (e.result === "solved" || e.result === "wrong")) {
+    if (
+      e.kind === "station" &&
+      (e.result === "solved" || e.result === "wrong" || e.result === "jam")
+    ) {
       return [{ event: "station", detail: { kind: e.result } }];
     }
     if (e.kind === "gear") return [{ event: "gear", detail: { kind: e.action } }];

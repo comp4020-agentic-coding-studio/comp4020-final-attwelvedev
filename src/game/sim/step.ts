@@ -361,6 +361,7 @@ function sendBack(world: World, caught: Catch) {
   world.cacheUncovered = [...snapshot.cacheUncovered];
   world.cacheBy = { ...snapshot.cacheBy };
   world.cacheTaken = { ...snapshot.cacheTaken };
+  world.jammedUntil = {}; // a send-back starts every station free (FR13)
   // a cache solved after the checkpoint is closed again: its station is unsolved and drawn afresh
   for (const id of Object.keys(world.solvedBy)) {
     if (

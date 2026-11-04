@@ -272,6 +272,19 @@ const PARITY: Record<SoundCue["kind"], Scenario> = {
       sees: (b, a) => ent(b, "b1")?.state !== "on" && ent(a, "b1")?.state === "on",
     };
   })(),
+  jam: (() => {
+    // a teaching dial answered wrong: it buzzes where it stands, and the sighted see it jammed
+    const world = stationAt({ type: "dial", pads: PADS, digits: 1, teach: true });
+    const s = world.stations.Q1 as NonNullable<World["stations"][string]>;
+    s.input = [((s.answer[0] as number) + 1) % 10];
+    place(world, BLIND, { x: 6, y: 2 });
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 6, y: 1 }),
+      sees: (b, a) =>
+        ent(b, "Q1")?.station?.jammed === undefined && ent(a, "Q1")?.station?.jammed === true,
+    };
+  })(),
   dye: (() => {
     const world = stationAt({
       type: "wires",

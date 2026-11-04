@@ -5,6 +5,7 @@ import { tuneGroups } from "./chimes.ts";
 import { rng } from "./rng.ts";
 import {
   drawAnswer,
+  JAM_TICKS,
   noteOf,
   plaqueText,
   ruleFor,
@@ -685,5 +686,66 @@ describe("clue paths: answers that feed, and teaching stations (escape-room Task
       expect(shows[1]).toBe(st(w).input[0] === want ? 1 : 0);
       press(w, { x: 8, y: 4 });
     }
+  });
+});
+
+describe("the jam (FR13)", () => {
+  // Turn the right pad once (seat 0 stands on it for one Act edge) and say whether the input moved.
+  const turns = (w: World, pad: Vec, id = "Q1"): boolean => {
+    const before = [...st(w, id).input];
+    press(w, pad);
+    return st(w, id).input.join() !== before.join();
+  };
+  const ANCHOR_T = { x: 7, y: 4 };
+  const PAD_T = { x: 8, y: 4 };
+
+  it("a teaching dial ignores turns for 3 s after a wrong answer, then works", () => {
+    const w = stationWorld({ Q1: { ...DIAL, teach: true } }, 3);
+    const want = st(w).answer[0] as number;
+    st(w).input = [(want + 1) % 10];
+    const e = press(w, ANCHOR_T);
+    expect(stationResults(e)).toEqual(expect.arrayContaining(["wrong", "jam"]));
+    const from = w.tick - 1; // the tick the wrong press was stepped
+    expect(w.jammedUntil.Q1).toBe(from + JAM_TICKS);
+    expect(turns(w, PAD_T)).toBe(false);
+    while (w.tick < from + JAM_TICKS) step(w, {});
+    expect(turns(w, PAD_T)).toBe(true);
+  });
+
+  it("a cache ignores input for 3 s after a wrong answer", () => {
+    const w = worldWith(["##########", "#1..Q....#", "#2.......#", "#3.......#", "##########"], {
+      Q1: {
+        type: "dial",
+        pads: [
+          [3, 1],
+          [5, 1],
+        ],
+        digits: 1,
+        cache: {
+          owner: 1,
+          motif: "moon",
+          riddle: "r",
+          item: "watch",
+          tiles: [{ at: [7, 2], motif: "moon" }],
+        },
+      },
+    });
+    press(w, { x: 7, y: 2 }); // uncover it
+    const want = st(w).answer[0] as number;
+    st(w).input = [(want + 1) % 10];
+    expect(stationResults(press(w, { x: 4, y: 1 }))).toContain("jam");
+    expect(turns(w, { x: 5, y: 1 })).toBe(false);
+    for (let i = 0; i < JAM_TICKS; i++) step(w, {});
+    expect(turns(w, { x: 5, y: 1 })).toBe(true);
+  });
+
+  it("an ordinary station is not jammed: a wrong answer still dyes", () => {
+    const w = stationWorld({ Q1: DIAL }, 3);
+    const want = st(w).answer[0] as number;
+    st(w).input = [(want + 1) % 10];
+    const e = press(w, ANCHOR_T);
+    expect(stationResults(e)).not.toContain("jam");
+    expect(kinds(e)).toContain("dye");
+    expect(w.jammedUntil.Q1).toBeUndefined();
   });
 });

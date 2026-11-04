@@ -17,3 +17,11 @@
   edit) and queued for the morning review, because scaling it would change a shared figure function
   outside the task. Also set `nowMs` only on the blind feed so the sighted feeds' look is unchanged.
   Reversible by adding a size option to `drawOwnBlind` and passing it from Feeds.
+- bp02/task71: the plan says to log the jam "in `src/net/attach.ts` beside the station `wrong`", but
+  station lines are built in `gameLinesFor` (`src/lib/gameLog.ts`), which attach.ts loops over → added
+  the `jam` result there (kind only, with a unit test), because that is where a `wrong` is logged
+  today. Also added `src/client/render/jammed.test.ts` (not in the plan's list) so the jammed look
+  has a test that was shown red. Reversible by moving the line, or deleting that test file.
+- bp02/task81: the "long nickname wraps without clipping" check → screenshotted with a 16-character
+  name (the server's cap), which stays on one line beside "Not ready" at 375, because no longer name
+  can exist. Reversible by queuing a narrower viewport check.
