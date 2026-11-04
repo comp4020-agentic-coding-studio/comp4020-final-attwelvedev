@@ -434,6 +434,10 @@ export function Game({
   // from a later tick arrives.
   const crewRef = useRef(reveal.crew); // the latest crew, for the view listener below (it subscribes once)
   crewRef.current = reveal.crew;
+  // A view belongs to a room: one from the room before (the cleared room's last view, held over in
+  // `early`, or a late one) must never start this room, which waits at its reveal until all are ready.
+  const roomRef = useRef(reveal.room);
+  roomRef.current = reveal.room;
   useEffect(() => {
     audio.current = createAudio();
     // The game has started: the first view from a later tick. If this page watched the reveal it
@@ -448,11 +452,12 @@ export function Game({
       setPlaying(true);
     };
     // the view that came with the reveal, before this listener existed
-    if (early.view && rt.current.view === null) {
+    if (early.view && early.view.room === roomRef.current && rt.current.view === null) {
       onView(rt.current, early.view, audio.current, seatNames(crewRef.current));
       if (early.view.tick > 0) start(false);
     }
     const off = socket.on("view", (m) => {
+      if (m.view.room !== roomRef.current) return;
       const sawReveal = rt.current.view?.tick === 0;
       if (audio.current) onView(rt.current, m.view, audio.current, seatNames(crewRef.current));
       if (m.view.tick > 0) start(sawReveal);

@@ -131,7 +131,7 @@ None.
 
 ## 5. Task breakdown
 
-### Task 67: The next room never starts without its reveal (FR3)
+### Task 67: The next room never starts without its reveal (FR3) [x]
 
 - **Description:** after the host presses Next, every seat sees the role screen, and the room starts
   only once all three ready. A solo lobby survives.
