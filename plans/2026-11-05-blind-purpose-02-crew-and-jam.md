@@ -193,12 +193,12 @@ See overview §2.4. The user ruled that a person with nothing played shows no Pl
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 81 and 71 complete, shown red then green.
-- [ ] `pnpm test:unit` passes.
-- [ ] `pnpm lint:rooms` passes, and `spec/rooms.test.ts` passes.
-- [ ] The full check passes (overview §3 recipe).
-- [ ] The user accepted Task 81.
-- [ ] Tick phase 02 in overview §5 and commit.
+- [x] Tasks 81 and 71 complete, shown red then green.
+- [x] `pnpm test:unit` passes.
+- [x] `pnpm lint:rooms` passes, and `spec/rooms.test.ts` passes.
+- [x] The full check passes (overview §3 recipe).
+- [x] The user accepted Task 81. (review queued)
+- [x] Tick phase 02 in overview §5 and commit.
 
 ## 7. Requirements coverage (this phase)
 
