@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed; its uncover half superseded by 0021
+accepted; its uncover half superseded by 0021
 
 Changes spec FR28 (`specs/2026-10-28-escape-room-heist.md`, a private bonus item on the floor). The
 design is `specs/2026-11-02-escape-room-caches.md`. It builds on 0017 and 0018, which are also

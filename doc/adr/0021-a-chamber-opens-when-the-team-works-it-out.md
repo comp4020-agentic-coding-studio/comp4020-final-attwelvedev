@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed
+accepted
 
 Supersedes the uncover half of 0020 (`doc/adr/0020-side-jobs-are-hidden-optional-stations.md`): its motif tile, its decoy tile, and the rule that a cache is uncovered by an Act on the tile whose motif matches the riddle. Everything else in 0020 stands (a cache is a station in a hidden chamber, the vault and the owner-only take, the keepsake, the credits and the shelf). The design is `specs/2026-11-03-escape-room-cache-reveals.md`.
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed
+accepted
 
 Amends the hazards line of 0012 (`doc/adr/0012-line-of-sight-perception.md`): "a sighted role receives hazards ... only within its line of sight". The camera itself stays inside that rule. What changes is whether the ground it watches is told about.
 
