@@ -6,7 +6,6 @@ import { COLOR, WORLD, type WorldTokens } from "../tokens.ts";
 import { block } from "./blocks.ts";
 import { drawInspectionPlate } from "./chamber.ts";
 import type { Scene } from "./index.ts";
-import { linkPath } from "./links.ts";
 import { type Camera, LIVE, TILT, toScreen } from "./project.ts";
 
 // Stations (spec §4.1): gallery furniture in the 3/4 world, and the object is the readout. Nothing
@@ -383,32 +382,8 @@ const NAME: Record<Station["type"], string> = {
 const PRACTICE_ALPHA = 0.45; // a station whose practice lever is on is drawn this faint
 const PLATE_MIN_PX = 11; // the plate's text never drops below this, however small the tiles
 
-// A name plate centred at (cx, cy): brass, outlined, the name in the HUD's condensed weight.
-export function namePlate(
-  ctx: CanvasRenderingContext2D,
-  name: string,
-  cx: number,
-  cy: number,
-  s: number,
-) {
-  const px = Math.max(PLATE_MIN_PX, Math.round(s * 0.26));
-  ctx.font = `700 ${px}px Archivo, system-ui, sans-serif`;
-  const w = ctx.measureText(name).width + px * 0.9;
-  const h = px * 1.45;
-  ctx.fillStyle = WORLD.brass;
-  ctx.strokeStyle = WORLD.line;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 3);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = WORLD.line;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(name, cx, cy + 1);
-}
-
-// Where a station's plate stands: over its main piece, at head height so a figure does not hide it.
+// Where a station's name belongs: over its main piece. The label chip over it is anchored here (there is no brass
+// plate any more, the user: "players have the option of using labels").
 export function plateAt(st: Station, anchor: Vec): { at: Vec; name: string }[] {
   const mid = (ts: Vec[]): Vec => ({
     x: ts.reduce((a, t) => a + t.x, 0) / ts.length + 0.5,
@@ -432,37 +407,6 @@ export function plateAt(st: Station, anchor: Vec): { at: Vec; name: string }[] {
   if (st.type === "vault" && pick("sockets").length > 0)
     return [{ at: mid([anchor, ...pick("sockets")]), name: NAME.vault }];
   return [{ at: { x: anchor.x + 0.5, y: anchor.y + 0.5 }, name: NAME[st.type] }];
-}
-
-// The plates, drawn over the standing parts (after the rows) so nothing covers a name.
-export function drawStationPlates(
-  ctx: CanvasRenderingContext2D,
-  e: EntityView,
-  cam: Camera,
-  chipped: ReadonlySet<string> = new Set(), // names a label chip already says, here and now
-) {
-  const st = e.station;
-  if (!st) return;
-  const anchor = partsOf(st, "anchor")[0] ?? { x: Math.floor(e.pos.x), y: Math.floor(e.pos.y) };
-  // on the wall over a wall piece (wires, vault); low over its own tile for a floor piece (keys,
-  // buttons), so it never climbs into the row behind; just over a standing piece's top otherwise
-  const FLOOR = new Set(["Keypad", "Switches", "Keys"]);
-  for (const { at, name } of plateAt(st, anchor)) {
-    if (chipped.has(name)) continue; // the chip over it says the name already
-    const wall = st.type === "wires" || st.type === "vault";
-    // a station that shows a symbol plate over itself (a solved wing, clues FR2) carries its name above
-    // that plate, never over it
-    const above = st.reveal !== undefined && !wall && !FLOOR.has(name);
-    const lift = wall
-      ? LIVE.wall * 1.05
-      : FLOOR.has(name)
-        ? LIVE.block * 0.35
-        : above
-          ? LIVE.block * 2.35
-          : LIVE.block * 1.15;
-    const c = toScreen(cam, at.x, at.y - (FLOOR.has(name) ? 0.15 : 0.3), lift);
-    namePlate(ctx, name, c.x, c.y, cam.scale);
-  }
 }
 
 // A small plinth: brass top, steel front, outlined.
@@ -561,32 +505,6 @@ function solvedPlate(ctx: CanvasRenderingContext2D, cam: Camera, at: Vec, below 
 // A thin wire from a station's anchor to its remote part (a safe's back, a music box's tune), so a
 // box on its own never looks lost: along the wall where a short wall route exists, else straight.
 // Faint (the line colour at 35 %), laid on the floor under everything that stands.
-// Whether a wall, glass pane or vent tile lies on the straight line between two tiles' centres
-// (not counting the two tiles themselves): sampled finely enough to touch every tile it crosses.
-function wallBetween(tiles: readonly string[], a: Vec, b: Vec): boolean {
-  const steps = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) * 8);
-  for (let i = 1; i < steps; i++) {
-    const x = Math.floor(a.x + 0.5 + ((b.x - a.x) * i) / steps);
-    const y = Math.floor(a.y + 0.5 + ((b.y - a.y) * i) / steps);
-    if ((x === a.x && y === a.y) || (x === b.x && y === b.y)) continue;
-    if ("#=%".includes(tiles[y]?.[x] ?? ".")) return true;
-  }
-  return false;
-}
-
-// A station's wire as points in tile space, or null when it has none (see drawLink).
-export function linkOf(st: Station, scene: Scene): Vec[] | null {
-  const anchor = partsOf(st, "anchor")[0];
-  const remote = partsOf(st, st.type === "dial" ? "back" : "tune")[0];
-  if (!anchor || !remote || !scene.tiles || (st.type !== "dial" && st.type !== "bells"))
-    return null;
-  // a safe's back box is wired only when something solid is between it and the dial (the same open
-  // floor needs no wire to be understood); a music box's tune box always is
-  if (st.type === "dial" && (st.cache || !wallBetween(scene.tiles, anchor, remote))) return null;
-  const path = linkPath(scene.tiles, anchor, remote);
-  return path.length < 2 ? null : path;
-}
-
 // The row a wire is drawn in: its southernmost point's, so every wall block it runs along is
 // already down and the wire lies over them (a wire along a wall is under the wall otherwise).
 export function linkRow(path: readonly Vec[]): number {
@@ -595,32 +513,27 @@ export function linkRow(path: readonly Vec[]): number {
 
 // Drawn over the wall blocks of its row, before what stands in that row. Points on a wall tile sit
 // on the wall's top, the ends (a dial, a box) on the floor.
-export function drawLink(
-  ctx: CanvasRenderingContext2D,
-  st: Station,
-  cam: Camera,
-  scene: Scene,
-  path: Vec[],
-) {
-  if (st.type === "bells") {
-    // the wire meets the bells in the middle of them, not at the first bell
-    const bells = partsOf(st, "bells");
-    if (bells.length > 0) {
-      path[0] = {
-        x: bells.reduce((n, t) => n + t.x, 0) / bells.length + 0.5,
-        y: bells.reduce((n, t) => n + t.y, 0) / bells.length + 0.5,
-      };
-    }
-  }
+export function drawLink(ctx: CanvasRenderingContext2D, cam: Camera, scene: Scene, path: Vec[]) {
   ctx.save();
   ctx.globalAlpha = 0.35;
   ctx.strokeStyle = WORLD.line;
   ctx.lineWidth = 2;
   ctx.setLineDash([6, 4]);
   ctx.beginPath();
-  path.forEach((p, i) => {
-    const onWall = scene.tiles?.[Math.floor(p.y)]?.[Math.floor(p.x)] === "#";
-    const c = toScreen(cam, p.x, p.y, onWall ? TILT.wall : 0);
+  const isWall = (p: Vec) => scene.tiles?.[Math.floor(p.y)]?.[Math.floor(p.x)] === "#";
+  // a wire runs on the wall and down its face, and stops at the wall's foot: where it would step off the wall onto the
+  // floor, it ends at the wall's edge, not out across the floor to the dial (the user, screenshot 99)
+  const shown = path.map((p, i) => {
+    if (isWall(p)) return { p, z: TILT.wall };
+    const wallNext = [path[i - 1], path[i + 1]].find((n): n is Vec => !!n && isWall(n));
+    if (!wallNext) return { p, z: 0 };
+    const dx = p.x - wallNext.x;
+    const dy = p.y - wallNext.y;
+    const k = 0.5 / Math.max(Math.abs(dx), Math.abs(dy), 1e-9);
+    return { p: { x: wallNext.x + dx * k, y: wallNext.y + dy * k }, z: 0 };
+  });
+  shown.forEach(({ p, z }, i) => {
+    const c = toScreen(cam, p.x, p.y, z);
     if (i === 0) ctx.moveTo(c.x, c.y);
     else ctx.lineTo(c.x, c.y);
   });
@@ -638,6 +551,10 @@ export function drawStationFloor(
   if (!st) return;
   for (const [i, t] of partsOf(st, "pads").entries())
     turnPad(ctx, cam, t, i === 0 ? -1 : 1, standingOn(scene, t));
+  // a cache's back tile is an inspection plate set flush in the floor (Task 66): flat, so it is a floor
+  // part, cut by the exact light on its own ground (an ordinary safe's back is a plinth, drawn standing)
+  if (st.type === "dial" && st.cache)
+    for (const b of partsOf(st, "back")) drawInspectionPlate(ctx, b, cam);
   if (st.type === "keypad") {
     const pressed = new Set(st.shows);
     ctx.save();
@@ -676,6 +593,9 @@ export function drawStationFloor(
 
 // What stands: the safe, the wire panel, the radio, the bells, the lamps, the vault door. Drawn in
 // the row of the part, so figures stand in front of and behind it correctly.
+// The safe's steel box on its tile (offsets and size in tiles).
+export const SAFE_BOX = { dx: 0.1, dy: 0.15, w: 0.8, d: 0.7 } as const;
+
 export function drawStationStanding(
   ctx: CanvasRenderingContext2D,
   e: EntityView,
@@ -693,7 +613,13 @@ export function drawStationStanding(
     block(
       ctx,
       cam,
-      { x: anchor.x + 0.1, y: anchor.y + 0.15, w: 0.8, d: 0.7, h: LIVE.block },
+      {
+        x: anchor.x + SAFE_BOX.dx,
+        y: anchor.y + SAFE_BOX.dy,
+        w: SAFE_BOX.w,
+        d: SAFE_BOX.d,
+        h: LIVE.block,
+      },
       WORLD.steel,
       WORLD.steelFront,
     );
@@ -725,11 +651,6 @@ export function drawStationStanding(
     }
     if (!st.cache)
       for (const b of partsOf(st, "back")) if (inRow(b)) plinth(ctx, cam, b, 0.25, 0.3);
-  }
-  // a cache's back tile is an inspection plate in the floor (Task 66), drawn in its own row
-  // wherever it lies relative to the dial; an ordinary safe's is a plinth, above
-  if (st.type === "dial" && st.cache) {
-    for (const b of partsOf(st, "back")) if (inRow(b)) drawInspectionPlate(ctx, b, cam);
   }
   if (st.type === "wires") {
     // the panel on the wall: one patterned swatch per wire, a brass rail across the top

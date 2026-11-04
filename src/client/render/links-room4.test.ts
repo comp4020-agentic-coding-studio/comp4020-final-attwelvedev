@@ -19,7 +19,13 @@ let lastOps: {
   globalAlpha: number;
   lineDash: number[];
 }[] = [];
-function strokes(seat: Seat, role: Role, standAt: { x: number; y: number }, withBack: boolean) {
+function strokes(
+  seat: Seat,
+  role: Role,
+  standAt: { x: number; y: number },
+  withBack: boolean,
+  only = "Q2.wire",
+) {
   const world = createWorld(room4, 1);
   world.players[seat].pos = standAt;
   const view = viewFor(world, seat, role, true);
@@ -30,14 +36,17 @@ function strokes(seat: Seat, role: Role, standAt: { x: number; y: number }, with
     seat,
     roles: ["blind", "deaf", "mute"],
     tiles: view.tiles ?? null,
-    entities: view.entities.map((e) =>
-      withBack || !e.station
-        ? e
-        : {
-            ...e,
-            station: { ...e.station, parts: e.station.parts.filter((p) => p.key !== "back") },
-          },
-    ),
+    // the server sends each wire as its own entity; without the back box there is no wire to send
+    entities: view.entities
+      .filter((e) => withBack || e.kind !== "wire" || e.id !== only)
+      .map((e) =>
+        withBack || !e.station
+          ? e
+          : {
+              ...e,
+              station: { ...e.station, parts: e.station.parts.filter((p) => p.key !== "back") },
+            },
+      ),
     self: standAt,
     layout: "follow",
     nowMs: 1000,
@@ -77,15 +86,15 @@ function strokes(seat: Seat, role: Role, standAt: { x: number; y: number }, with
 }
 
 // the wire is the dashed faint strokes a safe draws with its back box and not without it
-const wiresDrawn = (seat: Seat, role: Role, at: { x: number; y: number }) =>
-  strokes(seat, role, at, true) - strokes(seat, role, at, false);
+const wiresDrawn = (seat: Seat, role: Role, at: { x: number; y: number }, wire = "Q2.wire") =>
+  strokes(seat, role, at, true, wire) - strokes(seat, role, at, false, wire);
 
 describe("room 4's safes are wired only where a wall is between (Task 47)", () => {
   it("the second safe's dial is wired to its audio box through the vent", () => {
     expect(wiresDrawn(1, "deaf", { x: 20.5, y: 2.5 })).toBeGreaterThan(0);
   });
   it("the first safe, with its box on the same open floor, has no wire", () => {
-    expect(wiresDrawn(1, "deaf", { x: 6.5, y: 2.5 })).toBe(0);
+    expect(wiresDrawn(1, "deaf", { x: 6.5, y: 2.5 }, "Q1.wire")).toBe(0);
   });
   it("the wire is drawn after the wall blocks of the rows it runs along, so they do not hide it", () => {
     strokes(1, "deaf", { x: 20.5, y: 2.5 }, true);

@@ -1,7 +1,8 @@
 import type { Stamp } from "./channels.ts";
-import { subtractRects } from "./clip.ts";
+import { intersectLight, subtractRects } from "./clip.ts";
 import { visiblePolygon } from "./cone.ts";
-import { lightTouches } from "./light.ts";
+import { lightPolygon, lightTouches } from "./light.ts";
+import { linkOf } from "./links.ts";
 import {
   cacheOf,
   flipsOf,
@@ -70,6 +71,7 @@ export interface EntityView {
     | "sign"
     | "sight" // the lit tiles a hazard in the dark can see: all that reaches out of it
     | "station"
+    | "wire" // a station's wire to its remote part: `route`; layout, sent to every sighted seat wherever it stands
     | "gear" // gear lying on the floor or on a hatch sill (carried gear is the player's `item`)
     | "hatch"
     | "bell"
@@ -100,6 +102,7 @@ export interface EntityView {
     | Stamp;
   cone?: { fovDeg: number; range: number; from?: Vec }; // a hazard's sight; `from` when it sees from somewhere other than `pos` (a camera, from the wall)
   beam?: Vec[]; // a laser's tile centres
+  route?: Vec[]; // a wire: its points in tile space
   polys?: Vec[][]; // a sight: the parts of a hazard's cone that are in the light, as polygons
   crateOnly?: boolean; // a plate: only a crate holds it, so it is drawn as a crate's seat
   shows?: string[]; // a sign's plate ids, in order
@@ -422,6 +425,10 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
       const s = world.stations[o.id];
       if (!s || !cacheOpen(world, o.id)) continue; // a hidden cache is in no one's view
       const item = cacheOf(o)?.item;
+      // its wire is layout of its own, sent whatever the station is (the user, screenshots 105 to 107): only a route
+      const route =
+        role === "blind" ? null : linkOf({ type: s.type, parts: stationParts(o) }, world.room.grid);
+      if (route) out.push({ id: `${o.id}.wire`, kind: "wire", pos: route[0] as Vec, route });
       out.push({
         id: o.id,
         kind: "station",
@@ -843,6 +850,52 @@ function sightInLight(world: World, e: EntityView, zones: Zone[]): EntityView | 
   return first ? { id: e.id, kind: "sight", pos: first, polys, state: e.state } : null;
 }
 
+// A camera whose tile is out of sight is not sent (a hazard is told only within line of sight, ADR
+// 0012), but where it looks can fall on ground the seat does see: through glass, down a corridor. That ground
+// is lit for the seat, and a hazard in the dark already tells it so: the part of its cone in the light, as a
+// `sight`, nothing of where it stands. So the same for a camera out of sight (ADR 0022): its real cone (the
+// rays stop at walls and cover, as in `sightInLight`), cut to the seat's own light polygon, and to the lit
+// side of any dark zone, and marked watching or idle as the camera would be. A camera already told of, or
+// already shown as a `sight` from the dark, is skipped.
+function farSights(
+  world: World,
+  role: Role,
+  me: Vec,
+  zones: Zone[],
+  told: readonly EntityView[],
+): EntityView[] {
+  const out: EntityView[] = [];
+  let light: Vec[] | null = null; // the seat's light, once a camera needs it
+  for (const o of world.room.objects) {
+    if (o.kind !== "camera" || !o.visibleTo.includes(role)) continue;
+    if (told.some((e) => e.id === o.id)) continue;
+    const cone = cameraCone(o);
+    const fan = visiblePolygon(
+      { origin: cameraApex(o), facing: cone.facing, fovDeg: cone.fovDeg, range: cone.range },
+      (tx, ty) => blocksSight(world, tx, ty, true),
+      SIGHT_RAYS,
+    );
+    light ??= lightPolygon(me, maskCache(world, world.room.grid), closedAt(world));
+    const dark = zones.map(([x0, y0, x1, y1]) => ({ x0, y0, x1: x1 + 1, y1: y1 + 1 }));
+    const polys = subtractRects(fan, dark)
+      .flatMap((piece) => intersectLight(piece, light as Vec[], me))
+      .map((poly) =>
+        poly.map((p) => ({ x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100 })),
+      );
+    const first = polys[0]?.[0];
+    // idle or watching, as the camera itself would read: an idle one is drawn as a dashed outline, as up close
+    if (first)
+      out.push({
+        id: o.id,
+        kind: "sight",
+        pos: first,
+        polys,
+        state: isWatching(world, o) ? "watching" : "idle",
+      });
+  }
+  return out;
+}
+
 // What a sighted role may be told of: itself, marks (they show wherever they land, even in
 // the dark), the lit tiles a hazard in the dark covers, and anything else only if its
 // tile is in line of sight. A laser keeps just the part of its beam that is seen.
@@ -871,7 +924,12 @@ function inSight(
     return hit;
   };
   for (const e of entities) {
-    if (e.kind === "stamp" || e.kind === "sight" || (e.kind === "player" && e.seat === seat)) {
+    if (
+      e.kind === "stamp" ||
+      e.kind === "sight" ||
+      e.kind === "wire" ||
+      (e.kind === "player" && e.seat === seat)
+    ) {
       out.push(e);
     } else if (e.kind === "station") {
       // a station's state is seen where it shows it: its face, wires, keys or lamps (switches: the
@@ -1088,15 +1146,17 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
     view.alarm = alarm;
     const { seen, encoded, touch: touches } = placeOf(world, me);
     view.seen = [...encoded]; // a copy: a view is the caller's to change
+    const told = inSight(
+      world,
+      zones.length === 0 ? entitiesFor(world, seat, role) : darken(world, seat, role, zones),
+      seat,
+      seen,
+      zones,
+      touches,
+    );
     view.entities = [
-      ...inSight(
-        world,
-        zones.length === 0 ? entitiesFor(world, seat, role) : darken(world, seat, role, zones),
-        seat,
-        seen,
-        zones,
-        touches,
-      ),
+      ...told,
+      ...farSights(world, role, me, zones, told),
       ...uvLight(world, role, seen, zones),
     ];
     if (full) {

@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { visiblePolygon } from "./cone.ts";
+import { inLight, lightPolygon } from "./light.ts";
 import { spectatorView, viewFor } from "./perception.ts";
 import { type RoomObject, secretDoors } from "./rooms/format.ts";
 import { loadRooms } from "./rooms/load.ts";
 import { syncCacheDoors } from "./sim/cache.ts";
 import { tuneGroups } from "./sim/chimes.ts";
-import { caughtBy } from "./sim/hazards.ts";
+import { cameraApex, cameraCone, caughtBy } from "./sim/hazards.ts";
+import { blocksSight } from "./sim/sight.ts";
 import { stationParts } from "./sim/stations.ts";
 import { step } from "./sim/step.ts";
 import { gather, place, tap, withChamber, worldFrom, worldWith } from "./sim/testing.ts";
@@ -1387,6 +1390,33 @@ describe("viewFor: a station is seen where it shows its state", () => {
     ).toEqual([1, 0, 1]);
   });
 
+  // The user (screenshots 105 to 107): a safe's wire must show at every distance, so it is sent to every sighted seat as
+  // layout of its own (a `wire` entity: only its route, nothing of the station's state), wherever the seat stands.
+  it("a safe's wire is sent to every sighted seat from anywhere, as a route and nothing else", () => {
+    const grid = [
+      "##############",
+      "#1Q.#....#...#",
+      "#2..#....#...#",
+      "#3..#....#...#",
+      "##############",
+    ];
+    const dial = { type: "dial", pads: [[3, 2]], back: [12, 1], digits: 1 };
+    const w = worldWith(grid, { Q1: dial });
+    for (const at of [
+      { x: 6, y: 2 },
+      { x: 2, y: 2 },
+      { x: 11, y: 3 },
+    ]) {
+      place(w, 1, at);
+      for (const role of ["deaf", "mute"] as const) {
+        const wire = viewFor(w, 1, role, false).entities.find((e) => e.kind === "wire");
+        expect(wire?.route?.length, `${role} at ${at.x},${at.y}`).toBeGreaterThan(1);
+        expect(Object.keys(wire ?? {}).sort()).toEqual(["id", "kind", "pos", "route"]);
+      }
+    }
+    expect(viewFor(w, 0, "blind", false).entities.find((e) => e.kind === "wire")).toBeUndefined();
+  });
+
   it("is never sent to Can't see, parts or not", () => {
     const grid = ["############", "#1..Q.#....#", "#2....#....#", "#3....#....#", "############"];
     const w = worldWith(grid, {
@@ -1732,3 +1762,171 @@ describe("viewFor: a sequence door says it opens in order", () => {
 
 const secretDoorIds = (room: ReturnType<typeof loadRooms>[number]) =>
   new Set(secretDoors(room).flatMap((d) => [d.chamber.id, d.vault.id]));
+
+// The user (screenshots 57 and 58, room 3): Can't hear far along the corridor sees the glass run, and the
+// camera's cone through it, but "the cone isn't shown at all" until they walk close. A camera is sent only when
+// the tile it stands on is in sight; the one in room 3 stands on a wall behind the glass, out of sight from far
+// away, so its cone went unsent although it falls on ground the seat can see. What a hazard in the dark does
+// already (the lit part of its cone is sent as `sight`, nothing of where it stands) now holds for a camera that
+// is out of sight: the seat is told where the camera looks on ground it can see, never the camera itself.
+describe("a camera out of sight still shows its cone where the seat can see ground (room 3)", () => {
+  const room = loadRooms().find((r) => r.id === "03-watchers") as ReturnType<typeof loadRooms>[0];
+  const cameraObject = room.objects.find((o) => o.kind === "camera") as RoomObject;
+  const FAR = { x: 8.5, y: 4.5 };
+  const NEAR = { x: 22.5, y: 4.5 };
+  const viewAt = (at: { x: number; y: number }) => {
+    const world = createWorld(room, 1);
+    world.players[1].pos = at;
+    return viewFor(world, 1, "deaf", true);
+  };
+  // a point is inside a polygon (even-odd)
+  const within = (poly: { x: number; y: number }[], at: { x: number; y: number }) => {
+    let hit = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const [a, b] = [poly[i], poly[j]] as [typeof at, typeof at];
+      if (a.y > at.y !== b.y > at.y && at.x < ((b.x - a.x) * (at.y - a.y)) / (b.y - a.y) + a.x)
+        hit = !hit;
+    }
+    return hit;
+  };
+
+  const polyArea = (poly: { x: number; y: number }[]) =>
+    Math.abs(
+      poly.reduce((sum, p, i) => {
+        const q = poly[(i + 1) % poly.length] as typeof p;
+        return sum + (p.x * q.y - q.x * p.y);
+      }, 0),
+    ) / 2;
+  // how far a point is from the nearest edge of a polygon
+  const edgeDistance = (poly: { x: number; y: number }[], q: { x: number; y: number }) => {
+    let best = Number.POSITIVE_INFINITY;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const a = poly[j] as typeof q;
+      const b = poly[i] as typeof q;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const t = Math.max(
+        0,
+        Math.min(1, ((q.x - a.x) * dx + (q.y - a.y) * dy) / (dx * dx + dy * dy || 1)),
+      );
+      best = Math.min(best, Math.hypot(q.x - (a.x + t * dx), q.y - (a.y + t * dy)));
+    }
+    return best;
+  };
+
+  it("sends no camera from far away, as ADR 0012 says: it stands out of sight", () => {
+    expect(viewAt(FAR).entities.some((e) => e.kind === "camera")).toBe(false);
+  });
+
+  it("sends the part of its cone that the seat's light covers, from far away, and nothing else", () => {
+    // oracle: the camera's own cone (its fan from the room's parameters) and the seat's light polygon, taken
+    // apart from perception.ts. A ground point is in the sent sight exactly when it is in both.
+    const world = createWorld(room, 1);
+    const cone = cameraCone(cameraObject);
+    const fan = visiblePolygon(
+      {
+        origin: cameraApex(cameraObject),
+        facing: cone.facing,
+        fovDeg: cone.fovDeg,
+        range: cone.range,
+      },
+      (tx, ty) => blocksSight(world, tx, ty, true),
+      32,
+    );
+    let both = 0;
+    let coneOnly = 0;
+    let lightOnly = 0;
+    const wrong: string[] = [];
+    for (const at of [FAR, { x: 12.5, y: 5.5 }, { x: 14.5, y: 4.5 }]) {
+      const view = viewAt(at);
+      expect(view.entities.some((e) => e.kind === "camera")).toBe(false);
+      const sight = view.entities.find((e) => e.kind === "sight");
+      const polys = sight?.polys ?? [];
+      const light = lightPolygon(at, room.grid, () => false);
+      for (let x = 17; x < 28; x += 0.1)
+        for (let y = 1.05; y < 8; y += 0.1) {
+          const g = { x, y };
+          const inCone = within(fan, g);
+          const inSeatLight = inLight(light, g);
+          const sent = polys.some((poly) => within(poly, g));
+          // the cone's edge and the light's edge are lines: a point a hair from either may go either way
+          if (edgeDistance(fan, g) < 0.05 || edgeDistance(light, g) < 0.05) continue;
+          if (inCone && inSeatLight) both++;
+          else if (inCone) coneOnly++;
+          else if (inSeatLight) lightOnly++;
+          if (sent !== (inCone && inSeatLight))
+            wrong.push(`viewer ${at.x},${at.y} at ${x.toFixed(1)},${y.toFixed(2)} sent ${sent}`);
+        }
+    }
+    expect(both, "ground in both the cone and the light").toBeGreaterThan(1000);
+    expect(coneOnly, "cone the seat cannot see, which must not be sent").toBeGreaterThan(300);
+    expect(lightOnly, "ground the seat sees outside the cone").toBeGreaterThan(1000);
+    expect(wrong.slice(0, 6), `${wrong.length} ground points wrong`).toEqual([]);
+  });
+
+  // the client draws all the pieces of a sight as one shape: one non-zero clip for the fill, and an outline
+  // kept to the outside by the even-odd rule. Both are only right if the pieces tile their region: no ground in
+  // two pieces (it would be left out of the outline's inside, and drawn as a seam), and none lost between them.
+  it("sends pieces that tile their region: no ground is in two of them", () => {
+    for (const at of [FAR, { x: 12.5, y: 5.5 }, { x: 14.5, y: 4.5 }]) {
+      const polys = viewAt(at).entities.find((e) => e.kind === "sight")?.polys ?? [];
+      expect(polys.length, `pieces from ${at.x},${at.y}`).toBeGreaterThan(0);
+      let covered = 0;
+      const twice: string[] = [];
+      for (let x = 17; x < 28; x += 0.05)
+        for (let y = 1.02; y < 8; y += 0.05) {
+          const g = { x, y };
+          const n = polys.filter((poly) => within(poly, g) && edgeDistance(poly, g) > 0.01).length;
+          if (n > 0) covered++;
+          if (n > 1) twice.push(`${x.toFixed(2)},${y.toFixed(2)} in ${n}`);
+        }
+      expect(covered, `ground covered from ${at.x},${at.y}`).toBeGreaterThan(5000);
+      expect(twice.slice(0, 4), `${twice.length} points in two pieces`).toEqual([]);
+      // and the pieces' areas add up to the region they cover (no overlap, so the sum is the union)
+      const sum = polys.reduce((n, poly) => n + polyArea(poly), 0);
+      expect(sum, `total area from ${at.x},${at.y}`).toBeGreaterThan(5);
+    }
+  });
+
+  it("sends nothing of where the camera stands", () => {
+    const view = viewAt(FAR);
+    const t = cameraObject.tiles[0] as { x: number; y: number };
+    expect(view.entities.some((e) => e.kind === "camera")).toBe(false);
+    for (const e of view.entities)
+      if (e.kind !== "door")
+        expect(Math.floor(e.pos.x) === t.x && Math.floor(e.pos.y) === t.y).toBe(false);
+    // and no corner of the sent sight is the camera's apex, or inside the wall it stands on
+    const apex = cameraApex(cameraObject);
+    for (const poly of view.entities.find((e) => e.kind === "sight")?.polys ?? [])
+      for (const p of poly) expect(Math.hypot(p.x - apex.x, p.y - apex.y) > 0.5).toBe(true);
+  });
+
+  it("sends the camera itself, as ever, once its tile is in sight, and no separate sight", () => {
+    const view = viewAt(NEAR);
+    expect(view.entities.some((e) => e.kind === "camera")).toBe(true);
+    expect(view.entities.some((e) => e.kind === "sight")).toBe(false);
+  });
+
+  it("sends an idle camera's cone too, marked idle, so it can be drawn dashed as it is up close", () => {
+    const world = createWorld(room, 1);
+    world.players[1].pos = FAR;
+    world.tick = Math.round(6000 / TICK_MS); // 6 s into the 8 s period: past its 2.5 s of watching (offset 0)
+    const view = viewAt(FAR);
+    const idle = viewFor(world, 1, "deaf", true).entities.find((e) => e.kind === "sight");
+    expect(idle, "a sight for an idle camera").toBeDefined();
+    expect(idle?.state).toBe("idle");
+    expect(idle?.polys?.length).toBeGreaterThan(0);
+    // the same ground as when it watches: only the state differs
+    const watching = view.entities.find((e) => e.kind === "sight");
+    expect(watching?.state).toBe("watching");
+    expect(idle?.polys).toEqual(watching?.polys);
+    // and still nothing of where the camera stands
+    expect(viewFor(world, 1, "deaf", true).entities.some((e) => e.kind === "camera")).toBe(false);
+  });
+
+  it("sends nothing to Can't see", () => {
+    const world = createWorld(room, 1);
+    world.players[2].pos = FAR;
+    expect(viewFor(world, 2, "blind", true).entities).toEqual([]);
+  });
+});

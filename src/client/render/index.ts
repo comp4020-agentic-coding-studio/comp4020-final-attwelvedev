@@ -7,7 +7,7 @@ import { drawAlarm } from "./alarm.ts";
 import { drawBackdrop } from "./backdrop.ts";
 import { block, drawFlat, drawStanding, floorTop, glass, vent, wall } from "./blocks.ts";
 import { drawKeepsake, drawMotifTile, drawSlide } from "./chamber.ts";
-import { clipToColumns, drawCut, groundSlice, HEIGHT, type Part } from "./column.ts";
+import { drawCut, groundSlice, HEIGHT, type Part, rememberOrigin, tileFoot } from "./column.ts";
 import { drawCloud } from "./dye.ts";
 import { drawHidden, drawOwnBlind, drawPlayer } from "./figures.ts";
 import { drawGear, drawGoggles, drawHold, drawUv, gearGlyph } from "./gear.ts";
@@ -24,10 +24,8 @@ import {
   drawOrder,
   drawPlaque,
   drawStationFloor,
-  drawStationPlates,
   drawStationStanding,
   drawTargetCard,
-  linkOf,
   linkRow,
   stationRows,
 } from "./stations.ts";
@@ -160,7 +158,9 @@ function lightOf(scene: Scene): Vec[] | null {
   for (const e of scene.entities)
     if (e.kind === "door" && e.state === "closed")
       closed.add(`${Math.floor(e.pos.x)},${Math.floor(e.pos.y)}`);
-  return lightPolygon(scene.self, scene.tiles, (tx, ty) => closed.has(`${tx},${ty}`));
+  const made = lightPolygon(scene.self, scene.tiles, (tx, ty) => closed.has(`${tx},${ty}`));
+  rememberOrigin(made, scene.self);
+  return made;
 }
 
 // Limits what is drawn next to the lit region (no light, no limit: a watcher sees the whole room). The
@@ -319,7 +319,7 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
   // a station's wire, in the row of its southernmost point so the wall blocks it runs along are down
   const linksByRow = new Map<number, { e: EntityView; path: Vec[] }[]>();
   for (const e of scene.entities) {
-    const path = e.kind === "station" && e.station ? linkOf(e.station, scene) : null;
+    const path = e.kind === "wire" && e.route ? e.route.map((p) => ({ ...p })) : null;
     if (path)
       linksByRow.set(linkRow(path), [...(linksByRow.get(linkRow(path)) ?? []), { e, path }]);
   }
@@ -358,31 +358,23 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
       if (!light) return draw(ctx);
       drawCut(ctx, cam, light, parts, height, draw);
     };
-    for (const { e, path } of linksByRow.get(y) ?? [])
-      if (e.station)
-        cut(
-          path.map((q) => ({ foot: groundSlice(tiles, q.x, q.y, 0.5) })),
-          HEIGHT.link as number,
-          (c) => drawLink(c, e.station as NonNullable<typeof e.station>, cam, scene, path),
-        );
+    // a wire is a faint guide from the dial to its remote part, never cut by the light (the user, screenshot 95:
+    // "always shown"), and sent from anywhere (screenshots 105 to 107)
+    for (const { path } of linksByRow.get(y) ?? []) drawLink(ctx, cam, scene, path);
     for (const e of stationsByRow.get(y) ?? []) {
       const st = e.station;
-      const anchor = st?.parts.find((q) => q.key === "anchor")?.at[0];
-      // the safe's body is a box on its anchor tile; every other piece stands on its own tile's ground
+      // every piece of a station stands on its own tile's ground (the safe's body on its anchor tile). A station is cut
+      // straight across by the cone's diagonal, whatever its geometry (the user, screenshots 101 and 102)
       const parts: Part[] = (st?.parts ?? []).flatMap((q) =>
-        q.at.map((t): Part => {
-          const box = st?.type === "dial" && anchor && t.x === anchor.x && t.y === anchor.y;
-          return box
-            ? {
-                foot: { x0: t.x + 0.1, x1: t.x + 0.9, y0: t.y + 0.15, y1: t.y + 0.85 },
-                body: LIVE.block,
-              }
-            : { foot: groundSlice(tiles, t.x + 0.5, t.y + 0.5, 0.5) };
-        }),
+        q.at.map(
+          (t): Part => ({
+            foot: groundSlice(tiles, t.x + 0.5, t.y + 0.5, 0.5),
+            wallBehind: isBlock(tiles[t.y - 1]?.[t.x]),
+          }),
+        ),
       );
-      cut(parts, (st?.type && HEIGHT[st.type]) || (HEIGHT.station as number), (c) =>
-        drawStationStanding(c, e, cam, scene, y),
-      );
+      const height = (st?.type && HEIGHT[st.type]) || (HEIGHT.station as number);
+      cut(parts, height, (c) => drawStationStanding(c, e, cam, scene, y));
     }
     for (const kind of STANDING) {
       for (const e of byRow.get(y) ?? []) {
@@ -390,15 +382,15 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
         if (kind === "door") continue; // an open door is only its slot (the floor layer); a closed one is drawn above
         if (kind === "stamp" && !inSight(seenNow, e.pos)) continue; // drawn through the mist, below
         const box = kind === "crate" || kind === "checkpoint";
+        // a camera is bolted to the wall behind its tile: cut as that wall's column is, by a vertical line from where the
+        // light meets the wall's foot (the wall's south line, one row up), with no top (the user, screenshot 96)
+        const bolted = kind === "camera";
         const foot = box
-          ? {
-              x0: Math.floor(e.pos.x),
-              x1: Math.floor(e.pos.x) + 1,
-              y0: Math.floor(e.pos.y),
-              y1: Math.floor(e.pos.y) + 1,
-            }
-          : groundSlice(tiles, e.pos.x, e.pos.y, kind === "player" ? 0.3 : 0.5);
-        cut([box ? { foot, body: LIVE.block } : { foot }], HEIGHT[kind] ?? 1.5, (c) => {
+          ? tileFoot(Math.floor(e.pos.x), Math.floor(e.pos.y))
+          : bolted
+            ? groundSlice(tiles, e.pos.x, Math.floor(e.pos.y) - 0.5, 0.5)
+            : groundSlice(tiles, e.pos.x, e.pos.y, 0.5);
+        cut([{ foot, planar: bolted, faceOnly: bolted }], HEIGHT[kind] ?? 1.5, (c) => {
           if (kind === "camera" || kind === "laser" || kind === "guard")
             drawHazard(c, e, cam, scene);
           else if (kind === "player") drawPlayer(c, e, cam, scene);
@@ -422,27 +414,6 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
     ctx.save();
     ctx.globalAlpha = FAINT_MARK;
     drawStanding(ctx, e, cam, scene);
-    ctx.restore();
-  }
-  // each station's name plate, over everything standing so no figure or wall hides the name
-  // a chip's text starts with the thing's name ("Safe: ..."), which is the plate under it
-  const chipped = new Set((scene.labels ?? []).map((l) => l.text.split(":")[0] ?? ""));
-  // (inside the light as well: a name behind a wall is not drawn, and one at the cone's edge is cut)
-  // each name is cut by the column of ground under the thing it names, like the thing itself
-  for (const e of scene.entities) {
-    if (e.kind !== "station" || !e.station) continue;
-    const st = e.station;
-    const anchor = st.parts.find((q) => q.key === "anchor")?.at[0];
-    const under: Part[] = (anchor ? [anchor] : st.parts.flatMap((q) => q.at)).map((t) => ({
-      foot: groundSlice(tiles, t.x + 0.5, t.y + 0.5, 1.5),
-    }));
-    if (!light) {
-      drawStationPlates(ctx, e, cam, chipped);
-      continue;
-    }
-    ctx.save();
-    clipToColumns(ctx, cam, light, under, HEIGHT.plate as number);
-    drawStationPlates(ctx, e, cam, chipped);
     ctx.restore();
   }
   // a sign's own words (a plaque), over everything standing, like the names

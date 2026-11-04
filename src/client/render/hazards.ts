@@ -104,9 +104,84 @@ export function drawCone(
 // hazard itself or where it stands.
 export function drawSight(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera) {
   const color = e.state === "watching" ? WORLD.watch : WORLD.laser;
-  for (const poly of e.polys ?? []) {
-    paintCone(ctx, coneShape(poly, cam), color, true);
-  }
+  const cones = (e.polys ?? []).map((poly) => coneShape(poly, cam));
+  // an idle camera's cone is only an outline, as up close (drawHazardFloor), so it never rests on colour alone
+  if (e.state === "idle") paintOutline(ctx, cones);
+  else paintPieces(ctx, cones, color);
+}
+
+// The pieces of an idle sight as a dashed outline round the region they make: the clip of the lit one, without
+// the fill and the hatch, so the seams between pieces do not show.
+function paintOutline(ctx: CanvasRenderingContext2D, cones: Cone[]) {
+  if (cones.length === 0) return;
+  const all = cones.flatMap((c) => c.pts);
+  const xs = all.map((p) => p.x);
+  const ys = all.map((p) => p.y);
+  const [x0, y0] = [Math.min(...xs), Math.min(...ys)];
+  const [w, h] = [Math.max(...xs) - x0, Math.max(...ys) - y0];
+  const traceAll = (c: CanvasRenderingContext2D) => {
+    c.beginPath();
+    for (const { pts } of cones)
+      pts.forEach((p, i) => {
+        if (i === 0) c.moveTo(p.x, p.y);
+        else c.lineTo(p.x, p.y);
+      });
+  };
+  ctx.save();
+  traceAll(ctx);
+  ctx.rect(x0 - 8, y0 - 8, w + 16, h + 16);
+  ctx.clip("evenodd");
+  traceAll(ctx);
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = WORLD.line;
+  ctx.globalAlpha = 0.6;
+  ctx.setLineDash([4, 4]);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// The pieces of one sight, painted as the one shape they make. A sight is the part of a cone that the light
+// covers, cut along every ray of that light, so it can be a hundred pieces that tile the region without
+// overlap; each filled, hatched and outlined alone showed its seams as stacked bands. So: one clip to all of
+// them for the fill and the hatch (one coverage mask, so no gap between two pieces), and one outline, stroked
+// double width under a clip to the outside of the region (the pieces tile it, so the even-odd rule leaves out
+// exactly the inside), which keeps the outer half of the stroke and none of the seams.
+function paintPieces(ctx: CanvasRenderingContext2D, cones: Cone[], color: string) {
+  if (cones.length === 0) return;
+  const all = cones.flatMap((c) => c.pts);
+  const xs = all.map((p) => p.x);
+  const ys = all.map((p) => p.y);
+  const [x0, y0] = [Math.min(...xs), Math.min(...ys)];
+  const [w, h] = [Math.max(...xs) - x0, Math.max(...ys) - y0];
+  const traceAll = (c: CanvasRenderingContext2D) => {
+    c.beginPath();
+    for (const { pts } of cones)
+      pts.forEach((p, i) => {
+        if (i === 0) c.moveTo(p.x, p.y);
+        else c.lineTo(p.x, p.y);
+      });
+  };
+  ctx.save();
+  ctx.save();
+  traceAll(ctx);
+  ctx.clip("nonzero");
+  ctx.globalAlpha = 0.18;
+  ctx.fillStyle = color;
+  ctx.fillRect(x0, y0, w, h);
+  ctx.globalAlpha = 0.55;
+  hatch(ctx, x0, y0, w, h, color);
+  ctx.restore();
+  ctx.save();
+  traceAll(ctx);
+  ctx.rect(x0 - 8, y0 - 8, w + 16, h + 16);
+  ctx.clip("evenodd");
+  traceAll(ctx);
+  ctx.globalAlpha = 0.75;
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = color;
+  ctx.stroke();
+  ctx.restore();
+  ctx.restore();
 }
 
 // A security camera on its wall bracket, turned the way it looks. Watching, the lens is open

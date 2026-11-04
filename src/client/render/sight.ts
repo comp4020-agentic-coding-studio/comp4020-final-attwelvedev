@@ -2,6 +2,7 @@ import { inLight, lightPolygon, tileTouched } from "../../game/light.ts";
 import type { Vec } from "../../game/types.ts";
 import type { EntityView } from "../../net/protocol.ts";
 import { MIST, WORLD } from "../tokens.ts";
+import { darkOfGlass, darkOfWall, touchedOf } from "./column.ts";
 import { type Camera, LIVE, toScreen } from "./project.ts";
 
 export { inLight, lightPolygon, tileTouched };
@@ -150,39 +151,6 @@ export function nightTile(
 // The wall tiles the light touches. A wall is seen where a ray ends on its face, so it is lit when
 // the polygon has a vertex on its boundary: area would say a wall is dark, since the light stops at
 // its face and never fills it. A vertex on a corner touches up to four tiles.
-// Whether a point is inside the light polygon (even-odd ray crossing).
-function insideLight(light: readonly Vec[], x: number, y: number): boolean {
-  let inside = false;
-  for (let i = 0, j = light.length - 1; i < light.length; j = i++) {
-    const a = light[i] as Vec;
-    const b = light[j] as Vec;
-    if (a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
-  }
-  return inside;
-}
-
-// Glass passes sight, so the light runs through a pane and no ray stops on its face: a pane is lit
-// when the light covers it, not when a vertex happens to land on it (those come and go from one
-// step to the next at a shallow angle, and the pane flickered). It is lit when any of a grid of
-// points across its footprint is inside the polygon.
-const GLASS_SAMPLES = [0.1, 0.5, 0.9];
-function glassLit(light: readonly Vec[], tx: number, ty: number): boolean {
-  for (const fx of GLASS_SAMPLES)
-    for (const fy of GLASS_SAMPLES) if (insideLight(light, tx + fx, ty + fy)) return true;
-  return false;
-}
-
-const TOUCH = 1e-3;
-function touchedTiles(light: readonly Vec[]): Set<number> {
-  const out = new Set<number>();
-  for (const p of light) {
-    for (let ty = Math.floor(p.y - TOUCH); ty <= Math.floor(p.y + TOUCH); ty++)
-      for (let tx = Math.floor(p.x - TOUCH); tx <= Math.floor(p.x + TOUCH); tx++)
-        out.add(ty * 4096 + tx);
-  }
-  return out;
-}
-
 // The mist, cut exactly to your line of sight, drawn as ONE region filled ONCE. Per-tile rectangles
 // stepped along the edge of the light and doubled the veil's alpha where two overlapped by the half
 // pixel kept to hide seams, which at night showed as a pale outline round a tile.
@@ -202,15 +170,6 @@ function touchedTiles(light: readonly Vec[]): Set<number> {
 // A dark zone is night and is left alone. Paths are traced on the context itself (no Path2D): the
 // unit tests record calls on a plain-Node context that has none.
 type Box = { x: number; y: number; w: number; h: number };
-
-const touchedCache = new WeakMap<readonly Vec[], Set<number>>();
-const touchedOf = (light: readonly Vec[]): Set<number> => {
-  const known = touchedCache.get(light);
-  if (known) return known;
-  const made = touchedTiles(light);
-  touchedCache.set(light, made);
-  return made;
-};
 
 // The mist is painted in pieces, in the order what stands is drawn, so nothing lit is ever veiled and no
 // hole has to be cut for it (a hole was a rectangle wider than the thing it was cut for): the floor
@@ -259,20 +218,55 @@ export function drawMist(
     ctx.restore();
     return;
   }
-  const touched = touchedOf(light);
   const walls: Box[] = []; // walls the light never reaches: veiled whole
+  const touched = touchedOf(light);
+  const cut: { x: number; y: number }[][] = []; // the dark side of the cone's edge on a wall it reaches
   const row = tiles[part] ?? "";
   for (let x = win.x0; x <= win.x1; x++) {
     const ch = row[x];
     if (ch !== "#" && ch !== "%" && ch !== "=" && ch !== "H") continue;
     const top = toScreen(cam, x, part, LIVE.wall);
     const box = { x: top.x, y: top.y, w: s, h: depth + LIVE.wall * s };
-    if (ch === "=" ? !glassLit(light, x, part) : !touched.has(part * 4096 + x)) walls.push(box);
+    if (ch === "=") {
+      const rect = [
+        { x: box.x, y: box.y },
+        { x: box.x + box.w, y: box.y },
+        { x: box.x + box.w, y: box.y + box.h },
+        { x: box.x, y: box.y + box.h },
+      ];
+      const pane = darkOfGlass(cam, light, x, part, rect);
+      if (pane === "dark") walls.push(box);
+      else if (pane !== "lit") cut.push(...pane);
+      continue;
+    }
+    const dark = darkOfWall(
+      cam,
+      light,
+      tiles,
+      x,
+      part,
+      [
+        { x: box.x, y: box.y },
+        { x: box.x + box.w, y: box.y },
+        { x: box.x + box.w, y: box.y + box.h },
+        { x: box.x, y: box.y + box.h },
+      ],
+      touched.has(part * 4096 + x),
+    );
+    if (dark === "dark") walls.push(box);
+    else if (dark !== "lit") cut.push(...dark);
   }
-  if (walls.length === 0) return;
+  if (walls.length === 0 && cut.length === 0) return;
   ctx.save();
   ctx.beginPath();
   for (const b of walls) ctx.rect(b.x, b.y, b.w, b.h);
+  for (const shape of cut) {
+    for (const [i, q] of shape.entries()) {
+      if (i === 0) ctx.moveTo(q.x, q.y);
+      else ctx.lineTo(q.x, q.y);
+    }
+    ctx.closePath();
+  }
   paintVeil(ctx, "nonzero");
   ctx.restore();
 }
