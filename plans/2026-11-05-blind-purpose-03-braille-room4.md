@@ -330,12 +330,15 @@ The contract is overview §4.1 and §4.4. Phase-specific choices:
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 72 to 75 complete, each shown red then green.
-- [ ] `pnpm test:unit` passes.
-- [ ] `pnpm lint:rooms` passes, and `spec/rooms.test.ts` passes.
-- [ ] The full check passes (overview §3 recipe).
-- [ ] The user accepted Task 75.
-- [ ] Tick phase 03 in overview §5 and commit.
+- [ ] Tasks 72 to 75 complete, each shown red then green. (72, 73, 75 done; **74 parked** on
+  `auto/blind-purpose-parked-03-task74`: complete and its bots clear room 4, but
+  `pacing.test.ts` fails, because room 4 would introduce three new kinds of thing; needs a ruling,
+  see `review/QUEUE.md` "PARKED")
+- [x] `pnpm test:unit` passes (on this branch).
+- [x] `pnpm lint:rooms` passes, and `spec/rooms.test.ts` passes (on this branch; room 4 has no plate yet).
+- [x] The full check passes (overview §3 recipe), 362 s.
+- [x] The user accepted Task 75. (review queued)
+- [ ] Tick phase 03 in overview §5 and commit. (not ticked: Task 74 is parked)
 
 ## 7. Requirements coverage (this phase)
 
