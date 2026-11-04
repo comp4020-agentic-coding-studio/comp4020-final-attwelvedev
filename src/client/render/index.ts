@@ -58,6 +58,9 @@ export interface Scene {
   // and whether you are walking or pushing at something. Overrides what the view says about you;
   // for Can't see it is all there is to draw.
   own?: Motion;
+  // The room is cleared: nobody walks on, so no figure hops or kicks up dust, whatever stale motion
+  // the last view or the client's own input left behind (FR2).
+  cleared?: boolean;
   // How far the world has risen out of the flat reveal, 0 to 1 (FR25). Absent is fully risen. Scales
   // depth and every height, eases the follow camera in from the whole room, and fades Can't see's
   // figure in over the first 400 ms of 900.

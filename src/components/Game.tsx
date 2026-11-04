@@ -250,6 +250,7 @@ function useDraw(
         // Can't see is told whether they are walking or pushing (they hear it already); a sighted
         // role reads it off its own predicted position, which is ahead of the server
         own: ownMotion(rt, role),
+        cleared: view.status === "cleared", // nobody walks on once the room is cleared (FR2)
         bots: crew.map((c) => !!c.bot) as Scene["bots"],
         layout: "follow", // the game camera on every screen; the rise eases it in from the whole room
         rise: flat ? 0 : riseNow(rt, now),
@@ -331,6 +332,8 @@ function onView(rt: Runtime, view: RoleView, audio: GameAudio, names: readonly s
     rt.facing = SPAWN_FACING;
     rt.walking = { moving: false, blocked: false };
   }
+  // the input loop stops once cleared, so it never resets this itself: the room is over, nobody walks
+  if (view.status === "cleared") rt.walking = { moving: false, blocked: false };
   rt.prevEntities = rt.view?.entities ?? [];
   rt.prevSeen = rt.view?.seen ? seenOf(rt.view.seen) : null;
   rt.view = view;

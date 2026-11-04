@@ -171,7 +171,7 @@ None.
   - the commit says what was reverted to show red
 - **Depends on:** none.
 
-### Task 68: Nothing bobs on the cleared screen (FR2)
+### Task 68: Nothing bobs on the cleared screen (FR2) [x]
 
 - **Description:** once the room is cleared, no figure (own, teammate, spectator view) is drawn
   lifted or with dust.

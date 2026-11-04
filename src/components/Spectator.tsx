@@ -230,6 +230,7 @@ export function Spectator({
         alarm: v.alarm,
         nowMs: performance.now(),
         reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+        cleared: v.status === "cleared", // nobody walks on once the room is cleared (FR2)
         spectator: true,
         noSelf: v.you.pos === undefined, // the whole room: nobody is followed
       };
