@@ -52,6 +52,7 @@ import type {
   RoomBoard as RoomBoardData,
 } from "../net/protocol.ts";
 import { ActHint } from "./ActHint.tsx";
+import { BrailleCard } from "./BrailleCard.tsx";
 import { type CaptionLine, Captions } from "./Captions.tsx";
 import { type CommsApi, CommsWheel } from "./CommsWheel.tsx";
 import { Connection } from "./Connection.tsx";
@@ -648,6 +649,7 @@ function Hud({
   const [gear, setGear] = useState<GearItem | null>(null);
   const [lamp, setLamp] = useState<Role | null>(null);
   const [cache, setCache] = useState<RoleView["cache"]>(undefined);
+  const [braille, setBraille] = useState<RoleView["braille"]>(undefined);
   const [keepsake, setKeepsake] = useState<RoleView["keepsake"]>(undefined);
   const [carried, setCarried] = useState<Partial<Record<Seat, GearItem>>>({});
   const [watchOpen, setWatchOpen] = useState(false);
@@ -916,6 +918,9 @@ function Hud({
       setClock(formatTime(view.elapsedMs));
       setLoot(view.loot);
       setAct(view.act);
+      setBraille((old) =>
+        JSON.stringify(old) === JSON.stringify(view.braille) ? old : view.braille,
+      );
       setGear(view.gear ?? null);
       setKeepsake(view.keepsake);
       setCache((old) =>
@@ -1131,6 +1136,7 @@ function Hud({
           aria-label={role === "blind" ? "No map. Listen to the room." : "Map of the room"}
         />
         <SideJob cache={cache} keepsake={keepsake} />
+        {braille && <BrailleCard cells={braille.cells} teach={braille.teach} />}
         {moment && (
           <div class="cache-moment" role="status">
             <p>{moment}</p>

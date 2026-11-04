@@ -842,3 +842,42 @@ export function stationRows(e: EntityView): number[] {
   const keys: StationPartKey[] = ["anchor", "back", "wires", "bells", "tune", "lamps"];
   return [...new Set(keys.flatMap((k) => partsOf(st, k).map((t) => t.y)))];
 }
+
+// A braille plate on the floor, for the sighted: a brass plaque flush with the floor, studded with a
+// fixed 2 by 3 pattern (the same on every plate: the dots it really carries are Can't see's alone,
+// and the sighted are never sent them). While a hand is on it (`state: "on"`) it is outlined in
+// `--ui`; the read itself pulses as a ring (fx.ts). DESIGN.md: the plate's drawing.
+export function drawBraillePlate(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera) {
+  const s = cam.scale;
+  const c = toScreen(cam, e.pos.x, e.pos.y);
+  const w = s * 0.62;
+  const h = s * LIVE.depth * 0.62;
+  ctx.fillStyle = WORLD.brass;
+  ctx.strokeStyle = e.state === "on" ? COLOR.ui : WORLD.line;
+  ctx.lineWidth = e.state === "on" ? 3 : 2;
+  ctx.beginPath();
+  ctx.roundRect(c.x - w / 2, c.y - h / 2, w, h, 4);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = WORLD.line;
+  for (const [col, row] of [
+    [0, 0],
+    [1, 0],
+    [0, 1],
+    [1, 1],
+    [0, 2],
+    [1, 2],
+  ] as const) {
+    ctx.beginPath();
+    ctx.ellipse(
+      c.x + (col - 0.5) * s * 0.16,
+      c.y + (row - 1) * s * LIVE.depth * 0.14,
+      s * 0.035,
+      s * 0.035 * LIVE.depth,
+      0,
+      0,
+      Math.PI * 2,
+    );
+    ctx.fill();
+  }
+}

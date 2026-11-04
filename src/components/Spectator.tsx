@@ -13,6 +13,7 @@ import { draw, type Scene } from "../client/render.ts";
 import type { ConnectionState, GameSocket } from "../client/socket.ts";
 import { ROLE_LABEL, type Role, type Seat } from "../game/types.ts";
 import type { LobbyState, RoleView } from "../net/protocol.ts";
+import { BrailleCard } from "./BrailleCard.tsx";
 import { type CaptionLine, Captions } from "./Captions.tsx";
 import { Connection } from "./Connection.tsx";
 import { Disconnect } from "./Disconnect.tsx";
@@ -89,6 +90,7 @@ export function Spectator({
   const audio = useRef<GameAudio | null>(null);
   const cueHold = useRef<HeldCues>(new Map());
   const [cues, setCues] = useState<CueCaption[]>([]);
+  const [braille, setBraille] = useState<RoleView["braille"]>(undefined);
   const root = useRef<HTMLDivElement>(null);
   const [tab, setTab] = useState<"chat" | "players">("chat");
   // A watcher talks to the other watchers and hears them and the seat it follows (ADR 0015)
@@ -124,6 +126,8 @@ export function Spectator({
       audio.current?.play(m.view.sounds);
     });
     const timer = setInterval(() => {
+      const open = view.current?.braille;
+      setBraille((old) => (JSON.stringify(old) === JSON.stringify(open) ? old : open));
       const heard = heardCues(cueHold.current, performance.now());
       setCues((old) => (cueKey(old) === cueKey(heard) ? old : heard));
     }, 100);
@@ -311,6 +315,7 @@ export function Spectator({
                 : `Spectator view, following ${ROLE_LABEL[roles.current[follow]]}`
             }
           />
+          {braille && <BrailleCard cells={braille.cells} teach={braille.teach} />}
           <Captions lines={lines} cues={cues} />
         </div>
         <section

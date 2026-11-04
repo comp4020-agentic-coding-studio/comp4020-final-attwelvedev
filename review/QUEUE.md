@@ -344,6 +344,25 @@ closed, which I cannot do for you.
 
 ## Overnight run 2026-11-05, lane A (`auto/blind-purpose`), phase 03
 
+- **Task 75, the braille card on Can't see's screen (FR6 to FR8):**
+  `review/bp-03-task75-braille-card-1280.png`, `-375.png` (Can't see, the card open);
+  `review/bp-03-task75-plate-sighted-1280.png`, `-375.png` (Can't hear, the plate beside Ana).
+  - **What to look at:** whether the card reads as "felt, not lit" on black; whether raised dots
+    (filled discs) are easy to tell from flat positions (small rings); whether the key is easy to
+    match; whether the teaching line is clear; whether anything important is covered on a phone. Also the
+    sighted plate: a brass plaque with a fixed six-stud pattern, outlined in `--ui` while a hand
+    is on it, with a ring pulsing on a read. On a light floor the outline is faint. Pass = you accept it.
+  - **Start it:** the screenshots come from the fixture room (the plate one tile from Can't see's spawn):
+    in the `wt-blind` worktree, `pnpm build && ROOMS_DIR=spec/fixtures/rooms-braille PORT=8181 pnpm start`,
+    two tabs (one private), make a lobby with the first, join with the second, Start, both ready;
+    the host is Can't see: press Space. Room 4's own plate is on the parked Task 74 branch (below):
+    after merging it, `pnpm build && pnpm start`, three tabs, play to the flag in room 4.
+  - **What I judged:** the 375 card first spilled its key out of the frame and over the captions;
+    the layout spec now checks the card is inside the frame and above the captions, and the phone
+    key sits in two rows of six beside the cells. At 375 the dim own figure shows through the
+    unfilled card (the spec says "no panel fill"); it does not cover a dot, but say if you want a
+    black fill.
+
 ## PARKED
 
 - **Task 74 (room 4's braille plate, the Can't-see bot that reads it), parked on

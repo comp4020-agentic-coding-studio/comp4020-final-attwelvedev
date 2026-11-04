@@ -284,7 +284,7 @@ The contract is overview §4.1 and §4.4. Phase-specific choices:
   - the id snapshot diff adds only `o1`
 - **Depends on:** Tasks 72 and 73.
 
-### Task 75: The braille card on Can't see's screen (FR7 client, FR8 pulse)
+### Task 75: The braille card on Can't see's screen (FR7 client, FR8 pulse) [x] (review queued)
 
 - **Description:**
   - Can't see's HUD shows the card (spec §4.1 A) while `view.braille` is set, with the teaching line

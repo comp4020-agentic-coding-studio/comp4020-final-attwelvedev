@@ -73,6 +73,9 @@ export function detectFx(
       (!seenBefore || seenBefore.has(Math.floor(e.pos.x), Math.floor(e.pos.y)))
     ) {
       out.push({ kind: "ring", pos: e.pos, tone: "ui" });
+    } else if (e.kind === "braille" && e.flash === "ok") {
+      // Can't see read the plate: a ring where it lies, the picture of its tap (parity row `tap`)
+      out.push({ kind: "ring", pos: e.pos, tone: "ui" });
     } else if (e.kind === "checkpoint" && before?.state === "up" && e.state === "reached") {
       out.push({ kind: "ring", pos: e.pos, tone: "goal", big: true });
     } else if (e.kind === "sign" && wasById.has(e.id)) {

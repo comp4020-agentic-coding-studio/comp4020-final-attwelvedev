@@ -1623,12 +1623,18 @@ describe("viewFor: a braille plate (Task 72, FR6 to FR8)", () => {
       expect(JSON.stringify(v)).not.toContain(cells);
       expect(v).not.toHaveProperty("braille");
       const plate = v.entities.find((e) => e.id === "o1");
-      if (plate) expect(Object.keys(plate).sort()).toEqual(["flash", "id", "kind", "pos"]);
+      if (plate) expect(Object.keys(plate).sort()).toEqual(["flash", "id", "kind", "pos", "state"]);
     }
     expect(viewFor(w, 1, "deaf", false).entities.find((e) => e.id === "o1")).toMatchObject({
       kind: "braille",
       flash: "ok",
+      state: "on",
     });
+    // the hand stays on it while it is read; the pulse is the tick it was opened
+    step(w, {}, TICK_MS);
+    const plate = viewFor(w, 1, "deaf", false).entities.find((e) => e.id === "o1");
+    expect(plate?.state).toBe("on");
+    expect(plate?.flash).toBeUndefined();
   });
 
   it("(e) a spectator following Can't see gets the cells", () => {

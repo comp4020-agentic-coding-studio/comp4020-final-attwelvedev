@@ -52,3 +52,11 @@
   introduces station, gear and braille → parked on `auto/blind-purpose-parked-03-task74` rather than
   exempting braille myself, because exempting it would loosen a guarded promise. Recommended ruling:
   count a plate as part of its station. Reversible by merging that branch once ruled.
+- bp03/task75: Task 75 depends on Task 74 (parked) only for room 4's human review → built and
+  tested on a fixture room `spec/fixtures/rooms-braille/04-plate.room` (the plan's own option), and
+  brought Task 74's plate `state: "on"` (a hand on it) over to this branch with its perception test,
+  because without it the sighted get only a one-tick picture of a read. The card is a `<fieldset>`
+  (implicit role group) rather than `div role="group"`, because Biome's useSemanticElements fails
+  the latter. The spec presses Space afresh until the card shows (Act acts on an edge, and an early
+  edge is spent), because a single held press was flaky in 1 of 5 cases per run. Reversible by
+  editing BrailleCard/the spec.

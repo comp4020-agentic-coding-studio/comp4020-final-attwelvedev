@@ -486,11 +486,14 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
         ...(world.levers[o.id] ? { state: "on" as const } : {}),
       });
     } else if (o.kind === "braille") {
+      // the sighted see a hand on it while it is read (`on`), and a pulse the tick it is opened
       const read = world.events.some((e) => e.kind === "braille" && e.id === o.id);
+      const held = Object.values(world.reading).includes(o.id);
       out.push({
         id: o.id,
         kind: "braille",
         pos: centre(o.tiles[0] as Vec),
+        ...(held ? { state: "on" as const } : {}),
         ...(read ? { flash: "ok" as const } : {}),
       });
     } else if (o.kind === "bell" || o.kind === "lamp") {
