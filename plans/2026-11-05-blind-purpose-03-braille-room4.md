@@ -167,7 +167,7 @@ The contract is overview §4.1 and §4.4. Phase-specific choices:
 
 ## 5. Task breakdown
 
-### Task 72: The plate in the sim, view and sound (FR6, FR7 sim side, FR8)
+### Task 72: The plate in the sim, view and sound (FR6, FR7 sim side, FR8) [x]
 
 - **Description:** a room can hold `o` plates. Act by a Can't-see seat at one sets
   `world.reading[seat]`, emits `braille` and the `tap` sound. That seat's view carries

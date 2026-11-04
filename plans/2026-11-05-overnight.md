@@ -25,3 +25,13 @@
 - bp02/task81: the "long nickname wraps without clipping" check → screenshotted with a 16-character
   name (the server's cap), which stays on one line beside "Not ready" at 375, because no longer name
   can exist. Reversible by queuing a narrower viewport check.
+- bp03/task72: the plan has `src/net/game.ts` pass roles to `createWorld`, but `game.roles` changes
+  after the world is made (a swap at a reveal, a crew re-pick) → the net sets `game.world.roles` from
+  `game.roles` just before each `step`, and `solve.ts`/`attract.ts` pass roles to `createWorld`;
+  `forecast.ts`, `brain.ts`'s collision model and `mockup.ts` keep no roles, because they never step
+  an Act (the mockup's view shows the read hint from its `role` argument). Reversible by threading
+  roles through `freshWorld` and re-setting them in `setCrew`.
+- bp03/task72: the plan's (b) says a sighted seat's act hint at the plate is undefined, but beside
+  other seats the hint is "Hold hands" or "Let go" → the test runs each sighted seat in its own world
+  with the others parked away, and also asserts `world.reading` stays empty. Reversible by editing
+  the test.

@@ -4,6 +4,7 @@ import { inLight, lightPolygon } from "./light.ts";
 import { spectatorView, viewFor } from "./perception.ts";
 import { type RoomObject, secretDoors } from "./rooms/format.ts";
 import { loadRooms } from "./rooms/load.ts";
+import { brailleCells, plateNumber } from "./sim/braille.ts";
 import { syncCacheDoors } from "./sim/cache.ts";
 import { tuneGroups } from "./sim/chimes.ts";
 import { cameraApex, cameraCone, caughtBy } from "./sim/hazards.ts";
@@ -1544,6 +1545,120 @@ describe("viewFor: a jammed station (FR13)", () => {
     expect(jammed()).toBe(true);
     while (world.tick < (world.jammedUntil.Q1 ?? 0)) step(world, {}, TICK_MS);
     expect(jammed()).toBeUndefined();
+  });
+});
+
+describe("viewFor: a braille plate (Task 72, FR6 to FR8)", () => {
+  // o1 at (7, 2) carries Q1's second digit; seat 0 is Can't see, 1 Can't hear, 2 Can't speak
+  const plateWorld = () => {
+    const w = worldWith(
+      ["############", "#1.........#", "#2..Q..o...#", "#3.........#", "############"],
+      {
+        Q1: {
+          type: "dial",
+          pads: [
+            [3, 1],
+            [5, 1],
+          ],
+          digits: 2,
+        },
+        o1: { for: "Q1", part: 1 },
+      },
+    );
+    w.roles = ["blind", "deaf", "mute"];
+    return w;
+  };
+  const actAt = (w: ReturnType<typeof plateWorld>, seat: 0 | 1 | 2, x: number, y: number) => {
+    place(w, seat, { x, y });
+    step(w, { [seat]: { seq: 0, move: { x: 0, y: 0 }, act: true } }, TICK_MS);
+  };
+
+  it("(a) Act beside the plate gives Can't see its cells, and only them", () => {
+    const w = plateWorld();
+    actAt(w, 0, 6, 2);
+    const view = viewFor(w, 0, "blind", false);
+    expect(view.braille).toEqual({ id: "o1", cells: brailleCells(plateNumber(w, "o1") as number) });
+    expect(view.sounds.some((s) => s.kind === "tap")).toBe(true);
+  });
+
+  it("(b) a seat that can see never gets the cells, and has no hint to read", () => {
+    for (const [seat, role] of [
+      [1, "deaf"],
+      [2, "mute"],
+    ] as const) {
+      const w = plateWorld();
+      actAt(w, seat, 7, 2);
+      expect(w.reading[seat]).toBeUndefined();
+      const view = viewFor(w, seat, role, false);
+      expect(view.braille).toBeUndefined();
+      expect(view.act).toBeUndefined();
+    }
+    // the reading seat itself, viewed as a sighted role, is told nothing either
+    const w = plateWorld();
+    actAt(w, 0, 6, 2);
+    expect(viewFor(w, 0, "deaf", false).braille).toBeUndefined();
+  });
+
+  it("(c) stepping off closes the plate", () => {
+    const w = plateWorld();
+    actAt(w, 0, 6, 2);
+    place(w, 0, { x: 7, y: 3 });
+    step(w, {}, TICK_MS);
+    expect(viewFor(w, 0, "blind", false).braille).toBeDefined();
+    place(w, 0, { x: 9, y: 2 });
+    step(w, {}, TICK_MS);
+    expect(viewFor(w, 0, "blind", false).braille).toBeUndefined();
+  });
+
+  it("(d) no other view or entity carries the number", () => {
+    const w = plateWorld();
+    place(w, 1, { x: 7, y: 1 });
+    place(w, 2, { x: 8, y: 3 });
+    actAt(w, 0, 6, 2);
+    const blind = viewFor(w, 0, "blind", true);
+    const cells = JSON.stringify(blind.braille?.cells);
+    const { braille: _own, ...rest } = blind;
+    const others = [rest, viewFor(w, 1, "deaf", true), viewFor(w, 2, "mute", true)];
+    for (const v of others) {
+      expect(JSON.stringify(v)).not.toContain(cells);
+      expect(v).not.toHaveProperty("braille");
+      const plate = v.entities.find((e) => e.id === "o1");
+      if (plate) expect(Object.keys(plate).sort()).toEqual(["flash", "id", "kind", "pos"]);
+    }
+    expect(viewFor(w, 1, "deaf", false).entities.find((e) => e.id === "o1")).toMatchObject({
+      kind: "braille",
+      flash: "ok",
+    });
+  });
+
+  it("(e) a spectator following Can't see gets the cells", () => {
+    const w = plateWorld();
+    actAt(w, 0, 6, 2);
+    expect(spectatorView(w, 0, ["blind", "deaf", "mute"], false).braille?.id).toBe("o1");
+    expect(spectatorView(w, 1, ["blind", "deaf", "mute"], false).braille).toBeUndefined();
+  });
+
+  it("the Act hint for Can't see beside a plate is Read the plate", () => {
+    const w = plateWorld();
+    place(w, 0, { x: 8, y: 1 });
+    expect(viewFor(w, 0, "blind", false).act).toBe("Read the plate");
+    place(w, 0, { x: 9, y: 1 });
+    expect(viewFor(w, 0, "blind", false).act).toBeUndefined();
+  });
+
+  it("a world with no roles reads nothing", () => {
+    const w = plateWorld();
+    delete w.roles;
+    actAt(w, 0, 6, 2);
+    expect(w.reading[0]).toBeUndefined();
+  });
+
+  it("marks the plate's teaching line", () => {
+    const w = plateWorld();
+    const o = w.room.objects.find((x) => x.id === "o1");
+    if (o?.params) o.params.teach = true;
+    actAt(w, 0, 6, 2);
+    expect(viewFor(w, 0, "blind", false).braille?.teach).toBe(true);
   });
 });
 

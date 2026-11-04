@@ -25,7 +25,8 @@ export type Tile =
   | "u"
   | "t"
   | "v"
-  | "Y";
+  | "Y"
+  | "o";
 
 export interface RoomObject {
   id: string; // "p1", "D1", "B2", "E1"
@@ -51,6 +52,7 @@ export interface RoomObject {
     | "card" // a switches station's target card: `params.of` names the station
     | "lever" // a practice lever: Act flips it; a station that names it (`practice`) only plays
     | "order" // a vault's order clue: the wings' motifs in socket order
+    | "braille" // a braille plate: `params.for` a station, `part` which piece of its answer (ADR 0023)
     | "ink"; // hidden text (`params.text`) that shows only in a UV torch's light
   tiles: Vec[]; // integer tile coordinates
   visibleTo: Role[];
@@ -147,6 +149,7 @@ const TILES = new Set([
   "t", // a target card
   "v", // a practice lever
   "Y", // a vault's order clue
+  "o", // a braille plate: floor, read by Can't see
 ]);
 
 // Single-tile objects numbered in reading order: letter -> [kind, id prefix].
@@ -168,6 +171,7 @@ const NUMBERED: Record<string, [RoomObject["kind"], string]> = {
   t: ["card", "T"],
   v: ["lever", "v"],
   Y: ["order", "Y"],
+  o: ["braille", "o"],
 };
 // Kinds whose metadata is kept whole as `params`.
 const PARAMS: Record<string, true> = {
@@ -186,6 +190,7 @@ const PARAMS: Record<string, true> = {
   card: true,
   order: true,
   lever: true,
+  braille: true, // `for` and `part`, and `teach` for the plate that shows the key's line
 };
 export const STATION_TYPES = [
   "dial",

@@ -475,6 +475,8 @@ export function tickGame(
   for (const said of acted.sent) {
     if (said.message.method === "mark") addStamp(game.world, said.message.id, said.message.at);
   }
+  // the roles can change after the world is made (a swap at a reveal): the sim reads them each tick
+  game.world.roles = [...game.roles];
   step(game.world, game.inputs, TICK_MS);
   // a secret door opening changes the map the sighted hold, so every seat gets it this tick (a
   // chamber hidden as wall appears the moment its door slides, never a tick later or on a reload).

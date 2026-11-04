@@ -1,6 +1,6 @@
 import { STAMP_LIFE_MS, type Stamp } from "../channels.ts";
 import { cacheOf, type GEAR_ITEMS, type Room, type STATION_TYPES } from "../rooms/format.ts";
-import type { PlayerInput, Seat, Vec } from "../types.ts";
+import type { PlayerInput, Role, Seat, Vec } from "../types.ts";
 import { drawStations } from "./stations.ts";
 
 export const TICK_MS = 50;
@@ -118,6 +118,9 @@ export interface World {
   cacheTaken: Record<string, Seat>; // cache station id -> the seat that took the keepsake (its owner); +1 loot
   syncAt: Record<string, number[]>; // sync locks: the tick each key was last turned (-1 = not yet)
   jammedUntil: Record<string, number>; // a teaching station or cache: ignores input until this tick (FR13)
+  reading: Partial<Record<Seat, string>>; // seat -> the braille plate it has open, while it stays beside it
+  // who plays which seat, for the one rule that needs it (only Can't see reads a plate); none in old tests
+  roles?: [Role, Role, Role];
 }
 
 export type WorldEvent =
@@ -148,6 +151,7 @@ export type WorldEvent =
   | { kind: "bell"; id: string; at: Vec }
   | { kind: "lamp"; id: string; seat: Seat }
   | { kind: "dye"; station: string }
+  | { kind: "braille"; id: string; seat: Seat; at: Vec } // Can't see opened a plate: a tap where it lies
   | { kind: "cache"; id: string; result: "uncover" | "solved" | "taken"; seat: Seat; at: Vec };
 
 export type Inputs = Partial<Record<Seat, PlayerInput>>;
@@ -166,7 +170,7 @@ export function patrolOf(params: Record<string, unknown> | undefined): Vec[] {
   );
 }
 
-export function createWorld(room: Room, seed = 1): World {
+export function createWorld(room: Room, seed = 1, roles?: [Role, Role, Role]): World {
   const spawn = (n: 1 | 2 | 3): PlayerState => {
     const tile = room.objects.find((o) => o.id === `s${n}`)?.tiles[0];
     if (!tile) throw new Error(`room ${room.id} has no spawn ${n}`);
@@ -270,6 +274,8 @@ export function createWorld(room: Room, seed = 1): World {
     cacheTaken: {},
     syncAt: {},
     jammedUntil: {},
+    reading: {},
+    ...(roles ? { roles: [...roles] as [Role, Role, Role] } : {}),
   };
   drawStations(world);
   return world;

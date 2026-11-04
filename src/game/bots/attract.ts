@@ -51,7 +51,7 @@ function random(seed: number): () => number {
 }
 
 export function createAttract(room: Room, roles: readonly [Role, Role, Role], seed = 1): Attract {
-  const world = createWorld(room);
+  const world = createWorld(room, 1, [...roles]);
   const rand = random(seed);
   const between = ([lo, hi]: [number, number]) => lo + (hi - lo) * rand();
   const cooldowns = { until: {} };

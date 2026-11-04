@@ -83,6 +83,13 @@ describe("gameLinesFor: a tug of war (Task 40)", () => {
   });
 });
 
+describe("gameLinesFor: a braille plate read (Task 72)", () => {
+  it("logs a read as its kind only, never the plate or the number", () => {
+    const lines = gameLinesFor([{ kind: "braille", id: "o1", seat: 0, at: { x: 2, y: 3 } }]);
+    expect(lines).toEqual([{ event: "station", detail: { kind: "braille" } }]);
+  });
+});
+
 describe("gameLinesFor: a jam (FR13)", () => {
   it("logs a jam as its kind only, never which station", () => {
     const lines = gameLinesFor([{ kind: "station", id: "Q4", result: "jam", at: { x: 2, y: 3 } }]);
