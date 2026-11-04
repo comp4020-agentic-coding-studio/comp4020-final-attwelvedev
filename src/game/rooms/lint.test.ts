@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { giveChambers } from "../sim/testing.ts";
 import type { Role } from "../types.ts";
 import { parseRoom, type Room } from "./format.ts";
-import { cacheTypeFaults, lintPlates, lintRoom, uncoverSplitFault } from "./lint.ts";
+import { cacheTypeFaults, lintPlates, lintRoom, PLATE_ROOMS, uncoverSplitFault } from "./lint.ts";
 import { loadRooms } from "./load.ts";
 
 const header = (opensWhen = `["p1","p2","p3"]`, beatX = "[8,19]") =>
@@ -1190,20 +1190,21 @@ describe("lintPlates", () => {
     expect(plates(r)).toEqual(["plate o1: Q1's plaque names the wire to cut"]);
   });
 
-  it("today's rooms 4 to 9, gated, each lack only their plate", () => {
+  it("today's rooms 5 to 9, gated, each lack only their plate; room 4 has its own", () => {
     const rooms = loadRooms("./rooms").filter((r) => /^0[4-9]-/.test(r.id));
     expect(rooms).toHaveLength(6);
     for (const r of rooms) {
-      expect(plates(r), r.id).toEqual(["room needs exactly one braille plate (o), has 0"]);
+      const want =
+        r.id === "04-the-safe" ? [] : ["room needs exactly one braille plate (o), has 0"];
+      expect(plates(r), r.id).toEqual(want);
     }
   });
 
-  it("room 4 without a plate fails once gated", () => {
-    // becomes green in Task 74: room 4 gains o1 and joins PLATE_ROOMS
+  it("room 4 is gated, and carries one plate for Q2's second digit (Task 74)", () => {
+    expect(PLATE_ROOMS).toEqual(["04-the-safe"]);
     const four = loadRooms("./rooms").find((r) => r.id === "04-the-safe") as Room;
     expect(lintPlates(four)).toEqual([]);
-    expect(lintPlates(four, ["04-the-safe"])).toEqual([
-      "room needs exactly one braille plate (o), has 0",
-    ]);
+    const plate = four.objects.filter((o) => o.kind === "braille");
+    expect(plate.map((o) => o.params)).toEqual([{ for: "Q2", part: 1, teach: true }]);
   });
 });

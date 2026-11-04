@@ -1297,3 +1297,38 @@ describe("a keypad whose code is in the earpiece (escape-room Task 24)", () => {
     expect(world.attempt).toBe(0);
   });
 });
+
+// Braille (Task 74): a Can't-see bot at a plate reads it with one Act, decodes the cells from its
+// own view and texts the number a digit a turn, as the earpiece's code is texted.
+describe("a Can't-see bot reads a braille plate (Task 74)", () => {
+  const plated = roomWith(
+    ["############", "#1.........#", "#2..Q..o...#", "#3.........#", "############"],
+    {
+      Q1: {
+        type: "dial",
+        pads: [
+          [3, 1],
+          [5, 1],
+        ],
+        digits: 2,
+      },
+      o1: { for: "Q1", part: 1 },
+    },
+    { beats: [{ name: "b", x: [0, 11], intent: { blind: "b", deaf: "d", mute: "m" } }] },
+  );
+  it("presses Act once at the plate, then texts the digits it reads", () => {
+    const world = createWorld(plated, 3, ROLES3);
+    world.players[0].pos = { x: 7.5, y: 2.5 };
+    const memory = createBotMemory(0, new Set(), ROLES3);
+    const acts: number[] = [];
+    const sent: string[] = [];
+    for (let t = 0; t < 20; t++) {
+      const turn = think(plated, viewFor(world, 0, "blind", false), [], memory, t * TICK_MS);
+      if (turn.input.act) acts.push(t);
+      if (turn.send?.method === "text") sent.push(turn.send.text);
+      step(world, { 0: turn.input }, TICK_MS);
+    }
+    expect(acts).toHaveLength(1);
+    expect(sent).toEqual([String(world.stations.Q1?.answer[1])]);
+  });
+});
