@@ -123,16 +123,19 @@ function paint(canvas: HTMLCanvasElement, run: Run, seat: Seat, now: number, cal
   // the cleared room holds its last frame: nothing left to move between
   const t = run.clearedAt !== null ? 1 : Math.min(1, (now - run.at) / TICK_MS);
   const entities = between(run, seat, t);
-  const self = entities.find((e) => e.kind === "player" && e.seat === seat)?.pos ?? null;
+  const me = entities.find((e) => e.kind === "player" && e.seat === seat);
+  const self = me?.pos ?? null;
+  const view = run.last.views[seat];
+  const blind = FEED_ROLES[seat] === "blind";
   const scene: Scene = {
     w,
     h,
     role: FEED_ROLES[seat],
     seat,
     roles: [...FEED_ROLES] as [Role, Role, Role],
-    tiles: FEED_ROLES[seat] === "blind" ? null : run.tiles,
+    tiles: blind ? null : run.tiles,
     entities,
-    self: FEED_ROLES[seat] === "blind" ? null : self,
+    self: blind ? null : self,
     layout: "fit",
     fx: run.fx[seat]
       ?.filter((f) => now - f.at < fxMs(f.fx))
@@ -143,6 +146,18 @@ function paint(canvas: HTMLCanvasElement, run: Run, seat: Seat, now: number, cal
       return img && age < FACE_POP_MS ? [{ seat: p.seat, img, fade: 1 - age / FACE_POP_MS }] : [];
     }),
     reducedMotion: calm,
+    // Can't see's feed is their own screen: their figure, walking as their bot walks (FR1)
+    ...(blind
+      ? {
+          own: {
+            facing: me?.facing ?? { x: 0, y: 1 },
+            moving: view.you.motion?.moving ?? false,
+            blocked: view.you.motion?.blocked ?? false,
+          },
+          nowMs: now, // so the figure hops; reduced motion (calm) still holds it
+        }
+      : {}),
+    cleared: run.clearedAt !== null, // the cleared room holds still: nobody walks on
   };
   draw(ctx, scene);
 }

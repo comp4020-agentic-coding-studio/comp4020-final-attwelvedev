@@ -223,7 +223,7 @@ None.
   - the header comment says that updating with `-u` is a deliberate act and must be checked
 - **Depends on:** none.
 
-### Task 70: The landing Can't see feed walks (FR1)
+### Task 70: The landing Can't see feed walks (FR1) [x] (human review queued)
 
 - **Description:** the home page's Can't see feed shows the dim figure, bobbing and kicking up dust
   while its bot walks, and still otherwise.
@@ -253,11 +253,11 @@ None.
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 67 to 70 complete, each shown red then green.
-- [ ] `pnpm test:unit` passes.
-- [ ] The full check passes (overview §3 recipe).
-- [ ] The user has accepted Task 70's human review.
-- [ ] Tick phase 01 in overview §5 and commit.
+- [x] Tasks 67 to 70 complete, each shown red then green.
+- [x] `pnpm test:unit` passes.
+- [x] The full check passes (overview §3 recipe).
+- [x] The user has accepted Task 70's human review. (review queued)
+- [x] Tick phase 01 in overview §5 and commit.
 
 ## 7. Requirements coverage (this phase)
 

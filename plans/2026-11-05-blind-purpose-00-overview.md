@@ -293,7 +293,7 @@ export const BRAILLE_KEY: readonly { label: string; dots: number[] }[];
 
 | Phase | File | Tasks | Needs | Ends with | Done |
 | --- | --- | --- | --- | --- | --- |
-| 01 | `…-01-bugs.md` | 67–70 | — | FR3, FR2, FR1 fixed test-first; room-id snapshot green. Task 70 (feed) has a human review | [ ] |
+| 01 | `…-01-bugs.md` | 67–70 | — | FR3, FR2, FR1 fixed test-first; room-id snapshot green. Task 70 (feed) has a human review | [x] (review queued) |
 | 02 | `…-02-crew-and-jam.md` | 71, 81 | 01 | Played icons on the role screen (human review); teaching and cache stations jam for 3 s | [ ] |
 | 03 | `…-03-braille-room4.md` | 72–75 | 01, 02 (Task 71's `jammedUntil` and `jam` exist; Task 75 extends Task 71's DESIGN.md edit) | Room 4 needs Can't see's plate; bots clear room 4 in every rotation; braille card human-reviewed | [ ] |
 | 04 | `…-04-radio-and-plates.md` | 76–78 | 03 | Plates in rooms 5 to 9; radio decoys; room 6 marker; all rooms pass the rotation spec | [ ] |

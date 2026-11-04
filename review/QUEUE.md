@@ -305,3 +305,23 @@ closed, which I cannot do for you.
   and the reveal screen has no dock, so I believe it is the machine, but a clean control was not
   possible (old tree 4 of 4 passes, new tree 3 of 4, within noise). Worth a look when you are
   fresh: the wheel's 1000 to 1500 ms waits under load.
+
+## Overnight run 2026-11-05, lane A (`auto/blind-purpose`), phase 01
+
+- **Task 70, the landing Can't see feed walks (FR1):** `review/bp-01-task70-blind-feed-1280.png`,
+  `-375.png` (the feed alone) and `review/bp-01-task70-feeds-page-1280.png`, `-375.png` (the page).
+  - **What to look at:** does the Can't see feed's dim figure hop and kick up dust while its bot
+    walks, sit still otherwise, and look like the in-game Can't see screen? The ring is gone. Pass =
+    it looks like the game.
+  - **Start it:** in the `wt-blind` worktree, `pnpm build && pnpm start`, open
+    `http://localhost:8080/` (or `PORT=8181 pnpm start` if :8080 is taken), and watch the first feed.
+    Reduced motion (DevTools > Rendering > prefers-reduced-motion) holds it still.
+  - **What I judged:** at 1280 it reads as the game's figure. **At 375 the feed strip is short enough
+    that the top of the hat is cut off.** `drawOwnBlind` draws at the game's fixed size
+    (`MAP.phoneTilePx * 2`), and the plan says to reuse it unchanged, so I did not scale it. If you
+    want it fixed, the smallest change is a size option for `drawOwnBlind` that the feed sets from its
+    canvas height. Reduced motion checked: two frames 500 ms apart are identical.
+- **Flaky under load (not acted on):** one full check during Task 69 had
+  `spec/layout/hud.test.ts` "one No shows 'Not restarted: <name> kept playing.' to everyone, then it
+  goes" time out at 30 s while the other lane was loading the machine. The next three full checks
+  passed it. Not retried for green; worth a `pnpm check:flaky` when the machine is quiet.

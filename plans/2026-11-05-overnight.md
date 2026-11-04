@@ -12,3 +12,8 @@
   biome.json's `files.includes`, the way `src/data/*.json` is excluded, because CLAUDE.md says never
   to format generated files and the snapshot must be byte-for-byte what the test writes. Reversible
   by removing that line and emitting Biome's layout from the test.
+- bp01/task70: at 375 the feed strip clips the top of Can't see's hat, because `drawOwnBlind` draws at
+  the game's fixed size → left as the plan specifies (reuse `drawOwnBlind` unchanged, no DESIGN.md
+  edit) and queued for the morning review, because scaling it would change a shared figure function
+  outside the task. Also set `nowMs` only on the blind feed so the sighted feeds' look is unchanged.
+  Reversible by adding a size option to `drawOwnBlind` and passing it from Feeds.

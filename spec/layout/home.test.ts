@@ -79,9 +79,48 @@ describe("the home page's hero", () => {
       }),
     );
     expect(lit).toHaveLength(3);
-    expect(lit[0]).toBeLessThan(0.05); // a dim ring and nothing else
+    expect(lit[0]).toBeLessThan(0.05); // a dim figure and nothing else
     expect(lit[1]).toBeGreaterThan(0.9);
     expect(lit[2]).toBeGreaterThan(0.9);
+    await leaveAndClose(page);
+  });
+
+  it("the Can't see feed draws its figure, not the ring", async () => {
+    const page = await openPage(browser, baseUrl, DESKTOP);
+    const blind = page.locator(".feed canvas").first();
+    await blind.waitFor();
+    // Can't see's figure stands in the middle of the black (drawOwnBlind): its pill, 0.95 tiles of
+    // MAP.phoneTilePx × 2 tall, covers the canvas centre. The old ring had radius blindRingTiles ×
+    // phoneTilePx (33.6 css px) about the centre, clear of the pill to its left and right.
+    const probe = () =>
+      blind.evaluate((el) => {
+        const c = el as HTMLCanvasElement;
+        const ctx = c.getContext("2d");
+        if (!ctx) return null;
+        const k = c.width / c.clientWidth; // device pixels per css pixel
+        const lit = (cx: number, cy: number, half: number) => {
+          const d = ctx.getImageData(
+            Math.round(cx - half * k),
+            Math.round(cy - half * k),
+            Math.round(2 * half * k),
+            Math.round(2 * half * k),
+          ).data;
+          let on = 0;
+          for (let i = 0; i < d.length; i += 4) if (d[i] || d[i + 1] || d[i + 2]) on++;
+          return on;
+        };
+        const cx = c.width / 2;
+        const cy = c.height / 2;
+        const r = 1.2 * 28 * k; // MAP.blindRingTiles × MAP.phoneTilePx
+        return {
+          figure: lit(cx, cy, 20),
+          ring: lit(cx - r, cy, 3) + lit(cx + r, cy, 3),
+        };
+      });
+    await expect
+      .poll(async () => (await probe())?.figure ?? 0, { timeout: 5000 })
+      .toBeGreaterThan(0);
+    expect((await probe())?.ring).toBe(0);
     await leaveAndClose(page);
   });
 
