@@ -20,7 +20,15 @@ const six = (taken: number): Caches =>
   }));
 const mount = (caches?: Caches) =>
   render(
-    h(HeistComplete, { ms: 300_000, loot: 3, lootTotal: 9, rank: 2, onBoard: vi.fn(), caches }),
+    h(HeistComplete, {
+      ms: 300_000,
+      loot: 3,
+      lootTotal: 9,
+      rank: 2,
+      onBoard: vi.fn(),
+      caches,
+      crew: [],
+    }),
     document.body,
   );
 const slots = () => [...document.querySelectorAll(".keepsake-shelf li")];

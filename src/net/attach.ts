@@ -25,6 +25,8 @@ import {
   applyInput,
   castVote,
   chooserFor,
+  commsEdges,
+  countVoice,
   crewOf,
   finishVote,
   forgetPerson,
@@ -334,9 +336,11 @@ function tick(code: string): void {
     running.timer = null;
     const { world } = running.game;
     const roomMs = world.tick * TICK_MS;
+    const comms = commsEdges(running.game.comms);
     record("room.clear", null, lobby, {
       room: world.room.id,
       ms: Date.now() - running.game.startedAt,
+      sends: comms.reduce((n, e) => n + e.count, 0), // how many deliveries, never what they said
     });
     const names = lobby.seats.map((s) => ({ nickname: s.nickname ?? "Bot", bot: s.bot }));
     const heistNames = [...running.game.heistPeople.values()];
@@ -365,6 +369,7 @@ function tick(code: string): void {
           board,
           credits: creditsOf(world),
           ...(cache ? { cache } : {}),
+          comms,
         });
       }
     }
@@ -1153,6 +1158,7 @@ function relayVoice(socket: WebSocket, who: string, data: Uint8Array): void {
     }
     if (!voiceLimit.allow(who, Date.now())) return;
     out = encodeVoiceOut(seat, frame);
+    countVoice(running.game, seat, receivers, Date.now()); // the comms map counts a spurt, not a frame
     for (const receiver of receivers) {
       const device = lobby.seats[receiver]?.who;
       if (device) to.add(device);

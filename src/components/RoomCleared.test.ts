@@ -20,6 +20,7 @@ const mount = (over: Partial<Parameters<typeof RoomCleared>[0]> = {}) =>
       onRestart: vi.fn(),
       onRestartHeist: vi.fn(),
       onBoard: vi.fn(),
+      crew: [],
       ...over,
     }),
     document.body,

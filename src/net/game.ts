@@ -81,6 +81,8 @@ export interface Game {
   vacated: Partial<Record<Seat, string>>; // the device that left a seat a bot now plays, who may take it back
   heistPeople: Map<string, { nickname: string; bot: boolean }>; // everyone who played any room, for the heist record
   counted: number; // the last room whose crew was written to people's `played` (a restart is not a second play)
+  comms: Comms; // this room's deliveries, for the comms map on the cleared card
+  talking: Partial<Record<Seat, number>>; // when each seat's last voice frame went out, to tell spurts apart
 }
 
 // Bots start afresh with each room: their memory is of that room and these roles.
@@ -96,6 +98,59 @@ function seatBots(game: Game, botSeats: readonly Seat[]): void {
 const botSeatsOf = (game: Game): Seat[] => ([0, 1, 2] as const).filter((s) => game.bots[s]);
 const botSeatsIn = (lobby: LobbyState): Seat[] =>
   ([0, 1, 2] as const).filter((s) => lobby.seats[s]?.bot);
+
+// The comms map (overhaul FR35): how many messages went each way, by method, counted once per seat
+// a message reached; keyed "from>to". Never what was said. A fresh world starts it again.
+export type Comms = Record<string, Partial<Record<Method, number>>>;
+export interface CommsEdge {
+  from: Seat;
+  to: Seat;
+  count: number;
+  by: Partial<Record<Method, number>>;
+}
+
+export function countComms(
+  comms: Comms,
+  from: Seat,
+  receivers: readonly Seat[],
+  method: Method,
+): void {
+  for (const to of receivers) {
+    const k = `${from}>${to}`;
+    const edge = comms[k] ?? {};
+    edge[method] = (edge[method] ?? 0) + 1;
+    comms[k] = edge;
+  }
+}
+
+// Voice arrives as a stream of frames: a frame after a second or more of silence starts a new
+// spurt, and each spurt counts once.
+export const SPURT_GAP_MS = 1000;
+export function countVoice(game: Game, from: Seat, receivers: readonly Seat[], now: number): void {
+  const last = game.talking[from];
+  game.talking[from] = now;
+  if (last !== undefined && now - last < SPURT_GAP_MS) return;
+  countComms(game.comms, from, receivers, "voice");
+}
+
+// The edges that carried anything, in seat order, for the `cleared` message.
+export function commsEdges(comms: Comms): CommsEdge[] {
+  const edges: CommsEdge[] = [];
+  for (const from of [0, 1, 2] as const) {
+    for (const to of [0, 1, 2] as const) {
+      const by = comms[`${from}>${to}`];
+      if (!by) continue;
+      const count = Object.values(by).reduce((n, c) => n + (c ?? 0), 0);
+      if (count > 0) edges.push({ from, to, count, by: { ...by } });
+    }
+  }
+  return edges;
+}
+
+function freshComms(game: Game): void {
+  game.comms = {};
+  game.talking = {};
+}
 
 // Every new world gets its own seed for its station answers (FR5): the clock, plus a counter so two
 // worlds made in the same millisecond still differ. The simulation itself never reads the clock.
@@ -124,6 +179,8 @@ export function startGame(lobby: LobbyState, rooms: Room[]): Game {
     vacated: {},
     heistPeople: new Map(),
     counted: -1,
+    comms: {},
+    talking: {},
   };
   seatBots(
     game,
@@ -165,6 +222,7 @@ export function advanceRoom(game: Game, lobby: LobbyState, rooms: Room[]): "next
   game.roomIndex++;
   setCrew(game, lobby, crewFor(lobby, game.roomIndex));
   game.world = freshWorld(room);
+  freshComms(game);
   game.ready.clear();
   game.inputs = {};
   game.cooldowns = { until: {} };
@@ -283,6 +341,7 @@ export function finishVote(
   game.counted = -1;
   setCrew(game, lobby, crewFor(lobby, 0));
   game.world = freshWorld(first);
+  freshComms(game);
   game.ready.clear();
   game.inputs = {};
   game.cooldowns = { until: {} };
@@ -295,6 +354,7 @@ export function finishVote(
 // reset, held inputs dropped. Roles and who is ready stay as they are.
 export function restartGame(game: Game): void {
   game.world = freshWorld(game.world.room);
+  freshComms(game);
   game.inputs = {};
   game.startedAt = Date.now();
   seatBots(game, botSeatsOf(game));
@@ -474,6 +534,7 @@ export function tickGame(
   // speak see it fade. (The bot picked a tile in its own sight; the router already applied the rules.)
   for (const said of acted.sent) {
     if (said.message.method === "mark") addStamp(game.world, said.message.id, said.message.at);
+    countComms(game.comms, said.from, said.receivers, said.message.method);
   }
   step(game.world, game.inputs, TICK_MS);
   // a secret door opening changes the map the sighted hold, so every seat gets it this tick (a
@@ -574,6 +635,7 @@ export function relay(
   };
   // a bot hears what a person sends it, the same as a person would
   for (const receiver of result.receivers) game.bots[receiver]?.inbox.push(message);
+  countComms(game.comms, from, result.receivers, out.method);
   return {
     ok: true,
     message,

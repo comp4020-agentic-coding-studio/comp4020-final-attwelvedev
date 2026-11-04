@@ -1,38 +1,43 @@
 import { type ChildProcess, execSync, spawn } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import Database from "better-sqlite3";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 import { clearRoomOne } from "./heistPlay.ts";
 import { text } from "./http.ts";
 import { closeAll, ready, startedGame } from "./play.ts";
 
 const baseUrl = inject("baseUrl");
+// the board's room tabs are whatever rooms the app plays, read from `rooms/` at runtime
+const roomCount = readdirSync("rooms").filter((f) => f.endsWith(".room")).length;
+const currentLabels = [
+  "Full heist",
+  ...Array.from({ length: roomCount }, (_, i) => `Room ${i + 1}`),
+];
 
 describe("the leaderboard", () => {
-  it("answers 200 with a tab for the full heist and each room", async () => {
+  it("answers 200 with a tab for the full heist and each room in `rooms/`, and a link to the earlier board", async () => {
     const res = await fetch(new URL("/leaderboard", baseUrl));
     expect(res.status).toBe(200);
-    const body = text(await res.text());
-    expect(body).toContain("Full heist");
-    expect(body).toContain("Room 1");
-    expect(body).toContain("Room 2");
-    expect(body).toContain("Room 3");
+    const dom = await res.text();
+    const labels = [
+      ...dom.matchAll(/<a href="\/leaderboard\?tab=[^"]*"[^>]*>\s*([^<]+?)\s*<\/a>/g),
+    ].map((m) => m[1]);
+    expect(labels).toEqual(currentLabels);
+    expect(dom).toMatch(/<a href="\/leaderboard\?edition=1"[^>]*>Earlier heist \(edition 1\)<\/a>/);
   });
 
   it("serves the same boards as JSON for the in-game panel: the full heist, then a tab per room", async () => {
     const res = await fetch(new URL("/leaderboard.json", baseUrl));
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toMatch(/application\/json/);
-    const { tabs } = (await res.json()) as {
+    const { edition, tabs } = (await res.json()) as {
+      edition: number;
       tabs: { id: string; label: string; rows: { rank: number; names: unknown[] }[] }[];
     };
-    expect(tabs.map((t) => t.label).slice(0, 4)).toEqual([
-      "Full heist",
-      "Room 1",
-      "Room 2",
-      "Room 3",
-    ]);
+    expect(edition).toBe(2);
+    expect(tabs.map((t) => t.label)).toEqual(currentLabels);
     for (const t of tabs) expect(Array.isArray(t.rows)).toBe(true);
   });
 
@@ -102,6 +107,31 @@ describe("the leaderboard", () => {
       const json = await (await fetch(new URL("/leaderboard.json", ownUrl))).text();
       expect(json).toContain(`Team ${code}`);
       expect(json).not.toMatch(/"(id|who|device)"\s*:\s*"[0-9a-f-]{8,}/); // no run id, no device hash
+    });
+
+    // a row saved before edition 2 (the migration reads every older row as edition 1)
+    it("keeps the earlier heist's runs on their own board, with its old rooms as tabs", async () => {
+      const file = new Database(join(dir, "app.db"));
+      file
+        .prepare(
+          "INSERT INTO runs (id, kind, room_id, room_version, heist_version, team_name, names, ms, loot, loot_total, created_at, edition) VALUES ('old-run', 'room', '02-dont-blink', 1, NULL, 'Team OLDE', '[]', 70000, 0, 0, 1, 1)",
+        )
+        .run();
+      file.close();
+
+      const current = text(await (await fetch(new URL("/leaderboard?tab=room-2", ownUrl))).text());
+      expect(current).not.toContain("Team OLDE");
+      const json = await (await fetch(new URL("/leaderboard.json", ownUrl))).text();
+      expect(json).not.toContain("Team OLDE");
+
+      const res = await fetch(new URL("/leaderboard?edition=1&tab=room-1", ownUrl));
+      const dom = await res.text();
+      expect(text(dom)).toContain("Team OLDE");
+      const labels = [
+        ...dom.matchAll(/href="\/leaderboard\?edition=1&(?:amp;)?tab=[^"]*"[^>]*>\s*([^<]+?)\s*</g),
+      ].map((m) => m[1]);
+      expect(labels).toEqual(["Full heist", "Room 1"]);
+      expect(dom).toMatch(/<a href="\/leaderboard"[^>]*>Back to the current heist<\/a>/);
     });
   });
 });

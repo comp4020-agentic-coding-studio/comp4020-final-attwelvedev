@@ -19,4 +19,7 @@ export const runs = sqliteTable("runs", {
   loot: integer("loot").notNull(),
   lootTotal: integer("loot_total").notNull(),
   createdAt: integer("created_at").notNull(),
+  // Which leaderboard the run belongs to (spec FR31): a new room set starts a new edition, and the
+  // rows saved before it read as edition 1, kept and shown on their own board by a link.
+  edition: integer("edition").notNull().default(1),
 });

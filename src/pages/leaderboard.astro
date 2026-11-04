@@ -1,15 +1,19 @@
 ---
 // Public on purpose (FR32): nicknames, team names and times, never a device
-// hash. Server-rendered so it works without scripts; `?tab=` picks the board,
-// so the choice survives a reload and needs no client state.
+// hash. Server-rendered so it works without scripts; `?tab=` picks the board
+// and `?edition=1` the earlier heist's boards (spec FR31), so the choice
+// survives a reload and needs no client state.
 import { loadRooms } from "../game/rooms/load.ts";
 import Base from "../layouts/Base.astro";
 import { db } from "../lib/db.ts";
-import { boardTabs, type RunRow } from "../lib/runs.ts";
+import { boardTabs, EDITION, editionRooms, type RunRow } from "../lib/runs.ts";
 
 Astro.response.headers.set("Cache-Control", "no-store");
 
-const tabs = boardTabs(db, loadRooms());
+const earlier = Astro.url.searchParams.get("edition") === "1";
+const edition = earlier ? 1 : EDITION;
+const tabs = boardTabs(db, earlier ? editionRooms(db, 1) : loadRooms(), edition);
+const query = earlier ? "edition=1&" : "";
 const requested = Astro.url.searchParams.get("tab");
 const active = tabs.find((t) => t.id === requested) ?? tabs[0];
 const runs: RunRow[] = active?.rows ?? [];
@@ -21,14 +25,23 @@ const formatTime = (ms: number): string => {
 ---
 
 <Base title="Leaderboard">
-  <h1>Leaderboard</h1>
+  <h1>{earlier ? "Leaderboard: earlier heist" : "Leaderboard"}</h1>
+  <p>
+    {
+      earlier ? (
+        <a href="/leaderboard">Back to the current heist</a>
+      ) : (
+        <a href="/leaderboard?edition=1">Earlier heist (edition 1)</a>
+      )
+    }
+  </p>
   <nav class="tabs" aria-label="Board">
     <ul>
       {
         tabs.map((t) => (
           <li>
             <a
-              href={`/leaderboard?tab=${t.id}`}
+              href={`/leaderboard?${query}tab=${t.id}`}
               aria-current={t.id === active?.id ? "page" : undefined}
             >
               {t.label}
@@ -72,7 +85,8 @@ const formatTime = (ms: number): string => {
 <style>
   .tabs ul {
     display: flex;
-    gap: 16px;
+    flex-wrap: wrap;
+    gap: 8px 16px;
     list-style: none;
     margin: 0 0 24px;
     padding: 0;

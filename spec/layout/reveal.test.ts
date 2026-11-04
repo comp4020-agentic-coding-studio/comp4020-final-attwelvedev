@@ -556,8 +556,10 @@ describe("players leave during the reveal", () => {
     });
     await ana.getByRole("button", { name: "Pull in Di" }).click({ timeout: 8000 });
     await di.locator(".reveal").waitFor({ timeout: 8000 });
-    // nobody else is interrupted: Ana can still press her own button, and sees Di as not ready
-    expect(await ana.getByRole("alertdialog").count()).toBe(0);
+    // nobody else is interrupted: Ana can still press her own button, and sees Di as not ready.
+    // Ana's pause card (where "Pull in Di" was) closes on Ana's socket, which may hear of it a
+    // moment after Di's socket brings Di's reveal, so this waits for it to go
+    await expect.poll(() => ana.getByRole("alertdialog").count()).toBe(0);
     expect(await di.getByRole("alertdialog").count()).toBe(0);
     await expect.poll(() => crewRow(ana, "Di").innerText()).toContain("Not ready");
     await ana.getByRole("button", { name: "I'm ready" }).click({ timeout: 3000 });

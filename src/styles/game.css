@@ -1777,6 +1777,94 @@ fieldset.settings {
   border-block: 2px solid var(--goal);
 }
 
+/* the comms map on the cleared card: a triangle of the crew, an arrow each way, thicker the more
+   went that way; an arrow is a focus stop with its breakdown in the line under the map */
+.comms-map {
+  display: grid;
+  gap: var(--s-1);
+  justify-items: center;
+  width: min(100%, 22rem);
+  margin-inline: auto;
+}
+.comms-map h3 {
+  margin: 0;
+  font-size: var(--t-18);
+}
+.comms-map svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.comms-arrow {
+  stroke: var(--ui);
+  stroke-linecap: round;
+}
+.comms-arrow.none {
+  stroke: var(--ui-muted);
+  stroke-dasharray: 3 5;
+}
+.comms-hit {
+  stroke: transparent;
+  stroke-width: 20;
+}
+.comms-head {
+  fill: var(--ui);
+}
+.comms-edge.active .comms-arrow {
+  stroke: var(--goal);
+}
+.comms-edge.active .comms-head {
+  fill: var(--goal);
+}
+/* one chip per arrow that carried anything: the map's keyboard and screen-reader way in */
+.comms-edges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.comms-chip {
+  min-height: var(--target);
+  padding: 0 var(--s-2);
+  border: 1px solid var(--ui-muted);
+  border-radius: var(--r);
+  background: var(--glass);
+  color: var(--ui);
+  font: inherit;
+  font-size: var(--t-14);
+  font-variant-numeric: tabular-nums;
+}
+.comms-chip[aria-pressed="true"] {
+  border-color: var(--goal);
+  box-shadow: inset 0 0 0 1px var(--goal);
+}
+.comms-count {
+  fill: var(--ui);
+  font-size: 15px;
+  font-weight: 700;
+  text-anchor: middle;
+  font-variant-numeric: tabular-nums;
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 4px;
+}
+.comms-name {
+  fill: var(--ui);
+  font-size: 15px;
+  text-anchor: middle;
+}
+.comms-detail {
+  min-height: 1.5em;
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+}
+.comms-summary {
+  max-width: 22rem;
+}
+
 /* the leaderboard inside the game: a wide modal that scrolls inside itself, never the page (its
    Close and tabs are focusable, so a keyboard can scroll it) */
 .board-panel {

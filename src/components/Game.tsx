@@ -45,6 +45,7 @@ import type { ItemId } from "../game/rooms/format.ts";
 import type { GearItem } from "../game/sim/world.ts";
 import { ROLE_LABEL, type Role, type Seat, type Vec } from "../game/types.ts";
 import type {
+  CommsEdge,
   CrewMember,
   LobbyState,
   RealLife,
@@ -651,6 +652,7 @@ function Hud({
     board: RoomBoardData;
     credits: { seat: number; lines: string[] }[];
     cache?: TileCache;
+    comms: CommsEdge[];
   } | null>(null);
   const [boardOpen, setBoardOpen] = useState<string | null>(null); // the leaderboard panel's first tab
   const [heist, setHeist] = useState<{
@@ -781,6 +783,7 @@ function Hud({
           board: m.board,
           credits: m.credits,
           cache: m.cache,
+          comms: m.comms,
         }),
       ),
     [socket],
@@ -1170,6 +1173,8 @@ function Hud({
             rank={heist.rank}
             caches={heist.caches}
             onBoard={() => setBoardOpen("heist")}
+            comms={summary?.comms}
+            crew={reveal.crew}
           />
         ) : (
           cleared && (
@@ -1187,6 +1192,8 @@ function Hud({
               cache={summary?.cache}
               names={seatNames(reveal.crew)}
               onBoard={() => setBoardOpen(`room-${reveal.index + 1}`)}
+              comms={summary?.comms}
+              crew={reveal.crew}
             />
           )
         )}

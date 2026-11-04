@@ -1,5 +1,7 @@
 import { formatTime } from "../client/hud.ts";
 import type { ItemId } from "../game/rooms/format.ts";
+import type { CommsEdge, CrewMember } from "../net/protocol.ts";
+import { CommsMap } from "./CommsMap.tsx";
 import { KeepsakeShelf } from "./KeepsakeShelf.tsx";
 
 // Shown over the map once the third room is cleared: the heist is over. There
@@ -13,6 +15,8 @@ export function HeistComplete({
   rank,
   onBoard,
   caches,
+  comms,
+  crew,
 }: {
   ms: number;
   loot: number;
@@ -20,6 +24,10 @@ export function HeistComplete({
   rank: number;
   onBoard: () => void; // open the leaderboard panel on the full-heist tab
   caches?: { room: string; name: string; found: boolean; item: ItemId }[]; // one per room with a side job
+  // the last room's comms map: this card takes the place of that room's cleared card. Only that
+  // room's, since the crew and their seats change from room to room.
+  comms?: CommsEdge[];
+  crew: readonly CrewMember[];
 }) {
   return (
     <div class="overlay" role="status">
@@ -34,6 +42,7 @@ export function HeistComplete({
       <p>
         Rank <strong>#{rank}</strong> on the board
       </p>
+      {comms && <CommsMap edges={comms} crew={crew} title="Comms in the last room" />}
       <div class="overlay-actions">
         <button type="button" class="btn primary" onClick={onBoard}>
           See the leaderboard

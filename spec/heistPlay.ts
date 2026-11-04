@@ -65,6 +65,7 @@ export interface ClearedMsg {
     mine: { rank: number; ms: number; loot: number; lootTotal: number } | null;
   };
   credits: { seat: number; lines: string[] }[];
+  comms: { from: number; to: number; count: number; by: Record<string, number> }[];
 }
 
 // A room played the way three people would, as stages: each gives every seat a route (orthogonal

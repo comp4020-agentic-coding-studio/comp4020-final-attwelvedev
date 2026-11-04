@@ -1,6 +1,7 @@
 import type { CreditRow } from "../client/credits.ts";
 import { formatTime } from "../client/hud.ts";
-import type { RoomBoard as Board } from "../net/protocol.ts";
+import type { RoomBoard as Board, CommsEdge, CrewMember } from "../net/protocol.ts";
+import { CommsMap } from "./CommsMap.tsx";
 import { ConfirmButton } from "./ConfirmButton.tsx";
 import { RoleShape } from "./RoleShape.tsx";
 import { RoomBoard } from "./RoomBoard.tsx";
@@ -24,6 +25,8 @@ export function RoomCleared({
   credits,
   cache,
   names,
+  comms,
+  crew,
 }: {
   ms: number;
   loot: number;
@@ -38,6 +41,8 @@ export function RoomCleared({
   credits?: CreditRow[]; // who did what, names filled in by the page
   cache?: TileCache; // the room's side job, if it had one
   names?: string[]; // nicknames by seat, for the tile
+  comms?: CommsEdge[]; // the comms map's counts, once the `cleared` message brings them
+  crew: readonly CrewMember[]; // who sat where this room, to name the map's corners
 }) {
   return (
     <div class="overlay" role="status">
@@ -98,6 +103,7 @@ export function RoomCleared({
           />
         </div>
         {!host && <p class="muted">The host picks the next room.</p>}
+        {comms && <CommsMap edges={comms} crew={crew} />}
         {board && <RoomBoard board={board} onFull={onBoard} />}
       </div>
     </div>

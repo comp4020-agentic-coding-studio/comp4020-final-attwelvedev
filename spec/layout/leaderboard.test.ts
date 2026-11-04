@@ -2,7 +2,7 @@ import { type ChildProcess, execSync, spawn } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Browser, Page } from "playwright";
+import type { Browser } from "playwright";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 import {
   axeViolations,
@@ -15,6 +15,7 @@ import {
 } from "../browser.ts";
 import { clearRoomOne, clearTinyRoom } from "../heistPlay.ts";
 import { closeAll, type Player, ready, startedGame } from "../play.ts";
+import { openAs as openAsOn } from "../playUi.ts";
 
 const baseUrl = inject("baseUrl");
 let browser: Browser;
@@ -50,20 +51,8 @@ describe.each([
   });
 });
 
-// A player's own device opened on a game sockets started: their cookie and saved nickname, so the
-// lobby page rejoins their seat.
-async function openAs(player: Player, nickname: string, code: string, viewport: Viewport) {
-  const eq = player.cookie.indexOf("=");
-  const context = await browser.newContext({ viewport });
-  await context.addCookies([
-    { name: player.cookie.slice(0, eq), value: player.cookie.slice(eq + 1), url: baseUrl },
-  ]);
-  await context.addInitScript((n) => localStorage.setItem("heist.nickname", n), nickname);
-  const page: Page = await context.newPage();
-  await page.goto(new URL(`/lobby/${code}`, baseUrl).href);
-  await page.locator(".frame canvas").waitFor();
-  return page;
-}
+const openAs = (player: Player, nickname: string, code: string, viewport: Viewport) =>
+  openAsOn(browser, baseUrl, player, nickname, code, viewport);
 
 describe.each([
   ["phone", PHONE],

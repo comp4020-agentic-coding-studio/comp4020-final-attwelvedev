@@ -9,6 +9,9 @@ import {
   applyInput,
   castVote,
   chooserFor,
+  commsEdges,
+  countComms,
+  countVoice,
   crewOf,
   finishVote,
   giveSeatBack,
@@ -1001,5 +1004,67 @@ describe("unready", () => {
   it("does nothing for a seat that was not ready", () => {
     const game = startGame(lobby("a", "b", "c"), rooms);
     expect(unready(game, 2)).toBe(false);
+  });
+});
+
+describe("the comms map's counts", () => {
+  it("counts a message once on each direction it reached: two callouts from seat 1 reach 0 and 2", () => {
+    const comms = {};
+    countComms(comms, 1, [0, 2], "callout");
+    countComms(comms, 1, [0, 2], "callout");
+    expect(comms).toEqual({ "1>0": { callout: 2 }, "1>2": { callout: 2 } });
+    expect(commsEdges(comms)).toEqual([
+      { from: 1, to: 0, count: 2, by: { callout: 2 } },
+      { from: 1, to: 2, count: 2, by: { callout: 2 } },
+    ]);
+  });
+
+  it("counts a voice spurt once, and a new one after a second of silence", () => {
+    const game = startGame(lobby("a", "b", "c"), rooms);
+    for (let t = 0; t < 2_000; t += 60) countVoice(game, 1, [2], 10_000 + t); // one long spurt
+    expect(game.comms).toEqual({ "1>2": { voice: 1 } });
+    countVoice(game, 1, [2], 12_000 + 1_100); // after more than a second's silence
+    expect(game.comms).toEqual({ "1>2": { voice: 2 } });
+  });
+
+  it("counts what a person sends through relay, and only to the seats it reached", () => {
+    const l = lobby("a", "b", "c");
+    const game = startGame(l, rooms);
+    const deaf = game.roles.indexOf("deaf") as Seat;
+    const blind = game.roles.indexOf("blind") as Seat;
+    const mute = game.roles.indexOf("mute") as Seat;
+    relay(game, l, deaf, { method: "callout", callout: "wait" }, 1_000);
+    // a refused send is not a delivery
+    relay(game, l, mute, { method: "callout", callout: "wait" }, 1_000);
+    expect(game.comms).toEqual({
+      [`${deaf}>${blind}`]: { callout: 1 },
+      [`${deaf}>${mute}`]: { callout: 1 },
+    });
+  });
+
+  it("counts what the bots send, the same as a person's", () => {
+    const l = withBots("a", 1, 2);
+    const game = startGame(l, rooms);
+    let sent = 0;
+    for (let i = 0; i < 400 && sent === 0; i++) {
+      sent += tickGame(game, new Set(), 1_000 + i * 50).sent.length;
+    }
+    expect(sent).toBeGreaterThan(0);
+    expect(commsEdges(game.comms).reduce((n, e) => n + e.count, 0)).toBeGreaterThan(0);
+    for (const edge of commsEdges(game.comms)) expect([1, 2]).toContain(edge.from);
+  });
+
+  it("starts again from nothing in the next room, and on a restart", () => {
+    const l = lobby("a", "b", "c");
+    const game = startGame(l, rooms);
+    countComms(game.comms, 0, [1], "text");
+    countVoice(game, 1, [2], 1_000);
+    game.world.status = "cleared";
+    advanceRoom(game, l, rooms);
+    expect(game.comms).toEqual({});
+    countVoice(game, 1, [2], 1_100); // a new room: a new spurt, though it is under a second later
+    expect(game.comms).toEqual({ "1>2": { voice: 1 } });
+    restartGame(game);
+    expect(game.comms).toEqual({});
   });
 });
