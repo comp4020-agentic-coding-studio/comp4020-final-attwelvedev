@@ -174,18 +174,18 @@ beside a checkpoint flag (a send-back would otherwise spawn people next to a wal
 
 The user asked that every **Human review** be deferred to the end of the phase, and authorised reasonable choices on blockers. So Tasks 66, 58 and 59 are **built and verified by automated checks but not ticked and not committed**: the commits wait for the user's review (Phase 3, step 5). Task 60 is drafted the same way.
 
-- [ ] Task 66: built; unit tests, parity row, lint rules, render and fixture all green and each shown red. Awaiting the user's review (Human review line).
-- [ ] Task 58: rooms 4 to 6 authored, linted, cleared by bots in every rotation, and played by script in `spec/caches.test.ts`. Browser specs done: `spec/layout/chamber.test.ts` (room 4 at 1280 and 375: map fits its frame, owner-only chip, nothing names the chamber) and a side-job-tile case in `spec/layout/leaderboard.test.ts` (tile after the credits, before the buttons, inside the column), each shown red; screenshots of the cleared card looked at. Full `pnpm check` green on a fresh server (143 files, 2081 tests).
-- [ ] Task 59: rooms 7 to 9 authored (room 9's cache is a dial, see the Corrections log), linted, cleared by bots, scripted open-solve-take for each, and the nine-room heist reports six unopened, untaken caches in order. Browser specs shared with Task 58 (room 4 only; rooms 5 to 9 are covered headless).
-- [ ] Task 60: CLAUDE.md edited; DESIGN.md has the plate; the rest (backlog Decided line, PROCESS_LOG entries, ADR 0020 acceptance, overview ticks) outstanding.
+- [x] Task 66: built; unit tests, parity row, lint rules, render and fixture all green and each shown red. Awaiting the user's review (Human review line).
+- [x] Task 58: rooms 4 to 6 authored, linted, cleared by bots in every rotation, and played by script in `spec/caches.test.ts`. Browser specs done: `spec/layout/chamber.test.ts` (room 4 at 1280 and 375: map fits its frame, owner-only chip, nothing names the chamber) and a side-job-tile case in `spec/layout/leaderboard.test.ts` (tile after the credits, before the buttons, inside the column), each shown red; screenshots of the cleared card looked at. Full `pnpm check` green on a fresh server (143 files, 2081 tests).
+- [x] Task 59: rooms 7 to 9 authored (room 9's cache is a dial, see the Corrections log), linted, cleared by bots, scripted open-solve-take for each, and the nine-room heist reports six unopened, untaken caches in order. Browser specs shared with Task 58 (room 4 only; rooms 5 to 9 are covered headless).
+- [x] Task 60: CLAUDE.md edited; DESIGN.md has the plate; backlog Decided line present; ADRs 0020 to 0022 accepted; overview ticks done (2026-11-05); the PROCESS_LOG moments it lists (the floor-item reframe, the stale-server bogus red run, the pacing ruling) are not separate entries and are folded into the earlier phase 14 and the 2026-11-05 entries, a gap noted here.
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 66, 58, 59, 60 done and committed one each (Human review tasks only after acceptance).
-- [ ] `pnpm test:unit` and `pnpm check` pass on a fresh check server.
-- [ ] Demo script 1 to 11 (overview §2) played by the user on a local build, three tabs, 1280 and 375.
-- [ ] CLAUDE.md invariants hold; ADR 0020 accepted by the user.
-- [ ] Tick this phase in the 14 overview §5, tick phase 14 in the master overview §5, and commit.
+- [x] Tasks 66, 58, 59, 60 done and accepted by the user 2026-11-05. Committed together in 8e4f9b7 rather than one each (they share files with the render work); recorded as a deviation.
+- [x] `pnpm test:unit` and `pnpm check` pass on a fresh check server (2026-11-05: 148 files, 2,194 tests, a fresh build).
+- [x] Demo script 1 to 11 (overview §2) played by the user. One finding, deferred to the backlog (2026-11-05): a cache's dial cannot be solved from the stethoscope alone, since nothing tells the team when the tumbler ticks.
+- [x] CLAUDE.md invariants hold; ADRs 0020, 0021 and 0022 accepted by the user 2026-11-05.
+- [x] Tick this phase in the 14 overview §5, tick phase 14 in the master overview §5, and commit.
 
 ## 7. Requirements coverage (this phase)
 

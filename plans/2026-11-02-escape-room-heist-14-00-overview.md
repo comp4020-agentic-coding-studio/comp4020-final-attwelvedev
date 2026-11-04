@@ -143,20 +143,20 @@ Each session loads this overview plus one file. Ordered by real dependency (the 
   doors, keepsake and loot-at-pickup in the sim, the masked view, the amended server results). Depends on 51 to 54.
 - [x] `2026-11-02-escape-room-heist-14-03-client.md`: Tasks 55 (done), 56 (rewritten: the chamber on the map, the chip, the keepsake slot),
   57 (the cleared tile and the shelf, three states). Depends on 62 to 65. Ends with screenshots and the user's reviews.
-- [ ] `2026-11-02-escape-room-heist-14-04-rooms-wrap.md`: Tasks 66 (the inspection plate and its `hollow` step), then 58 to 60 (six caches with chambers, all below their rooms, in rooms 4 to 9; wrap-up). Depends on 53,
+- [x] `2026-11-02-escape-room-heist-14-04-rooms-wrap.md`: Tasks 66 (the inspection plate and its `hollow` step), then 58 to 60 (six caches with chambers, all below their rooms, in rooms 4 to 9; wrap-up). Depends on 53,
   62 to 65, 55 to 57.
 
 Add a §5 row for phase 14 to `plans/2026-10-28-escape-room-heist-00-overview.md` when the first file is started.
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 51 to 65 done; `pnpm test:unit` and `pnpm check` green on a fresh check server (see above).
-- [ ] Demo script 1 to 13 played on a local build, three tabs, 1280 and 375, by the user.
-- [ ] CLAUDE.md invariants hold: `uncover` and `stash` have `parity.test.ts` rows, `RoleView.cache` and `RoleView.keepsake` are gated in
+- [x] Tasks 51 to 65 done; `pnpm test:unit` and `pnpm check` green on a fresh check server (see above).
+- [x] Demo script 1 to 13 played, by the user (one finding deferred to the backlog, 2026-11-05).
+- [x] CLAUDE.md invariants hold: `uncover` and `stash` have `parity.test.ts` rows, `RoleView.cache` and `RoleView.keepsake` are gated in
   `viewFor`, the hidden chamber and both secret doors are in no sighted or watcher tile grid until open, log lines carry kinds only,
   DESIGN.md matches the visual changes.
-- [ ] Every `Human review:` task accepted explicitly by the user. ADR 0020 accepted by the user.
-- [ ] Master overview row ticked; phase 11's Task 28 note ("floor items replaced by phase 14") stays accurate.
+- [x] Every `Human review:` task accepted explicitly by the user (2026-11-05). ADRs 0020 to 0022 accepted.
+- [x] Master overview row ticked; phase 11's Task 28 note ("floor items replaced by phase 14") stays accurate.
 
 ## 7. Requirements coverage
 

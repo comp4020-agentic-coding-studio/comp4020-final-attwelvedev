@@ -301,7 +301,7 @@ matching `/^\d$/`, or `"stop"` as a callout for a dial; bots read only those two
 | 11 | `…-11-wrap-up.md` | 28–31 | 10 | credits and the cleared card (28), comms map, edition 2, docs, ADRs (31); floor-item side jobs replaced by phase 14; **human review** | [ ] |
 | 12 | `…-12-review-fixes.md` | 32–40 | 10 | fixes from the human review of phases 02 to 10 (G, crate plate, labels, links, chimes, room 7, practice lever, HUD, hand-holding); **human review** | [ ] |
 | 13 | `2026-11-01-escape-room-heist-13-00-overview.md` | 41–50 | 12 | fixes from the human review of phase 12 (vent chimes, practice sound, UV ink, room 7 door, link wires, bots, flaky specs); **human review** | [x] |
-| 14 | `2026-11-02-escape-room-heist-14-00-overview.md` | 51–60 | 11 (28–30), 12, 13 | side jobs as hidden caches: sim and view, server, client, six caches, docs and ADR 0020; **human review** | [ ] |
+| 14 | `2026-11-02-escape-room-heist-14-00-overview.md` | 51–60 | 11 (28–30), 12, 13 | side jobs as hidden caches: sim and view, server, client, six caches, docs and ADR 0020; **human review** | [x] |
 
 ## 6. Feature-level Definition of Done
 
