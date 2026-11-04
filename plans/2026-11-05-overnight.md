@@ -1,0 +1,5 @@
+# Overnight run 2026-11-05: decisions taken without the user
+- wrap/merge: where the comms map goes on phase 14's cleared card (the side work put it between the credits and the buttons, which pushed the buttons out of the frame and failed `spec/layout/leaderboard.test.ts`'s buttons-in-view check) → after the buttons and before the board, because phase 14's layout promise holds and the map is a look-back, not an action. Reversible by moving `<CommsMap>` in `RoomCleared.tsx` and updating DESIGN.md's `RoomCleared` line.
+- wrap/merge: two loops over a bot's sends in `game.ts` (phase 14's mark drawing, the side work's comms count) → one loop that does both. Reversible: n/a, same behaviour.
+- wrap/31: whether to accept ADRs 0017 and 0018 and the CLAUDE.md diff → left `proposed` and queued in review/QUEUE.md, as the run's prompt directs. Reversible by the user flipping the status.
+- wrap/31: which phase moments go into PROCESS_LOG → only the user's 2026-11-02 pacing ruling (the only correction the user made in phase 11), cited to 8144a79; the merge is not logged there because the user corrected nothing. Reversible by deleting the entry.

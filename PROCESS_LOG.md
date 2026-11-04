@@ -1222,3 +1222,19 @@ The test that proves it nearly did not: its first break check passed with the co
 other dashed strokes and one `sed` silently did not apply. Both were fixed before the test counted; the final check
 turns red with the wire push removed. Rule for the harness: a break check names the line it broke and asserts the edit
 landed. Edits go through a script that asserts the text it replaces, never a bare `sed`.
+
+## 2026-11-02 — A plan with two requirements that contradicted, and my ruling on which one gives
+
+resolved by 8144a79
+
+Phase 11's Task 28 put a side job in room 4, and `pacing.test.ts` failed: a side job was a third
+new thing in a room that already brought two. The plan never mentioned the conflict between clues
+FR11 (side jobs from room 4) and FR9/FR10 (at most two new things a room). The agent stopped and
+asked instead of moving the side job to a later room or loosening the pacing limit.
+
+The obvious fix was to start side jobs at room 5, which keeps both rules on paper but breaks the
+spec's promise of something every role can own from room 4 on. I ruled that a side job is loot with
+an owner, not a new mechanic for the team to learn, so `sidejob` joined the kinds that are allowed
+`EVERYWHERE` in the pacing test. The cap stays where it was for real mechanics. I knew the cap still held
+because the pacing test still fails a room that brings a third station type. Phase 14 later replaced side
+jobs with caches (ADR 0020), whose pacing follows the same reasoning.

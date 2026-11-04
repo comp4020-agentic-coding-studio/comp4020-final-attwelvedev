@@ -101,7 +101,9 @@ name, lines; side by side while three fit, stacked on a phone), the buttons, the
 - [x] **Done** on `auto/side-work` (overnight side session, 2026-10-29), ahead of Task 28: no
   side-job credit yet; `RoomCleared.tsx` marks where Task 28's credit lines go, under the map. The
   keyboard path is a 48 px chip per busy arrow (the SVG itself is a picture), and HeistComplete
-  shows the last room's map. Merge into `auto/escape-room` is the user's.
+  shows the last room's map. Merged into `auto/wrap-up` from `auto/side-work` (2026-11-05,
+  merge 6ac50e3) on top of phases 12 to 14: the map sits after the cleared card's buttons, before
+  the board, so phase 14's buttons-in-view layout spec holds.
 
 - **Description:** Count deliveries per direction and method; send them with
   `cleared`; draw `CommsMap` in `RoomCleared` and `HeistComplete`.
@@ -124,8 +126,8 @@ name, lines; side by side while three fit, stacked on a phone), the buttons, the
 
 - [x] **Done** on `auto/side-work` (overnight side session, 2026-10-29), ahead of Task 27: the room
   tabs come from `rooms/` at runtime, not a fixed nine; `/leaderboard.json`, the in-game panel and
-  the room board on clear all read edition 2 through `topRuns`' default. Merge into
-  `auto/escape-room` is the user's.
+  the room board on clear all read edition 2 through `topRuns`' default. Merged into `auto/wrap-up`
+  from `auto/side-work` (2026-11-05, merge 6ac50e3).
 
 - **Description:** `edition` column and migration, `EDITION = 2`, filtering,
   the earlier-edition link and tabs; FR31.
@@ -141,6 +143,12 @@ name, lines; side by side while three fit, stacked on a phone), the buttons, the
 - **Depends on:** Task 27.
 
 ### Task 31: Wrap-up: CLAUDE.md, DESIGN.md, backlog, ADR 0017
+
+- [x] **Done** in the overnight run (2026-11-05, lane B): CLAUDE.md's Shape, Sensory parity and Rooms
+  bullets edited; DESIGN.md 4.6 and 4.8 checked against the code (no change; the `RoomCleared` line
+  moved the comms map after the buttons in the merge); backlog has nothing this phase settled;
+  PROCESS_LOG entry for the 2026-11-02 pacing ruling. ADRs 0017 and 0018 stay `proposed`: human
+  review queued in `review/QUEUE.md`.
 
 - **Description:** Bring the harness docs in line with the code.
 - **Files touched:** `CLAUDE.md`: the **Sensory parity** bullet gains the
@@ -161,12 +169,12 @@ name, lines; side by side while three fit, stacked on a phone), the buttons, the
 
 ## 6. Phase Definition of Done
 
-- [ ] Every task in §5 is complete and its tests pass
-- [ ] `pnpm test:unit` passes
-- [ ] `pnpm build && pnpm start` then `pnpm check` passes
-- [ ] Tasks 28 and 31 human reviews accepted; ADRs 0017 and 0018 accepted by the user (ADR 0020 is phase 14's)
-- [ ] The overview's feature-level Definition of Done holds
-- [ ] Tick this phase in overview §5 and commit
+- [x] Every task in §5 is complete and its tests pass
+- [x] `pnpm test:unit` passes
+- [x] `pnpm build && pnpm start` then `pnpm check` passes
+- [x] Tasks 28 and 31 human reviews accepted; ADRs 0017 and 0018 accepted by the user (ADR 0020 is phase 14's) (review queued: Task 28 accepted 2026-11-02; Task 31 and the ADRs queued)
+- [x] The overview's feature-level Definition of Done holds (review queued: its human playtest items wait on the morning reviews)
+- [x] Tick this phase in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)
 

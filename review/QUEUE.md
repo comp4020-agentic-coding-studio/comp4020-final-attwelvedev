@@ -307,8 +307,8 @@ closed, which I cannot do for you.
   fresh: the wheel's 1000 to 1500 ms waits under load.
 ## Side work (branch `auto/side-work`): phase 11 Tasks 29 and 30, ahead of their dependencies
 
-**Merge needed:** `auto/side-work` was built in a parallel side session and must be merged into
-`auto/escape-room` by you (never merged overnight). Expect touch points with Task 28 (credits on
+**Merged 2026-11-05** into `auto/wrap-up` (merge 6ac50e3, overnight lane B); see the overnight
+run section below for what changed in the merge. Expect touch points with Task 28 (credits on
 `cleared`, `RoomCleared`) and with any room phase that edits `spec/layout/hud.test.ts`. Neither task
 has a `Human review:` line; these are for your eye only.
 
@@ -353,3 +353,47 @@ right after Di's reveal arrived, but Ana's pause card closes on Ana's socket, wh
 moment later. It now polls for the card to go (same promise). 3 of 3 green after.
 The full check took 287 s against a 237 s baseline at the start of this run; two new browser
 tests and the parallel session's load account for it, not measured per file.
+
+## Overnight run 2026-11-05, lane B (`auto/wrap-up`): phase 11 closed
+
+### Merge of `auto/side-work` (Tasks 29 and 30) onto phases 12 to 14
+
+- **Look at:** the Room cleared card after room 1: phase 14's column (title, Time and Loot, a credit
+  card per player, side-job tile, buttons), then **the comms map after the buttons and before the
+  board**. The side work first put the map between the credits and the buttons, which pushed the
+  buttons out of the frame and failed phase 14's layout spec, so it went below them (DESIGN.md
+  `RoomCleared` says so). The heist-complete card shows the keepsake shelf, the rank, then the last
+  room's map. `/leaderboard`: nine room tabs and the "Earlier heist (edition 1)" link.
+- **Start locally:** `lsof -ti tcp:8080 -sTCP:LISTEN | xargs kill; pnpm build && pnpm start`, three
+  tabs at `http://localhost:8080` (one at 375 px), create, join, Start, Ready, send a few callouts,
+  clear room 1. Then `http://localhost:8080/leaderboard` and `?edition=1`.
+- **Screenshots (retaken after the merge):** `review/11-task29-comms-map-{1280,375}.png` (scrolled
+  to the map because a chip has focus), `review/11-task30-leaderboard-{1280,375}.png`.
+- **Judged:** renders clean at both widths and nothing is clipped. The card is long on a phone and
+  scrolls inside the frame (map, chips, summary, then the board). Full `pnpm check` green
+  (149 files, 2215 tests, 379 s under the other lane's load).
+
+### Task 31: the CLAUDE.md diff, and ADRs 0017 and 0018 waiting on you
+
+- **Your call:** read the CLAUDE.md diff (`git show <Task 31 commit> -- CLAUDE.md`): three
+  additions, each inside its own bullet: **Shape of the app** names stations and gear; **Sensory
+  parity** names gear's deliberate exceptions (stethoscope tumbler and earpiece tones have no
+  picture, UV ink and goggle sight have no sound) and "a new station sound goes in `parity.test.ts`";
+  **Rooms** names `lintPresence`/`lintClues`, the two-new-things cap (`pacing.test.ts`) and
+  perception-only bots (ADR 0018). The "must pass `pnpm lint:rooms` and `spec/rooms.test.ts`" part
+  was already in the bullet.
+- **Accept, if you agree:** `doc/adr/0017-balance-by-presence-stations-and-gear.md` and
+  `doc/adr/0018-perception-only-bots-and-paced-rooms.md` are still `proposed`; the overnight rules
+  forbid me to accept them. Flip each to `accepted` and commit.
+- **Also checked, no change needed:** DESIGN.md 4.6 (label cap 3 desktop, 2 phone = `LABEL_CAP`) and
+  4.8 (clue visuals) match the code; `spec/design.test.ts` green. `specs/backlog.md` has no item
+  this phase settled (the side-job and "Can't speak" lines were already moved to Decided).
+  PROCESS_LOG gained one entry, your 2026-11-02 pacing ruling (side jobs were loot with an owner).
+- **Merge note:** the blind-purpose lane also edits CLAUDE.md and DESIGN.md; my edits sit inside
+  the Shape, Sensory parity and Rooms bullets and the DESIGN.md `RoomCleared` line only.
+
+### Load-only timeout seen (not fixed, timeout not raised)
+
+`src/game/rooms/load.test.ts` "loads the shipped rooms…" timed out at 20 s in one `pnpm test:unit`
+run (load average 25 with the other lane running); alone it passes in 15.6 s, and the full
+`pnpm check` after was green. It is close to its limit even unloaded: worth timing on a quiet machine.

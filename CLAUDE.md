@@ -13,7 +13,7 @@
   missing a channel (Can't see, Can't hear, Can't speak) and they coordinate by
   sending messages by *method* (callout, text, voice, clip, face, mark). Who may
   send and who receives each is the `SENDS`/`RECEIVES` table in
-  `src/game/types.ts` (ADR 0011); the sender never gets its own message back. Rooms 4 to 9 each hide
+  `src/game/types.ts` (ADR 0011); the sender never gets its own message back. Each room is a set of **stations** (safes, wires, keypads, radios, switches, music boxes, vaults) worked by the team, with **gear** (goggles, stethoscope, earpiece, UV torch) carried one at a time in a gear slot. Rooms 4 to 9 each hide
   one optional **cache** (ADR 0020): a side chamber behind a secret door, found by pressing the one
   motif tile the owner's riddle names, its station worked by the team, a vault behind a second secret
   door holding an item only the owner can take into a keepsake slot (separate from the gear slot).
@@ -39,7 +39,9 @@
   glass stop it, vents do not; ADR 0012). Every sound has a row in
   `src/game/parity.test.ts`; the typecheck and test fail without one. The alarm
   and the `clue` chime are the two deliberate exceptions (a `clue` has no
-  picture, by design). A cache's `uncover` and `stash` are team-wide with parity rows, a take reuses
+  picture, by design). Gear makes the other deliberate exceptions: the stethoscope's tumbler and the earpiece's tones
+  are sounds with no picture, and UV ink and goggle sight are pictures with no sound. A new station
+  sound goes in `parity.test.ts` with its row. A cache's `uncover` and `stash` are team-wide with parity rows, a take reuses
   the `loot` cue (with its owner and item), the riddle is an own-seat-only view field, the hidden
   chamber and both secret doors read as wall on every sighted map until they open, and a secret door
   opens with no `door` event (never the ordinary click). A cache dial's inspection plate sounds
@@ -50,7 +52,9 @@
   coordinate moves); its station type must already have been met, its uncover tile and its clue are
   linted to need different roles, its chamber is sealed and holds only its own station (a dial
   cache also holds its inspection plate and its own stethoscope), and it is never in a door's
-  `opensWhen`. Bots ignore caches and chambers (they get no job, and `inkPost` skips a cache's ink).
+  `opensWhen`. Rooms are station puzzles linted by `lintPresence` and `lintClues` (`src/game/rooms/lint.ts`),
+  bring in at most two new things each (`src/game/rooms/pacing.test.ts`), and are cleared by
+  perception-only bots (ADR 0018), with no lead beats. Bots ignore caches and chambers (they get no job, and `inkPost` skips a cache's ink).
   **Ids are numbered in reading order** (`Q`, `c`, `u`, `g`, `D`...), so a new letter placed before an
   existing one of its kind silently renumbers it; append new ones after the existing ones in reading
   order, then confirm no pre-existing object moved. Never
