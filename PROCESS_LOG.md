@@ -1171,3 +1171,54 @@ missed one line up and nothing depends on how long a title is.
 The result was checked by looking, at 1280 and 375, and by a test that reads the three lines of all six slots in order.
 Breaking the room-number line turned it red. Pattern for the harness: a repeated cell should be built as fixed rows,
 not as a string that the browser wraps.
+
+## 2026-11-05 — A day of edge-case rules, replaced by one geometric model the user named
+
+The agent's plan (14-07, 14-08) and the sheet of numbered screenshots
+
+Phase 14's mist veil had been fixed screenshot by screenshot for a day: each report (74 to 85) got a rule, each rule
+broke a neighbour (82's fix broke 59, 60 and the wire tests), and I was the one noticing. The agent kept proposing the
+next rule, and twice stopped after two failed oracles and asked, which is what the plan says to do. I stopped the
+chase myself: "I want a set of rules that are general enough to encompass all cases … I don't want to add some small
+rule that some edge case will later manage to get around."
+
+The obvious call was one more rule for the tile in 82. I asked instead for the geometry. Two answers came from looking,
+not from the code: a wall's top is never seen by anyone on the floor, so it is never veiled; and a shadow edge is a
+vertical plane, so on a wall's front it is a vertical line from where the light meets the wall's foot. Each is one rule
+that deletes several. Tops stopped being a case at all, and the diagonal carried across a tile seam (the cause of 83 and
+84) is gone from walls.
+
+How I knew: each rule got an oracle built from the light polygon alone (`inLight` on the foot line), and each was shown
+red by breaking the guarded line (wall fronts always dark: three tests red; always lit: two). The pattern for the
+harness: when a visual fix needs a second exception, stop and ask for the model.
+
+## 2026-11-05 — A station cut that was right on paper and shelved by me when it spread
+
+Screenshots 94 to 104
+
+I first asked for stations to be cut the way walls are: faces vertical, tops lifted by the part's height. It worked for
+the safe and then needed a special foot for the camera, per-part heights, a veil over the dark part's outline and a
+face-only mode, and I could see it growing the same chase. I shelved it in favour of the plain diagonal, "straight
+across, without any regard to its geometry", keeping only the one seam that matters: where a station overlaps the wall
+behind it, the wall's vertical cut carries on (`wallBehind`). A visual overhaul is planned, so a cut tied to the
+current shapes would be thrown away.
+
+The agent restored the planar code from its own backups for the camera and then I reversed it again for stations; the
+correction log (14-07) records each turn. Checked by: a test of the seam against `inLight` on the wall's foot line (red
+with the rule off), and the camera's wall-column test (red with the old cut back).
+
+## 2026-11-05 — A wire that vanished because the thing that drew it was not sent
+
+Screenshots 105 to 107; a vacuous break check caught before it counted
+
+A safe's wire showed from near and disappeared a step away. The agent's first fix (send the station when any tile of
+its wire is lit) passed its own test and did nothing in my game, because room 4's second safe's wire runs on the outer
+wall, where no tile is ever lit from the corridor. It reproduced that on the real room instead of arguing, then put the
+choice to me: send the wire from anywhere (it shows where the dial and back box are before anyone has seen them) or
+keep it local. I chose to send it, as layout, because a wall top is always shown. It is now its own `wire` entity
+(a route, nothing of the station's state), for every sighted seat.
+
+The test that proves it nearly did not: its first break check passed with the code broken, because the oracle counted
+other dashed strokes and one `sed` silently did not apply. Both were fixed before the test counted; the final check
+turns red with the wire push removed. Rule for the harness: a break check names the line it broke and asserts the edit
+landed. Edits go through a script that asserts the text it replaces, never a bare `sed`.
