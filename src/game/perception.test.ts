@@ -1653,6 +1653,36 @@ describe("viewFor: a braille plate (Task 72, FR6 to FR8)", () => {
     expect(w.reading[0]).toBeUndefined();
   });
 
+  it("the tumbler stays silent for the digit the plate carries, and sounds for the other", () => {
+    const tumbles = (digit: number) => {
+      const w = worldWith(
+        ["############", "#1.........#", "#2..Q..o...#", "#3..g......#", "############"],
+        {
+          Q1: {
+            type: "dial",
+            pads: [
+              [3, 1],
+              [5, 1],
+            ],
+            back: [4, 3],
+            digits: 2,
+          },
+          o1: { for: "Q1", part: 1 },
+          g1: { item: "stethoscope" },
+        },
+      );
+      const s = w.stations.Q1 as NonNullable<(typeof w.stations)[string]>;
+      s.input = [...s.answer.slice(0, digit), ((s.answer[digit] as number) + 9) % 10];
+      place(w, 0, { x: 4, y: 3 });
+      step(w, { 0: { seq: 0, move: { x: 0, y: 0 }, act: false, gear: true } }, TICK_MS);
+      place(w, 2, { x: 5, y: 1 });
+      step(w, { 2: { seq: 1, move: { x: 0, y: 0 }, act: true } }, TICK_MS);
+      return viewFor(w, 0, "blind", false).sounds.some((c) => c.kind === "tumbler");
+    };
+    expect(tumbles(0)).toBe(true);
+    expect(tumbles(1)).toBe(false);
+  });
+
   it("marks the plate's teaching line", () => {
     const w = plateWorld();
     const o = w.room.objects.find((x) => x.id === "o1");

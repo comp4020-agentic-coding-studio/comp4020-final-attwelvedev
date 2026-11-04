@@ -211,7 +211,7 @@ The contract is overview §4.1 and §4.4. Phase-specific choices:
   - `pnpm test:unit` green
 - **Depends on:** none in this phase.
 
-### Task 73: The linter guards plates (FR9 lint)
+### Task 73: The linter guards plates (FR9 lint) [x]
 
 - **Description:** `pnpm lint:rooms` fails a room that breaks any of these rules:
   - a room 4 to 9 (id prefix `04`…`09`) with not exactly one plate

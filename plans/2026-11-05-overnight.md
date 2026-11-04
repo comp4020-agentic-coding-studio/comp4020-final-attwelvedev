@@ -35,3 +35,11 @@
   other seats the hint is "Hold hands" or "Let go" → the test runs each sighted seat in its own world
   with the others parked away, and also asserts `world.reading` stays empty. Reversible by editing
   the test.
+- bp03/task73: the plan asks for one faulty fixture per rule in `spec/fixtures/clue-faults/`, but that
+  folder holds one room whose exact message list is asserted, and a plate in it would trip the
+  rooms-1-to-3 rule → each rule has a small inline room in `lint.test.ts` (the plan's "Tests first"
+  shape), and no fixture file was added. Reversible by adding `spec/fixtures/plate-faults/`.
+- bp03/task73: "a radio's pips naming the band" can never hold (pips carry the digit, never the band)
+  → the radio rule only checks `part === 0`; the decoy rule waits for Task 78. Also, the dial
+  tumbler guard (Task 74's step 4) landed here with its perception test, because the lint's dial
+  rule asks exactly that question. Reversible by moving the guard commit.

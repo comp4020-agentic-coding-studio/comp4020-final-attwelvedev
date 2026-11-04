@@ -13,7 +13,7 @@ import {
   type RoomObject,
   secretDoors,
 } from "./rooms/format.ts";
-import { besidePlate, brailleCells, plateNumber } from "./sim/braille.ts";
+import { besidePlate, brailleCells, plateNumber, platePart } from "./sim/braille.ts";
 import { indexOf, tileKey } from "./sim/collide.ts";
 import { beside, carried, gearOn, hatchBeside, objectOn, onSill, partner } from "./sim/gear.ts";
 import {
@@ -750,7 +750,9 @@ function stationSound(
   const c = kind ? cue(world, kind, e.at, me) : null;
   const pitched = kind === "key" || kind === "bellnote";
   if (c) out.push(pitched && e.n !== undefined ? { ...c, n: e.n } : c);
-  if (s.type === "dial" && e.result === "turn" && e.n === s.answer[s.input.length - 1]) {
+  // a digit a braille plate carries is the plate's alone: no tumbler gives it away (FR5)
+  const told = platePart(world.room, e.id) === s.input.length - 1;
+  if (s.type === "dial" && e.result === "turn" && e.n === s.answer[s.input.length - 1] && !told) {
     const back = world.room.objects.find((o) => o.id === e.id)?.params?.back;
     const at = Array.isArray(back) ? centre({ x: Number(back[0]), y: Number(back[1]) }) : null;
     const t =

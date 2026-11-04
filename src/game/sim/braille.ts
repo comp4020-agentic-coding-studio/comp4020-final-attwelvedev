@@ -33,6 +33,13 @@ export function plateNumber(world: World, plateId: string): number | undefined {
   return undefined;
 }
 
+// Which piece of a station's answer a plate in the room carries, if one does: that piece is told by
+// the plate alone (a dial's tumbler stays silent for it).
+export function platePart(room: World["room"], stationId: string): number | undefined {
+  const plate = room.objects.find((o) => o.kind === "braille" && o.params?.for === stationId);
+  return plate ? Number(plate.params?.part ?? 0) : undefined;
+}
+
 // Grade-1 braille for a non-negative integer: the number sign (dots 3 4 5 6), then a to j for each digit.
 // Each cell is its raised dots, ascending, from 1..6.
 export function brailleCells(n: number): number[][] {
