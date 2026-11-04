@@ -7,3 +7,8 @@
   one-step fixture rooms (`spec/fixtures/rooms-next`) rather than room 1, because it reproduces the
   real failure in seconds instead of a 90 s route. Reversible by rewriting the spec to the plan's
   room-1 recipe (it would then pass on the old code most runs).
+- bp01/task69: `pnpm format` rewrote the generated `__ids__/*.json` snapshots (Biome collapses and
+  re-indents them), so they stopped matching the test's output → added `!src/game/rooms/__ids__` to
+  biome.json's `files.includes`, the way `src/data/*.json` is excluded, because CLAUDE.md says never
+  to format generated files and the snapshot must be byte-for-byte what the test writes. Reversible
+  by removing that line and emitting Biome's layout from the test.

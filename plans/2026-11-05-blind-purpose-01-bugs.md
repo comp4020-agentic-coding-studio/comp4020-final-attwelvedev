@@ -202,7 +202,7 @@ None.
   - `src/client/render.test.ts` and `src/client/render/standing.test.ts` stay green
 - **Depends on:** none.
 
-### Task 69: Room ids cannot move silently (FR15)
+### Task 69: Room ids cannot move silently (FR15) [x]
 
 - **Description:** a snapshot of every shipped room's id-to-position map. Run it before any room is
   edited in phases 03 to 05.
