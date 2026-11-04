@@ -202,7 +202,7 @@ into its top-left corner, readable from a distance. The Can't-see viewport is
 
 Reuse these before drawing something new. The test checks each name exists.
 
-- `RoleShape`: a role's shape in its colour, drawn so all three are the same visual size. `mono` takes the surrounding text colour. Use it anywhere a role is named.
+- `RoleShape`: a role's shape in its colour, drawn so all three are the same visual size. `mono` takes the surrounding text colour. `outline` draws it hollow in the text colour (stroke 2.5 in the 28 box): a role held before, not now. In the crew row colour means now and outline means history: the coloured shape is the role this room, and the hollow 14 px shapes after the muted word "Played" are the roles played earlier this heist, labelled "Already played: …" for screen readers. Nothing played, no Played group. Use it anywhere a role is named.
 - `ReceiverLine`: who hears a method, by name ("Ana hears this · Bo can't"), shape and name together. Never a shape alone.
 - `DirArrow`: an 8-way arrow, drawn, screen up is north. For captions and edge pills.
 - `ConfirmButton`: asks first; the second press within 3 s acts. For anything that wipes a room or ends a session.

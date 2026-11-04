@@ -316,7 +316,7 @@ describe("the crew column after a room", () => {
     ["desktop", DESKTOP],
     ["phone", PHONE],
   ] as const)(
-    "says who played what in words, unclipped (%s)",
+    "shows who played what as hollow shapes, labelled, unclipped (%s)",
     async (_name, viewport) => {
       const { players, code } = await startedGame(baseUrl);
       ready(players);
@@ -337,7 +337,21 @@ describe("the crew column after a room", () => {
       for (const who of ["Ana", "Bo", "Cy"]) {
         const played = crewRow(page, who).locator(".played");
         await played.waitFor();
-        expect(await played.innerText()).toMatch(/^Played: (Can't see|Can't hear|Can't speak)$/);
+        // the history is drawn, not typed: the label names the roles, one hollow shape per role
+        const label = (await played.getAttribute("aria-label")) ?? "";
+        expect(label).toMatch(
+          /^Already played: (Can't see|Can't hear|Can't speak)(, (Can't see|Can't hear|Can't speak))*$/,
+        );
+        const named = label.replace("Already played: ", "").split(", ").length;
+        const shapes = played.locator("svg.role-shape");
+        expect(await shapes.count()).toBe(named);
+        for (const fill of await shapes.evaluateAll((els) =>
+          els.map((e) => e.getAttribute("fill")),
+        ))
+          expect(fill).toBe("none");
+        // it sits inside the name column, not on a line of its own under the row
+        expect(await played.evaluate((el) => getComputedStyle(el).flexBasis)).not.toBe("100%");
+        expect(await played.evaluate((el) => el.parentElement?.className)).toBe("crew-who");
         const clipped = await played.evaluate(
           (el) => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1,
         );

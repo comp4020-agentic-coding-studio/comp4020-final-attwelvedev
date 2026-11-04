@@ -325,3 +325,19 @@ closed, which I cannot do for you.
   `spec/layout/hud.test.ts` "one No shows 'Not restarted: <name> kept playing.' to everyone, then it
   goes" time out at 30 s while the other lane was loading the machine. The next three full checks
   passed it. Not retried for green; worth a `pnpm check:flaky` when the machine is quiet.
+
+## Overnight run 2026-11-05, lane A (`auto/blind-purpose`), phase 02
+
+- **Task 81, played roles as hollow shapes on the role screen (FR4):**
+  `review/bp-02-task81-played-icons-1280.png`, `-375.png` (four people, the room-2 role screen as
+  the host sees it after room 1).
+  - **What to look at:** every crew row that has played (yours, others' and the sitting-out one)
+    shows a muted "Played" and then hollow 14 px shapes, which should read clearly apart from the
+    filled, coloured "now" shape on the left. A screen reader hears "Already played: Can't see". A
+    row with nothing played shows nothing. Pass = you accept it.
+  - **Start it:** in the `wt-blind` worktree, `pnpm build && PORT=8181 pnpm start` (or `pnpm start`
+    if :8080 is free), open four tabs (one private window per extra person), make a lobby, join with
+    4 nicknames, Start, play room 1, Next.
+  - **What I judged:** good at both widths, with no clipping or overflow. Nicknames are cut to 16
+    characters by the server, so "Bartholomew-Feat" is the longest a name can be. It stays on one
+    line beside "Not ready" even at 375.

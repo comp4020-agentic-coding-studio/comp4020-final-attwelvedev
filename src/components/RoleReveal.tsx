@@ -191,6 +191,19 @@ export function RoleReveal({
                     {r.bot ? " (bot)" : ""}
                   </span>
                   {r.role && <span class="crew-role">{ROLE_LABEL[r.role]}</span>}
+                  {r.played.length > 0 && (
+                    <span
+                      class="played"
+                      role="img"
+                      aria-label={`Already played: ${r.played.map((p) => ROLE_LABEL[p]).join(", ")}`}
+                      title={`Already played: ${r.played.map((p) => ROLE_LABEL[p]).join(", ")}`}
+                    >
+                      <span aria-hidden="true">Played</span>
+                      {r.played.map((p, i) => (
+                        <RoleShape key={i} role={p} size={14} outline />
+                      ))}
+                    </span>
+                  )}
                 </span>
                 <span class="crew-state">
                   {r.left
@@ -201,11 +214,6 @@ export function RoleReveal({
                         ? "Ready"
                         : "Not ready"}
                 </span>
-                {r.played.length > 0 && (
-                  <span class="played">
-                    Played: {r.played.map((p) => ROLE_LABEL[p]).join(", ")}
-                  </span>
-                )}
                 {swappable && (
                   <button
                     type="button"

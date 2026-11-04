@@ -232,7 +232,11 @@ body.playing main {
   font-weight: 700;
 }
 .reveal-crew .played {
-  flex-basis: 100%; /* its own line under the name, wrapping on a phone */
+  /* inside the name column: the history in hollow shapes, the coloured shape is now */
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1);
   min-width: 0;
   color: var(--ui-muted);
   font-size: var(--t-14);
