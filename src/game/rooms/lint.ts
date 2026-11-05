@@ -884,7 +884,7 @@ function reachesSighted(room: Room, check: (view: RoleView) => boolean, gear?: G
 
 // The rooms that must carry exactly one plate. Grown room by room as each gets its plate (Tasks 74,
 // 77, 78), so `pnpm lint:rooms` stays green between them; phase 04 ends with all six.
-export const PLATE_ROOMS: readonly string[] = [];
+export const PLATE_ROOMS: readonly string[] = ["04-the-safe"];
 
 // How many pieces of its answer a station of each type offers a plate (overview §4.1).
 function plateParts(p: Record<string, unknown>): number | undefined {

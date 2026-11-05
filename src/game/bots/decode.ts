@@ -26,6 +26,7 @@ export interface StationBelief {
   used: number; // how many of `marked` this bot has pressed (switches: one press a mark)
   symbols: Partial<Record<string, number>>; // a vault: each solved wing's symbol, by its motif
   order: string[] | null; // a vault's order clue, read: the wings' motifs in socket order
+  plate: number | null; // the number a braille plate carries for it, as Can't see texted it
 }
 
 export type Decoder = (
@@ -34,6 +35,7 @@ export type Decoder = (
   belief: StationBelief,
   o: RoomObject,
   now: number,
+  plated?: number, // the piece of its answer a braille plate in the room carries (sim/braille.ts)
 ) => void;
 
 export const emptyBelief = (): StationBelief => ({
@@ -53,7 +55,18 @@ export const emptyBelief = (): StationBelief => ({
   used: 0,
   symbols: {},
   order: null,
+  plate: null,
 });
+
+// Grade-1 braille back to a number: the number sign, then one digit a cell (sim/braille.ts writes
+// it). Null when the first cell is not the number sign or a cell is no digit.
+const DIGIT_CELLS = ["245", "1", "12", "14", "145", "15", "124", "1245", "125", "24"];
+export function readBraille(cells: number[][]): number | null {
+  const [sign, ...digits] = cells.map((c) => [...c].sort((a, b) => a - b).join(""));
+  if (sign !== "3456" || digits.length === 0) return null;
+  const values = digits.map((d) => DIGIT_CELLS.indexOf(d));
+  return values.some((v) => v < 0) ? null : Number(values.join(""));
+}
 
 // The only text a bot reads (P3): a single digit.
 export function readNumber(text: string): number | null {
@@ -118,7 +131,7 @@ export function beliefFrom(
 // callout, which Can't speak receives): the dial is on the number now.
 export const TURN_WAIT_TICKS = 8; // after a turn the turner waits this long for the listener's word
 
-const dial: Decoder = (_view, inbox, b, o) => {
+const dial: Decoder = (_view, inbox, b, o, _now, plated) => {
   if (o.params?.teach === true) {
     if (b.shows.length === 2) b.answer = [b.shows[1] === 1 ? (b.shows[0] as number) : null];
     return;
@@ -132,6 +145,14 @@ const dial: Decoder = (_view, inbox, b, o) => {
   // the digits entered so far are on the face; the one being searched for is what was heard
   const answer: (number | null)[] = [...b.shows.slice(0, pos), b.answer[pos] ?? null];
   if (word) answer[pos] = setting;
+  // the digit a braille plate carries has no tumbler: Can't see reads it and texts it (Task 74)
+  if (plated !== undefined) {
+    for (const m of inbox) {
+      const n = m.method === "text" && m.from.role === "blind" ? readNumber(m.text) : null;
+      if (n !== null) b.plate = n;
+    }
+    if (pos === plated) answer[pos] = b.plate;
+  }
   b.answer = answer;
 };
 

@@ -13,12 +13,14 @@
     "tiles":[{"at":[10,5],"motif":"moon"},{"at":[14,5],"motif":"star"}],
     "chamber":{"rect":[22,7,29,9],"door":[26,6],"vault":{"rect":[28,9,29,9],"door":[27,9],"item":[29,9]}}}},
   "g1":{"item":"stethoscope"},
+  "o1":{"for":"Q2","part":1,"teach":true},
   "D1":{"opensWhen":["Q1","Q2"]}},
  "hints":{"jobs":[
   {"beat":1,"station":"Q1","prefer":"deaf"},
   {"beat":1,"take":"g1","prefer":"mute"},
   {"beat":2,"give":"g1","to":"blind","prefer":"mute"},
   {"beat":2,"goTo":"K1","all":true},
+  {"beat":2,"read":"o1","prefer":"blind"},
   {"beat":3,"tow":"blind","to":[23,1],"prefer":"deaf"},
   {"beat":3,"station":"Q2","prefer":"mute"},
   {"beat":3,"listen":"Q2","at":[23,1],"prefer":"blind"},
@@ -27,7 +29,7 @@
 ##################################
 #1....Q.....#.......Q.%.....#...E#
 #2.......g..#.........%.....#...E#
-#3..........#.........%.....#..$E#
+#3..........#.....o...%.....#..$E#
 #####.#######....K....###.###D####
 #................................#
 ##########################D#######
