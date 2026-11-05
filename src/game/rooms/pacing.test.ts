@@ -6,8 +6,10 @@ import { loadRooms } from "./load.ts";
 // Clues FR9, FR10: the heist teaches at most two new things a room. A thing is a kind of object a
 // person meets; loot, checkpoints, the exit and the spawns are in every room and not counted. A
 // side job is loot with an owner: walked onto, nothing to learn, so it is not counted either
-// (user, 2026-11-02, phase 11 Task 28).
-const EVERYWHERE = new Set<RoomObject["kind"]>(["loot", "checkpoint", "exit", "spawn"]);
+// (user, 2026-11-02, phase 11 Task 28). A braille plate is not counted either: it is the answer to a
+// station already being taught, read with a key printed on the card (user, 2026-11-05, blind-purpose
+// phase 03 Task 74, option 1).
+const EVERYWHERE = new Set<RoomObject["kind"]>(["loot", "checkpoint", "exit", "spawn", "braille"]);
 
 describe("pacing", () => {
   it("each shipped room introduces at most two kinds of thing not met in an earlier room", () => {
