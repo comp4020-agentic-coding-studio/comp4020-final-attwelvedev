@@ -272,6 +272,32 @@ const PARITY: Record<SoundCue["kind"], Scenario> = {
       sees: (b, a) => ent(b, "b1")?.state !== "on" && ent(a, "b1")?.state === "on",
     };
   })(),
+  tap: (() => {
+    // Can't see reads a braille plate: a soft tap where it lies, and the sighted see the plate pulse
+    const world = worldWith(put([6, 1, "Q"], [9, 2, "o"]), {
+      Q1: { type: "dial", pads: PADS, digits: 2 },
+      o1: { for: "Q1", part: 0 },
+    });
+    world.roles = ["blind", "deaf", "mute"];
+    return {
+      world,
+      act: () => actBy(world, BLIND, { x: 9, y: 1 }),
+      sees: (b, a) => ent(b, "o1")?.flash === undefined && ent(a, "o1")?.flash === "ok",
+    };
+  })(),
+  jam: (() => {
+    // a teaching dial answered wrong: it buzzes where it stands, and the sighted see it jammed
+    const world = stationAt({ type: "dial", pads: PADS, digits: 1, teach: true });
+    const s = world.stations.Q1 as NonNullable<World["stations"][string]>;
+    s.input = [((s.answer[0] as number) + 1) % 10];
+    place(world, BLIND, { x: 6, y: 2 });
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 6, y: 1 }),
+      sees: (b, a) =>
+        ent(b, "Q1")?.station?.jammed === undefined && ent(a, "Q1")?.station?.jammed === true,
+    };
+  })(),
   dye: (() => {
     const world = stationAt({
       type: "wires",

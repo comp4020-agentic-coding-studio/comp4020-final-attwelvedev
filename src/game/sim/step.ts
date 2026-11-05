@@ -1,5 +1,6 @@
 import { cacheOf, flipsOf, type RoomObject } from "../rooms/format.ts";
 import type { PlayerInput, Seat, Vec } from "../types.ts";
+import { dropReading, readPlate } from "./braille.ts";
 import { inChamber, syncCacheDoors } from "./cache.ts";
 import { blockedAt, circleHitsTile, crateAt, crateTouching, indexOf, tileKey } from "./collide.ts";
 import { actOn, gearPress, releaseAll, tow } from "./gear.ts";
@@ -361,6 +362,7 @@ function sendBack(world: World, caught: Catch) {
   world.cacheUncovered = [...snapshot.cacheUncovered];
   world.cacheBy = { ...snapshot.cacheBy };
   world.cacheTaken = { ...snapshot.cacheTaken };
+  world.jammedUntil = {}; // a send-back starts every station free (FR13)
   // a cache solved after the checkpoint is closed again: its station is unsolved and drawn afresh
   for (const id of Object.keys(world.solvedBy)) {
     if (
@@ -489,7 +491,9 @@ export function step(
     acts.filter((s) => !used.has(s)),
     used,
   );
+  dropReading(world);
   for (const seat of acts) {
+    if (world.holding[seat] === undefined && !used.has(seat) && readPlate(world, seat)) continue;
     if (world.holding[seat] !== undefined || !used.has(seat)) actOn(world, seat);
   }
   for (const seat of gearEdges(world, inputs)) gearPress(world, seat);

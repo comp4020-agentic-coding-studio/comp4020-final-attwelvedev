@@ -232,7 +232,11 @@ body.playing main {
   font-weight: 700;
 }
 .reveal-crew .played {
-  flex-basis: 100%; /* its own line under the name, wrapping on a phone */
+  /* inside the name column: the history in hollow shapes, the coloured shape is now */
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1);
   min-width: 0;
   color: var(--ui-muted);
   font-size: var(--t-14);
@@ -2030,4 +2034,114 @@ fieldset.settings {
 }
 .keepsake-shelf li.is-missed .keepsake-what {
   font-style: italic;
+}
+/* Can't see's open braille plate, "felt, not lit" (spec §4.1 A, DESIGN.md: BrailleCard): a thin
+   outline straight on black, top-centre over the side-job chip, no fill and no Close button. Raised
+   dots are filled discs, flat positions small rings: shape, never colour alone. On a phone it lets
+   touches through, and the comms wheel draws above it. */
+.braille-card {
+  position: absolute;
+  top: var(--s-2);
+  left: 50%;
+  z-index: 4;
+  transform: translateX(-50%);
+  min-width: 0;
+  margin: 0;
+  max-width: calc(100% - 2 * var(--s-2));
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--ui);
+  border-radius: var(--r);
+  color: var(--ui);
+  font-stretch: 75%;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.braille-title,
+.braille-teach {
+  margin: 0 0 var(--s-1);
+}
+.braille-teach {
+  max-width: 28rem;
+  font-weight: 400;
+  font-size: var(--t-14);
+}
+.braille-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--s-3);
+}
+.braille-cells {
+  display: flex;
+  gap: var(--s-3);
+}
+.braille-dot {
+  fill: var(--ui);
+}
+.braille-flat {
+  fill: none;
+  stroke: var(--ui);
+  stroke-width: 1;
+}
+.braille-at {
+  animation: braille-in 120ms ease-out both;
+  animation-delay: calc(var(--i) * 60ms);
+}
+@keyframes braille-in {
+  from {
+    opacity: 0;
+  }
+}
+.braille-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0 0 0 var(--s-3);
+  border-left: 1px solid var(--ui-muted);
+  list-style: none;
+}
+.braille-key li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.braille-label {
+  font-size: var(--t-14);
+}
+@media (pointer: coarse) {
+  .braille-card {
+    pointer-events: none;
+  }
+}
+@media (max-width: 600px) {
+  .braille-card {
+    top: var(--s-1);
+    padding: var(--s-1) var(--s-2);
+    font-size: var(--t-14);
+  }
+  .braille-teach {
+    font-size: 12px;
+  }
+  .braille-body {
+    gap: var(--s-2);
+  }
+  .braille-cells {
+    gap: var(--s-2);
+  }
+  .braille-key {
+    display: grid;
+    grid-template-columns: repeat(6, auto);
+    gap: 2px var(--s-1);
+    padding-left: var(--s-2);
+  }
+  .braille-label {
+    font-size: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .braille-at {
+    animation: none;
+  }
 }

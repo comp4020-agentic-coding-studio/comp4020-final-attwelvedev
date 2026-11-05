@@ -74,7 +74,7 @@ function figure(
   extra: { item?: EntityView["item"]; dyed?: boolean; seat?: number; look?: Vec } = {},
 ) {
   const color = ROLE_COLOR[who.role];
-  const moving = animated(scene) && pose.moving;
+  const moving = animated(scene) && !scene.cleared && pose.moving;
   const lift = moving
     ? Math.abs(Math.sin((scene.nowMs / 1000) * Math.PI * 2 * HOP_HZ)) * HOP_PX
     : 0;
@@ -273,7 +273,8 @@ export function drawPlayer(
     ctx.restore();
     return;
   }
-  if (animated(scene) && moving && !blocked) dust(ctx, foot, s, facing, scene.nowMs);
+  if (animated(scene) && !scene.cleared && moving && !blocked)
+    dust(ctx, foot, s, facing, scene.nowMs);
   const leader = scene.entities.find((o) => o.kind === "player" && o.seat === e.heldBy);
   const d = leader ? Math.hypot(leader.pos.x - e.pos.x, leader.pos.y - e.pos.y) : 0;
   const look =

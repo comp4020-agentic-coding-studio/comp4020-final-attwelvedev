@@ -13,6 +13,7 @@ import {
   type RoomObject,
   secretDoors,
 } from "./rooms/format.ts";
+import { besidePlate, brailleCells, plateNumber, platePart } from "./sim/braille.ts";
 import { indexOf, tileKey } from "./sim/collide.ts";
 import { beside, carried, gearOn, hatchBeside, objectOn, onSill, partner } from "./sim/gear.ts";
 import {
@@ -77,6 +78,7 @@ export interface EntityView {
     | "bell"
     | "lamp"
     | "ink" // UV ink, sent only while a torch lights it
+    | "braille" // a braille plate on the floor: where it is, never what it says
     | "keepsake" // a solved cache's item standing in its open vault: `keep`; for the sighted
     | "motiftile" // a cache's motif tile: `motif`; drawn for the sighted whether or not the cache is open
     | "card" // a switches station's target card: `card`
@@ -106,7 +108,7 @@ export interface EntityView {
   polys?: Vec[][]; // a sight: the parts of a hazard's cone that are in the light, as polygons
   crateOnly?: boolean; // a plate: only a crate holds it, so it is drawn as a crate's seat
   shows?: string[]; // a sign's plate ids, in order
-  flash?: "ok" | "wrong"; // a sign: the result of the last plate, for a moment
+  flash?: "ok" | "wrong"; // a sign: the result of the last plate, for a moment; a braille plate: "ok" the tick it is read
   progress?: number; // a sign: how many of them have been pressed in order so far
   present?: number; // a checkpoint: how many of the three players are at the flag now
   window?: number; // a sign: share (0 to 1) of the 5 s left to press the next one
@@ -127,6 +129,7 @@ export interface EntityView {
     furniture?: true; // only its parts are in sight, not where it shows its state: `shows` is empty
     teach?: true; // a teaching station (clues FR7)
     practice?: true; // its practice lever is on: dimmed, and its keys and bells only play (Task 38)
+    jammed?: true; // a teaching station or cache after a wrong answer: it ignores input for 3 s (FR13)
     motif?: Motif; // drawn on it, and on the station it feeds or is fed by (clues FR3)
     reveal?: number; // a solved wing's symbol, for the vault (clues FR2)
     stash?: ItemId; // a found cache's item (caches FR10), for the sighted
@@ -185,6 +188,8 @@ export interface SoundCue {
     | "bellnote" // a music-box bell struck or played; `n` is which
     | "bell" // the bell rope: the whole room hears it
     | "dye" // the dye pack: a wrong answer, heard by the team
+    | "tap" // Can't see read a braille plate: a fingertip tap where it lies
+    | "jam" // a teaching station or cache jammed by a wrong answer: a short buzz where it stands
     | "earpiece" // the earpiece's private tune: `n` is the note; only its holder hears it
     | "gear" // gear picked up, handed over, dropped or put on a sill
     | "uncover" // a cache uncovered: heard by the team, wherever it is
@@ -242,6 +247,7 @@ export interface RoleView {
   cacheEvent?: { result: "uncover" | "solved" | "taken"; at: Vec; owner: Seat; item?: ItemId };
   lamp?: { seat: Seat; tick: number }; // the lamp flashed this tick: for the sighted only
   act?: string; // what Act would do here, phrased from what this role perceives
+  braille?: { id: string; cells: number[][]; teach?: true }; // Can't see's own open plate: its cells, never the number
 }
 
 // Sounds the world makes fade with distance, so Can't see learns what is near them
@@ -267,6 +273,8 @@ const RANGE: Partial<Record<SoundCue["kind"], number>> = {
   practice: 6,
   bellnote: 8,
   gear: 6,
+  jam: 6,
+  tap: 4, // a fingertip on metal: only those close by hear it
 };
 const UV_RADIUS = 2.5; // tiles a UV torch lights around its holder
 const UV_RAYS = 48;
@@ -442,6 +450,7 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
           ...(typeof o.params?.practice === "string" && world.levers[o.params.practice]
             ? { practice: true as const }
             : {}),
+          ...(world.tick < (world.jammedUntil[o.id] ?? 0) ? { jammed: true as const } : {}),
           ...(isMotif(o.params?.motif) ? { motif: o.params.motif } : {}),
           ...(s.solved && s.reveal !== undefined ? { reveal: s.reveal } : {}),
           ...(item && world.cacheBy[o.id] !== undefined ? { stash: item } : {}),
@@ -475,6 +484,17 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
         kind: "lever",
         pos: centre(o.tiles[0] as Vec),
         ...(world.levers[o.id] ? { state: "on" as const } : {}),
+      });
+    } else if (o.kind === "braille") {
+      // the sighted see a hand on it while it is read (`on`), and a pulse the tick it is opened
+      const read = world.events.some((e) => e.kind === "braille" && e.id === o.id);
+      const held = Object.values(world.reading).includes(o.id);
+      out.push({
+        id: o.id,
+        kind: "braille",
+        pos: centre(o.tiles[0] as Vec),
+        ...(held ? { state: "on" as const } : {}),
+        ...(read ? { flash: "ok" as const } : {}),
       });
     } else if (o.kind === "bell" || o.kind === "lamp") {
       out.push({
@@ -658,6 +678,9 @@ function soundsFor(world: World, seat: Seat): SoundCue[] {
       out.push({ kind: "bell", pan: panOf(e.at, me), gain: 1, ...dirTo(e.at, me) }); // the whole room hears it
     } else if (e.kind === "dye") {
       out.push({ kind: "dye", pan: 0, gain: 1 });
+    } else if (e.kind === "braille") {
+      const c = cue(world, "tap", e.at, me);
+      if (c) out.push(c);
     } else if (e.kind === "cache") {
       // team-wide, like "solved": the whole crew hears it opened and found, wherever they stand
       const obj = world.room.objects.find((o) => o.id === e.id);
@@ -711,7 +734,12 @@ function stationSound(
     out.push({ kind: "solved", pan: panOf(e.at, me), gain: 1, ...dirTo(e.at, me) });
     return;
   }
-  if (e.result === "wrong") return; // the dye pack says it
+  if (e.result === "wrong") return; // the dye pack says it, or (teaching, cache) the jam
+  if (e.result === "jam") {
+    const c = cue(world, "jam", e.at, me);
+    if (c) out.push(c);
+    return;
+  }
   if (e.practice) {
     // a practice press: its own sound, never the key's or the bell's, so it is never taken for a solve
     // it carries the note and its source, so the client can play the real chime quietly (Task 42)
@@ -725,7 +753,9 @@ function stationSound(
   const c = kind ? cue(world, kind, e.at, me) : null;
   const pitched = kind === "key" || kind === "bellnote";
   if (c) out.push(pitched && e.n !== undefined ? { ...c, n: e.n } : c);
-  if (s.type === "dial" && e.result === "turn" && e.n === s.answer[s.input.length - 1]) {
+  // a digit a braille plate carries is the plate's alone: no tumbler gives it away (FR5)
+  const told = platePart(world.room, e.id) === s.input.length - 1;
+  if (s.type === "dial" && e.result === "turn" && e.n === s.answer[s.input.length - 1] && !told) {
     const back = world.room.objects.find((o) => o.id === e.id)?.params?.back;
     const at = Array.isArray(back) ? centre({ x: Number(back[0]), y: Number(back[1]) }) : null;
     const t =
@@ -1106,6 +1136,21 @@ function cacheEventOf(world: World): RoleView["cacheEvent"] {
   return undefined;
 }
 
+// Can't see's open braille plate: its cells only, never the number they spell (FR6). Nobody else
+// is ever sent them: the sighted see the plate, not what is raised on it.
+function brailleFor(world: World, seat: Seat, role: Role): RoleView["braille"] {
+  if (role !== "blind") return undefined;
+  const id = world.reading[seat];
+  const n = id === undefined ? undefined : plateNumber(world, id);
+  if (id === undefined || n === undefined) return undefined;
+  const plate = world.room.objects.find((o) => o.id === id);
+  return {
+    id,
+    cells: brailleCells(n),
+    ...(plate?.params?.teach === true ? { teach: true as const } : {}),
+  };
+}
+
 // The one place that decides what a role may know (ADR 0007). A field added to
 // RoleView must be gated here against the role tables in types.ts.
 export function viewFor(world: World, seat: Seat, role: Role, full: boolean): RoleView {
@@ -1135,6 +1180,8 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
   if (moment) view.cacheEvent = moment;
   const hint = actHint(world, seat, role);
   if (hint) view.act = hint; // phrased per role: never a colour for Can't see
+  const braille = brailleFor(world, seat, role);
+  if (braille) view.braille = braille; // own seat only, and only Can't see
   const alarm = world.tick < world.alarmUntil;
   if (role !== "blind") {
     const me = world.players[seat].pos;
@@ -1209,6 +1256,8 @@ export function spectatorView(
     gear: follow === null ? null : (carried(world, seat)?.item ?? null),
   };
   if (full) view.tiles = maskCache(world, world.room.grid); // a watcher sees the room, masked like the sighted
+  const braille = follow === null ? undefined : brailleFor(world, seat, role);
+  if (braille) view.braille = braille; // a watcher of Can't see reads over their shoulder
   const moment = cacheEventOf(world);
   if (moment) view.cacheEvent = moment;
   return view;
@@ -1276,6 +1325,10 @@ function actHint(world: World, seat: Seat, role: Role): string | undefined {
     y: Math.floor(world.players[seat].pos.y),
   };
   const part = partAt(world, tile);
+  // a plate under Can't see's hand comes before anything else Act could do (step.ts: readPlate)
+  if (!part && role === "blind" && besidePlate(world, tile)) {
+    return "Read the plate";
+  }
   if (part) {
     const n = part.index + 1;
     const { type } = part.station;

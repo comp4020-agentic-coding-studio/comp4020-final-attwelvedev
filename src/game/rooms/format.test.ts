@@ -189,6 +189,33 @@ describe("parseRoom: stations", () => {
     expect(room.objects.find((o) => o.id === "Q1")?.params?.practice).toBe("v1");
   });
 
+  it("parses o as a braille plate: id o1, its for and part kept, the tile floor (Task 72)", () => {
+    const room = parseRoom(
+      `${JSON.stringify({
+        id: "t",
+        name: "T",
+        version: 1,
+        beats: [],
+        objects: {
+          Q1: {
+            type: "dial",
+            pads: [
+              [2, 2],
+              [4, 2],
+            ],
+          },
+          o1: { for: "Q1", part: 0 },
+        },
+      })}\n---\n#######\n#1.Q.o#\n#2....#\n#3....#\n#######\n`,
+    );
+    const plate = room.objects.find((o) => o.id === "o1");
+    expect(plate?.kind).toBe("braille");
+    expect(plate?.tiles).toEqual([{ x: 5, y: 1 }]);
+    expect(plate?.params).toMatchObject({ for: "Q1", part: 0 });
+    expect(plate?.visibleTo).toEqual(["deaf", "mute"]);
+    expect(room.grid[1]?.[5]).toBe(".");
+  });
+
   it("keeps a plate's crateOnly flag as a param (Task 33)", () => {
     const room = parseRoom(
       `${JSON.stringify({ id: "t", name: "T", version: 1, beats: [], objects: { p1: { crateOnly: true } } })}\n---\n#####\n#1.p#\n#2..#\n#3..#\n#####\n`,

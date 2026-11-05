@@ -475,6 +475,43 @@ function floorKey(
 }
 
 // The solved plate: a drawn tick on brass, raised over the station, and a goal ring on the floor.
+// A teaching station or cache jammed by a wrong answer (FR13): its face greyed under a mist wash and a
+// small bar hatched in diagonal stripes over it, like a barrier tape, for the 3 s it ignores input.
+function jammedBar(ctx: CanvasRenderingContext2D, cam: Camera, at: Vec) {
+  const s = cam.scale;
+  const f = toScreen(cam, at.x, at.y, LIVE.block / 2);
+  ctx.save();
+  ctx.globalAlpha = 0.6;
+  ctx.fillStyle = WORLD.mist;
+  ctx.beginPath();
+  ctx.roundRect(f.x - s * 0.42, f.y - s * 0.4, s * 0.84, s * 0.8, s * 0.08);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  const w = s * 0.7;
+  const h = Math.max(6, s * 0.18);
+  const x = f.x - w / 2;
+  const y = f.y - h / 2;
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.fillStyle = WORLD.mist;
+  ctx.fill();
+  ctx.save();
+  ctx.clip();
+  ctx.strokeStyle = WORLD.line;
+  ctx.lineWidth = Math.max(2, h * 0.3);
+  ctx.beginPath();
+  for (let k = -h; k < w + h; k += h * 0.9) {
+    ctx.moveTo(x + k, y + h);
+    ctx.lineTo(x + k + h, y);
+  }
+  ctx.stroke();
+  ctx.restore();
+  ctx.strokeStyle = WORLD.line;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, w, h);
+  ctx.restore();
+}
+
 function solvedPlate(ctx: CanvasRenderingContext2D, cam: Camera, at: Vec, below = false) {
   const s = cam.scale;
   // a station that shows a symbol plate over itself keeps its tick lower, on its face, so the symbol
@@ -775,6 +812,7 @@ export function drawStationStanding(
     ctx.stroke();
   }
   if (st.solved && inRow(anchor)) solvedPlate(ctx, cam, centre(anchor), st.reveal !== undefined);
+  if (st.jammed && inRow(anchor)) jammedBar(ctx, cam, centre(anchor));
   if (inRow(anchor) && st.motif) {
     // the link's motif, on a disc at the anchor's front corner (the other end carries the same)
     const m = toScreen(cam, anchor.x + 0.85, anchor.y + 0.9, LIVE.block * 0.5);
@@ -803,4 +841,43 @@ export function stationRows(e: EntityView): number[] {
   if (!st) return [];
   const keys: StationPartKey[] = ["anchor", "back", "wires", "bells", "tune", "lamps"];
   return [...new Set(keys.flatMap((k) => partsOf(st, k).map((t) => t.y)))];
+}
+
+// A braille plate on the floor, for the sighted: a brass plaque flush with the floor, studded with a
+// fixed 2 by 3 pattern (the same on every plate: the dots it really carries are Can't see's alone,
+// and the sighted are never sent them). While a hand is on it (`state: "on"`) it is outlined in
+// `--ui`; the read itself pulses as a ring (fx.ts). DESIGN.md: the plate's drawing.
+export function drawBraillePlate(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera) {
+  const s = cam.scale;
+  const c = toScreen(cam, e.pos.x, e.pos.y);
+  const w = s * 0.62;
+  const h = s * LIVE.depth * 0.62;
+  ctx.fillStyle = WORLD.brass;
+  ctx.strokeStyle = e.state === "on" ? COLOR.ui : WORLD.line;
+  ctx.lineWidth = e.state === "on" ? 3 : 2;
+  ctx.beginPath();
+  ctx.roundRect(c.x - w / 2, c.y - h / 2, w, h, 4);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = WORLD.line;
+  for (const [col, row] of [
+    [0, 0],
+    [1, 0],
+    [0, 1],
+    [1, 1],
+    [0, 2],
+    [1, 2],
+  ] as const) {
+    ctx.beginPath();
+    ctx.ellipse(
+      c.x + (col - 0.5) * s * 0.16,
+      c.y + (row - 1) * s * LIVE.depth * 0.14,
+      s * 0.035,
+      s * 0.035 * LIVE.depth,
+      0,
+      0,
+      Math.PI * 2,
+    );
+    ctx.fill();
+  }
 }

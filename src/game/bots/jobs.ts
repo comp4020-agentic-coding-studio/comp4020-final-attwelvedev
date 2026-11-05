@@ -21,7 +21,8 @@ export type JobTarget =
   | { kind: "take"; gear: string } // pick up a piece of gear
   | { kind: "give"; gear: string; to: Role } // hand it to the seat with this role
   | { kind: "sill"; gear: string; hatch: string } // put it on a hatch sill
-  | { kind: "tow"; role: Role; to: Vec }; // hold this role's hand and lead them to a tile
+  | { kind: "tow"; role: Role; to: Vec } // hold this role's hand and lead them to a tile
+  | { kind: "read"; plate: string; tile: Vec }; // Can't see reads a braille plate and texts its number
 
 // A plate chosen by a chime: the clue, and the plates of its beat in reading order (plate n is the
 // n-th). `id` and `tile` on the target are what the room file says, which only the linter reads.
@@ -54,6 +55,7 @@ export interface Known {
   seq: Record<string, number>; // sequence signs: plates matched so far, by the plates it shows ("p7,p1,p4")
   seenHazards: Record<string, { lastTick: number }>; // hazards perceived (seen, or heard from the right place), by id
   clues: Record<string, number>; // the count n of each clue chime heard, by clue id
+  read?: Record<string, true>; // braille plates seen read (a hand on them), by id: forgotten on a send-back
 }
 
 export interface SeatInfo {
@@ -169,6 +171,12 @@ export function parseJob(room: Room, j: unknown, index: number): Job | string {
       return `hint job ${index + 1} tows to ${JSON.stringify(j.to)}, which is not floor`;
     }
     target = { kind: "tow", role: j.tow as Role, to: { x: j.to[0], y: j.to[1] } };
+  } else if (typeof j.read === "string") {
+    const plate = room.objects.find((o) => o.id === j.read && o.kind === "braille");
+    const tile = plate?.tiles[0];
+    if (!plate || !tile)
+      return `hint job ${index + 1} reads ${j.read}, which is not a braille plate in this room`;
+    target = { kind: "read", plate: plate.id, tile };
   } else if (typeof j.push === "string") {
     const crate = room.objects.find((o) => o.id === j.push && o.kind === "crate");
     if (!crate) return `hint job ${index + 1} pushes ${j.push}, which is not a crate in this room`;
@@ -283,6 +291,7 @@ export function jobTile(room: Room, job: Job, seat: Seat): Vec {
     case "tile":
     case "listen":
     case "watch":
+    case "read":
       return job.target.tile;
     case "exit":
       return exitTile(room, seat);
@@ -325,6 +334,7 @@ const SIGHTED_ONLY = new Set<JobTarget["kind"]>([
   "tow",
 ]);
 const eligible = (role: Role, job: Job) =>
+  !(role !== "blind" && job.target.kind === "read") &&
   !(role === "blind" && SIGHTED_ONLY.has(job.target.kind)) &&
   !(role === "deaf" && job.target.kind === "plate" && job.target.clue !== undefined) &&
   !(role === "deaf" && job.target.kind === "listen") &&
@@ -434,6 +444,15 @@ export function isDone(
     }
     case "listen":
       return known.stations[job.target.station]?.solved === true;
+    case "read": {
+      // seen read (a hand on the plate, for the sighted), or its number already known
+      const plate = room.objects.find((o) => o.id === (job.target as { plate: string }).plate);
+      const b = known.stations[String(plate?.params?.for)];
+      const part = Number(plate?.params?.part ?? 0);
+      return (
+        known.read?.[job.target.plate] === true || b?.solved === true || b?.answer[part] != null
+      );
+    }
     case "watch":
       return known.stations[job.target.station]?.solved === true;
     case "take": {

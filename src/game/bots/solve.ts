@@ -22,7 +22,7 @@ export function solveRoom(
   budgetS = 600,
   humans: ReadonlySet<Seat> = new Set(),
 ): SolveResult {
-  const world = createWorld(room);
+  const world = createWorld(room, 1, [...roles]);
   const sentBy: [number, number, number] = [0, 0, 0];
   const cooldowns = { until: {} };
   const bots: Partial<Record<Seat, BotSeat>> = {};

@@ -2,7 +2,7 @@ import { parseJob, rawJobs } from "../bots/jobs.ts";
 import { type RoleView, viewFor } from "../perception.ts";
 import { TUNE_MAX_TICKS } from "../sim/chimes.ts";
 import { cameraParams, laserBeam, laserParams } from "../sim/hazards.ts";
-import { PIP_TICKS, tilesOf } from "../sim/stations.ts";
+import { PIP_TICKS, plaqueText, tilesOf } from "../sim/stations.ts";
 import { step } from "../sim/step.ts";
 import { type GearItem, patrolOf, TICK_MS } from "../sim/world.ts";
 import type { Role, Vec } from "../types.ts";
@@ -89,6 +89,7 @@ export function lintRoom(room: Room): LintIssue[] {
   lintPresence(room, issue);
   lintClues(room, issue);
   lintCaches(room, issue);
+  for (const message of lintPlates(room)) issue(message);
 
   // every exit tile must be reachable from every spawn, treating doors as open
   if (exits.length > 0 && spawns.length > 0) {
@@ -877,4 +878,93 @@ function reachesSighted(room: Room, check: (view: RoleView) => boolean, gear?: G
     }
   }
   return false;
+}
+
+// --- Braille plates (Task 73, FR5, FR9) -------------------------------------------------------
+
+// The rooms that must carry exactly one plate. Grown room by room as each gets its plate (Tasks 74,
+// 77, 78), so `pnpm lint:rooms` stays green between them; phase 04 ends with all six.
+export const PLATE_ROOMS: readonly string[] = ["04-the-safe"];
+
+// How many pieces of its answer a station of each type offers a plate (overview §4.1).
+function plateParts(p: Record<string, unknown>): number | undefined {
+  const n = (v: unknown, d: number) => (typeof v === "number" ? v : d);
+  if (p.type === "dial") return Math.max(1, Math.min(3, n(p.digits, 1)));
+  if (p.type === "keypad") return Math.max(3, Math.min(4, n(p.length, 3)));
+  if (p.type === "radio" || p.type === "wires") return 1;
+  return undefined;
+}
+
+// Rooms 4 to 9 (those in `gated`) carry exactly one plate, rooms 1 to 3 none; a plate names a
+// station in the room that is neither teaching nor a cache, and a piece of its answer that it has;
+// and that piece reaches nobody any other way (a tumbler, a tune, a plaque).
+export function lintPlates(room: Room, gated: readonly string[] = PLATE_ROOMS): string[] {
+  const out: string[] = [];
+  const plates = room.objects.filter((o) => o.kind === "braille");
+  const number = Number(/^(\d+)-/.exec(room.id)?.[1] ?? Number.NaN);
+  if (number >= 1 && number <= 3) {
+    return plates.map((o) => `plate ${o.id}: rooms 1 to 3 have no braille plates`);
+  }
+  if (gated.includes(room.id) && plates.length !== 1) {
+    out.push(`room needs exactly one braille plate (o), has ${plates.length}`);
+  }
+  for (const plate of plates) {
+    const id = plate.id;
+    const forId = String(plate.params?.for);
+    const station = room.objects.find((o) => o.id === forId && o.kind === "station");
+    const p = station?.params ?? {};
+    const part = plate.params?.part ?? 0;
+    const parts = plateParts(p);
+    if (!station) {
+      out.push(`plate ${id} is for ${forId}, which is not a station in this room`);
+    } else if (p.teach === true) {
+      out.push(`plate ${id} is for ${forId}, a teaching station: its lamp gives the number away`);
+    } else if (cacheOf(station)) {
+      out.push(
+        `plate ${id} is for ${forId}, a cache: optional, so it cannot carry what the room needs`,
+      );
+    } else if (parts === undefined) {
+      out.push(`plate ${id} is for ${forId} (${String(p.type)}), which a plate cannot carry`);
+    } else if (typeof part !== "number" || !Number.isInteger(part) || part < 0 || part >= parts) {
+      out.push(
+        `plate ${id} carries part ${String(part)} of ${forId} (${String(p.type)}), which has ${parts}`,
+      );
+    } else {
+      const leak = plateLeak(room, station, part);
+      if (leak) out.push(`plate ${id}: ${forId}'s ${leak}`);
+    }
+  }
+  return out;
+}
+
+// Whether the piece a plate carries is told some other way, from the game's own sim and views.
+function plateLeak(room: Room, station: RoomObject, part: number): string | null {
+  const p = station.params ?? {};
+  if (p.type === "dial") {
+    // a stethoscope at the safe's back while the dial is turned onto the carried digit
+    const back = Array.isArray(p.back) ? { x: Number(p.back[0]), y: Number(p.back[1]) } : null;
+    const pad = tilesOf(p.pads)[1];
+    if (!back || !pad) return null;
+    const world = worldAt(room, back.x, back.y, "stethoscope");
+    const s = world.stations[station.id];
+    if (!s) return null;
+    s.input = [...s.answer.slice(0, part), ((s.answer[part] as number) + 9) % 10];
+    world.players[2].pos = { x: pad.x + 0.5, y: pad.y + 0.5 };
+    step(world, { 2: { seq: 1, move: { x: 0, y: 0 }, act: true } }, TICK_MS);
+    const heard = viewFor(world, 1, "blind", false).sounds.some((c) => c.kind === "tumbler");
+    return heard ? "tumbler sounds the digit it carries" : null;
+  }
+  if (p.type === "keypad") {
+    // its tune (a clue chime or an earpiece) plays every key but the slot it rests at (Task 76)
+    const slot = p.slot as { at?: unknown } | undefined;
+    const tuned = typeof p.clue === "string";
+    return tuned && slot?.at !== part ? "tune plays the key it carries" : null;
+  }
+  if (p.type === "wires") {
+    const world = worldAt(room, 1, 1);
+    const plaque = typeof p.plaque === "string" ? plaqueText(world, p.plaque) : undefined;
+    const cut = String((world.stations[station.id]?.answer[0] as number) + 1);
+    return p.numbered === true && plaque === cut ? "plaque names the wire to cut" : null;
+  }
+  return null; // a radio's pips carry its digit, never its band
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ChannelMessage, Outgoing } from "../channels.ts";
 import { type RoleView, viewFor } from "../perception.ts";
+import { brailleCells } from "../sim/braille.ts";
 import { TUNE_MAX_TICKS, tuneGroups } from "../sim/chimes.ts";
 import { toggled } from "../sim/stations.ts";
 import { step } from "../sim/step.ts";
@@ -19,6 +20,7 @@ import {
   keypadStep,
   linkedFrom,
   radioToTell,
+  readBraille,
   readNumber,
   type StationBelief,
   syncGo,
@@ -994,5 +996,60 @@ describe("the sync lock", () => {
     const b = emptyBelief();
     for (let t = 0; t < 100; t++) DECODERS.sync?.({ ...view(false), tick: t }, [], b, o, t);
     for (let t = 0; t < 100; t++) expect(syncGo(b, t)).toBe(false);
+  });
+});
+
+// Braille (Task 74): Can't see decodes the cells on its own screen, as a person would with the key.
+describe("readBraille", () => {
+  it("reads back every number brailleCells writes, 0 to 99", () => {
+    for (let n = 0; n <= 99; n++) expect(readBraille(brailleCells(n))).toBe(n);
+  });
+  it("is null without the number sign, or with a cell that is no digit", () => {
+    expect(readBraille([[1]])).toBeNull();
+    expect(readBraille([[3, 4, 5, 6]])).toBeNull();
+    expect(
+      readBraille([
+        [3, 4, 5, 6],
+        [1, 3],
+      ]),
+    ).toBeNull();
+  });
+});
+
+describe("a dial whose digit a plate carries (Task 74)", () => {
+  const Q = {
+    id: "Q1",
+    kind: "station" as const,
+    tiles: [{ x: 4, y: 1 }],
+    visibleTo: [],
+    audibleTo: [],
+    params: {
+      type: "dial",
+      pads: [
+        [3, 1],
+        [5, 1],
+      ],
+      digits: 2,
+    },
+  };
+  const texted = (n: number): ChannelMessage =>
+    ({
+      method: "text",
+      text: String(n),
+      from: { seat: 0, role: "blind", nickname: "Bot" },
+      sentAt: 0,
+    }) as ChannelMessage;
+  it("takes that digit from Can't see's text, once the first is entered", () => {
+    const view = { tick: 1, sounds: [], entities: [] } as unknown as RoleView;
+    const b: StationBelief = { ...emptyBelief(), shows: [4, 0], numbers: [] };
+    const inbox = [texted(7)];
+    const next = beliefFrom(view, inbox, Q, b);
+    next.shows = [4, 0];
+    DECODERS.dial?.(view, inbox, next, Q, 1, 1);
+    expect(next.answer[1]).toBe(7);
+    // and no plate: the digit stays unknown until the listener says stop
+    const bare = { ...emptyBelief(), shows: [4, 0], numbers: [7] };
+    DECODERS.dial?.(view, [], bare, Q, 1);
+    expect(bare.answer[1]).toBeNull();
   });
 });

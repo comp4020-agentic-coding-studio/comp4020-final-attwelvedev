@@ -310,6 +310,14 @@ export function createAudio(): GameAudio {
           // a soft pomf: low filtered noise and a falling thump, a toy and never a siren
           burst(c, s, "lowpass", 500, 1.2);
           tone(c, s, "sine", 180, 70, 0.25, 0.4);
+        } else if (s.kind === "jam") {
+          // a short low buzz, two sawtooth pulses: the mistakes family, a lock refusing for a moment
+          tone(c, s, "sawtooth", 110, 100, 0.09, 0.22);
+          tone(c, s, "sawtooth", 110, 100, 0.09, 0.22, 0.13);
+        } else if (s.kind === "tap") {
+          // a fingertip on a metal plate: two soft, short, high taps, quieter than a step
+          tone(c, s, "sine", 1800, 1600, 0.03, 0.12);
+          tone(c, s, "sine", 1700, 1500, 0.03, 0.1, 0.08);
         } else if (s.kind === "gear") {
           tone(c, s, "square", 1200, 1200, 0.02, 0.18);
           tone(c, s, "square", 900, 900, 0.02, 0.18, 0.07);

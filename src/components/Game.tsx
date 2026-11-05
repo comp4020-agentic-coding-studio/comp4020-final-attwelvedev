@@ -53,6 +53,7 @@ import type {
   RoomBoard as RoomBoardData,
 } from "../net/protocol.ts";
 import { ActHint } from "./ActHint.tsx";
+import { BrailleCard } from "./BrailleCard.tsx";
 import { type CaptionLine, Captions } from "./Captions.tsx";
 import { type CommsApi, CommsWheel } from "./CommsWheel.tsx";
 import { Connection } from "./Connection.tsx";
@@ -251,6 +252,7 @@ function useDraw(
         // Can't see is told whether they are walking or pushing (they hear it already); a sighted
         // role reads it off its own predicted position, which is ahead of the server
         own: ownMotion(rt, role),
+        cleared: view.status === "cleared", // nobody walks on once the room is cleared (FR2)
         bots: crew.map((c) => !!c.bot) as Scene["bots"],
         layout: "follow", // the game camera on every screen; the rise eases it in from the whole room
         rise: flat ? 0 : riseNow(rt, now),
@@ -332,6 +334,8 @@ function onView(rt: Runtime, view: RoleView, audio: GameAudio, names: readonly s
     rt.facing = SPAWN_FACING;
     rt.walking = { moving: false, blocked: false };
   }
+  // the input loop stops once cleared, so it never resets this itself: the room is over, nobody walks
+  if (view.status === "cleared") rt.walking = { moving: false, blocked: false };
   rt.prevEntities = rt.view?.entities ?? [];
   rt.prevSeen = rt.view?.seen ? seenOf(rt.view.seen) : null;
   rt.view = view;
@@ -435,6 +439,10 @@ export function Game({
   // from a later tick arrives.
   const crewRef = useRef(reveal.crew); // the latest crew, for the view listener below (it subscribes once)
   crewRef.current = reveal.crew;
+  // A view belongs to a room: one from the room before (the cleared room's last view, held over in
+  // `early`, or a late one) must never start this room, which waits at its reveal until all are ready.
+  const roomRef = useRef(reveal.room);
+  roomRef.current = reveal.room;
   useEffect(() => {
     audio.current = createAudio();
     // The game has started: the first view from a later tick. If this page watched the reveal it
@@ -449,11 +457,12 @@ export function Game({
       setPlaying(true);
     };
     // the view that came with the reveal, before this listener existed
-    if (early.view && rt.current.view === null) {
+    if (early.view && early.view.room === roomRef.current && rt.current.view === null) {
       onView(rt.current, early.view, audio.current, seatNames(crewRef.current));
       if (early.view.tick > 0) start(false);
     }
     const off = socket.on("view", (m) => {
+      if (m.view.room !== roomRef.current) return;
       const sawReveal = rt.current.view?.tick === 0;
       if (audio.current) onView(rt.current, m.view, audio.current, seatNames(crewRef.current));
       if (m.view.tick > 0) start(sawReveal);
@@ -641,6 +650,7 @@ function Hud({
   const [gear, setGear] = useState<GearItem | null>(null);
   const [lamp, setLamp] = useState<Role | null>(null);
   const [cache, setCache] = useState<RoleView["cache"]>(undefined);
+  const [braille, setBraille] = useState<RoleView["braille"]>(undefined);
   const [keepsake, setKeepsake] = useState<RoleView["keepsake"]>(undefined);
   const [carried, setCarried] = useState<Partial<Record<Seat, GearItem>>>({});
   const [watchOpen, setWatchOpen] = useState(false);
@@ -911,6 +921,9 @@ function Hud({
       setClock(formatTime(view.elapsedMs));
       setLoot(view.loot);
       setAct(view.act);
+      setBraille((old) =>
+        JSON.stringify(old) === JSON.stringify(view.braille) ? old : view.braille,
+      );
       setGear(view.gear ?? null);
       setKeepsake(view.keepsake);
       setCache((old) =>
@@ -1126,6 +1139,7 @@ function Hud({
           aria-label={role === "blind" ? "No map. Listen to the room." : "Map of the room"}
         />
         <SideJob cache={cache} keepsake={keepsake} />
+        {braille && <BrailleCard cells={braille.cells} teach={braille.teach} />}
         {moment && (
           <div class="cache-moment" role="status">
             <p>{moment}</p>

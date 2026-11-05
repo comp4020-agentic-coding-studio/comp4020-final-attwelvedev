@@ -1,0 +1,13 @@
+{"id":"04-plate","name":"Plate","version":1,
+ "beats":[{"name":"Read","x":[0,10],"intent":{"blind":"reads the plate","deaf":"watches","mute":"waits"}}],
+ "objects":{
+  "Q1":{"type":"dial","pads":[[3,2],[5,2]],"digits":1,"range":10},
+  "o1":{"for":"Q1","part":0,"teach":true},
+  "D1":{"opensWhen":["p1"]}},
+ "hints":{"jobs":[]}}
+---
+###########
+#1o....pD.#
+#2..Q...D.#
+#3......DE#
+###########

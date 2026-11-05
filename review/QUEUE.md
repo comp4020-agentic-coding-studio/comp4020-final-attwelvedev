@@ -397,3 +397,82 @@ tests and the parallel session's load account for it, not measured per file.
 `src/game/rooms/load.test.ts` "loads the shipped rooms…" timed out at 20 s in one `pnpm test:unit`
 run (load average 25 with the other lane running); alone it passes in 15.6 s, and the full
 `pnpm check` after was green. It is close to its limit even unloaded: worth timing on a quiet machine.
+
+
+## Overnight run 2026-11-05, lane A (`auto/blind-purpose`), phase 01
+
+- **Task 70, the landing Can't see feed walks (FR1):** `review/bp-01-task70-blind-feed-1280.png`,
+  `-375.png` (the feed alone) and `review/bp-01-task70-feeds-page-1280.png`, `-375.png` (the page).
+  - **What to look at:** does the Can't see feed's dim figure hop and kick up dust while its bot
+    walks, sit still otherwise, and look like the in-game Can't see screen? The ring is gone. Pass =
+    it looks like the game.
+  - **Start it:** in the `wt-blind` worktree, `pnpm build && pnpm start`, open
+    `http://localhost:8080/` (or `PORT=8181 pnpm start` if :8080 is taken), and watch the first feed.
+    Reduced motion (DevTools > Rendering > prefers-reduced-motion) holds it still.
+  - **What I judged:** at 1280 it reads as the game's figure. **At 375 the feed strip is short enough
+    that the top of the hat is cut off.** `drawOwnBlind` draws at the game's fixed size
+    (`MAP.phoneTilePx * 2`), and the plan says to reuse it unchanged, so I did not scale it. If you
+    want it fixed, the smallest change is a size option for `drawOwnBlind` that the feed sets from its
+    canvas height. Reduced motion checked: two frames 500 ms apart are identical.
+- **Flaky under load (not acted on):** one full check during Task 69 had
+  `spec/layout/hud.test.ts` "one No shows 'Not restarted: <name> kept playing.' to everyone, then it
+  goes" time out at 30 s while the other lane was loading the machine. The next three full checks
+  passed it. Not retried for green; worth a `pnpm check:flaky` when the machine is quiet.
+
+## Overnight run 2026-11-05, lane A (`auto/blind-purpose`), phase 02
+
+- **Task 81, played roles as hollow shapes on the role screen (FR4):**
+  `review/bp-02-task81-played-icons-1280.png`, `-375.png` (four people, the room-2 role screen as
+  the host sees it after room 1).
+  - **What to look at:** every crew row that has played (yours, others' and the sitting-out one)
+    shows a muted "Played" and then hollow 14 px shapes, which should read clearly apart from the
+    filled, coloured "now" shape on the left. A screen reader hears "Already played: Can't see". A
+    row with nothing played shows nothing. Pass = you accept it.
+  - **Start it:** in the `wt-blind` worktree, `pnpm build && PORT=8181 pnpm start` (or `pnpm start`
+    if :8080 is free), open four tabs (one private window per extra person), make a lobby, join with
+    4 nicknames, Start, play room 1, Next.
+  - **What I judged:** good at both widths, with no clipping or overflow. Nicknames are cut to 16
+    characters by the server, so "Bartholomew-Feat" is the longest a name can be. It stays on one
+    line beside "Not ready" even at 375.
+
+## Overnight run 2026-11-05, lane A (`auto/blind-purpose`), phase 03
+
+- **Task 75, the braille card on Can't see's screen (FR6 to FR8):**
+  `review/bp-03-task75-braille-card-1280.png`, `-375.png` (Can't see, the card open);
+  `review/bp-03-task75-plate-sighted-1280.png`, `-375.png` (Can't hear, the plate beside Ana).
+  - **What to look at:** whether the card reads as "felt, not lit" on black; whether raised dots
+    (filled discs) are easy to tell from flat positions (small rings); whether the key is easy to
+    match; whether the teaching line is clear; whether anything important is covered on a phone. Also the
+    sighted plate: a brass plaque with a fixed six-stud pattern, outlined in `--ui` while a hand
+    is on it, with a ring pulsing on a read. On a light floor the outline is faint. Pass = you accept it.
+  - **Start it:** the screenshots come from the fixture room (the plate one tile from Can't see's spawn):
+    in the `wt-blind` worktree, `pnpm build && ROOMS_DIR=spec/fixtures/rooms-braille PORT=8181 pnpm start`,
+    two tabs (one private), make a lobby with the first, join with the second, Start, both ready;
+    the host is Can't see: press Space. Room 4's own plate is on the parked Task 74 branch (below):
+    after merging it, `pnpm build && pnpm start`, three tabs, play to the flag in room 4.
+  - **What I judged:** the 375 card first spilled its key out of the frame and over the captions;
+    the layout spec now checks the card is inside the frame and above the captions, and the phone
+    key sits in two rows of six beside the cells. At 375 the dim own figure shows through the
+    unfilled card (the spec says "no panel fill"); it does not cover a dot, but say if you want a
+    black fill.
+
+## PARKED
+
+- **Task 74 (room 4's braille plate, the Can't-see bot that reads it), parked on
+  `auto/blind-purpose-parked-03-task74` (commit "PARKED: room 4's braille plate…").**
+  - **Why:** the work is complete. Bots clear room 4 in all three rotations, in 31, 32 and 22 s of
+    the 240 s budget, and with the bot's read turned off all three fail, so the plate is truly
+    needed. But `src/game/rooms/pacing.test.ts` fails: room 4 now introduces **station, gear and
+    braille**, and the rule allows at most two new kinds of thing per room (clues FR9/FR10). The
+    spec's FR5 puts the first plate, with its teaching line, in room 4, so the two promises
+    conflict. Going green needs one of these, and each is your call:
+    1. count a braille plate as part of the station it serves (add `braille` to the pacing
+       test's not-counted set, with your ruling as the reason, like the side-job exemption)
+    2. move the first plate (and the teaching line) to room 5, which introduces only `clue` and
+       `sign` today, and give room 4 none (FR5 changes)
+    3. move the stethoscope's first appearance out of room 4
+  - **Recommendation:** option 1. A plate is the answer to a station already being taught, read
+    with a key printed on the card, so it adds less to learn than a new station does.
+  - **To resume:** `git merge auto/blind-purpose-parked-03-task74` into `auto/blind-purpose`, apply
+    the ruling, run `pnpm test:unit`, `pnpm vitest run spec/rooms.test.ts`, `pnpm lint:rooms`.
+    Then finish Task 75's human review on room 4 (see below) and close phase 03.

@@ -7,6 +7,7 @@ import {
 } from "../channels.ts";
 import type { EntityView, RoleView, SoundCue } from "../perception.ts";
 import { cacheOf, type Room } from "../rooms/format.ts";
+import { platePart } from "../sim/braille.ts";
 import { blockedAt } from "../sim/collide.ts";
 import { laserBeam } from "../sim/hazards.ts";
 import { stationParts, tilesOf } from "../sim/stations.ts";
@@ -28,6 +29,7 @@ import {
   keypadStep,
   linkedFrom,
   radioToTell,
+  readBraille,
   type StationBelief,
   switchesLeft,
   syncGo,
@@ -90,7 +92,8 @@ export interface BotMemory {
   wireMarkedAt: Record<string, number>; // when it last marked a wire panel's answer, by station
   postSince: number | null; // when it got to the ink it is lighting (game ms), or null
   ear: Ear; // Can't see holding the earpiece: the tune heard, and the code last told
-  toTell: number[]; // digits of the earpiece's code still to text, one a turn
+  toTell: number[]; // digits of the earpiece's code (or a braille plate's number) still to text, one a turn
+  toldPlate: string | null; // a Can't-see bot: the braille cells it last texted (read again after a send-back)
   count: Count | null; // a sync lock's counter: the digit it last texted, and when
 }
 export interface BotTurn {
@@ -223,6 +226,7 @@ export function createBotMemory(
     postSince: null,
     ear: emptyEar(),
     toTell: [],
+    toldPlate: null,
     count: null,
   };
 }
@@ -263,6 +267,7 @@ function thinkBlind(view: RoleView, inbox: ChannelMessage[], m: BotMemory, now: 
     // sent back to the start: whatever it was told before is about somewhere else
     m.holding = true;
     m.heading = { ...ZERO };
+    m.toldPlate = null; // every answer is drawn again: the plate says something new
   }
   for (const msg of inbox) {
     if (msg.method !== "callout") continue; // never parses free text
@@ -290,6 +295,15 @@ function thinkBlind(view: RoleView, inbox: ChannelMessage[], m: BotMemory, now: 
   const tumbler = view.gear === "stethoscope" && view.sounds.some((s) => s.kind === "tumbler");
   // the earpiece: the code it plays, heard the same twice, is texted a digit a key (decode.ts)
   m.toTell.push(...earStep(view, m.ear));
+  // a braille plate under its hand: Act once to read it, then text its number a digit a turn
+  const read = view.act === "Read the plate" && !view.braille && !m.actWas;
+  m.actWas = read;
+  const cells = view.braille ? JSON.stringify(view.braille.cells) : null;
+  const plate = view.braille ? readBraille(view.braille.cells) : null;
+  if (cells && plate !== null && cells !== m.toldPlate) {
+    m.toldPlate = cells;
+    m.toTell.push(...String(plate).split("").map(Number));
+  }
   const digit = tumbler ? undefined : m.toTell.shift();
   const send: Outgoing | null = tumbler
     ? { method: "callout", callout: "stop" }
@@ -300,7 +314,7 @@ function thinkBlind(view: RoleView, inbox: ChannelMessage[], m: BotMemory, now: 
   // leading walks for both and both steer (ADR 0019): the heading it was last told would only pull
   // against them, so it adds nothing while it holds a hand, and keeps the heading for after.
   const led = view.you.hand !== undefined;
-  return { input: idle(m, m.holding || led ? ZERO : m.heading), send };
+  return { input: { ...idle(m, m.holding || led ? ZERO : m.heading), act: read }, send };
 }
 
 // --- Seeing roles ------------------------------------------------------------
@@ -349,7 +363,7 @@ function readStations(
   linkedFrom(room, view, known.stations);
   for (const o of stations) {
     const b = known.stations[o.id] as StationBelief;
-    DECODERS[o.params?.type as StationType]?.(view, inbox, b, o, view.tick);
+    DECODERS[o.params?.type as StationType]?.(view, inbox, b, o, view.tick, platePart(room, o.id));
   }
   linkedFrom(room, view, known.stations);
   if (view.sounds.some((c) => c.kind === "caught")) known.holding = {};
@@ -446,6 +460,7 @@ function observe(room: Room, view: RoleView, inbox: ChannelMessage[], m: BotMemo
   for (const e of view.entities) {
     if (e.kind === "door") known.doorOpen[e.id] = e.state === "open";
     else if (e.kind === "plate") known.pressed[e.id] = e.state === "pressed";
+    else if (e.kind === "braille" && e.state === "on") known.read = { ...known.read, [e.id]: true };
     else if (e.kind === "crate") known.crates[e.id] = tileOf(e.pos);
     else if (e.kind === "checkpoint" && e.state === "reached") {
       known.checkpoint = Math.max(known.checkpoint, Number(e.id.slice(1)));
@@ -934,6 +949,7 @@ function thinkSighted(
     if (last && Math.hypot(view.you.pos.x - last.x, view.you.pos.y - last.y) > 1.5) {
       forgetPlans(m);
       m.markedFor = null;
+      known.read = {}; // a plate read before says something else now
       // sent back: every unsolved station has a fresh answer, so what was heard of it is stale
       for (const [id, b] of Object.entries(known.stations)) {
         if (b.solved) continue;
@@ -949,6 +965,7 @@ function thinkSighted(
         b.card = null; // switches are drawn again with a new card, from dark
         b.marked = [];
         b.used = 0;
+        b.plate = null;
       }
     }
     m.lastPos = view.you.pos;
@@ -1101,7 +1118,11 @@ function press(
   const centred = Math.hypot(pos.x - (tile.x + 0.5), pos.y - (tile.y + 0.5)) < 0.15;
   const goal = job ? workGoal(room, m, job, known, m.seat) : null;
   const here = centred && goal !== null && goal.x === tile.x && goal.y === tile.y;
-  const pressed = job && here ? pressFor(room, m, known, job, view.tick) : null;
+  // a station seen jammed (FR13) ignores every press: the bot waits the jam out on its tile
+  const jammed =
+    job?.target.kind === "station" &&
+    view.entities.some((e) => e.id === (job.target as { id: string }).id && e.station?.jammed);
+  const pressed = job && here ? (jammed ? "wait" : pressFor(room, m, known, job, view.tick)) : null;
   // An Act from a towed seat lets go of the hand that leads it (sim/gear.ts: actOn), so a bot a
   // person is leading never presses one: it waits, and works once they let go. G is unaffected.
   const towed = view.you.hand !== undefined && known.holding[view.you.seat] !== undefined;

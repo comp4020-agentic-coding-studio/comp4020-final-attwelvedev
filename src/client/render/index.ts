@@ -20,6 +20,7 @@ import { type Camera, camera, LIVE, setRise, tileWindow, toScreen } from "./proj
 import { drawMist, inSight, lightPolygon, litEntities, nightTile, seenOf } from "./sight.ts";
 import { drawBell, drawHatch, drawLampSwitch, drawLever } from "./signals.ts";
 import {
+  drawBraillePlate,
   drawLink,
   drawOrder,
   drawPlaque,
@@ -58,6 +59,9 @@ export interface Scene {
   // and whether you are walking or pushing at something. Overrides what the view says about you;
   // for Can't see it is all there is to draw.
   own?: Motion;
+  // The room is cleared: nobody walks on, so no figure hops or kicks up dust, whatever stale motion
+  // the last view or the client's own input left behind (FR2).
+  cleared?: boolean;
   // How far the world has risen out of the flat reveal, 0 to 1 (FR25). Absent is fully risen. Scales
   // depth and every height, eases the follow camera in from the whole room, and fades Can't see's
   // figure in over the first 400 ms of 900.
@@ -107,7 +111,15 @@ const FAINT_MARK = 0.35; // a mark in a tile you cannot see
 const isBlock = (ch: string | undefined) => ch === "#" || ch === "%" || ch === "=" || ch === "H";
 
 // Entities drawn flat on the floor, under everything standing up in their row.
-const FLAT: EntityView["kind"][] = ["plate", "exit", "hide", "sign", "door", "motiftile"];
+const FLAT: EntityView["kind"][] = [
+  "plate",
+  "exit",
+  "hide",
+  "sign",
+  "door",
+  "motiftile",
+  "braille",
+];
 // Things that stand up out of the floor, and the figures, in painter's order within a row.
 const STANDING: EntityView["kind"][] = [
   "door",
@@ -295,7 +307,11 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
   }
   for (const e of scene.entities)
     if (FLAT.includes(e.kind) && !(e.kind === "door" && e.state !== "open"))
-      e.kind === "motiftile" ? drawMotifTile(ctx, e, cam) : drawFlat(ctx, e, cam, scene);
+      e.kind === "motiftile"
+        ? drawMotifTile(ctx, e, cam)
+        : e.kind === "braille"
+          ? drawBraillePlate(ctx, e, cam)
+          : drawFlat(ctx, e, cam, scene);
   // a station's floor parts (pads, keys, sockets) are part of the station: a veiled one is invisible too
   for (const e of scene.entities) if (e.kind === "station") drawStationFloor(ctx, e, cam, scene);
   ctx.restore();

@@ -16,6 +16,7 @@
       "!scripts/data",
       "!src/data/foodkeeper.json",
       "!src/data/guess-client.json",
+      "!src/game/rooms/__ids__",
       "!harness"
     ]
   },

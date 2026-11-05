@@ -111,6 +111,8 @@ export const CUE_WORD: Record<SoundCue["kind"], string> = {
   bellnote: "Bell note",
   bell: "Bell",
   dye: "Dye pack",
+  jam: "Jammed",
+  tap: "Plate read",
   earpiece: "Earpiece",
   gear: "Gear",
   uncover: "Something opened",

@@ -493,3 +493,40 @@ describe("a job that names a cache (phase 14, Task 53)", () => {
     }
   });
 });
+
+// Braille (Task 74): a read job sends Can't see to a plate, and only Can't see.
+describe("a read job", () => {
+  const plated = (hints: unknown) =>
+    parseRoom(
+      `${JSON.stringify({
+        id: "t",
+        name: "T",
+        beats: [{ name: "b", x: [0, 19], intent: { blind: "b", deaf: "d", mute: "m" } }],
+        objects: { D1: { opensWhen: ["p1"] }, o1: { for: "Q1", part: 0 } },
+        hints,
+      })}\n---\n${["####################", "#1.#....o....D...E.#", "#2.#.........D...E.#", "#3.#....p....D...E.#", "####################"].join("\n")}\n`,
+    );
+  it("parses into the plate and its tile", () => {
+    const r = plated({ jobs: [{ beat: 1, read: "o1", prefer: "blind" }] });
+    expect(parseJob(r, { beat: 1, read: "o1" }, 0)).toMatchObject({
+      target: { kind: "read", plate: "o1", tile: { x: 8, y: 1 } },
+    });
+    expect(parseJob(r, { beat: 1, read: "o2" }, 0)).toBe(
+      "hint job 1 reads o2, which is not a braille plate in this room",
+    );
+  });
+  it("goes to the Can't-see seat and nobody else", () => {
+    const r = plated({ jobs: [{ beat: 1, read: "o1" }] });
+    const jobs = hintsOf(r);
+    for (const blind of [0, 1, 2] as const) {
+      const seats = ([0, 1, 2] as const).map((seat) => ({
+        seat,
+        role: (seat === blind ? "blind" : seat === (blind + 1) % 3 ? "deaf" : "mute") as Role,
+        human: false,
+      }));
+      const queues = claimJobs(r, jobs, seats);
+      expect(queues[blind].map((j) => j.target.kind)).toEqual(["read"]);
+      for (const s of [0, 1, 2] as const) if (s !== blind) expect(queues[s]).toEqual([]);
+    }
+  });
+});
