@@ -1,7 +1,7 @@
 # Bots help work a cache once people uncover it
 
 - **Date:** 2026-11-07
-- **Status:** Approved
+- **Status:** Built overnight 2026-11-07; human reviews queued
 - **Requirements confirmed by user:** yes, 2026-11-07 (`specs/2026-11-07-bots-help-caches.md`, approved in
   the brainstorm). Two rulings were given in planning on the same day (§2.4).
 - **Tier:** Architecture (ADR 0024, proposed).
@@ -314,7 +314,7 @@ state to keep in step across send-backs, for no behaviour `currentJob` lacks.
 - **Break check:** for one room, remove one job and watch its case go red.
 - **Depends on:** Task 85.
 
-### Task 87: Docs, ADR status, backlog and check
+### Task 87: Docs, ADR status, backlog and check ✅ (review queued)
 
 - **Description:**
   - `PROCESS_LOG.md`: an entry for the rulings in §2.4 (the harness proof, and planning against today's
@@ -336,10 +336,10 @@ state to keep in step across send-backs, for no behaviour `currentJob` lacks.
 
 ## 6. Definition of Done
 
-- [ ] Tasks 83 to 87 ticked.
-- [ ] The Task 85 Human review was played and accepted by the user.
-- [ ] `pnpm check` is green.
-- [ ] ADR 0024 accepted, and 0020's status updated.
+- [x] Tasks 83 to 87 ticked.
+- [ ] The Task 85 Human review was played and accepted by the user. (review queued)
+- [x] `pnpm check` is green.
+- [ ] ADR 0024 accepted, and 0020's status updated. (acceptance queued)
 
 ## 7. Coverage
 

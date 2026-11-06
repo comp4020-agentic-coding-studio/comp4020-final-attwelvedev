@@ -59,6 +59,7 @@ as part of the result.
 8. **Bots** never uncover, enter, work or take a cache or its chamber. A crew can therefore be unable to finish one when the
    only role that perceives a needed clue is a bot's; that costs the crew one loot and is accepted.
    Rooms still clear with perception-only bots (ADR 0018), whether or not a cache is solved.
+   Superseded for working a cache by `specs/2026-11-07-bots-help-caches.md`.
 
 **Feedback: the team moment (same tick for every role)**
 

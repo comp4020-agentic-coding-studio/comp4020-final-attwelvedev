@@ -1351,3 +1351,20 @@ the card in the chip's column and widening the cell gap, a spec for each), and t
 not a person, so nothing recorded its roles; fixed in `b7d221e` with a socket spec that fails on the old server).
 Both share a cause: the check measured a stand-in (the wheel, the people) and not the neighbour or the case a real
 player meets. How I knew each was right: the new spec is red on the old code.
+
+## 2026-11-07 — Prove bots help a cache with a harness that does the uncover, not a scripted person
+
+542f479, 17df77d
+
+The spec asked for one person scripted to uncover a cache and nothing else, with two bots doing the rest. Planning
+found it cannot work: `claimJobs` gives people their beat jobs first, so a do-nothing person stalls the room. I ruled
+that the proof is three bots plus a harness that performs the same world change `uncover()` makes (a shared
+`forceUncover`), so the bots meet exactly the event a person's Act gives them. People-first claiming of cache jobs is
+a unit test of `claimJobs`. I also planned against today's motif-tile uncover, not ADR 0021's reveals, which are
+accepted but unbuilt.
+
+Proving the rooms found five real faults a plan could not have named: a keypad taking another keypad's chimes as its
+own code, a watcher that never marked a second time, a guide that jittered at an open door, a guide that took its
+Can't-see seat walking out of sight and back for a send-back, and a bot that stood on a motif tile to hand gear on and
+uncovered a cache by accident. The last is the one FR1 exists for; its guard is a case that is red when the fix is
+removed. How I knew each was right: a headless case per room and rotation, red before and green after.

@@ -37,7 +37,8 @@
   Rooms 4 to 9 have exactly one `o` braille plate (`PLATE_ROOMS`); its carried part is
   given nowhere else and it never names a teaching station or cache. From room 4 a wire
   plaque is a seeded riddle (`WIRE_RULES[].riddles`, `NUMBER_RIDDLES`) that bots read
-  through `ruleOfText`/`numberOfText`. A cache's chamber is
+  through `ruleOfText`/`numberOfText`. A cache's bot jobs carry `"cache"`; prove them in
+  `spec/bots-caches.test.ts`. A cache's chamber is
   appended **below** the room's rows. **Ids are numbered in reading order**, so a letter
   placed before an existing one of its kind renumbers it: append new ones after, and
   confirm nothing moved (`src/game/rooms/ids.test.ts`). Run `pnpm lint:rooms` and

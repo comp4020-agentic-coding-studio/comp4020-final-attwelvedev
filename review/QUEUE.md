@@ -489,3 +489,8 @@ plate is part of the station it serves, so the pacing test does not count it), m
 - **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080`, make a lobby with two bots, play to room 4.
 - **Screenshots:** `review/n7-caches-task85-room4-mockup-1280.png`, `review/n7-caches-task85-room4-mockup-375.png` (the room mockup; the behaviour is not a picture).
 - **Judged:** `spec/bots-caches.test.ts` shows three bots plus a harness uncover solve Q3 and the owner take the keepsake in every rotation with no catches; nobody has played it with a person.
+
+### caches Task 87: accept ADR 0024 (bots work a cache once people uncover it)
+
+- **Ask:** accept `doc/adr/0024-*.md` (status `proposed`; left unchanged overnight). On acceptance, ADR 0020's status gains "its bots clause superseded by 0024" (not edited overnight: 0020 is accepted).
+- **Built:** Tasks 83 to 86 (cache jobs, `currentJob`, rooms 4 to 9, `spec/bots-caches.test.ts`: 36 cases). The human play of room 4 is queued above (Task 85).
