@@ -173,7 +173,7 @@ name, lines; side by side while three fit, stacked on a phone), the buttons, the
 - [x] `pnpm test:unit` passes
 - [x] `pnpm build && pnpm start` then `pnpm check` passes
 - [x] Tasks 28 and 31 human reviews accepted; ADRs 0017 and 0018 accepted by the user (ADR 0020 is phase 14's) (Task 28 accepted 2026-11-02; Task 31 and ADRs 0017 and 0018 accepted 2026-11-06)
-- [x] The overview's feature-level Definition of Done holds (review queued: its human playtest items wait on the morning reviews)
+- [x] The overview's feature-level Definition of Done holds (its human playtest items were the morning reviews, now all accepted by the user; the overview's own §6 boxes stay unticked while phase 12 is open)
 - [x] Tick this phase in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)

@@ -96,7 +96,7 @@ digits. (Can't hear cannot receive text.)
   nothing outside comments.
 - **Depends on:** Task 13, Task 23.
 
-### Task 25: Build and play room 8 [x] (review queued)
+### Task 25: Build and play room 8 [x]
 
 - **Description:** Author `rooms/08-music-room.room` per this file's §4 (teaching versions first, then
   real), with beats, intents, hints, checkpoints and labels.
@@ -119,7 +119,7 @@ digits. (Can't hear cannot receive text.)
 - [x] Every task in §5 is complete and its tests pass
 - [x] `pnpm test:unit` passes
 - [x] `pnpm build && pnpm start` then `pnpm check` passes
-- [x] Task 25 human review accepted (review queued)
+- [x] Task 25 human review accepted by the user
 - [x] Tick this phase in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)

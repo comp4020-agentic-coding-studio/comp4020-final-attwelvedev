@@ -88,7 +88,7 @@ export function think(room: Room, view: RoleView, inbox: ChannelMessage[], memor
 
 ### Task 19: Build and play room 5
 
-- [x] Done 2026-10-29 (overnight run; human review queued in `review/QUEUE.md`; calls logged, 06/19)
+- [x] Done 2026-10-29 (overnight run; human review accepted by the user; calls logged, 06/19)
 
 - **Description:** Author `rooms/05-the-gallery.room` per this file's §4 (teaching versions first, then
   real), with beats, intents, hints, checkpoints and labels.
@@ -111,7 +111,7 @@ export function think(room: Room, view: RoleView, inbox: ChannelMessage[], memor
 - [x] Every task in §5 is complete and its tests pass
 - [x] `pnpm test:unit` passes
 - [x] `pnpm build && pnpm start` then `pnpm check` passes (241 s)
-- [x] Task 19 human review accepted (review queued)
+- [x] Task 19 human review accepted by the user
 - [x] Tick this phase in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)
