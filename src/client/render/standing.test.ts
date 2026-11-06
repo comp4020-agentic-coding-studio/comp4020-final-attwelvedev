@@ -361,7 +361,9 @@ describe("the cut goes on past where the edge lands", () => {
   const FIGURE_SPOTS: [number, number][] = [];
   // not beside the pillar at (4, 2): it casts shadow edges of its own, which the corridor-corner oracle lacks
   for (let fx = 1.5; fx <= 10.5; fx += 0.25)
-    if (fx < 3.4 || fx > 5.6) for (const fy of [1.05, 1.5, 2.0, 2.6]) FIGURE_SPOTS.push([fx, fy]);
+    // only figures with open floor behind them: one against the north wall is cut over that wall by its vertical
+    // line instead (the test of screenshots 110 and 111 below)
+    if (fx < 3.4 || fx > 5.6) for (const fy of [2.0, 2.6]) FIGURE_SPOTS.push([fx, fy]);
   it("cuts a figure's head and body on the edge's line", () => {
     const wrong: string[] = [];
     let checked = 0;
@@ -1599,6 +1601,46 @@ describe("a wall-mounted camera is cut by the wall's vertical line (screenshot 9
     expect(lit, "camera columns on lit ground").toBeGreaterThan(100);
     expect(dark, "camera columns on dark ground").toBeGreaterThan(100);
     expect(wrong.slice(0, 6), `${wrong.length} camera columns wrong`).toEqual([]);
+  });
+});
+
+// The user (the escape-room playtest, screenshots 110 and 111): a figure with a wall behind it was cut by the
+// cone's diagonal across its whole body, where a station there is cut by the wall's vertical line over the
+// wall's front. The same rule holds for a figure: each point of it that lies over the wall's front is drawn
+// where the ground at the wall's foot, at the same x, is lit.
+describe("a figure over the wall behind it is cut by the wall's vertical line (screenshots 110 and 111)", () => {
+  it("draws each point of the figure over the wall's front where the wall's foot is lit", () => {
+    const wrong: string[] = [];
+    let litN = 0;
+    let darkN = 0;
+    const FIGURE: EntityView = { id: "p2", kind: "player", pos: { x: 6.5, y: 1.5 }, seat: 2 };
+    for (const v of VIEWERS) {
+      const sc: Scene = { ...sceneAt(v.x, v.y), entities: [FIGURE] };
+      const { ctx, ops } = recorder();
+      draw(ctx, sc);
+      const cam = camera(sc);
+      const light = lightPolygon({ x: v.x, y: v.y }, TILES);
+      const shadow = ops.findIndex((o) => o.name === "ellipse" && o.args[2] === cam.scale * 0.36);
+      if (shadow < 0) continue;
+      const lineY = toScreen(cam, 0, 1, 0).y;
+      for (let x = 6.2; x <= 6.8; x += 0.1) {
+        const near = [-0.04, 0.04].map((dx) => inLight(light, { x: x + dx, y: 1.01 }));
+        if (near[0] !== near[1]) continue;
+        for (let z = 0.3; z <= 1.4; z += 0.1) {
+          const at = toScreen(cam, x, 1.5, z);
+          if (at.y >= lineY - 1) continue;
+          if (near[0]) litN++;
+          else darkN++;
+          if (drawnAt(ops, shadow, at) !== near[0])
+            wrong.push(
+              `viewer ${v.x.toFixed(2)},${v.y.toFixed(2)} x=${x.toFixed(1)} z=${z.toFixed(1)}`,
+            );
+        }
+      }
+    }
+    expect(litN, "points over the wall on lit foot").toBeGreaterThan(20);
+    expect(darkN, "points over the wall on dark foot").toBeGreaterThan(20);
+    expect(wrong.slice(0, 6), `${wrong.length} points wrong`).toEqual([]);
   });
 });
 

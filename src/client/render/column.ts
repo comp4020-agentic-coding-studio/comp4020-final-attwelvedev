@@ -327,8 +327,10 @@ export function regionOf(
   let edges: ConeEdge[] | null = null;
   for (const { foot, planar, wallBehind } of parts) {
     if (wallBehind && !planar) {
+      const behind = behindWall(cam, light, foot, height);
+      if (behind === "whole") continue; // lit end to end: no clip, no box (a lit figure is drawn bare)
       whole = false;
-      pieces.push(...behindWall(cam, light, foot, height));
+      pieces.push(...behind);
       continue;
     }
     const lit = cutToBox(light, foot);
@@ -397,7 +399,12 @@ function clipAtLine(poly: readonly S[], line: number, below: boolean): S[] {
 
 // A piece with a wall behind it: below the wall's foot line the diagonal cut as for any piece, above it (what lies over
 // the wall's front) the wall's vertical cut: columns lit where the ground at the wall's foot, at the same x, is lit.
-function behindWall(cam: Camera, light: readonly Vec[], foot: Foot, height: number): S[][] {
+function behindWall(
+  cam: Camera,
+  light: readonly Vec[],
+  foot: Foot,
+  height: number,
+): S[][] | "whole" {
   const line = toScreen(cam, 0, foot.y0, 0).y;
   const rect = screenRect(cam, foot, height, SIDE);
   const out: S[][] = [];
@@ -414,6 +421,18 @@ function behindWall(cam: Camera, light: readonly Vec[], foot: Foot, height: numb
   }
   const wide = { x0: foot.x0 - SIDE, x1: foot.x1 + SIDE };
   const spans = litSpans(light, foot.y0 + OUT, wide.x0, wide.x1);
+  const only = spans[0];
+  if (
+    spans.length === 1 &&
+    only &&
+    only[0] <= wide.x0 + 1e-6 &&
+    only[1] >= wide.x1 - 1e-6 &&
+    out.length === 1 &&
+    lit.length >= 3 &&
+    areaOfPlan(lit) !== 0 &&
+    Math.abs(areaOfPlan(lit)) >= (foot.x1 - foot.x0) * (foot.y1 - foot.y0) - 1e-6
+  )
+    return "whole";
   const top = toScreen(cam, 0, foot.y0, height).y - 1;
   for (const [x0, x1] of spans)
     out.push([

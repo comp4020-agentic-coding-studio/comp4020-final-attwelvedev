@@ -401,12 +401,19 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
         // a camera is bolted to the wall behind its tile: cut as that wall's column is, by a vertical line from where the
         // light meets the wall's foot (the wall's south line, one row up), with no top (the user, screenshot 96)
         const bolted = kind === "camera";
+        // a figure with a wall behind it is cut over that wall's front by the wall's vertical line, as a station is
+        // (the user, screenshots 110 and 111): its foot starts at the tile's north edge, the wall's own foot line
+        const wallBehind =
+          kind === "player" && isBlock(tiles[Math.floor(e.pos.y) - 1]?.[Math.floor(e.pos.x)]);
+        const ground = groundSlice(tiles, e.pos.x, e.pos.y, 0.5);
         const foot = box
           ? tileFoot(Math.floor(e.pos.x), Math.floor(e.pos.y))
           : bolted
             ? groundSlice(tiles, e.pos.x, Math.floor(e.pos.y) - 0.5, 0.5)
-            : groundSlice(tiles, e.pos.x, e.pos.y, 0.5);
-        cut([{ foot, planar: bolted, faceOnly: bolted }], HEIGHT[kind] ?? 1.5, (c) => {
+            : wallBehind
+              ? { ...ground, y0: Math.max(ground.y0, Math.floor(e.pos.y)) }
+              : ground;
+        cut([{ foot, planar: bolted, faceOnly: bolted, wallBehind }], HEIGHT[kind] ?? 1.5, (c) => {
           if (kind === "camera" || kind === "laser" || kind === "guard")
             drawHazard(c, e, cam, scene);
           else if (kind === "player") drawPlayer(c, e, cam, scene);
