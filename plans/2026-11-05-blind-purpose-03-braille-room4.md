@@ -244,7 +244,7 @@ The contract is overview §4.1 and §4.4. Phase-specific choices:
     `pnpm lint:rooms` stays green between tasks. Phase 04's last task asserts it equals all six.
 - **Depends on:** Task 72 (`o` parses).
 
-### Task 74: A Can't-see bot reads a plate; room 4 needs it (FR5 room 4, FR9 bots)
+### Task 74: A Can't-see bot reads a plate; room 4 needs it (FR5 room 4, FR9 bots) [x]
 
 - **Description:**
   - room 4 gains `o1` carrying Q2's second digit (`{"for":"Q2","part":1}`)
@@ -330,15 +330,13 @@ The contract is overview §4.1 and §4.4. Phase-specific choices:
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 72 to 75 complete, each shown red then green. (72, 73, 75 done; **74 parked** on
-  `auto/blind-purpose-parked-03-task74`: complete and its bots clear room 4, but
-  `pacing.test.ts` fails, because room 4 would introduce three new kinds of thing; needs a ruling,
-  see `review/QUEUE.md` "PARKED")
+- [x] Tasks 72 to 75 complete, each shown red then green. (Task 74 was parked on the pacing rule; ruled
+  option 1 (a plate is not counted as a new kind of thing), `bb0ed58`, then merged.)
 - [x] `pnpm test:unit` passes (on this branch).
-- [x] `pnpm lint:rooms` passes, and `spec/rooms.test.ts` passes (on this branch; room 4 has no plate yet).
+- [x] `pnpm lint:rooms` passes, and `spec/rooms.test.ts` passes (room 4's plate `o1` is in; all three rotations clear).
 - [x] The full check passes (overview §3 recipe), 362 s.
 - [x] The user accepted Task 75. (review queued)
-- [ ] Tick phase 03 in overview §5 and commit. (not ticked: Task 74 is parked)
+- [x] Tick phase 03 in overview §5 and commit. (ticked as "review queued", like phases 01 and 02: Task 75's human review is still queued)
 
 ## 7. Requirements coverage (this phase)
 
