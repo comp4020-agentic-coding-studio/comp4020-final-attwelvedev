@@ -3,7 +3,7 @@ import type { ChannelMessage, Outgoing } from "../channels.ts";
 import { type RoleView, viewFor } from "../perception.ts";
 import { brailleCells } from "../sim/braille.ts";
 import { TUNE_MAX_TICKS, tuneGroups } from "../sim/chimes.ts";
-import { toggled } from "../sim/stations.ts";
+import { NUMBER_RIDDLES, toggled, WIRE_RULES } from "../sim/stations.ts";
 import { step } from "../sim/step.ts";
 import { place, roomWith } from "../sim/testing.ts";
 import { createWorld, TICK_MS } from "../sim/world.ts";
@@ -267,6 +267,26 @@ describe("the wires decoder", () => {
       expect(b.rule).toBe(s.answer[1]);
       expect(b.answer).toEqual([s.answer[0]]);
     }
+  });
+
+  it("reads a riddle as its rule and a number riddle as its wire", () => {
+    const world = createWorld(room, 3);
+    place(world, 1, { x: 3, y: 2 });
+    const s = world.stations.Q1;
+    if (!s) throw new Error("no Q1");
+    const view = viewFor(world, 1, "deaf", false);
+    const at = (text: string) => ({
+      ...view,
+      entities: view.entities.map((e) => (e.id === "S1" ? { ...e, text } : e)),
+    });
+    const rule = s.answer[1] as number;
+    for (const riddle of WIRE_RULES[rule]?.riddles ?? []) {
+      const b = decode("Q1", at(riddle));
+      expect(b.rule).toBe(rule);
+      expect(b.answer).toEqual([s.answer[0]]);
+    }
+    const b = decode("Q1", at(NUMBER_RIDDLES[0]?.(3) ?? ""));
+    expect(b.answer).toEqual([2]);
   });
 
   it("with the plaque out of sight, it never cuts a wire", () => {

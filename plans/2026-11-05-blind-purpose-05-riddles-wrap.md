@@ -96,7 +96,7 @@ See overview §2.4.
 
 ## 5. Task breakdown
 
-### Task 79: Wire plaques as riddles (FR11, FR12)
+### Task 79: Wire plaques as riddles (FR11, FR12) (done, review queued)
 
 - **Description:**
   - from room 4, non-teaching wire plaques show a seeded riddle that resolves to the same rule or

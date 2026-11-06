@@ -470,3 +470,10 @@ plate is part of the station it serves, so the pacing test does not count it), m
 - **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080` in three tabs, create a lobby, play to room 6.
 - **Screenshots:** none (no new visual; sound and behaviour only).
 - **Judged:** bots clear rooms 4 to 9 in every rotation and the unit tests show a decoy tones but never solves; the human feel of the decoy bands and the `rest` marker is not judged.
+
+### bp05 Task 79: wire plaque riddles (human review, pending)
+
+- **Look at:** the full riddle table: `WIRE_RULES[].riddles` and `NUMBER_RIDDLES` in `src/game/sim/stations.ts`. Each should be answerable from the wires in front of you, in the game's voice (DESIGN.md §7 Copy), and not a plain instruction with words swapped. Plaques in rooms 4 and later (not teaching stations) show one at random per attempt; rooms 1 to 3 and teaching plaques stay plain.
+- **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080` in a tab, play to room 5 (or 9) and read the sign near the second wire panel.
+- **Screenshots:** `review/n7-bp05-task79-riddle-table-1280.png`, `review/n7-bp05-task79-riddle-table-375.png` (a rendering of the table).
+- **Judged:** every riddle resolves to its rule in the unit test (exact match, no pool overlaps); bots clear rooms 5, 7, 9 in every rotation (`spec/rooms.test.ts`). The voice is a little ornate; the numbered ones are plainer on purpose (arithmetic limited to one).

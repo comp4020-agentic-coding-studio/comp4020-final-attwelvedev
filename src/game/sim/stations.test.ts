@@ -6,11 +6,14 @@ import { rng } from "./rng.ts";
 import {
   drawAnswer,
   JAM_TICKS,
+  NUMBER_RIDDLES,
   noteOf,
+  numberOfText,
   plaqueText,
   redrawOne,
   restOf,
   ruleFor,
+  ruleOfText,
   stationShows,
   WIRE_COLOURS,
   WIRE_RULES,
@@ -181,6 +184,56 @@ describe("wires", () => {
     expect(plaqueText(plain, "S1")).toBe(WIRE_RULES[st(plain).answer[1] as number]?.text);
   });
 
+  it("every riddle in a rule's pool resolves to that rule", () => {
+    const seen = new Set<string>();
+    for (const [i, r] of WIRE_RULES.entries()) {
+      expect(r.riddles.length).toBeGreaterThanOrEqual(2);
+      expect(r.riddles.length).toBeLessThanOrEqual(3);
+      for (const t of r.riddles) {
+        expect(ruleOfText(t)).toBe(i);
+        expect(seen.has(t), `"${t}" is in two pools`).toBe(false);
+        seen.add(t);
+      }
+      expect(ruleOfText(r.text)).toBe(i);
+    }
+  });
+
+  it("every number riddle names its number", () => {
+    for (const n of [1, 2, 3, 4]) {
+      for (const f of NUMBER_RIDDLES) expect(numberOfText(f(n))).toBe(n);
+      expect(numberOfText(String(n))).toBe(n);
+    }
+  });
+
+  it("a teaching plaque stays plain, even in a late room", () => {
+    const room = loadRooms().find((r) => r.id === "05-the-gallery");
+    if (!room) throw new Error("no room 5");
+    const o = room.objects.find((x) => x.id === "Q1");
+    expect(o?.params?.teach).toBe(true);
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const w = createWorld(room, seed);
+      const rule = w.stations.Q1?.answer[1] as number;
+      expect(plaqueText(w, String(o?.params?.plaque))).toBe(WIRE_RULES[rule]?.text);
+    }
+  });
+
+  it("a non-teaching plaque from room 04 on is a riddle, steady within an attempt, and seeded", () => {
+    const room = loadRooms().find((r) => r.id === "05-the-gallery");
+    if (!room) throw new Error("no room 5");
+    const sign = String(room.objects.find((x) => x.id === "Q2")?.params?.plaque);
+    const texts = new Set<string>();
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) {
+      const w = createWorld(room, seed);
+      const rule = w.stations.Q2?.answer[1] as number;
+      const shown = plaqueText(w, sign) as string;
+      expect(WIRE_RULES[rule]?.riddles).toContain(shown);
+      expect(plaqueText(w, sign)).toBe(shown);
+      expect(plaqueText(createWorld(room, seed), sign)).toBe(shown);
+      texts.add(shown);
+    }
+    expect(texts.size).toBeGreaterThan(1);
+  });
+
   it("words every rule as a full sentence that reads alone: a plaque shows one rule, never a list", () => {
     for (const { text } of WIRE_RULES) {
       expect(text, text).toMatch(/^[A-Z][^:]*: cut the [\w ]*wire\.$/);
@@ -219,7 +272,7 @@ describe("wires", () => {
     }
   });
 
-  it("shows only reworded rules on the plaques in rooms 5 and 9", () => {
+  it("shows only a rule's text or one of its riddles on the plaques in rooms 5 and 9", () => {
     for (const id of ["05-the-gallery", "09-the-vault"]) {
       const room = loadRooms().find((r) => r.id === id);
       if (!room) throw new Error(`no ${id}`);
@@ -229,7 +282,7 @@ describe("wires", () => {
           if (o.params?.numbered) continue;
           const shown = plaqueText(w, String(o.params?.plaque));
           expect(
-            WIRE_RULES.map((r) => r.text),
+            WIRE_RULES.flatMap((r) => [r.text, ...r.riddles]),
             `${id} seed ${seed}`,
           ).toContain(shown);
           expect(shown).not.toMatch(/^Otherwise/i);

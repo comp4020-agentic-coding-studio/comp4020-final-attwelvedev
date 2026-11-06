@@ -2,7 +2,14 @@ import type { ChannelMessage } from "../channels.ts";
 import type { RoleView } from "../perception.ts";
 import type { Room, RoomObject } from "../rooms/format.ts";
 import { CHIME_TICKS, GROUP_GAP_TICKS, TUNE_PAUSE_TICKS } from "../sim/chimes.ts";
-import { stationParts, tilesOf, toggled, WIRE_RULES } from "../sim/stations.ts";
+import {
+  numberOfText,
+  ruleOfText,
+  stationParts,
+  tilesOf,
+  toggled,
+  WIRE_RULES,
+} from "../sim/stations.ts";
 import type { StationType } from "../sim/world.ts";
 import type { Vec } from "../types.ts";
 
@@ -179,10 +186,10 @@ const wires: Decoder = (view, _inbox, b, o, _now, plated) => {
     return;
   }
   const plaque = view.entities.find((e) => e.id === o.params?.plaque && e.text);
-  const read = plaque ? WIRE_RULES.findIndex((r) => r.text === plaque.text) : -1;
-  if (read >= 0) b.rule = read;
-  const digit = plaque?.text && /^\d$/.test(plaque.text) ? Number(plaque.text) - 1 : -1;
-  if (digit >= 0) b.wire = digit;
+  const read = plaque?.text ? ruleOfText(plaque.text) : null;
+  if (read !== null) b.rule = read;
+  const digit = plaque?.text ? numberOfText(plaque.text) : null;
+  if (digit !== null) b.wire = digit - 1;
   if (b.wire !== null) {
     b.answer = [b.wire];
     return;

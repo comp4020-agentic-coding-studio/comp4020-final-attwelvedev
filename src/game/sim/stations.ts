@@ -19,26 +19,88 @@ const WHITE = 4;
 
 // The rule plaque (FR8): the first rule that applies to the wires names the one to cut. The last
 // always applies, so every set of colours has an answer.
-export const WIRE_RULES: { text: string; cut: (c: number[]) => number | null }[] = [
-  { text: "No red wires: cut the second wire.", cut: (c) => (c.includes(RED) ? null : 1) },
+// From room 04 on a plaque shows one of a rule's `riddles` instead of its plain `text` (FR11).
+export const WIRE_RULES: {
+  text: string;
+  riddles: readonly string[];
+  cut: (c: number[]) => number | null;
+}[] = [
+  {
+    text: "No red wires: cut the second wire.",
+    riddles: [
+      "Where no blood runs, the second falls.",
+      "No crimson in the bundle? The second one parts.",
+      "Bare of red, the bundle gives up its second.",
+    ],
+    cut: (c) => (c.includes(RED) ? null : 1),
+  },
   {
     text: "More than one red wire: cut the last red wire.",
+    riddles: [
+      "Blood run double: the last of the red pays.",
+      "Crimson in company: sever the one that came last.",
+      "Two reds or more, and the final red is the debt.",
+    ],
     cut: (c) => (c.filter((x) => x === RED).length > 1 ? c.lastIndexOf(RED) : null),
   },
   {
     text: "The last wire is white: cut the last wire.",
+    riddles: [
+      "A tail pale as bone is a tail to cut.",
+      "If the end has gone to ghost, the end goes.",
+      "Should the last be white as salt, take the last.",
+    ],
     cut: (c) => (c.at(-1) === WHITE ? c.length - 1 : null),
   },
   {
     text: "Exactly one blue wire: cut the blue wire.",
+    riddles: [
+      "One sky among them: sever it.",
+      "A lone blue hangs, and so it hangs no more.",
+      "A single blue in the dark is the one to cut.",
+    ],
     cut: (c) => (c.filter((x) => x === BLUE).length === 1 ? c.indexOf(BLUE) : null),
   },
   {
     text: "More than one yellow wire: cut the first yellow wire.",
+    riddles: [
+      "Gold in plenty: the first of the gold goes.",
+      "Where the yellow crowds, the earliest sun sets.",
+      "Many suns, one dawn: cut the sun that rose first.",
+    ],
     cut: (c) => (c.filter((x) => x === YELLOW).length > 1 ? c.indexOf(YELLOW) : null),
   },
-  { text: "Exactly one red wire: cut the first wire.", cut: () => 0 },
+  {
+    text: "Exactly one red wire: cut the first wire.",
+    riddles: [
+      "One red drop, and the first wire pays for it.",
+      "A lone red keeps watch; the wire at the head falls.",
+    ],
+    cut: () => 0,
+  },
 ];
+
+// A numbered plaque's phrasings (FR12): each resolves to a 1-based wire, with no sum beyond one.
+const ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth"];
+export const NUMBER_RIDDLES: readonly ((n: number) => string)[] = [
+  (n) => `Cut the wire that has ${n - 1} before it.`,
+  (n) => `Step past ${n - 1}; the next one bleeds.`,
+  (n) => `The knife waits at the ${ORDINALS[n - 1]} wire from the left.`,
+];
+
+// What a bot reads: the plain rule or any of its riddles, exactly as written. Null if none.
+export function ruleOfText(text: string): number | null {
+  const i = WIRE_RULES.findIndex((r) => r.text === text || r.riddles.includes(text));
+  return i < 0 ? null : i;
+}
+
+// What a bot reads on a numbered plaque: a bare digit or any phrasing. Null if none.
+export function numberOfText(text: string): number | null {
+  for (let n = 1; n <= ORDINALS.length; n++) {
+    if (text === String(n) || NUMBER_RIDDLES.some((f) => f(n) === text)) return n;
+  }
+  return null;
+}
 
 export function ruleFor(colours: number[]): { rule: number; cut: number } {
   for (const [rule, r] of WIRE_RULES.entries()) {
@@ -251,8 +313,27 @@ export function plaqueText(world: World, id: string): string | undefined {
   if (!s) return undefined;
   // a wire a braille plate names is told by the plate alone: its ink or plaque says nothing (FR5)
   if (platePart(world.room, o.id) !== undefined) return undefined;
-  if (o.params?.numbered === true) return String((s.answer[0] as number) + 1);
-  return WIRE_RULES[s.answer[1] as number]?.text;
+  return plaqueWording(world, o, s);
+}
+
+// Rooms 04 on, a plaque that is not a teaching station's reads as a riddle: one of the rule's (or
+// the number's) pool, seeded the way the answers are, so each read within an attempt agrees. Rooms
+// 01 to 03 and the teaching stations stay plain.
+function plaqueWording(world: World, o: RoomObject, s: StationState): string {
+  const numbered = o.params?.numbered === true;
+  const n = (s.answer[0] as number) + 1;
+  const rule = WIRE_RULES[s.answer[1] as number];
+  const plain = numbered ? String(n) : (rule?.text ?? "");
+  if (o.params?.teach === true || !/^(0[4-9]|[1-9]\d)/.test(world.room.id)) return plain;
+  let h = 0;
+  for (const c of o.id) h = (h * 31 + c.charCodeAt(0)) | 0;
+  const r = rng(world.seed * 1000 + world.attempt + h)();
+  if (numbered) {
+    const f = NUMBER_RIDDLES[Math.floor(r * NUMBER_RIDDLES.length)];
+    return f ? f(n) : plain;
+  }
+  const pool = rule?.riddles ?? [];
+  return pool[Math.floor(r * pool.length)] ?? plain;
 }
 
 const same = (a: Vec, b: Vec) => a.x === b.x && a.y === b.y;
