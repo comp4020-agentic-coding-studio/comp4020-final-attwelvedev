@@ -3,7 +3,7 @@ import roomText from "../../rooms/01-first-steps.room?raw";
 import { faceImage } from "../client/faces.ts";
 import { detectFx, FX_MAX, type Fx, fxMs } from "../client/fx.ts";
 import { captionFor, cueCaptions, type HeldCues, hearCues, heardCues } from "../client/hud.ts";
-import { draw, type FacePop, type Scene } from "../client/render.ts";
+import { draw, type FacePop, type Motion, type Scene } from "../client/render.ts";
 import { type AttractTick, createAttract } from "../game/bots/attract.ts";
 import { FACE_POP_MS } from "../game/channels.ts";
 import { parseRoom } from "../game/rooms/format.ts";
@@ -45,7 +45,7 @@ let lineId = 0;
 
 let runs = 0; // each loop is a new seed, so no two heists play the same
 
-function fresh(now: number): Run {
+export function fresh(now: number): Run {
   const attract = createAttract(room, FEED_ROLES, ++runs);
   const last = attract.next();
   return {
@@ -63,7 +63,7 @@ function fresh(now: number): Run {
 }
 
 // One tick of the run: what each seat now sees, hears and is told.
-function advance(run: Run, now: number) {
+export function advance(run: Run, now: number) {
   const tick = run.attract.next();
   for (const seat of [0, 1, 2] as const) {
     const view = tick.views[seat];
@@ -108,6 +108,18 @@ function between(run: Run, seat: Seat, t: number) {
   });
 }
 
+// Can't see's figure on its feed: which way it faces and whether it walks. Can't see's own view has no
+// entity for its own seat, so `me` is empty for them; the bot's facing is read from the run's world, the
+// way their real screen reads the way they last pushed (the user, Task 70 review).
+export function ownOf(run: Run, seat: Seat, me?: { facing?: Vec }): Motion {
+  const motion = run.last.views[seat].you.motion;
+  return {
+    facing: me?.facing ?? run.attract.world.players[seat].facing,
+    moving: motion?.moving ?? false,
+    blocked: motion?.blocked ?? false,
+  };
+}
+
 function paint(canvas: HTMLCanvasElement, run: Run, seat: Seat, now: number, calm: boolean) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -149,11 +161,7 @@ function paint(canvas: HTMLCanvasElement, run: Run, seat: Seat, now: number, cal
     // Can't see's feed is their own screen: their figure, walking as their bot walks (FR1)
     ...(blind
       ? {
-          own: {
-            facing: me?.facing ?? { x: 0, y: 1 },
-            moving: view.you.motion?.moving ?? false,
-            blocked: view.you.motion?.blocked ?? false,
-          },
+          own: ownOf(run, seat, me),
           nowMs: now, // so the figure hops; reduced motion (calm) still holds it
         }
       : {}),
