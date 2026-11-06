@@ -284,7 +284,7 @@ The contract is overview §4.1 and §4.4. Phase-specific choices:
   - the id snapshot diff adds only `o1`
 - **Depends on:** Tasks 72 and 73.
 
-### Task 75: The braille card on Can't see's screen (FR7 client, FR8 pulse) [x] (review queued)
+### Task 75: The braille card on Can't see's screen (FR7 client, FR8 pulse) [x]
 
 - **Description:**
   - Can't see's HUD shows the card (spec §4.1 A) while `view.braille` is set, with the teaching line
@@ -335,8 +335,8 @@ The contract is overview §4.1 and §4.4. Phase-specific choices:
 - [x] `pnpm test:unit` passes (on this branch).
 - [x] `pnpm lint:rooms` passes, and `spec/rooms.test.ts` passes (room 4's plate `o1` is in; all three rotations clear).
 - [x] The full check passes (overview §3 recipe), 362 s.
-- [x] The user accepted Task 75. (review queued)
-- [x] Tick phase 03 in overview §5 and commit. (ticked as "review queued", like phases 01 and 02: Task 75's human review is still queued)
+- [x] The user accepted Task 75 (2026-11-07), after two rounds of review: the card under the side-job chip, clear gaps between the key's cells.
+- [x] Tick phase 03 in overview §5 and commit.
 
 ## 7. Requirements coverage (this phase)
 
