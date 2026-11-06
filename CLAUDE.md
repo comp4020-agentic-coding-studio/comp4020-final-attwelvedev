@@ -1,213 +1,154 @@
 # Project invariants
 
-- **Persistence:** only `/data` survives a restart or redeploy (`fly.toml`).
-  Only heist records persist (ADR 0009); lobbies and games live in memory and
-  die with the process.
-- **Run it:** `pnpm install && pnpm build && pnpm start` serves on `:8080`
-  (DB at `./.data/app.db`; set `DATABASE_PATH` to move it). One Node process
-  (`server.ts`) serves the Astro handler and a WebSocket endpoint at `/ws`.
-  `pnpm dev` is for hot reload.
-- **Dependencies:** adding one needs a reason (and an ADR if it shapes the
-  app). The machine has 256 MB; check the cost before adding.
-- **Shape of the app:** a three-player browser co-op heist where each player is
-  missing a channel (Can't see, Can't hear, Can't speak) and they coordinate by
-  sending messages by *method* (callout, text, voice, clip, face, mark). Who may
-  send and who receives each is the `SENDS`/`RECEIVES` table in
-  `src/game/types.ts` (ADR 0011); the sender never gets its own message back. Each room is a set of **stations** (safes, wires, keypads, radios, switches, music boxes, vaults) worked by the team, with **gear** (goggles, stethoscope, earpiece, UV torch) carried one at a time in a gear slot. Rooms 4 to 9 each hide
-  one optional **cache** (ADR 0020): a side chamber behind a secret door, found by pressing the one
-  motif tile the owner's riddle names, its station worked by the team, a vault behind a second secret
-  door holding an item only the owner can take into a keepsake slot (separate from the gear slot).
-  A person is an anonymous device cookie plus a nickname (ADR 0008); the server
-  runs a headless simulation per room over WebSockets (ADR 0007). See
-  `specs/2026-10-08-sensory-heist.md` and
-  `plans/2026-10-08-sensory-heist-00-overview.md`.
-- **Layering:** `src/game/` (pure, headless) <- `src/net/` (socket server) and
-  `src/client/` (browser); client reaches net only via `net/protocol.ts`; pages
-  never import `src/net/` (separate module instance), so state both sides share
-  lives on `globalThis` behind one accessor (`sharedStats()`). The client may
-  also import the pure `src/game/crew.ts` (the lobby's rotation table calls
-  `pickCrew`).
-  `src/layering.test.ts` enforces the import rules.
-- **Perception:** the server sends each client only what its role perceives
-  (ADR 0007). Never add a field to a view or message without checking it
-  against the role tables in `src/game/types.ts`.
-- **Sensory parity:** team-wide events (loot, checkpoint, caught, alarm, cleared,
-  flag, exit, sequence results) reach every role in the same tick. Local events
-  reach the roles that can perceive them from where they stand: the sighted see
-  what is in their line of sight (`visibleFrom`; walls, vents and closed doors
-  block it, glass does not), the hearing hear what the sound reaches (walls and
-  glass stop it, vents do not; ADR 0012). Every sound has a row in
-  `src/game/parity.test.ts`; the typecheck and test fail without one. The alarm
-  and the `clue` chime are the two deliberate exceptions (a `clue` has no
-  picture, by design). Gear makes the other deliberate exceptions: the stethoscope's tumbler and the earpiece's tones
-  are sounds with no picture, and UV ink and goggle sight are pictures with no sound. A new station
-  sound goes in `parity.test.ts` with its row. A cache's `uncover` and `stash` are team-wide with parity rows, a take reuses
-  the `loot` cue (with its owner and item), the riddle is an own-seat-only view field, the hidden
-  chamber and both secret doors read as wall on every sighted map until they open, and a secret door
-  opens with no `door` event (never the ordinary click). A cache dial's inspection plate sounds
-  `hollow` underfoot (a parity row) and is left out of Can't see's briefing on purpose. A new effect or state for the sighted goes in `detectFx`
-  (`src/client/fx.ts`) or the view, with its sound.
-- **Rooms:** `rooms/NN-slug.room` (format in the phase 02 plan §4.1). **A cache** is one per room
-  (rooms 4 to 9) with its chamber appended **below** the room's rows (padded with `#`, so no existing
-  coordinate moves); its station type must already have been met, its uncover tile and its clue are
-  linted to need different roles, its chamber is sealed and holds only its own station (a dial
-  cache also holds its inspection plate and its own stethoscope), and it is never in a door's
-  `opensWhen`. Rooms are station puzzles linted by `lintPresence` and `lintClues` (`src/game/rooms/lint.ts`),
-  bring in at most two new things each (`src/game/rooms/pacing.test.ts`), and are cleared by
-  perception-only bots (ADR 0018), with no lead beats. Bots ignore caches and chambers (they get no job, and `inkPost` skips a cache's ink).
-  **Ids are numbered in reading order** (`Q`, `c`, `u`, `g`, `D`...), so a new letter placed before an
-  existing one of its kind silently renumbers it; append new ones after the existing ones in reading
-  order, then confirm no pre-existing object moved. Never
-  hand-write one without running `pnpm lint:rooms` and `spec/rooms.test.ts`
-  (bots must clear it in every role rotation). Bots solve only from what they
-  perceive and what teammates send (ADR 0018): never hand a bot the
-  simulation's state; a station type needs its decoder in
-  `src/game/bots/decode.ts`.
-- **Look before you build a room:** `pnpm mockup:room rooms/NN-slug.room out.html` (or a draft
-  in `spec/fixtures/drafts/`) writes one self-contained page: click a tile, pick a role, and it
-  shows what that role sees and hears from there, as the game's own `viewFor` reports it
-  (`src/game/rooms/mockup.ts`; its test checks it against `viewFor`). It shows who can perceive what,
-  not how it is drawn or whether it is fun, so it does not replace the three-tab playtest.
-- **Naming and layout:** domain services in `src/lib/` take `db` first and
-  never touch requests. Unit tests sit beside the code; promises to users get
-  `spec/<area>.test.ts`; browser checks get one `spec/layout/<area>.test.ts`
-  per area.
+- **Persistence:** only `/data` survives a restart or redeploy (`fly.toml`). Only heist
+  records persist (ADR 0009); lobbies and games live in memory.
+- **Run it:** `pnpm install && pnpm build && pnpm start` serves on `:8080` (DB at
+  `./.data/app.db`; `DATABASE_PATH` moves it). One Node process (`server.ts`) serves Astro
+  and a WebSocket at `/ws`. `pnpm dev` is for hot reload.
+- **Dependencies:** adding one needs a reason (and an ADR if it shapes the app). The machine
+  has 256 MB; check the cost first.
+- **The app:** a three-player co-op heist where each player lacks a channel (Can't see, Can't
+  hear, Can't speak) and they coordinate by *method*; `SENDS`/`RECEIVES` in
+  `src/game/types.ts` say who may send and receive each (ADR 0011). See
+  `specs/2026-10-08-sensory-heist.md` and the ADRs.
+- **Layering:** `src/game/` (pure) <- `src/net/` (socket server) and `src/client/`
+  (browser). The client reaches net only through `net/protocol.ts`; pages never import
+  `src/net/` (a separate module instance), so state both sides share lives on `globalThis`
+  behind one accessor (`sharedStats()`). The client may import the pure `src/game/crew.ts`.
+  `src/layering.test.ts` enforces this.
+- **Perception:** the server sends each client only what its role perceives (ADR 0007).
+  Check any new view or message field against the role tables in `src/game/types.ts`.
+- **Sensory parity:** team-wide events (loot, checkpoint, caught, alarm, cleared, flag,
+  exit, sequence results, a cache's `uncover` and `stash`) reach every role in the same
+  tick. Local events reach the roles that can perceive them from where they stand: the
+  sighted see their line of sight (`visibleFrom`; walls, vents and closed doors block it,
+  glass does not), the hearing hear what the sound reaches (walls and glass stop it, vents
+  do not; ADR 0012). Every sound has a row in `src/game/parity.test.ts` (typecheck and test
+  fail without one); the alarm, the `clue` chime and gear are the deliberate exceptions,
+  each with its reason in its row. A new effect or state for the sighted goes in `detectFx`
+  (`src/client/fx.ts`) or the view, with its sound. A cache's riddle and a braille plate's
+  cells are own-seat-only view fields; a hidden chamber and its secret doors read as wall
+  on every sighted map until they open, with no `door` event.
+- **Rooms:** `rooms/NN-slug.room`, linted by `pnpm lint:rooms`, at most two new things per
+  room (`pacing.test.ts`), cleared by perception-only bots (ADR 0018): a bot solves only
+  from what it perceives and what teammates send, so never hand it the simulation's state,
+  and a station type needs its decoder in `src/game/bots/decode.ts`. A cache's chamber is
+  appended **below** the room's rows. **Ids are numbered in reading order**, so a letter
+  placed before an existing one of its kind renumbers it: append new ones after, and
+  confirm nothing moved (`src/game/rooms/ids.test.ts`). Run `pnpm lint:rooms` and
+  `spec/rooms.test.ts` after any room edit. `pnpm mockup:room` shows what each role
+  perceives on a tile; it does not replace the three-tab playtest.
+- **Naming and layout:** services in `src/lib/` take `db` first and never touch requests.
+  Unit tests sit beside the code; promises to users get `spec/<area>.test.ts`; browser
+  checks get one `spec/layout/<area>.test.ts` per area.
 
 # Working method
 
 ## Corrections go into the harness
 
-When I correct the agent for something it could get wrong again, fix the
-cause, not just the instance: add a rule here, or a check in `spec/` or
-`pnpm check`, then log it in `PROCESS_LOG.md`. A repeated mistake is a missing
-sensor. A bug fix starts with a failing test that reproduces it.
+When I correct the agent for something it could get wrong again, fix the cause: add a rule
+here, or a check in `spec/` or `pnpm check`, then log it in `PROCESS_LOG.md`. A repeated
+mistake is a missing sensor. A bug fix starts with a failing test that reproduces it.
 
-Every new test or spec that guards a promise is shown to fail first: break the code it
-guards on purpose (revert the line, flip the flag, put the layout back), watch it go red,
-then restore the code. The plan or commit says what was broken. A test that cannot be made
-to fail is deleted. Phase 12's Task 38 and Task 39 had a vacuous test this caught; phase
-13's Task 49 broke the wheel's axe case to show one failure took three others with it.
+Every new test that guards a promise is shown to fail first: break the code it guards on
+purpose, watch it go red, restore the code, and say in the commit what was broken. A test
+that cannot be made to fail is deleted. Break checks go through a script that asserts the
+text it replaces, never a bare `sed` (one silently did not apply).
+
+A render bug that will not reproduce from the model is reproduced by drawing the real scene
+on a real canvas and looking, before any fix. Measure the op that carries the symptom (a
+figure's body, not its shadow).
 
 ## Visual changes read DESIGN.md first
 
-Before changing the look, read `DESIGN.md`. A change to the look, a token, a
-component's job or the copy rules updates it in the same commit;
-`spec/design.test.ts` fails if it names a token or component that doesn't exist.
+Before changing the look, read `DESIGN.md`. A change to the look, a token, a component's job
+or the copy rules updates it in the same commit; `spec/design.test.ts` fails on a name that
+doesn't exist.
 
 ## Ideas mid-phase go to the backlog
 
-When a new feature idea or spec-level issue comes up partway through a phase,
-don't act on it. Add one dated line to `specs/backlog.md` and finish the
-current phase first. At each phase boundary, I sort the backlog with
-`/brainstorm-feature`. Plain bugs skip the backlog: fix them now, starting with
-a failing test.
+A new idea or spec-level issue partway through a phase is not acted on: add one dated line
+to `specs/backlog.md` and finish the phase. I sort the backlog with `/brainstorm-feature`
+at each phase boundary. Plain bugs skip the backlog: fix them now, test first.
 
 ## Before pushing
 
-- `pnpm check` (types, lint/format, `spec/` tests) must be green. It runs
-  against the live app, so start it first (`APP_URL`, default
-  `http://localhost:8080`) with `pnpm start:check`: a throwaway database, so
-  the specs neither read nor fill `./.data/app.db`. A spec that needs an empty
-  board runs its own app (`spec/leaderboard.test.ts`). `pnpm format` auto-fixes style.
-- A visual change is verified by running the app and looking at a screenshot at
-  desktop and phone width: the render is the truth, not the source. A layout
-  spec measures the promise, not a stand-in for it (slot boxes that never
-  touch, not "centres are far apart"; a target at least 48 px, not "the scale
-  is 1"; text not clipped via `scrollHeight`), for every role and viewport.
-  When a component is reused outside the parent its styles were written for,
-  or is given a longer name, title or number than the test used, look at a
-  screenshot at that place and with that input before reporting done.
+- `pnpm check` (types, lint/format, `spec/` tests) must be green, not only the tests near
+  the change. It runs against the live app: start it first (`APP_URL`, default
+  `http://localhost:8080`) with `pnpm start:check`, a throwaway database. A spec that needs
+  an empty board runs its own app (`spec/leaderboard.test.ts`). `pnpm format` fixes style.
+- A visual change is verified by running the app and looking at a screenshot at desktop and
+  phone width: the render is the truth, not the source. A layout spec measures the promise,
+  not a stand-in (slot boxes that never touch, not "centres are far apart"; a target at
+  least 48 px; text not clipped via `scrollHeight`), for every role and viewport. A new
+  overlay that shares a corner of the frame with another names that neighbour in its spec.
+  When a component is reused outside its parent, or given a longer name or number than the
+  test used, screenshot that place with that input before reporting done.
 
 ## Tests
 
-vitest runs a file's tests serially and files in parallel, so the slowest file
-sets `pnpm check`'s time. The browser specs run at most 3 files at once
-(`maxWorkers` in `vitest.config.ts`): uncapped, they starved the machine and
-timed out at random. Don't raise it without timing a full check twice. Put slow (browser, server-booting) tests in a file per
-area, and measure per file (`vitest run --reporter=json`) before guessing at a
-fix.
+vitest runs a file's tests serially and files in parallel, so the slowest file sets
+`pnpm check`'s time. Browser specs run at most 3 files at once (`maxWorkers` in
+`vitest.config.ts`): uncapped, they starved the machine. Don't raise it without timing a full
+check twice. Put slow tests in a file per area, and measure per file
+(`vitest run --reporter=json`) before guessing at a fix.
 
 ## Flaky tests
 
-A red run that goes green on a retry is a flaky test, and a retry hides it.
-Never retry to get green. Run `pnpm check:flaky` (give it a number for more
-runs): a test that fails in **every** run is a bug, one that fails in **some**
-is flaky. Then fix the cause:
-
-- A picture of the canvas is a moving image: compare `settledHash(page)`
-  (`spec/playUi.ts`), never one `canvasHash` frame, and never one taken right
-  after a game starts.
-- Wait for the thing, not a time: `expect.poll` or `waitFor`, not
-  `waitForTimeout` followed by an assertion. A count read earlier is stale
-  while other spec files add and drop lobbies on the same server.
-- A gesture whose speed matters (a flick under 200 ms) is dispatched inside the
-  page in one task: each step from the test runner is a round trip.
-- A rate is events over the time they took, not events in a window whose edge
-  the runner decides.
-- Do not raise a timeout to make a failure go away. Raise it when the work is
-  genuinely slower under load, and say why beside the number (see
-  `vitest.config.ts`).
-
-`spec/flaky-patterns.test.ts` fails on the two shapes precise enough to grep
-for. Add a rule there when a new shape can be matched without false alarms;
-otherwise it belongs in this list. Restart the server between runs: leftovers
-fill its 40-lobby cap and time out unrelated specs.
+A red run that goes green on a retry is a flaky test, and a retry hides it. Never retry to
+get green. Run `pnpm check:flaky` (a number for more runs): a test that fails in **every**
+run is a bug, one that fails in **some** is flaky. Fix the cause, never a timeout. The shapes
+that have caused flakes, with their rules, are in `spec/flaky-patterns.test.ts`; add a rule
+there when a shape can be matched without false alarms.
 
 ## Editing files
 
-Replace a named block, not "from here to the end of the file": slicing to the
-end silently drops whatever follows. Formatters rewrite files under you, so
-match on a short unique string, and re-read before a large edit.
+Replace a named block, not "from here to the end of the file": slicing to the end silently
+drops what follows. Formatters rewrite files under you, so match on a short unique string
+and re-read before a large edit.
 
 ## Hygiene
 
-Format only with `pnpm format` (Biome, line width 100); never run `prettier`: a stray run
-rewrote 60 files outside the task. Run `git status` after any formatter.
-Never hand-edit build output or generated files; fix the source and rebuild.
-Never commit a key, and never widen `.gitignore` (`.env*`, `mise.local.toml`,
-`.claude/`) to make one committable. One commit per unit of work once
-`pnpm check` passes, with a message that says what changed and why.
+Format only with `pnpm format` (Biome); never run `prettier` (a stray run rewrote 60
+files). Run `git status` after any formatter. Never hand-edit build output or generated
+files. Never commit a key, and never widen `.gitignore` (`.env*`, `mise.local.toml`,
+`.claude/`) to make one committable. One commit per unit of work once `pnpm check` passes,
+saying what changed and why.
 
 ## Harness config
 
-`harness/claude-settings.json` is the project's Claude Code config
-(`.claude/settings.json` is a gitignored symlink to it). It holds the hooks
-(course-fixed files are blocked from edits, deploys from a dirty tree are
-blocked) and permissions. If a block is wrong for a legitimate change, ask me;
-don't route around it.
+`harness/claude-settings.json` is the Claude Code config (`.claude/settings.json` is a
+gitignored symlink to it): hooks (course-fixed files are blocked from edits, deploys from a
+dirty tree are blocked) and permissions. If a block is wrong for a legitimate change, ask
+me; don't route around it.
 
 ## Logging
 
-`src/middleware.ts` writes one JSON line per request to stdout (`flyctl logs`),
-and socket events are `game` lines too. A log line is the app's account of what
-users did, so:
+`src/middleware.ts` writes one JSON line per request to stdout (`flyctl logs`); socket events
+are `game` lines too. A log line is the app's account of what users did:
 
-- Never log a field that is not in `redact`'s allowlist (`src/lib/log.ts`).
-  Add to it on purpose, with a reason.
-- Never log a raw path, nickname, team name, chat text, voice, token or cookie.
-  Never put chat text, callout or clip choices, face or stamp ids, nicknames,
-  team names or lobby codes in a game `detail`: log the *kind* of thing
-  (`method`, `role`, `kind`), not its content.
-- A new POST endpoint needs an `ACTIONS` entry (`src/lib/requestLog.ts`). A new
-  socket event goes through `logGame` (`src/lib/gameLog.ts`), one line per
-  discrete event and never per tick, with its name added to `GameEvent`.
+- Never log a field not in `redact`'s allowlist (`src/lib/log.ts`); add to it on purpose,
+  with a reason.
+- Never log a raw path, nickname, team name, chat text, voice, token or cookie. A game
+  `detail` holds the *kind* of thing (`method`, `role`, `kind`), never callout or clip
+  choices, face or stamp ids, nicknames, team names or lobby codes.
+- A new POST endpoint needs an `ACTIONS` entry (`src/lib/requestLog.ts`). A new socket event
+  goes through `logGame` (`src/lib/gameLog.ts`): one line per discrete event, never per
+  tick, its name added to `GameEvent`.
 
 ## Decisions (ADRs)
 
-Decisions that are expensive to reverse, or that someone will ask about later
-(the stack, what counts as a person, what persists, how a change reaches every
-open session), get an ADR in `doc/adr/NNNN-short-slug.md` in Nygard's format.
-Status starts `proposed` and becomes `accepted` once I approve it. An accepted
-record is never edited: a changed mind is a new record, and the old one's status
-becomes `superseded by NNNN`. Commit the ADR with the work it governs.
+Decisions that are expensive to reverse, or that someone will ask about later, get an ADR in
+`doc/adr/NNNN-short-slug.md` (Nygard's format). Status starts `proposed` and becomes
+`accepted` once I approve it. An accepted record is never edited: a changed mind is a new
+record, and the old one becomes `superseded by NNNN`. Commit the ADR with the work it
+governs.
 
 ## PROCESS.md and PROCESS_LOG.md
 
-`PROCESS.md` is the graded account of **my** decisions, rewritten (not appended
-to) at each crit and citing commits that actually resolve (`pnpm check:evidence`;
-never cite before committing). A moment only counts if it says why the call beat
-the obvious one and how I knew the result was right. The strongest land the
-correction in the harness itself. Log every qualifying moment to
-`PROCESS_LOG.md` (append-only, format in its header comment) as it happens,
-especially corrections I make after seeing a result. Link ADRs rather than
-restating them.
+`PROCESS.md` is the graded account of **my** decisions, rewritten (not appended to) at each
+crit, citing commits that resolve (`pnpm check:evidence`; never cite before committing). A
+moment counts only if it says why the call beat the obvious one and how I knew the result
+was right; the strongest land the correction in the harness itself. Log every qualifying
+moment to `PROCESS_LOG.md` (append-only, format in its header comment) as it happens,
+especially corrections I make after seeing a result. Link ADRs rather than restating them.
