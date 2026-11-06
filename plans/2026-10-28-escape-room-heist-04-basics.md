@@ -103,7 +103,7 @@ updated to the new first room.
 
 ### Task 15: Rooms 1 to 3 played
 
-- [x] Screenshots taken and the playtest done by the user, who accepted it (it was queued in `review/QUEUE.md` from the overnight run).
+- [x] Screenshots taken and the playtest done by the user, who accepted it on 2026-10-31 (it was queued in `review/QUEUE.md` from the overnight run).
 
 - **Description:** The user plays rooms 1 to 3 in three tabs.
 - **Files touched:** fixes from the review only (a failing test first for any bug).
@@ -118,10 +118,10 @@ updated to the new first room.
 
 ## 6. Phase Definition of Done
 
-- [x] Every task in §5 is complete and its tests pass (Task 15's review accepted)
+- [x] Every task in §5 is complete and its tests pass (Task 15's review accepted 2026-10-31)
 - [x] `pnpm test:unit` passes
 - [x] `pnpm build && pnpm start` then `pnpm check` passes
-- [x] Task 15 human review accepted by the user
+- [x] Task 15 human review accepted by the user on 2026-10-31
 - [x] Tick this phase in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)

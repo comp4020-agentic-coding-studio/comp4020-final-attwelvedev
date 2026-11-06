@@ -261,7 +261,7 @@ tone = steady sine; pip = 880 Hz blip; clunk = low square; bellnote `n` = sine
 - [x] Every task in §5 is complete and its tests pass
 - [x] `pnpm test:unit` passes
 - [x] `pnpm build && pnpm start` then `pnpm check` passes (118 files, 1510 tests, 255 s)
-- [x] Task 7's numbers recorded; Tasks 8–10 human reviews accepted by the user (look, sound, HUD; not solvability)
+- [x] Task 7's numbers recorded; Tasks 8–10 human reviews accepted by the user on 2026-10-31 (look, sound, HUD; not solvability)
 - [ ] Branch `wip/escape-room-02-client` merged into `play-overhaul` (or its commits replayed), one commit per task (deferred to morning)
 - [ ] Tick this phase in overview §5 and commit
 
