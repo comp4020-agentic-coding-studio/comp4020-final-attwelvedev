@@ -1273,3 +1273,62 @@ crosses its depth, "like in real life". That superseded screenshot 48's hat cut,
 Rules for the harness: measure the op that carries the symptom, not a neighbour of it; when a render bug will not
 reproduce from the model, render the real scene and look before writing another fix; and run pnpm check, not only the
 tests near the change (b7d221e shipped a lint error I would have caught).
+
+## 2026-11-07 — The dial bug was the bots, not Can't see
+
+(not yet committed: `specs/2026-11-07-bots-help-caches.md` and ADR 0024, proposed, go in with the work they govern)
+
+The backlog line for room 4's cache dial blamed the method table: Can't see "has no way to say now",
+so the tumbler heard through the stethoscope could not reach the turner. Sorting the backlog, I told
+the agent that framing was missing information: the dial is only unplayable with bots. A person
+playing Can't see just says "now". The real cause is caches FR8 and ADR 0020: bots never work a
+cache. One person with two bots is therefore alone at a station that needs two seats, one at the
+safe's back and one at the dial.
+
+The obvious fix from the backlog's framing was a new message method or a visible cue for the tick.
+That would have changed perception and parity for a problem humans do not have. Reframed, the fix is
+to lift an accepted rule. So it is Architecture: ADR 0024 supersedes 0020's bots clause, which 0020
+itself had predicted ("a relay skill for bots would lift it"). I chose all six caches, bots starting
+straight away, and a bot owner taking its keepsake. Uncovering stays human, so a crew of only bots
+still never finds a cache. How the result will be checked: per room, one person scripted to uncover
+and nothing else, with two perception-only bots, must take the keepsake; shown red first by removing
+a room's cache jobs.
+
+## 2026-11-07 — A "playtest" that could not fail the way a person does
+
+(not yet committed: `specs/2026-11-07-playtests.md`, ADRs 0027 and 0028, proposed, go in with the work they govern)
+
+Brainstorming the automated playtest, the agent proposed bots driving real browser seats with
+invariants read off each frame. It was cheap, deterministic, and caught the phase 14 bugs that lived
+between layers. I asked how that could be authentic, like real people playtesting. It could not be:
+the bots read the server's view data rather than the screen, carry a hand-written decoder for every
+puzzle, and coordinate perfectly. A clue sent correctly but drawn unreadably would still be solved,
+and the run would pass. The agent had also drifted from the backlog line, which asked for an agent
+playing in a browser, toward what was easy to make deterministic.
+
+The obvious move was to ship the bot run as "the playtest". That would have given a green check that
+looked like evidence about players and was not. I split it into two deliverables, each named for what
+it is. A regression run (bots, frame invariants) catches the gap between what the server sends and
+what the client draws. An agent playtest (one Claude agent per seat) plays only from that seat's
+screenshot and page text: no view data, no decoders, comms only through the game. It finds unreadable
+clues and comms that do not carry what a role needs. Human playtests still decide fun. How I'll know it
+worked: the agent run's stuck points are leads I replay by hand, and the plan's first task proves the
+course proxy accepts screenshots before anything else is built.
+
+## 2026-11-07 — The agent playtest dropped for a $2 review, once the plan put a price on it
+
+(not yet committed: `specs/2026-11-07-playtests.md` revised, ADR 0028 rewritten while still proposed, the plan re-cut to three phases)
+
+The approved spec made the agent playtest first-class: three Claude agents playing a heist from their
+own pages. Planning it priced one heist at about $55 on Sonnet, plus six tasks to build. I judged that
+budget better spent on devising and building new ideas, and asked for alternatives. The agent laid out
+four: the regression run alone ($0), a one-shot review of the run's screenshots (~$2), the agent loop on
+Haiku (~$3, noisier), or the plan as written ($55).
+
+The obvious move was to keep the loop and swap in a cheaper model. That keeps the build cost and makes
+every lead less trustworthy. I chose the review: the regression run already reaches every beat, so a
+model only has to look at what each role perceived there and say what a first-time player could not
+read or would misread. It keeps the finding I most wanted (unreadable clues, misleading labels) at
+about 4% of the cost and three tasks instead of six. What it gives up, comms gaps, is what my human
+playtests already catch. How I'll know it was right: the plan's last task reviews room 01 for real and
+I judge whether its findings are leads or noise before any full heist is reviewed.
