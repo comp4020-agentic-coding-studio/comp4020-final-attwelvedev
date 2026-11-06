@@ -223,7 +223,7 @@ None.
   - the header comment says that updating with `-u` is a deliberate act and must be checked
 - **Depends on:** none.
 
-### Task 70: The landing Can't see feed walks (FR1) [x] (human review queued)
+### Task 70: The landing Can't see feed walks (FR1) [x]
 
 - **Description:** the home page's Can't see feed shows the dim figure, bobbing and kicking up dust
   while its bot walks, and still otherwise.
@@ -256,7 +256,7 @@ None.
 - [x] Tasks 67 to 70 complete, each shown red then green.
 - [x] `pnpm test:unit` passes.
 - [x] The full check passes (overview §3 recipe).
-- [x] The user has accepted Task 70's human review. (review queued)
+- [x] The user accepted Task 70's human review (2026-11-06), with one correction (see the Corrections log): the figure's eyes follow its movement.
 - [x] Tick phase 01 in overview §5 and commit.
 
 ## 7. Requirements coverage (this phase)
@@ -274,4 +274,8 @@ None.
 
 ## Corrections log
 
-(empty)
+- 2026-11-06, Task 70 human review: the feed's Can't see figure always looked down, but its eyes should
+  point the way it moves, as on the other feeds and in the game. Cause: Can't see's own view has no entity
+  for their own seat, so the feed's facing fell back to `{ x: 0, y: 1 }`. The first attempt drew the walk
+  and checked only that it walked, never which way it faced. Fixed in `62cbf54`: the facing is read from the
+  run's world, with a test that the figure's facing equals the bot's.

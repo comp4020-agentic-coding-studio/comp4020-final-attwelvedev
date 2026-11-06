@@ -117,7 +117,7 @@ See overview §2.4. The user ruled that a person with nothing played shows no Pl
 
 ## 5. Task breakdown
 
-### Task 81: Played roles as outline icons on the role screen (FR4) [x] (review queued)
+### Task 81: Played roles as outline icons on the role screen (FR4) [x]
 
 - **Description:** each crew row shows the roles that person played earlier this heist as small
   outline shapes behind the word "Played", labelled "Already played: …".
@@ -197,7 +197,7 @@ See overview §2.4. The user ruled that a person with nothing played shows no Pl
 - [x] `pnpm test:unit` passes.
 - [x] `pnpm lint:rooms` passes, and `spec/rooms.test.ts` passes.
 - [x] The full check passes (overview §3 recipe).
-- [x] The user accepted Task 81. (review queued)
+- [x] The user accepted Task 81 (2026-11-06), with two corrections (see the Corrections log): coloured outlines, and bots show Played too.
 - [x] Tick phase 02 in overview §5 and commit.
 
 ## 7. Requirements coverage (this phase)
@@ -213,4 +213,10 @@ None.
 
 ## Corrections log
 
-(empty)
+- 2026-11-06, Task 81 human review: the played icons should have coloured outlines matching the role
+  colours; they were drawn in the muted text colour. The first attempt kept colour to mean "now" and outline
+  to mean "history", and made history colourless. Fixed in `b8069f5`: hollow shapes stroked in their role's
+  colour, still hollow, so filled still means now.
+- 2026-11-06, Task 81 human review: played roles did not show for bots, and should, for consistency. A bot
+  is not a person, so nothing recorded its roles. Fixed in `b7d221e`: the game keeps each bot's history under
+  its name, with a socket spec that fails on the old server.

@@ -359,3 +359,10 @@ None.
   because the layout spec checked the card against the wheel and captions but never against the
   side-job chip, and checked no row gap. Fixed with a spec for both (red on the old CSS, both
   viewports), then the CSS.
+- 2026-11-06, Task 75 human review, second round: the card still overlapped the side-job chip, and what I
+  had misread as vertical row spacing was horizontal: at narrow widths the gap between the key's cells
+  looked the same as the gap between dots inside one cell, so a row read as one even row. The first fix
+  used a fixed offset under a 48 px chip, but the chip wraps to two lines. Fixed in `3bd4745`: the card shares
+  one column with the chip and flows under it, and the gap between cells is wider than the dot pitch, with a
+  spec for each. The chip overlap is checked by structure in the fixture room, which has no cache, so a real
+  chip is on the user's eye.
