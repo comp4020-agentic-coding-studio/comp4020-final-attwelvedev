@@ -553,13 +553,20 @@ function uncover(world: World, tile: Vec, seat: Seat): boolean {
     const cache = cacheOf(o);
     if (!cache || world.cacheUncovered.includes(o.id) || world.stations[o.id]?.solved) continue;
     if (!cache.tiles.some((t) => t.motif === cache.motif && same(t.at, tile))) continue;
-    world.cacheUncovered.push(o.id);
-    syncCacheDoors(world);
-    const door = secretDoors(world.room).find((d) => d.id === o.id)?.chamber.tiles[0] as Vec;
-    world.events.push({ kind: "cache", id: o.id, result: "uncover", seat, at: centre(door) });
+    forceUncover(world, o.id, seat);
     return true;
   }
   return false;
+}
+
+// The world change an uncover makes: the id is recorded, the chamber door opens and the team-wide
+// `cache` event is pushed. Also what the headless bot proof does in a person's place
+// (src/game/bots/solve.ts), so the bots meet exactly the event a person's Act gives them.
+export function forceUncover(world: World, id: string, seat: Seat): void {
+  world.cacheUncovered.push(id);
+  syncCacheDoors(world);
+  const door = secretDoors(world.room).find((d) => d.id === id)?.chamber.tiles[0] as Vec;
+  world.events.push({ kind: "cache", id, result: "uncover", seat, at: centre(door) });
 }
 
 // The Acts pressed this tick (seats in order) worked on the stations under them. Returns the first

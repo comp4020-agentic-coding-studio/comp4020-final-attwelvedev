@@ -24,6 +24,10 @@
   {"beat":3,"tow":"blind","to":[23,1],"prefer":"deaf"},
   {"beat":3,"station":"Q2","prefer":"mute"},
   {"beat":3,"listen":"Q2","at":[23,1],"prefer":"blind"},
+  {"beat":3,"cache":"Q3","tow":"blind","to":[24,7],"prefer":"deaf"},
+  {"beat":3,"cache":"Q3","station":"Q3","prefer":"mute"},
+  {"beat":3,"cache":"Q3","listen":"Q3","at":[24,7],"prefer":"blind"},
+  {"beat":3,"cache":"Q3","keepsake":"Q3"},
   {"beat":4,"goTo":"E","all":true}]}}
 ---
 ##################################

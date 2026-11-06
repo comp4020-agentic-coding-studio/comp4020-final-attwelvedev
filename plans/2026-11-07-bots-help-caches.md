@@ -175,7 +175,7 @@ state to keep in step across send-backs, for no behaviour `currentJob` lacks.
 
 ## 5. Task breakdown
 
-### Task 83: Cache jobs parse, lint and claim (FR2, FR5 parse, FR6)
+### Task 83: Cache jobs parse, lint and claim (FR2, FR5 parse, FR6) ✅
 
 - **Description:**
   - `Job` gains `cache?: string`.
@@ -211,7 +211,7 @@ state to keep in step across send-backs, for no behaviour `currentJob` lacks.
   line), watch "may work the cache" go red, then restore.
 - **Depends on:** none.
 
-### Task 84: Bots perceive a cache's state and take cache jobs first (FR1, FR3, FR4, FR5)
+### Task 84: Bots perceive a cache's state and take cache jobs first (FR1, FR3, FR4, FR5) ✅
 
 - **Description:** in `brain.ts`:
   - `observe` records `known.cachesOpen` and `known.cachesTaken` from `view.cacheEvent` (mapping `at`
@@ -249,7 +249,7 @@ state to keep in step across send-backs, for no behaviour `currentJob` lacks.
   beat job" go red, then restore.
 - **Depends on:** Task 83.
 
-### Task 85: Room 4's cache jobs, proven headless (FR7 room 4)
+### Task 85: Room 4's cache jobs, proven headless (FR7 room 4) ✅ (review queued)
 
 - **Description:**
   - **Harness.** `solveRoom`'s fourth parameter (`humans`, which no caller passes today: checked in

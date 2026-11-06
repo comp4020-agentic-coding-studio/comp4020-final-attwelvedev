@@ -482,3 +482,10 @@ plate is part of the station it serves, so the pacing test does not count it), m
 
 - **Ask:** accept `doc/adr/0023-*.md` (status `proposed`; left unchanged overnight). Phases 01 to 05 that it governs are built.
 - Also still queued for accepting: ADRs 0024 to 0028 (proposed).
+
+### caches Task 85: room 4's cache jobs (human review, pending)
+
+- **Look at:** play room 4 (The Safe) as Can't hear with two bots, then as Can't speak with two bots. Uncover the cache (the moon tile at (10,5)) and watch: the bots go into the chamber; the Can't-see bot listens at the back (24,7); the dial gets entered on its "stop"; the vault opens and the owner (seat 1) takes the watch. A pass is a cache solved without you touching the dial (as Can't hear), and as Can't speak you turn the dial while the bot listens.
+- **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080`, make a lobby with two bots, play to room 4.
+- **Screenshots:** `review/n7-caches-task85-room4-mockup-1280.png`, `review/n7-caches-task85-room4-mockup-375.png` (the room mockup; the behaviour is not a picture).
+- **Judged:** `spec/bots-caches.test.ts` shows three bots plus a harness uncover solve Q3 and the owner take the keepsake in every rotation with no catches; nobody has played it with a person.

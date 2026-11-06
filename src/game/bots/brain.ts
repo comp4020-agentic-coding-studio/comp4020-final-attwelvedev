@@ -300,7 +300,10 @@ function thinkBlind(view: RoleView, inbox: ChannelMessage[], m: BotMemory, now: 
   // the earpiece: the code it plays, heard the same twice, is texted a digit a key (decode.ts)
   m.toTell.push(...earStep(view, m.ear));
   // a braille plate under its hand: Act once to read it, then text its number a digit a turn
-  const read = view.act === "Read the plate" && !view.braille && !m.actWas;
+  // (or its own cache's keepsake, once the vault is open and the hint says it can be taken: ADR 0024)
+  const take = view.cache?.state === "vault" && view.act?.startsWith("Take the") === true;
+  const want = (view.act === "Read the plate" && !view.braille) || take;
+  const read = want && !m.actWas;
   m.actWas = read;
   const cells = view.braille ? JSON.stringify(view.braille.cells) : null;
   const plate = view.braille ? readBraille(view.braille.cells) : null;
@@ -367,7 +370,15 @@ function readStations(
   linkedFrom(room, view, known.stations);
   for (const o of stations) {
     const b = known.stations[o.id] as StationBelief;
-    DECODERS[o.params?.type as StationType]?.(view, inbox, b, o, view.tick, platePart(room, o.id));
+    // While a cache is open and unsolved, a "stop" is about the cache's safe (its listener is at the
+    // back of that one): the room's own dial does not take it as its number (ADR 0024)
+    const aside =
+      !cacheOf(o) &&
+      Object.keys(known.cachesOpen ?? {}).some((id) => known.stations[id]?.solved !== true);
+    const heard = aside
+      ? inbox.filter((m) => !(m.method === "callout" && m.callout === "stop"))
+      : inbox;
+    DECODERS[o.params?.type as StationType]?.(view, heard, b, o, view.tick, platePart(room, o.id));
   }
   linkedFrom(room, view, known.stations);
   if (view.sounds.some((c) => c.kind === "caught")) known.holding = {};

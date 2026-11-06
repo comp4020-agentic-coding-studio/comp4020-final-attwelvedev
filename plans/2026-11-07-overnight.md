@@ -14,3 +14,12 @@
 - bp05/79: the human review of the riddle wording → built, committed and queued in `review/QUEUE.md` (review queued), because the user is asleep. Reversible by editing the pools.
 - bp05/82: the five backlog lines were already under "Decided" as "undecided" → I rewrote their tails to point at the plan's tasks that built them (the brute-force line to Task 71, the jam), and added the parked braille-cache-hints line. Reversible by `git revert` of the backlog commit.
 - bp05/82: ADR 0023 stays `proposed`; acceptance requested in `review/QUEUE.md`.
+
+## caches
+
+- caches/85: the harness uncover trigger ("a seat in the beat the chamber hangs off") would fire at the start of beat 3 (x 13), before the stethoscope has changed hands, and the cache's `tow` and `listen` jobs would be active before the guide had done its beat → I trigger when any seat reaches the chamber's columns (x of the chamber rect), because a person finds the motif tile on the way there. Reversible by editing `uncoverWhenReached` in `src/game/bots/solve.ts`.
+- caches/84: a tile or tow job is only "done" while standing on its tile, so a finished cache job came back and the bot oscillated between cache and beat jobs → I made a finished cache job sticky (`BotMemory.cacheDone`, cleared on a send-back), and left cache jobs out of the "a later job is done" rule. Reversible by removing `cacheDone`.
+- caches/85: a Can't-see bot at a cache safe's back says "stop" and the room's own dial (Q2) took the same word as its number, so Can't speak entered a wrong Q2 answer and the team was caught → while a cache is open and unsolved, `stop` callouts are hidden from non-cache decoders. Reversible by removing `aside` in `readStations`.
+- caches/85: a bot owner needs an Act to take the keepsake, but `thinkBlind` only pressed Act for a braille plate → added the take (`view.cache.state === "vault"` and the act hint starts "Take the") to the same Act path. Reversible by removing `take` in `thinkBlind`.
+- caches/85: room 4's cache jobs: the plan names `take` of g1 only if the stethoscope is not with Can't see → I omitted it (the beat-1/2 jobs already hand it over before the cache is reachable). Reversible by adding a cache `take` job.
+- caches/85: the human review → built, committed and queued in `review/QUEUE.md` (review queued), because the user is asleep.
