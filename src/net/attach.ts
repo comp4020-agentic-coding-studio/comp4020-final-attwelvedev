@@ -1158,7 +1158,7 @@ function relayVoice(socket: WebSocket, who: string, data: Uint8Array): void {
     }
     if (!voiceLimit.allow(who, Date.now())) return;
     out = encodeVoiceOut(seat, frame);
-    countVoice(running.game, seat, receivers, Date.now()); // the comms map counts a spurt, not a frame
+    countVoice(running.game, seat, receivers); // the comms map counts voice as time: a frame is 60 ms
     for (const receiver of receivers) {
       const device = lobby.seats[receiver]?.who;
       if (device) to.add(device);

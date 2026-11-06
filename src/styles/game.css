@@ -1820,30 +1820,11 @@ fieldset.settings {
 .comms-edge.active .comms-head {
   fill: var(--goal);
 }
-/* one chip per arrow that carried anything: the map's keyboard and screen-reader way in */
-.comms-edges {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--s-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.comms-chip {
-  min-height: var(--target);
-  padding: 0 var(--s-2);
-  border: 1px solid var(--ui-muted);
-  border-radius: var(--r);
-  background: var(--glass);
-  color: var(--ui);
-  font: inherit;
-  font-size: var(--t-14);
-  font-variant-numeric: tabular-nums;
-}
-.comms-chip[aria-pressed="true"] {
-  border-color: var(--goal);
-  box-shadow: inset 0 0 0 1px var(--goal);
+/* each arrow is a stop of its own (tab, point, tap): lit while it is the one under the line below. The hit
+   stroke under it is 20 units wide in a 320-unit map, so a thin arrow is still easy to land on. Keyboard
+   focus takes the app's own ring (shell.css), the same as every other control. */
+.comms-edge {
+  cursor: pointer;
 }
 .comms-count {
   fill: var(--ui);

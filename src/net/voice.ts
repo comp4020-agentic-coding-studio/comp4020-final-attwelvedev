@@ -9,6 +9,9 @@ const WATCHER_VOICE = 2;
 const HEADER_IN = 13;
 export const MAX_FRAME_BYTES = 400;
 export const MAX_FRAMES_PER_S = 25;
+// How much speech one frame carries (the client encodes 60 ms Opus frames, ADR 0010): the comms map counts
+// voice in time, from the frames it relays.
+export const VOICE_FRAME_MS = 60;
 
 export interface VoiceFrameIn {
   seq: number;

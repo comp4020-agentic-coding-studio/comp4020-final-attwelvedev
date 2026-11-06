@@ -300,16 +300,16 @@ describe.each([
     expect(await map.locator(".comms-edge").count()).toBe(6);
     const nick = (p: Player) => ["Ana", "Bo", "Cy"][p.seat];
     const busiest = map.locator(".comms-summary");
-    expect(await busiest.innerText()).toMatch(
-      new RegExp(`^Most messages went ${nick(deaf)} → (Ana|Cy)\\.`),
-    );
-    // an arrow's breakdown, from its button (a 48 px target) on focus
-    const chip = map.getByRole("button", { name: new RegExp(`^${nick(deaf)} to ${nick(mute)}:`) });
-    expect((await chip.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(48);
-    await chip.focus();
+    expect(await busiest.innerText()).toMatch(new RegExp(`^Most went ${nick(deaf)} → (Ana|Cy)\\.`));
+    // an arrow is its own stop: no separate buttons, and pointing at it says what it carried
+    expect(await map.locator("button").count()).toBe(0);
+    const arrow = map.locator(`[data-edge="${deaf.seat}>${mute.seat}"]`);
+    await arrow.focus();
     expect(await map.locator(".comms-detail").innerText()).toBe(
       `${nick(deaf)} → ${nick(mute)}: callout 3`,
     );
+    await arrow.hover({ force: true });
+    expect(await map.locator(".comms-detail").innerText()).toContain("callout 3");
     const box = await map.boundingBox();
     expect(box?.width ?? 0).toBeGreaterThan(200);
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);

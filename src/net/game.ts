@@ -22,6 +22,7 @@ import {
   type Vec,
 } from "../game/types.ts";
 import { BOT_NAME, type LobbyState, MAX_PEOPLE, newPerson, seatCrew } from "./lobbies.ts";
+import { VOICE_FRAME_MS } from "./voice.ts";
 
 export interface CrewMember {
   seat: Seat;
@@ -82,7 +83,6 @@ export interface Game {
   heistPeople: Map<string, { nickname: string; bot: boolean }>; // everyone who played any room, for the heist record
   counted: number; // the last room whose crew was written to people's `played` (a restart is not a second play)
   comms: Comms; // this room's deliveries, for the comms map on the cleared card
-  talking: Partial<Record<Seat, number>>; // when each seat's last voice frame went out, to tell spurts apart
 }
 
 // Bots start afresh with each room: their memory is of that room and these roles.
@@ -106,7 +106,8 @@ export interface CommsEdge {
   from: Seat;
   to: Seat;
   count: number;
-  by: Partial<Record<Method, number>>;
+  by: Partial<Record<Method, number>>; // messages by method; never voice
+  voiceMs?: number; // time spoken along this arrow, from the frames relayed; absent when none
 }
 
 export function countComms(
@@ -123,13 +124,10 @@ export function countComms(
   }
 }
 
-// Voice arrives as a stream of frames: a frame after a second or more of silence starts a new
-// spurt, and each spurt counts once.
-export const SPURT_GAP_MS = 1000;
-export function countVoice(game: Game, from: Seat, receivers: readonly Seat[], now: number): void {
-  const last = game.talking[from];
-  game.talking[from] = now;
-  if (last !== undefined && now - last < SPURT_GAP_MS) return;
+// Voice arrives as a stream of frames, each VOICE_FRAME_MS of speech. The comms map counts voice as time, not
+// as messages: a spurt cannot be told apart when someone holds the mic open (toggle to talk), but the seconds
+// they spoke can. The frames are kept under the `voice` key and read as milliseconds by `commsEdges`.
+export function countVoice(game: Game, from: Seat, receivers: readonly Seat[]): void {
   countComms(game.comms, from, receivers, "voice");
 }
 
@@ -140,8 +138,13 @@ export function commsEdges(comms: Comms): CommsEdge[] {
     for (const to of [0, 1, 2] as const) {
       const by = comms[`${from}>${to}`];
       if (!by) continue;
-      const count = Object.values(by).reduce((n, c) => n + (c ?? 0), 0);
-      if (count > 0) edges.push({ from, to, count, by: { ...by } });
+      const { voice = 0, ...messages } = by;
+      const count = Object.values(messages).reduce((n, c) => n + (c ?? 0), 0);
+      if (count > 0 || voice > 0) {
+        const edge: CommsEdge = { from, to, count, by: messages };
+        if (voice > 0) edge.voiceMs = voice * VOICE_FRAME_MS;
+        edges.push(edge);
+      }
     }
   }
   return edges;
@@ -149,7 +152,6 @@ export function commsEdges(comms: Comms): CommsEdge[] {
 
 function freshComms(game: Game): void {
   game.comms = {};
-  game.talking = {};
 }
 
 // Every new world gets its own seed for its station answers (FR5): the clock, plus a counter so two
@@ -180,7 +182,6 @@ export function startGame(lobby: LobbyState, rooms: Room[]): Game {
     heistPeople: new Map(),
     counted: -1,
     comms: {},
-    talking: {},
   };
   seatBots(
     game,

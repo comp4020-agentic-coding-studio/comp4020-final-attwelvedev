@@ -22,36 +22,46 @@ const key = (from: Seat, to: Seat) => `${from}>${to}`;
 const name = (crew: readonly Member[], seat: Seat) =>
   crew.find((c) => c.seat === seat)?.nickname ?? `Seat ${seat + 1}`;
 
-// What went along one arrow, by method, in the wheel's words: "callout 10 · voice 4".
-export function breakdown(by: CommsEdge["by"]): string {
-  return (Object.entries(by) as [Method, number][])
-    .filter(([, n]) => n > 0)
-    .sort((a, b) => b[1] - a[1])
-    .map(([method, n]) => `${method} ${n}`)
-    .join(" · ");
+// Time spoken, in the words a person uses: "45 s", "2 min 5 s". Rounded to the second; a blip is "1 s".
+export function voiceTime(ms: number): string {
+  const total = Math.max(1, Math.round(ms / 1000));
+  const min = Math.floor(total / 60);
+  const sec = total % 60;
+  return min === 0 ? `${sec} s` : sec === 0 ? `${min} min` : `${min} min ${sec} s`;
 }
 
-// The one-line summary: the busiest direction, then the quietest sender's total. Names come from
-// the crew here in the browser; the server only ever sends seats.
+// What went along one arrow, in the wheel's words: messages by method, then voice as time:
+// "callout 10 · voice 45 s".
+export function breakdown(by: CommsEdge["by"], voiceMs = 0): string {
+  const parts = (Object.entries(by) as [Method, number][])
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([method, n]) => `${method} ${n}`);
+  if (voiceMs > 0) parts.push(`voice ${voiceTime(voiceMs)}`);
+  return parts.join(" · ");
+}
+
+// How much an arrow weighs for its thickness: a message is one, and every VOICE_PER_MESSAGE_MS of speech
+// counts as one more, so a long talk is as thick as the same number of texts.
+const VOICE_PER_MESSAGE_MS = 5000;
+const weight = (e: CommsEdge | undefined) =>
+  e ? e.count + (e.voiceMs ?? 0) / VOICE_PER_MESSAGE_MS : 0;
+
+// What is written on an arrow: its message count and its voice time, "4 · 12 s".
+const tally = (e: CommsEdge): string =>
+  [e.count > 0 ? String(e.count) : "", e.voiceMs ? voiceTime(e.voiceMs) : ""]
+    .filter(Boolean)
+    .join(" · ");
+
+// The one-line summary: the busiest direction, by weight. Names come from the crew here in the browser;
+// the server only ever sends seats.
 export function commsSummary(edges: readonly CommsEdge[], crew: readonly Member[]): string {
   const busiest = edges.reduce<CommsEdge | null>(
-    (best, e) => (best === null || e.count > best.count ? e : best),
+    (best, e) => (best === null || weight(e) > weight(best) ? e : best),
     null,
   );
   if (!busiest) return "No messages this room.";
-  const sent = ([0, 1, 2] as const).map((seat) => ({
-    seat,
-    total: edges.filter((e) => e.from === seat).reduce((n, e) => n + e.count, 0),
-  }));
-  const quietest = sent.reduce((low, s) => (s.total < low.total ? s : low));
-  const most = `Most messages went ${name(crew, busiest.from)} → ${name(crew, busiest.to)}.`;
-  const total =
-    quietest.total === 0
-      ? "nothing"
-      : quietest.total === 1
-        ? "1 message"
-        : `${quietest.total} in total`;
-  return `${most} ${name(crew, quietest.seat)} sent ${total}.`;
+  return `Most went ${name(crew, busiest.from)} → ${name(crew, busiest.to)}.`;
 }
 
 function Shape({ role, x, y }: { role: Role; x: number; y: number }) {
@@ -62,8 +72,8 @@ function Shape({ role, x, y }: { role: Role; x: number; y: number }) {
 }
 
 // The comms map on the cleared card (overhaul FR35): the three players as a triangle, an arrow
-// each way between every two of them, thicker the more went that way, with its count. Hover or
-// focus an arrow for what it carried, by method. Counts and methods only: never what was said.
+// each way between every two of them, thicker the more went that way, with its count. Point at,
+// tap or focus an arrow for what it carried, by method. Counts and methods only: never what was said.
 export function CommsMap({
   edges,
   crew,
@@ -74,7 +84,7 @@ export function CommsMap({
   title?: string;
 }) {
   const [active, setActive] = useState<string | null>(null);
-  const most = Math.max(1, ...edges.map((e) => e.count));
+  const most = Math.max(1, ...edges.map(weight));
   const pairs: [Seat, Seat][] = [
     [0, 1],
     [0, 2],
@@ -88,12 +98,13 @@ export function CommsMap({
   return (
     <section class="comms-map" aria-labelledby="comms-map-title">
       <h3 id="comms-map-title">{title}</h3>
-      {/* the picture, for the eye and the pointer; the buttons under it say the same for a keyboard
-          and a screen reader */}
-      <svg viewBox="0 0 320 250" aria-hidden="true">
+      {/* each arrow is its own stop: point at it, tap it, or tab to it, and the line under the map says what
+          it carried */}
+      <svg viewBox="0 0 320 250">
+        <title>Who sent what to whom</title>
         {arrows.map(([from, to]) => {
           const edge = edges.find((e) => e.from === from && e.to === to);
-          const count = edge?.count ?? 0;
+          const count = edge ? weight(edge) : 0;
           const a = CORNER[from];
           const b = CORNER[to];
           const len = Math.hypot(b.x - a.x, b.y - a.y);
@@ -117,11 +128,21 @@ export function CommsMap({
             .map((p) => `${p.x},${p.y}`)
             .join(" ");
           return (
-            <g key={k} data-edge={k} class={active === k ? "comms-edge active" : "comms-edge"}>
-              {/* the browser's own tooltip: an arrow's breakdown on hover */}
-              <title>
-                {`${name(crew, from)} → ${name(crew, to)}: ${edge ? breakdown(edge.by) : "nothing"}`}
-              </title>
+            // biome-ignore lint/a11y/useSemanticElements: an SVG group cannot be a <button>; role + tabindex is the way to make a shape one
+            <g
+              key={k}
+              data-edge={k}
+              class={active === k ? "comms-edge active" : "comms-edge"}
+              tabIndex={0}
+              role="button"
+              aria-pressed={active === k}
+              aria-label={`${name(crew, from)} to ${name(crew, to)}: ${edge ? breakdown(edge.by, edge.voiceMs) : "nothing"}`}
+              onFocus={() => setActive(k)}
+              onBlur={() => setActive((s) => (s === k ? null : s))}
+              onMouseEnter={() => setActive(k)}
+              onMouseLeave={() => setActive((s) => (s === k ? null : s))}
+              onClick={() => setActive(k)}
+            >
               {/* a wide clear stroke under the arrow, so a thin one is still easy to point at */}
               <line
                 class="comms-hit"
@@ -138,10 +159,10 @@ export function CommsMap({
                 y2={count === 0 ? tip.y : base.y}
                 stroke-width={width}
               />
-              {count > 0 && <polygon class="comms-head" points={headPoints} />}
-              {count > 0 && (
+              {edge && <polygon class="comms-head" points={headPoints} />}
+              {edge && (
                 <text class="comms-count" x={mid.x} y={mid.y} dy="0.35em">
-                  {count}
+                  {tally(edge)}
                 </text>
               )}
             </g>
@@ -169,33 +190,9 @@ export function CommsMap({
           );
         })}
       </svg>
-      {edges.length > 0 && (
-        <ul class="comms-edges" aria-label="Messages each way">
-          {edges.map((e) => {
-            const k = key(e.from, e.to);
-            return (
-              <li key={k}>
-                <button
-                  type="button"
-                  class="comms-chip"
-                  aria-pressed={active === k}
-                  aria-label={`${name(crew, e.from)} to ${name(crew, e.to)}: ${e.count} (${breakdown(e.by)})`}
-                  onFocus={() => setActive(k)}
-                  onBlur={() => setActive((s) => (s === k ? null : s))}
-                  onMouseEnter={() => setActive(k)}
-                  onMouseLeave={() => setActive((s) => (s === k ? null : s))}
-                  onClick={() => setActive(k)}
-                >
-                  {name(crew, e.from)} → {name(crew, e.to)} {e.count}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
       <p class="comms-detail" aria-live="polite">
         {shown
-          ? `${name(crew, shown.from)} → ${name(crew, shown.to)}: ${breakdown(shown.by)}`
+          ? `${name(crew, shown.from)} → ${name(crew, shown.to)}: ${breakdown(shown.by, shown.voiceMs)}`
           : "Point at an arrow to see how it was sent."}
       </p>
       <p class="comms-summary">{commsSummary(edges, crew)}</p>

@@ -1019,12 +1019,14 @@ describe("the comms map's counts", () => {
     ]);
   });
 
-  it("counts a voice spurt once, and a new one after a second of silence", () => {
+  it("counts voice as time: each frame is 60 ms, however the person talks (toggle or push)", () => {
     const game = startGame(lobby("a", "b", "c"), rooms);
-    for (let t = 0; t < 2_000; t += 60) countVoice(game, 1, [2], 10_000 + t); // one long spurt
-    expect(game.comms).toEqual({ "1>2": { voice: 1 } });
-    countVoice(game, 1, [2], 12_000 + 1_100); // after more than a second's silence
-    expect(game.comms).toEqual({ "1>2": { voice: 2 } });
+    for (let i = 0; i < 50; i++) countVoice(game, 1, [2]); // 50 frames: 3 s, with no gap to tell spurts apart
+    expect(commsEdges(game.comms)).toEqual([{ from: 1, to: 2, count: 0, by: {}, voiceMs: 3000 }]);
+    countComms(game.comms, 1, [2], "text");
+    expect(commsEdges(game.comms)).toEqual([
+      { from: 1, to: 2, count: 1, by: { text: 1 }, voiceMs: 3000 },
+    ]);
   });
 
   it("counts what a person sends through relay, and only to the seats it reached", () => {
@@ -1058,12 +1060,12 @@ describe("the comms map's counts", () => {
     const l = lobby("a", "b", "c");
     const game = startGame(l, rooms);
     countComms(game.comms, 0, [1], "text");
-    countVoice(game, 1, [2], 1_000);
+    countVoice(game, 1, [2]);
     game.world.status = "cleared";
     advanceRoom(game, l, rooms);
     expect(game.comms).toEqual({});
-    countVoice(game, 1, [2], 1_100); // a new room: a new spurt, though it is under a second later
-    expect(game.comms).toEqual({ "1>2": { voice: 1 } });
+    countVoice(game, 1, [2]); // a new room counts from nothing
+    expect(commsEdges(game.comms)).toEqual([{ from: 1, to: 2, count: 0, by: {}, voiceMs: 60 }]);
     restartGame(game);
     expect(game.comms).toEqual({});
   });
