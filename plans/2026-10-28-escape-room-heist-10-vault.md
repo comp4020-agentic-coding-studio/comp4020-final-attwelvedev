@@ -84,7 +84,7 @@ export function think(room: Room, view: RoleView, inbox: ChannelMessage[], memor
   nothing outside comments.
 - **Depends on:** Task 13, Task 25.
 
-### Task 27: Build and play room 9 [x] (review queued)
+### Task 27: Build and play room 9 [x]
 
 - **Description:** Author `rooms/09-the-vault.room` per this file's §4 (teaching versions first, then
   real), with beats, intents, hints, checkpoints and labels; `rooms/04-cameras-lasers.room`, `05-vault.room` and their solutions removed, with every test that named them moved to `spec/fixtures/rooms/` copies; `spec/rooms.test.ts` puts `00-stations-draft` back in the draft sweep.
@@ -107,7 +107,7 @@ export function think(room: Room, view: RoleView, inbox: ChannelMessage[], memor
 - [x] Every task in §5 is complete and its tests pass
 - [x] `pnpm test:unit` passes
 - [x] `pnpm build && pnpm start` then `pnpm check` passes
-- [x] Task 27 human review accepted (review queued)
+- [x] Task 27 human review accepted by the user, with no changes asked
 - [x] Tick this phase in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)
