@@ -1238,3 +1238,20 @@ an owner, not a new mechanic for the team to learn, so `sidejob` joined the kind
 `EVERYWHERE` in the pacing test. The cap stays where it was for real mechanics. I knew the cap still held
 because the pacing test still fails a room that brings a third station type. Phase 14 later replaced side
 jobs with caches (ADR 0020), whose pacing follows the same reasoning.
+
+## 2026-11-06 — Review findings sent back as redrafts, and a defect I would not have found by looking
+
+c020151, 62cbf54, 5de387e, b8069f5
+
+I reviewed phase 03's braille card and three earlier tasks in one sitting. Two of my findings were really bugs
+(the landing feed's Can't see figure always faced down, and a figure standing against a wall was cut on the
+cone's diagonal where a station there is cut on the wall's vertical line); the agent gave each a failing test
+first. The feed bug was not in the drawing: Can't see's own view has no entity for their own seat, so the
+fallback `{x: 0, y: 1}` always won. The test compared the figure's facing with the bot world's, which is what made
+the cause plain. For the card, the agent redrafted instead of reopening the approach, because I had only
+questioned spacing and placement.
+
+The miss behind the card overlapping the side-job chip was a sensor gap: the layout spec checked the card against
+the wheel and the captions, never against the chip beside it. The spec now measures that, and the row gap too.
+Rule for the harness: when a new overlay shares a corner of the frame with an existing one, its layout spec names
+that neighbour.
