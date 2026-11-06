@@ -349,6 +349,11 @@ describe("the crew column after a room", () => {
           els.map((e) => e.getAttribute("fill")),
         ))
           expect(fill).toBe("none");
+        // each hollow shape is stroked in its role's colour, not the muted text colour (the user, Task 81 review)
+        for (const stroke of await shapes.evaluateAll((els) =>
+          els.map((e) => e.getAttribute("stroke")),
+        ))
+          expect(stroke).toMatch(/^var\(--role-(blind|deaf|mute)\)$/);
         // it sits inside the name column, not on a line of its own under the row
         expect(await played.evaluate((el) => getComputedStyle(el).flexBasis)).not.toBe("100%");
         expect(await played.evaluate((el) => el.parentElement?.className)).toBe("crew-who");
