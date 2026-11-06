@@ -272,12 +272,27 @@ function fromTile(view: RoleView, s: { dir?: Vec }, at: Vec): boolean {
 // Turned until it is tuned (seen solved, or its static heard giving way to a tone); a turn is never a
 // wrong answer, so the turner searches. Once tuned, every PIP_TICKS it gives its digit: on its face
 // for the sighted (shows[1]) and as `n` pips for hearers, from where it stands.
-const radio: Decoder = (view, _inbox, b, o) => {
+const radio: Decoder = (view, _inbox, b, o, _now, plated) => {
+  // a radio with a plate has decoy bands that pip wrong digits (FR10): only a pip heard or seen once
+  // the radio is solved, on its real band, is its digit
+  if (plated !== undefined && !b.solved) return;
   if (b.shows.length === 2) b.answer = [b.shows[1] as number];
   for (const s of view.sounds)
     if (s.kind === "pip" && s.n !== undefined && fromTile(view, s, o.tiles[0] as Vec))
       b.answer = [s.n];
 };
+
+// The pad a plated radio's turner presses next: toward the band Can't see texted (the last number
+// it was sent), by the shorter way round the knob. Null while no band is known or it is there.
+export function radioPad(o: RoomObject, b: StationBelief): Vec | null {
+  const target = b.numbers.at(-1);
+  const setting = b.shows[0];
+  const range = typeof o.params?.range === "number" ? o.params.range : 10;
+  const pads = tilesOf(o.params?.pads);
+  if (target === undefined || setting === undefined || setting === target) return null;
+  const right = (target - setting + range) % range;
+  return (right <= range - right ? pads[1] : pads[0]) ?? null;
+}
 
 // The pip count of a radio, once known, is sent as a digit by a seat that can text it to the one at
 // the keypad (P3); a radio whose digit feeds nothing is never told.

@@ -19,6 +19,7 @@ import {
   emptyEar,
   keypadStep,
   linkedFrom,
+  radioPad,
   radioToTell,
   readBraille,
   readNumber,
@@ -1086,5 +1087,44 @@ describe("a dial whose digit a plate carries (Task 74)", () => {
     const bare = { ...emptyBelief(), shows: [4, 0], numbers: [7] };
     DECODERS.dial?.(view, [], bare, Q, 1);
     expect(bare.answer[1]).toBeNull();
+  });
+});
+
+describe("a plated radio's turner (FR10)", () => {
+  const room = roomWith(["#########", "#1.Q....#", "#2......#", "#3......#", "#########"], {
+    Q1: {
+      type: "radio",
+      pads: [
+        [2, 2],
+        [4, 2],
+      ],
+      range: 8,
+    },
+  });
+  const o = room.objects.find((x) => x.id === "Q1");
+  if (!o) throw new Error("no Q1");
+  const belief = (setting: number, told?: number): StationBelief => ({
+    ...emptyBelief(),
+    shows: [setting],
+    numbers: told === undefined ? [] : [told],
+  });
+
+  it("waits until it is told a band", () => {
+    expect(radioPad(o, belief(0))).toBeNull();
+  });
+
+  it("turns toward the told band by the shorter way, and stops there", () => {
+    expect(radioPad(o, belief(0, 5))).toEqual({ x: 2, y: 2 }); // 0 -> 5 is 3 notches back, not 5 up
+    expect(radioPad(o, belief(0, 2))).toEqual({ x: 4, y: 2 });
+    expect(radioPad(o, belief(5, 5))).toBeNull();
+  });
+
+  it("ignores a decoy's pips: only a solved radio gives its digit", () => {
+    const b = { ...emptyBelief(), shows: [3, 2] };
+    DECODERS.radio?.({ sounds: [] } as unknown as RoleView, [], b, o, 0, 0);
+    expect(b.answer).toEqual([]);
+    DECODERS.radio?.({ sounds: [] } as unknown as RoleView, [], { ...b, solved: true }, o, 0, 0);
+    DECODERS.radio?.({ sounds: [] } as unknown as RoleView, [], b, o, 0);
+    expect(b.answer).toEqual([2]);
   });
 });

@@ -1190,18 +1190,20 @@ describe("lintPlates", () => {
     expect(plates(r)).toEqual(["plate o1: Q1's plaque names the wire to cut"]);
   });
 
-  it("today's rooms 5 to 9, gated, each lack only their plate; room 4 has its own", () => {
+  it("today's rooms 5 to 9, gated, each lack only their plate; rooms 4 and 6 have their own", () => {
     const rooms = loadRooms("./rooms").filter((r) => /^0[4-9]-/.test(r.id));
     expect(rooms).toHaveLength(6);
     for (const r of rooms) {
       const want =
-        r.id === "04-the-safe" ? [] : ["room needs exactly one braille plate (o), has 0"];
+        r.id === "04-the-safe" || r.id === "06-lights-out"
+          ? []
+          : ["room needs exactly one braille plate (o), has 0"];
       expect(plates(r), r.id).toEqual(want);
     }
   });
 
   it("room 4 is gated, and carries one plate for Q2's second digit (Task 74)", () => {
-    expect(PLATE_ROOMS).toEqual(["04-the-safe"]);
+    expect(PLATE_ROOMS).toEqual(["04-the-safe", "06-lights-out"]);
     const four = loadRooms("./rooms").find((r) => r.id === "04-the-safe") as Room;
     expect(lintPlates(four)).toEqual([]);
     const plate = four.objects.filter((o) => o.kind === "braille");

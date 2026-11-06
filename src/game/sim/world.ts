@@ -37,6 +37,7 @@ export interface StationState {
   answer: number[];
   input: number[];
   solved: boolean;
+  tuned?: boolean; // a radio sitting on a band (real or decoy): it tones and pips, solved or not
   reveal?: number; // a wing station's symbol (0 to SYMBOLS - 1), drawn when it is solved
 }
 

@@ -187,7 +187,7 @@ From Task 71:
 - **Depends on:** none in this phase (Task 74's plate gathering is optional; rests from plates are
   added in Task 77).
 
-### Task 78: Room 6's radio has decoys and a plate names the real band (FR5 room 6, FR10)
+### Task 78: Room 6's radio has decoys and a plate names the real band (FR5 room 6, FR10)  — done
 
 - **Description:**
   - room 6 gains `o` `{"for":"Q3","part":0}`

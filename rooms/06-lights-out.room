@@ -2,26 +2,30 @@
  "beats":[
   {"name":"The radio","x":[0,19],"intent":{"blind":"hears the static clear to a tone, then counts the pips","deaf":"reads the card in the alcove round the corner","mute":"turns the little radio until the static clears"}},
   {"name":"The switches","x":[0,19],"intent":{"blind":"hears each switch clunk","deaf":"watches the lamps through the glass and marks each switch to press","mute":"presses the switches Can't hear marks"}},
-  {"name":"The keypad","x":[20,38],"intent":{"blind":"follows the corridor to the vent","deaf":"tunes the radio, counts its pips and texts the number","mute":"listens at the vent for the code, finds the gap where the moon goes, and presses the keys"}},
+  {"name":"The plate","x":[20,22],"intent":{"blind":"reads the braille plate for the radio's real band and texts it","deaf":"leads Can't see to the plate","mute":"waits at the flag"}},
+  {"name":"The radio","x":[23,24],"intent":{"blind":"waits by the radio","deaf":"waits by the radio","mute":"turns the radio to the band Can't see texts: a wrong band tones too, but its pips are the wrong digit"}},
+  {"name":"The keypad","x":[25,38],"intent":{"blind":"follows the corridor to the vent","deaf":"walks to the vent","mute":"counts the pips of the real band, listens at the vent for the code, finds the gap where the moon goes, and presses the keys"}},
   {"name":"Out","x":[39,43],"intent":{"blind":"walks out","deaf":"walks out","mute":"walks out"}}],
  "objects":{"Q1":{"type":"radio","pads":[[3,1],[5,1]],"range":6,"teach":true},"Q2":{"type":"switches","buttons":[[8,2],[9,2],[10,2]],"cols":3,"lamps":[[13,2],[14,2],[15,2]],"teach":true},"T1":{"of":"Q5"},"Q3":{"type":"radio","pads":[[22,1],[24,1]],"range":8,"yields":"Q4","motif":"moon"},"Q4":{"type":"keypad","keys":[[34,2],[35,2],[36,2],[34,3],[35,3],[36,3],[34,4],[35,4],[36,4]],"clue":"c1","length":4,"motif":"moon","slot":{"from":"Q3","at":2}},"Q5":{"type":"switches","buttons":[[1,10],[2,10],[3,10]],"cols":3,"lamps":[[5,10],[6,10],[7,10]],
    "cache":{"owner":3,"motif":"moon","riddle":"Under the moon, match the lamps.","item":"ring",
     "tiles":[{"at":[17,5],"motif":"moon"},{"at":[18,6],"motif":"star"}],
     "chamber":{"rect":[1,10,9,12],"door":[1,9],"vault":{"rect":[8,12,9,12],"door":[7,12],"item":[9,12]}}}},
   "T2":{"of":"Q2"},
-  "c1":{},"D2":{"opensWhen":["Q1","Q2"]},"D1":{"opensWhen":["Q4"]}},
+  "c1":{},"o1":{"for":"Q3","part":0},"D2":{"opensWhen":["Q1","Q2"]},"D1":{"opensWhen":["Q4"]}},
  "hints":{"jobs":[
   {"beat":1,"station":"Q1","prefer":"mute"},
   {"beat":1,"watch":"Q2","at":[12,5],"read":[2,7],"prefer":"deaf"},
   {"beat":1,"goTo":[6,5],"prefer":"blind"},
   {"beat":2,"station":"Q2","prefer":"mute"},
   {"beat":3,"goTo":"K1","all":true},
-  {"beat":3,"station":"Q3","at":[23,2],"prefer":"deaf"},
-  {"beat":3,"station":"Q4","at":[26,6],"prefer":"mute"},
-  {"beat":4,"goTo":"E","all":true}]}}
+  {"beat":3,"tow":"blind","to":[21,2],"prefer":"deaf"},
+  {"beat":3,"read":"o1","prefer":"blind"},
+  {"beat":4,"station":"Q3","at":[23,2],"prefer":"mute"},
+  {"beat":5,"station":"Q4","at":[26,6],"prefer":"mute"},
+  {"beat":6,"goTo":"E","all":true}]}}
 ---
 ####################################t#######
-#1..Q....Q..#...####...Q....####...Q...#####
+#1..Q....Q..#...####.o.Q....####...Q...#####
 #2..........#...####........####.......#####
 #3..........#===####........####.......#####
 #####.##====.....######.########.......D..E#

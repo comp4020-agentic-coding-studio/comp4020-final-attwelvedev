@@ -8,6 +8,7 @@ import {
   JAM_TICKS,
   noteOf,
   plaqueText,
+  redrawOne,
   ruleFor,
   stationShows,
   WIRE_COLOURS,
@@ -289,6 +290,84 @@ describe("radio", () => {
     expect(st(w).input).toEqual([setting]);
     expect(kinds(all)).not.toContain("dye");
     expect(kinds(all)).not.toContain("caught");
+  });
+});
+
+describe("a radio a braille plate names has decoy bands (FR10)", () => {
+  const RADIO = {
+    type: "radio",
+    pads: [
+      [6, 4],
+      [8, 4],
+    ],
+    range: 8,
+  };
+  const plated = (seed: number): World => {
+    const w = stationWorld({ Q1: RADIO }, seed);
+    w.room.objects.push({
+      id: "o1",
+      kind: "braille",
+      tiles: [{ x: 2, y: 2 }],
+      visibleTo: ["deaf", "mute"],
+      audibleTo: [],
+      params: { for: "Q1", part: 0 },
+    });
+    // drawn again now the plate is there
+    const o = w.room.objects.find((x) => x.id === "Q1") as NonNullable<World["room"]["objects"][0]>;
+    redrawOne(w, o, st(w));
+    return w;
+  };
+  const turnTo = (w: World, value: number) => {
+    for (let i = 0; i < 8 && st(w).input[0] !== value; i++) press(w, { x: 8, y: 4 });
+  };
+
+  it("draws three distinct settings, and decoy digits that are not the real one", () => {
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      const a = st(plated(seed)).answer;
+      expect(a).toHaveLength(6);
+      expect(new Set([a[0], a[2], a[4]]).size).toBe(3);
+      for (const v of [a[0], a[2], a[4]]) {
+        expect(v).toBeGreaterThanOrEqual(1);
+        expect(v).toBeLessThanOrEqual(7);
+      }
+      expect(a[3]).not.toBe(a[1]);
+      expect(a[5]).not.toBe(a[1]);
+    }
+  });
+
+  it("a decoy is tuned and pips a wrong digit, but never solves; the real band solves", () => {
+    let tested = 0;
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      const w = plated(seed);
+      const a = st(w).answer as number[];
+      // the knob turns up from 0, so a decoy below the real band is reached first
+      const decoy = [a[2], a[4]]
+        .map((v, i) => ({ v: v as number, d: a[3 + 2 * i] as number }))
+        .filter((x) => x.v < (a[0] as number))
+        .sort((x, y) => x.v - y.v)[0];
+      if (!decoy) continue;
+      tested++;
+      turnTo(w, decoy.v);
+      expect(st(w).solved).toBe(false);
+      expect(st(w).tuned).toBe(true);
+      w.tick = 0;
+      expect(stationShows(w, st(w))).toEqual([decoy.v, decoy.d]);
+      expect(decoy.d).not.toBe(a[1]);
+      press(w, { x: 6, y: 4 }); // one notch back, off the decoy band
+      expect(st(w).tuned).toBe(false);
+      turnTo(w, a[0] as number);
+      expect(st(w).solved).toBe(true);
+      expect(st(w).input).toEqual([a[0]]);
+      w.tick = 0;
+      expect(stationShows(w, st(w))).toEqual([a[0], a[1]]);
+    }
+    expect(tested).toBeGreaterThan(0);
+  });
+
+  it("a radio with no plate is unchanged: one band", () => {
+    const w = stationWorld({ Q1: RADIO }, 3);
+    expect(st(w).answer).toHaveLength(2);
+    expect(st(w).tuned).toBeUndefined();
   });
 });
 

@@ -28,6 +28,7 @@ import {
   emptyEar,
   keypadStep,
   linkedFrom,
+  radioPad,
   radioToTell,
   readBraille,
   type StationBelief,
@@ -897,6 +898,10 @@ function stationStep(room: Room, m: BotMemory, known: Known, id: string): Press 
   }
   // a radio is turned on its right-hand pad until it is tuned; then its digit is watched for
   if (type === "radio") {
+    if (platePart(room, id) !== undefined) {
+      const t = radioPad(o, b); // the band is on the plate: wait for it, then turn toward it
+      return t ? { tile: t } : null;
+    }
     const t = tilesOf(p.pads)[1];
     return t ? { tile: t } : null;
   }

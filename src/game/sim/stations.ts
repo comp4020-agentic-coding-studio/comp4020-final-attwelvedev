@@ -78,6 +78,7 @@ export function drawAnswer(
   type: StationType,
   params: Record<string, unknown>,
   r: () => number,
+  plated = false,
 ): number[] {
   const int = (n: number) => Math.floor(r() * n);
   switch (type) {
@@ -96,6 +97,7 @@ export function drawAnswer(
       return Array.from({ length: Math.max(3, Math.min(4, num(params.length, 3))) }, () => int(9));
     case "radio":
       // never 0, where the knob starts: a radio is never tuned before anyone turns it
+      if (plated) return platedRadio(num(params.range, 10), r);
       return [1 + int(num(params.range, 10) - 1), 1 + int(3)];
     case "switches": {
       // pressed from dark, so it is always reachable; never the all-dark pattern it starts at
@@ -117,6 +119,39 @@ export function drawAnswer(
   }
 }
 
+// A radio a braille plate names (FR10): three tuned bands, one real and two decoys that pip a wrong
+// digit. [setting, digit, decoySetting, decoyDigit, decoySetting, decoyDigit], settings distinct
+// and never 0, digits 1 to 3 with the decoys' never the real one.
+function platedRadio(range: number, r: () => number): number[] {
+  const int = (n: number) => Math.floor(r() * n);
+  const digit = 1 + int(3);
+  const settings: number[] = [];
+  while (settings.length < 3) {
+    const v = 1 + int(range - 1);
+    if (!settings.includes(v)) settings.push(v);
+  }
+  const wrong = () => {
+    const others = [1, 2, 3].filter((d) => d !== digit);
+    return others[int(others.length)] as number;
+  };
+  return [
+    settings[0] as number,
+    digit,
+    settings[1] as number,
+    wrong(),
+    settings[2] as number,
+    wrong(),
+  ];
+}
+
+// The digit a radio pips at its current setting, if it is tuned there: the real band's, or a decoy's.
+export function bandDigit(s: StationState): number | undefined {
+  for (let i = 0; i + 1 < s.answer.length; i += 2) {
+    if (s.answer[i] === s.input[0]) return s.answer[i + 1];
+  }
+  return undefined;
+}
+
 function startInput(type: StationType, params: Record<string, unknown>): number[] {
   if (type === "dial" || type === "radio") return [0];
   if (type === "switches") return tilesOf(params.buttons).map(() => 0);
@@ -124,6 +159,10 @@ function startInput(type: StationType, params: Record<string, unknown>): number[
   if (type === "sync") return tilesOf(params.keys).map(() => 0);
   return [];
 }
+
+// Whether a braille plate in the room is for station `id`.
+const isPlated = (world: World, id: string): boolean =>
+  world.room.objects.some((o) => o.kind === "braille" && o.params?.for === id);
 
 const stationObjects = (world: World): RoomObject[] =>
   world.room.objects.filter((o) => o.kind === "station");
@@ -146,7 +185,7 @@ export function drawStations(world: World): void {
     world.stations[o.id] = {
       id: o.id,
       type,
-      answer: drawAnswer(type, params, r),
+      answer: drawAnswer(type, params, r, isPlated(world, o.id)),
       input: startInput(type, params),
       solved: false,
     };
@@ -195,8 +234,10 @@ export function redrawOne(world: World, o: RoomObject, s: StationState): void {
     s.type,
     params,
     rng(world.seed * 1000 + world.attempt + 7 * world.tick + 1),
+    isPlated(world, o.id),
   );
   s.input = startInput(s.type, params);
+  delete s.tuned;
   if (s.type === "sync") world.syncAt[o.id] = tilesOf(params.keys).map(() => -1);
   fixFeeds(world);
 }
@@ -332,7 +373,11 @@ function act(
         const value = ((s.input.at(-1) ?? 0) + (pad === 0 ? -1 : 1) + range) % range;
         s.input[s.input.length - 1] = value;
         say("turn", value);
-        if (s.type === "radio" && value === s.answer[0]) solve();
+        if (s.type === "radio") {
+          // a decoy band is tuned (tone and pips) but never solves; only the real one does
+          s.tuned = bandDigit(s) !== undefined;
+          if (value === s.answer[0]) solve();
+        }
         return true;
       }
       if (s.type === "dial" && same(anchor, tile)) {
@@ -581,8 +626,9 @@ export function stationShows(world: World, s: StationState): number[] {
     return [at, at === s.answer[0] ? 1 : 0];
   }
   if (s.type === "radio") {
-    const pip = s.solved && world.tick % PIP_TICKS === 0;
-    return pip ? [s.input[0] ?? 0, s.answer[1] as number] : [s.input[0] ?? 0];
+    const digit = s.solved ? (s.answer[1] as number) : s.tuned ? bandDigit(s) : undefined;
+    const pip = digit !== undefined && world.tick % PIP_TICKS === 0;
+    return pip ? [s.input[0] ?? 0, digit] : [s.input[0] ?? 0];
   }
   if (s.type === "bells") return [!s.solved && noteOf(world, s) !== undefined ? 1 : 0, ...s.input];
   return [...s.input];

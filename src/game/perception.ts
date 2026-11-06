@@ -29,6 +29,7 @@ import {
 } from "./sim/hazards.ts";
 import { blocksSight, lineOfSight, soundReaches } from "./sim/sight.ts";
 import {
+  bandDigit,
   cacheOpen,
   displayTiles,
   noteOf,
@@ -777,10 +778,12 @@ function stationAmbience(world: World, seat: Seat, out: SoundCue[]): void {
     const s = world.stations[o.id];
     const at = centre(o.tiles[0] as Vec);
     if (s?.type === "radio") {
-      const c = cue(world, s.solved ? "tone" : "static", at, me);
+      const digit = s.solved ? s.answer[1] : s.tuned ? bandDigit(s) : undefined;
+      const c = cue(world, s.solved || s.tuned ? "tone" : "static", at, me);
       if (c) out.push(c);
-      const pip = s.solved && world.tick % PIP_TICKS === 0 ? cue(world, "pip", at, me) : null;
-      if (pip) out.push({ ...pip, n: s.answer[1] });
+      const pip =
+        digit !== undefined && world.tick % PIP_TICKS === 0 ? cue(world, "pip", at, me) : null;
+      if (pip) out.push({ ...pip, n: digit });
     } else if (s?.type === "bells" && !s.solved) {
       const note = noteOf(world, s);
       const tune = o.params?.tune;
