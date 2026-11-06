@@ -483,15 +483,24 @@ const PARITY: Record<SoundCue["kind"], Scenario> = {
       sees: (b, a) => ent(b, "p1")?.state === "pressed" && ent(a, "p1")?.state === "up",
     };
   })(),
+  // ADR 0025: an ordinary door is team-wide. The listener (seat 0) stands 23 tiles away behind two walls,
+  // and Can't hear stands out of sight of the door behind a wall, so only the team-wide rule serves both.
   door: (() => {
-    const grid = ["##########", "#1.p.D..E#", "#2.p.D...#", "#3.p.D...#", "##########"];
-    const world = worldWith(grid, { D1: { opensWhen: ["p1", "p2", "p3"] } });
+    const row = (c: string, plate = ".") => `#${c}.${plate}.D..#......#.............#`;
+    const grid = [
+      "##############################",
+      row("1", "p"),
+      row("2"),
+      row("3"),
+      "##############################",
+    ];
+    const world = worldWith(grid, { D1: { opensWhen: ["p1"] } });
     return {
       world,
       act: () => {
-        place(world, 0, { x: 3, y: 1 });
-        place(world, 1, { x: 3, y: 2 });
-        place(world, 2, { x: 3, y: 3 });
+        place(world, BLIND, { x: 28, y: 2 });
+        place(world, DEAF, { x: 10, y: 2 });
+        place(world, MUTE, { x: 3, y: 1 });
         go(world);
       },
       sees: (b, a) => ent(b, "D1")?.state === "closed" && ent(a, "D1")?.state === "open",

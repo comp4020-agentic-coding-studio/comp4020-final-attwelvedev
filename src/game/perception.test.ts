@@ -162,6 +162,22 @@ describe("viewFor: what each role is told", () => {
     expect(viewFor(w, 1, "blind", false).sounds.some((s) => s.kind === "door")).toBe(false);
   });
 
+  it("the door cue reaches a hearing seat behind a wall at any distance, gain 1, and not while the alarm is on", () => {
+    const row = (c: string, plate = ".") => `#${c}.${plate}.D..#......#.............#`;
+    const grid = ["#".repeat(30), row("1", "p"), row("2"), row("3"), "#".repeat(30)];
+    const w = worldWith(grid, { D1: { opensWhen: ["p1"] } });
+    place(w, 0, { x: 3, y: 1 });
+    place(w, 1, { x: 28, y: 2 }); // 23 tiles away, behind two walls
+    step(w, {}, TICK_MS);
+    const heard = viewFor(w, 1, "blind", false).sounds.filter((s) => s.kind === "door");
+    expect(heard).toHaveLength(1);
+    expect(heard[0]?.gain).toBe(1);
+    expect(heard[0]?.dir?.x).toBeLessThan(0);
+    w.alarmUntil = w.tick + 10; // the alarm is on
+    const silenced = viewFor(w, 1, "blind", false).sounds;
+    expect(silenced.some((s) => s.kind === "door")).toBe(false);
+  });
+
   it("carries tick, ack, room, role, status and elapsed time", () => {
     const w = world();
     step(w, { 2: { seq: 9, move: { x: 0, y: 0 }, act: false } }, TICK_MS);
@@ -1861,9 +1877,9 @@ describe("viewFor: how every door in every room opens", () => {
 });
 
 // A door is part of the map every sighted player holds, so it is sent whole whether or not its tile is
-// in your light (it used to be sent only when seen, and its outline popped in and out as you moved by a
-// hair). What is not sent is its state out of sight: it reads closed there, whatever the truth.
-describe("viewFor: a door out of sight is sent, as closed", () => {
+// in your light, and with its true state (ADR 0025: an ordinary door opening is team-wide). A closed
+// secret door is the exception: it reads as wall until it opens.
+describe("viewFor: a door out of sight is sent with its true state", () => {
   const GRID = [
     "####################",
     "#1.....#.....#.....#",
@@ -1874,13 +1890,49 @@ describe("viewFor: a door out of sight is sent, as closed", () => {
   const doors = (w: ReturnType<typeof worldWith>) =>
     viewFor(w, 1, "deaf", true).entities.filter((e) => e.kind === "door");
 
-  it("sends a door the viewer cannot see, and says it is closed", () => {
+  it("sends a door the viewer cannot see, and says it is open", () => {
     const w = worldWith(GRID, { D1: { opensWhen: ["p1"] }, D2: { opensWhen: ["p1"] } });
     w.doorOpen.D2 = true; // open, but behind the first door: out of sight
     place(w, 1, { x: 3, y: 2 });
     const got = doors(w);
     expect(got.map((d) => d.id).sort()).toEqual(["D1", "D2"]);
-    expect(got.find((d) => d.id === "D2")?.state, "an unseen door reads closed").toBe("closed");
+    expect(got.find((d) => d.id === "D2")?.state, "an unseen door reads true").toBe("open");
+    expect(got.find((d) => d.id === "D1")?.state).toBe("closed");
+  });
+
+  it("a secret door out of sight is still not sent while closed", () => {
+    const base = [
+      "##############################",
+      "#1.....Q.....................#",
+      "#2...........................#",
+      "#3...........................#",
+      "##############################",
+    ];
+    const built = withChamber(base, 14);
+    const w = worldWith(built.grid, {
+      Q1: {
+        type: "dial",
+        pads: [
+          [5, 1],
+          [7, 1],
+        ],
+        back: [20, 2],
+        digits: 1,
+        cache: {
+          owner: 2,
+          motif: "moon",
+          riddle: "Where the moon watches, listen twice.",
+          item: "watch",
+          tiles: [
+            { at: [10, 1], motif: "moon" },
+            { at: [12, 1], motif: "star" },
+          ],
+          chamber: built.chamber,
+        },
+      },
+    });
+    place(w, 1, { x: 3, y: 2 });
+    expect(doors(w), "closed secret doors read as wall").toEqual([]);
   });
 
   it("tells the truth about a door that is in sight", () => {

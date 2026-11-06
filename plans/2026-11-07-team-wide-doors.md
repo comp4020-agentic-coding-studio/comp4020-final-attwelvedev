@@ -128,7 +128,7 @@ including through `sendBack`, which does not touch `doorOpen` for ordinary doors
 
 ## 5. Task breakdown
 
-### Task 88: Every ordinary door's state and sound reach the whole team (FR1, FR2, FR4, FR6, FR8, FR9)
+### Task 88: Every ordinary door's state and sound reach the whole team (FR1, FR2, FR4, FR6, FR8, FR9) [done]
 
 - **Description:** `perception.ts`:
   - the door sound is built like `loot`

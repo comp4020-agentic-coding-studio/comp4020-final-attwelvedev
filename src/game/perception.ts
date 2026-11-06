@@ -634,8 +634,8 @@ function soundsFor(world: World, seat: Seat): SoundCue[] {
   if (onPlate) out.push({ kind: "hum", pan: 0, gain: 1 });
   for (const e of world.events) {
     if (e.kind === "door" && e.open) {
-      const c = cue(world, "door", e.at, me);
-      if (c) out.push(c);
+      // an ordinary door is team progress (ADR 0025): every hearing seat hears it, from anywhere
+      out.push({ kind: "door", pan: panOf(e.at, me), gain: 1, ...dirTo(e.at, me) });
     } else if (e.kind === "loot") {
       out.push({ kind: "loot", pan: panOf(e.at, me), gain: 1, ...dirTo(e.at, me) }); // the whole team hears it
     } else if (e.kind === "checkpoint") {
@@ -990,9 +990,9 @@ function inSight(
       out.push(e);
     } else if (e.kind === "door" && !e.secret) {
       // a door is part of the map every sighted player holds, so it is sent whether or not its tile is
-      // in the light (its outline used to pop in and out as you moved by a hair); out of sight it reads
-      // closed, whatever the truth, so no state leaks
-      out.push({ ...e, state: "closed" });
+      // in the light (its outline used to pop in and out as you moved by a hair); its true state goes
+      // too, since an ordinary door opening is team-wide (ADR 0025). A closed secret door is never here.
+      out.push(e);
     }
   }
   return out;
