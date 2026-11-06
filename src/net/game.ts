@@ -265,7 +265,7 @@ export function markPlayed(game: Game, lobby: LobbyState): boolean {
     } else {
       const nickname = `Bot ${BOT_NAME[seat]}`;
       game.heistPeople.set(`bot:${seat}`, { nickname, bot: true });
-      (game.botPlayed[nickname] ??= []).push(role);
+      game.botPlayed[nickname] = [...(game.botPlayed[nickname] ?? []), role];
     }
   }
   return true;
