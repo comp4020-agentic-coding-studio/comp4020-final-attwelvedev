@@ -134,7 +134,7 @@ export type WorldEvent =
   | { kind: "caught"; by: string; hazard: "guard" | "camera" | "laser" | "station"; seat: Seat } // `by` is the hazard's (or station's) id, `seat` the player it got (or who answered)
   | { kind: "checkpoint"; index: number }
   | { kind: "loot"; id: string; at: Vec }
-  | { kind: "clue"; id: string; n: number; at: Vec } // a chime with no picture: it carries a count
+  | { kind: "clue"; id: string; n: number; rest?: true; at: Vec } // a chime with no picture: it carries a count
   | { kind: "cleared" }
   | {
       kind: "station";

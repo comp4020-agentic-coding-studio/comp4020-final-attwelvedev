@@ -610,6 +610,26 @@ const PARITY: Record<SoundCue["kind"], Scenario> = {
         "A clue is the one sound with no picture: rooms use it for twin and split cues (A2), and the linter only allows it inside a beat that declares one.",
     };
   })(),
+  rest: (() => {
+    // a keypad's slot rests: the clue it names plays one quiet marker where the note would be
+    const world = stationAt(
+      { type: "keypad", keys: KEYS, clue: "c1", length: 3, slot: { from: "Q2", at: 0 } },
+      [
+        [6, 2, "c"],
+        [3, 3, "Q"],
+      ],
+      { c1: {}, Q2: { type: "radio", pads: PADS, range: 10, yields: "Q1" } },
+    );
+    world.tick = tuneGroups(world.stations.Q1?.answer ?? [], 0).period - 1; // the next tick starts the tune: a rest first
+    place(world, BLIND, { x: 3, y: 2 });
+    return {
+      world,
+      act: () => go(world),
+      sees: () => true,
+      exempt:
+        "A chime with no picture, like `clue`: it only marks a gap in a keypad's tune, heard where the clue stands.",
+    };
+  })(),
   guard: (() => {
     const world = worldWith(put([11, 2, "G"]), {
       G1: {

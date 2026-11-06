@@ -12,6 +12,16 @@ import {
 
 // Task 36: a keypad key, a music-box bell and the earpiece each play as a GROUP of chimes, one more
 // chime for each step up the scale, so the group's length is the note and can be counted by ear.
+describe("chimePlan: a rest's marker (FR14)", () => {
+  it("is one chime, below the clue octave, at a lower level", () => {
+    const rest = chimePlan("rest", undefined);
+    const clue = chimePlan("clue", 0);
+    expect(rest).toHaveLength(1);
+    expect(rest[0]?.hz).toBeLessThan(clue[0]?.hz ?? 0);
+    expect(rest[0]?.level).toBeLessThan(clue[0]?.level ?? 0);
+  });
+});
+
 describe("chimePlan: what one chime cue sounds like", () => {
   it("plays n + 1 chimes for a note n, each higher than the one before", () => {
     for (const kind of ["key", "bellnote", "earpiece", "clue"] as const) {

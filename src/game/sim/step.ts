@@ -12,6 +12,7 @@ import {
   solved,
   stationNaming,
   tuneNote,
+  tuneRest,
   updateStations,
 } from "./stations.ts";
 import {
@@ -226,6 +227,16 @@ function updateClues(world: World) {
     const note = tuneNote(world, o.id);
     if (note !== undefined) {
       world.events.push({ kind: "clue", id: o.id, n: note + 1, at: tileCentre(o.tiles[0] as Vec) });
+      continue;
+    }
+    if (tuneRest(world, o.id)) {
+      world.events.push({
+        kind: "clue",
+        id: o.id,
+        n: 0,
+        rest: true,
+        at: tileCentre(o.tiles[0] as Vec),
+      });
       continue;
     }
     if (stationNaming(world, o.id)) continue;

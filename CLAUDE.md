@@ -24,7 +24,7 @@
   sighted see their line of sight (`visibleFrom`; walls, vents and closed doors block it,
   glass does not), the hearing hear what the sound reaches (walls and glass stop it, vents
   do not; ADR 0012). Every sound has a row in `src/game/parity.test.ts` (typecheck and test
-  fail without one); the alarm, the `clue` chime and gear are the deliberate exceptions,
+  fail without one); the alarm, the `clue` and `rest` chimes and gear are the deliberate exceptions,
   each with its reason in its row. A new effect or state for the sighted goes in `detectFx`
   (`src/client/fx.ts`) or the view, with its sound. A cache's riddle and a braille plate's
   cells are own-seat-only view fields; a hidden chamber and its secret doors read as wall

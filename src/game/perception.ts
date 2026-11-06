@@ -39,6 +39,7 @@ import {
   stationParts,
   stationShows,
   tuneNote,
+  tuneRest,
   WIRE_COLOURS,
 } from "./sim/stations.ts";
 import { encodeSeen, type Visible, visibleFrom } from "./sim/visibility.ts";
@@ -170,6 +171,7 @@ export interface SoundCue {
     | "seq-open" // the sequence is done
     | "hide" // someone stepped onto or off a hide spot
     | "clue" // a chime with no picture (A2): `n` of them, heard only nearby
+    | "rest" // a quiet low chime where a keypad's tune rests (FR14): no picture, like `clue`
     | "cleared" // the room is cleared
     | "step" // your own footstep: centred, softer, and never the same cue as someone else's
     | "bump" // you are pushing at a wall, door or crate and getting nowhere
@@ -261,6 +263,7 @@ const RANGE: Partial<Record<SoundCue["kind"], number>> = {
   "plate-up": 6,
   hide: 6,
   clue: 8,
+  rest: 8,
   tick: 6,
   hollow: 6, // a step on the plate carries only a little way
   tumbler: 1.5, // touch range: beside the safe's back
@@ -646,8 +649,8 @@ function soundsFor(world: World, seat: Seat): SoundCue[] {
       const c = cue(world, "crate", e.at, me);
       if (c) out.push(c);
     } else if (e.kind === "clue") {
-      const c = cue(world, "clue", e.at, me);
-      if (c) out.push({ ...c, n: e.n });
+      const c = cue(world, e.rest ? "rest" : "clue", e.at, me);
+      if (c) out.push(e.rest ? c : { ...c, n: e.n });
     } else if (e.kind === "flag") {
       out.push({ kind: "flag", pan: panOf(e.at, me), gain: 1, n: e.present, ...dirTo(e.at, me) });
     } else if (e.kind === "exit") {
@@ -789,6 +792,8 @@ function stationAmbience(world: World, seat: Seat, out: SoundCue[]): void {
   const mine = carried(world, seat);
   const note = mine?.item === "earpiece" ? tuneNote(world, mine.id) : undefined;
   if (note !== undefined) out.push({ kind: "earpiece", pan: 0, gain: 1, n: note });
+  else if (mine?.item === "earpiece" && tuneRest(world, mine.id))
+    out.push({ kind: "rest", pan: 0, gain: 1 }); // private to the holder already
 }
 
 // Guards' footsteps while they patrol, a servo whir the tick a camera starts

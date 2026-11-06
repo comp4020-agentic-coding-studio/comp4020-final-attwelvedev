@@ -4,7 +4,7 @@
 import { cacheOf, type RoomObject, secretDoors } from "../rooms/format.ts";
 import type { Seat, Vec } from "../types.ts";
 import { syncCacheDoors, takeKeepsake } from "./cache.ts";
-import { groupStartingOn, tuneGroups } from "./chimes.ts";
+import { groupStartingOn, restStartingOn, tuneGroups } from "./chimes.ts";
 import { rng } from "./rng.ts";
 import { type StationState, type StationType, TICK_MS, type World } from "./world.ts";
 
@@ -482,17 +482,33 @@ export function hiddenCacheClue(world: World, id: string): boolean {
 // The note of `station`'s code whose group of chimes starts this tick, if one does. A keypad's slot
 // (clues FR3) rests: its note is the digit of the radio that feeds it, found there and nowhere else.
 export function noteOf(world: World, station: StationState): number | undefined {
+  return groupStartingOn(world.tick, tuneOf(world, station))?.note;
+}
+
+// The tune of a station's code, its rests (a slot fed by a radio) left out of the groups.
+function tuneOf(world: World, station: StationState) {
   const slot = world.room.objects.find((o) => o.id === station.id)?.params?.slot as
     | { at?: unknown }
     | undefined;
-  const rest = typeof slot?.at === "number" ? slot.at : null;
-  return groupStartingOn(world.tick, tuneGroups(station.answer, rest))?.note;
+  const rests = typeof slot?.at === "number" ? [slot.at] : [];
+  return tuneGroups(station.answer, rests);
+}
+
+// Whether a rest of `station`'s tune falls on this tick: a quiet marker plays there (FR14).
+export function restOf(world: World, station: StationState): boolean {
+  return restStartingOn(world.tick, tuneOf(world, station));
 }
 
 // The note of the code a clue or an earpiece plays this tick, if one does.
 export function tuneNote(world: World, id: string): number | undefined {
   const s = stationNaming(world, id);
   return s && noteOf(world, s);
+}
+
+// Whether the tune a clue or an earpiece plays rests on this tick.
+export function tuneRest(world: World, id: string): boolean {
+  const s = stationNaming(world, id);
+  return s !== undefined && restOf(world, s);
 }
 
 // The tiles that show a station's state to someone who can see them: the dial or radio face,

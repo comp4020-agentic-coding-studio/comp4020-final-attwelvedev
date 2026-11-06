@@ -466,6 +466,41 @@ describe("the keypad decoder", () => {
     expect(b.answer).toEqual([8, 7, 6]);
   });
 
+  it("a tune with a rest marker still yields the code, null at the slot (FR14)", () => {
+    const radioRoom = roomWith(
+      ["#############", "#1..Q...#.Q.#", "#2c.....#...#", "#3......#...#", "#############"],
+      {
+        Q1: { type: "keypad", keys, clue: "c1", length: 3, slot: { from: "Q2", at: 1 } },
+        c1: {},
+        Q2: {
+          type: "radio",
+          pads: [
+            [9, 2],
+            [11, 2],
+          ],
+          range: 6,
+          yields: "Q1",
+        },
+      },
+    );
+    const q1 = radioRoom.objects.find((x) => x.id === "Q1");
+    if (!q1) throw new Error("no Q1");
+    const world = createWorld(radioRoom, 5);
+    place(world, 2, { x: 3, y: 2 });
+    let b = emptyBelief();
+    let rests = 0;
+    for (let t = 0; t < LISTEN_TICKS; t++) {
+      step(world, {}, TICK_MS);
+      const view = viewFor(world, 2, "mute", false);
+      rests += view.sounds.filter((x) => x.kind === "rest").length;
+      b = beliefFrom(view, [], q1, b);
+      DECODERS.keypad?.(view, [], b, q1, view.tick);
+    }
+    expect(rests).toBeGreaterThan(0);
+    const answer = world.stations.Q1?.answer ?? [];
+    expect(b.answer).toEqual([answer[0], null, answer[2]]);
+  });
+
   it("out of earshot of the clue, it never presses a key", () => {
     const { b } = listen(2, "mute", { x: 10, y: 2 });
     expect(b.answer).toEqual([]);

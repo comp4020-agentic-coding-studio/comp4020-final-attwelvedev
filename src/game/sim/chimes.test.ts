@@ -72,6 +72,21 @@ describe("tuneGroups: a code as groups of chimes", () => {
     expect(b.at - lastChime(a)).toBe(2 * GROUP_GAP_TICKS);
   });
 
+  it("reports where each rest would have started, without changing any period (FR14)", () => {
+    const t = tuneGroups([2, 0, 4, 1], [2]);
+    const [a, b] = t.groups as unknown as [
+      { at: number; chimes: number },
+      { at: number; chimes: number },
+    ];
+    // the third group would have started a gap after the second, then the rest adds its own gap
+    expect(t.rests).toEqual([{ at: b.at + (b.chimes - 1) * CHIME_TICKS + GROUP_GAP_TICKS }]);
+    expect(a.at).toBe(0);
+    expect(tuneGroups([2, 0, 4, 1], 2).period).toBe(t.period);
+    expect(tuneGroups([2, 0, 4, 1], [2]).period).toBe(tuneGroups([2, 0, 4, 1], 2).period);
+    expect(tuneGroups([2, 0, 4, 1]).rests).toEqual([]);
+    expect(tuneGroups([2, 0, 4, 1], [0, 2]).rests).toHaveLength(2);
+  });
+
   it("is never longer than TUNE_MAX_TICKS, even four of the longest groups", () => {
     expect(tuneGroups([8, 8, 8, 8]).period).toBeLessThanOrEqual(TUNE_MAX_TICKS);
     expect(tuneGroups([8, 8, 8, 8], 3).period).toBeLessThanOrEqual(TUNE_MAX_TICKS);

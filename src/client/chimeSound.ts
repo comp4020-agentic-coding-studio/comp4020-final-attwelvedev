@@ -13,7 +13,7 @@ const MAX_CHIMES = 9;
 // C major pentatonic over two octaves (nine notes, none sour): the scale a group climbs.
 export const PENTATONIC = [262, 294, 330, 392, 440, 523, 587, 659, 784];
 
-export type ChimeKind = "key" | "bellnote" | "earpiece" | "clue";
+export type ChimeKind = "key" | "bellnote" | "earpiece" | "clue" | "rest";
 export interface PlannedChime {
   at: number; // seconds from the cue
   hz: number;
@@ -33,11 +33,13 @@ const VOICE: Record<
   earpiece: { voice: "sine", octave: 1, secs: 0.2, level: 0.3 },
   // a vent: a soft high sine, long enough to ring but never struck like a bell or plucked like a key
   clue: { voice: "sine", octave: 2, secs: 0.3, level: 0.2 },
+  // a rest in a tune: one low muted note, an octave below the clue voice, at half its level
+  rest: { voice: "sine", octave: 1, secs: 0.3, level: 0.1 },
 };
 
 export function chimePlan(kind: ChimeKind, n: number | undefined): PlannedChime[] {
   const note = Number.isFinite(n) ? (n as number) : 0;
-  const chimes = Math.max(1, Math.min(MAX_CHIMES, Math.round(note) + 1));
+  const chimes = kind === "rest" ? 1 : Math.max(1, Math.min(MAX_CHIMES, Math.round(note) + 1));
   const v = VOICE[kind];
   return Array.from({ length: chimes }, (_, i) => ({
     at: i * CHIME_GAP_S,
@@ -50,7 +52,11 @@ export function chimePlan(kind: ChimeKind, n: number | undefined): PlannedChime[
 }
 
 export const isChimeCue = (s: SoundCue): s is SoundCue & { kind: ChimeKind } =>
-  s.kind === "key" || s.kind === "bellnote" || s.kind === "earpiece" || s.kind === "clue";
+  s.kind === "key" ||
+  s.kind === "bellnote" ||
+  s.kind === "earpiece" ||
+  s.kind === "clue" ||
+  s.kind === "rest";
 
 // A practice press (Task 38) plays the real chime of the key or bell, quieter, so a person hears
 // which one they pressed; a short low tick before it (audio.ts) keeps it from passing for a solve.

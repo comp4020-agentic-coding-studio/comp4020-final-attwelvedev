@@ -158,7 +158,7 @@ From Task 71:
 
 ## 5. Task breakdown
 
-### Task 76: A rest in a tune plays a quiet marker (FR14)
+### Task 76: A rest in a tune plays a quiet marker (FR14) — done
 
 - **Description:** wherever a keypad's tune rests (a radio-fed slot, or a plate-held key), a single
   low muted chime plays at that rest. It is the `rest` sound.

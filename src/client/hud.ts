@@ -95,6 +95,7 @@ export const CUE_WORD: Record<SoundCue["kind"], string> = {
   "seq-open": "sequence door unlocked",
   hide: "rustle",
   clue: "chime",
+  rest: "A gap in the tune",
   cleared: "room cleared",
   // stations, gear and signals (escape-room phase 02, Task 9)
   tick: "Tick",

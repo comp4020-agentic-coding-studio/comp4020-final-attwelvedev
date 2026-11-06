@@ -21,17 +21,21 @@ export interface ChimeGroup {
 }
 
 // The groups of `code`, and the length of the whole tune in ticks, from the first chime to the
-// next time it starts. `rest` is the index of a note that is not played, if one is.
+// next time it starts. `rest` is the index (or indexes) of a note that is not played, if any is. The
+// `rests` returned are the ticks where a played note would have started: a quiet marker plays there.
 export function tuneGroups(
   code: readonly number[],
-  rest: number | null = null,
-): { groups: ChimeGroup[]; period: number } {
+  rest: number | readonly number[] | null = null,
+): { groups: ChimeGroup[]; rests: { at: number }[]; period: number } {
+  const resting = rest === null ? [] : typeof rest === "number" ? [rest] : rest;
   const groups: ChimeGroup[] = [];
+  const rests: { at: number }[] = [];
   let at = 0; // where the next group starts
   let silence = 0; // gaps of silence owed before the next group: a rest adds one
   let end = 0; // the tick of the last chime so far
   code.forEach((note, i) => {
-    if (i === rest) {
+    if (resting.includes(i)) {
+      rests.push({ at: (groups.length > 0 ? end + GROUP_GAP_TICKS : 0) + silence });
       silence += GROUP_GAP_TICKS;
       return;
     }
@@ -43,7 +47,7 @@ export function tuneGroups(
     end = at + (chimes - 1) * CHIME_TICKS;
   });
   // a rest at the very end is silence too, before the pause
-  return { groups, period: end + silence + TUNE_PAUSE_TICKS };
+  return { groups, rests, period: end + silence + TUNE_PAUSE_TICKS };
 }
 
 // The group that starts on `tick`, if one does (the sim sends one cue per group, on its first
@@ -54,6 +58,15 @@ export function groupStartingOn(
 ): ChimeGroup | undefined {
   const t = tick % tune.period;
   return tune.groups.find((g) => g.at === t);
+}
+
+// Whether a rest of the tune falls on `tick` (the marker chime).
+export function restStartingOn(
+  tick: number,
+  tune: { rests: { at: number }[]; period: number },
+): boolean {
+  const t = tick % tune.period;
+  return tune.rests.some((r) => r.at === t);
 }
 
 // When each chime of a group of `chimes` sounds, in seconds from the group's first, and which step
