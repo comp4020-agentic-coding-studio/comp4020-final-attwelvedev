@@ -390,8 +390,20 @@ export function claimJobs(room: Room, jobs: Job[], seats: SeatInfo[]): Record<Se
     const seat = seats.find((s) => s.seat === (owner ?? 0) - 1);
     if (seat && !seat.human) queues[seat.seat].push(job);
   }
-  for (const beat of beats) {
-    const left = jobs.filter((j) => j.beat === beat && !j.all && j.target.kind !== "keepsake");
+  // A cache job is claimed in a pool of its own: it is only active once the cache is uncovered, when
+  // its seat has left its beat job, so it does not compete with the beat's jobs for a seat.
+  const pools = beats.flatMap((beat) => [
+    { beat, cache: false },
+    { beat, cache: true },
+  ]);
+  for (const { beat, cache } of pools) {
+    const left = jobs.filter(
+      (j) =>
+        j.beat === beat &&
+        !j.all &&
+        j.target.kind !== "keepsake" &&
+        (j.cache !== undefined) === cache,
+    );
     const free = new Set(seats.map((s) => s.seat));
     const give = (seat: Seat, job: Job) => {
       queues[seat].push(job);

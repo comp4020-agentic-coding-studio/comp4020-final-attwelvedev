@@ -6,7 +6,7 @@ import {
   STAMP_LIFE_MS,
 } from "../channels.ts";
 import type { EntityView, RoleView, SoundCue } from "../perception.ts";
-import { cacheOf, type Room } from "../rooms/format.ts";
+import { cacheOf, type Room, secretDoors } from "../rooms/format.ts";
 import { platePart } from "../sim/braille.ts";
 import { blockedAt } from "../sim/collide.ts";
 import { laserBeam } from "../sim/hazards.ts";
@@ -74,6 +74,7 @@ export interface BotMemory {
   humTicks: number; // ticks in a row it has heard a hum
   known: Known | null;
   ptr: [number, number, number]; // how far along each seat's job queue
+  cacheDone: Set<string>; // cache jobs finished (`seat:index`): a job done by standing somewhere stays done
   queues: Record<Seat, Job[]> | null;
   exec: Exec | null;
   nav: Nav;
@@ -136,6 +137,7 @@ interface Guide {
 // Can't-see seat rather than steering it.
 const WORK_KINDS = new Set<Job["target"]["kind"]>([
   "station",
+  "keepsake",
   "watch",
   "take",
   "give",
@@ -218,6 +220,7 @@ export function createBotMemory(
     celebrated: false,
     model: null,
     lastPos: null,
+    cacheDone: new Set(),
     bodies: {},
     actWas: false,
     gearWas: false,
@@ -470,6 +473,7 @@ function observe(room: Room, view: RoleView, inbox: ChannelMessage[], m: BotMemo
       known.seenHazards[e.id] = { lastTick: view.tick }; // in line of sight right now
     }
   }
+  perceiveCaches(room, view, known);
   // an alarm speeds the guards up and holds the cameras on: the forecast needs its windows
   if (view.alarm && m.alarmFrom === null) m.alarmFrom = view.tick;
   if (!view.alarm && m.alarmFrom !== null) {
@@ -479,6 +483,87 @@ function observe(room: Room, view: RoleView, inbox: ChannelMessage[], m: BotMemo
     m.guide.nav = newNav();
   }
   return known;
+}
+
+// What a bot has perceived of each cache (ADR 0024), never read from the simulation: the team-wide
+// `cacheEvent` (its `at` is a door's centre, or the item's tile), a secret door seen open, and the
+// owner's own `view.cache`. An uncover opens the chamber door in its belief, a solve the vault door.
+function perceiveCaches(room: Room, view: RoleView, known: Known): void {
+  const same = (a: Vec, b: Vec) => Math.floor(a.x) === b.x && Math.floor(a.y) === b.y;
+  const open = (id: string) => {
+    known.cachesOpen = { ...known.cachesOpen, [id]: true };
+  };
+  const taken = (id: string) => {
+    known.cachesTaken = { ...known.cachesTaken, [id]: true };
+  };
+  const doors = secretDoors(room);
+  const ev = view.cacheEvent;
+  for (const d of doors) {
+    const spec = room.objects.find((o) => o.id === d.id);
+    const c = spec ? cacheOf(spec) : null;
+    if (!c) continue;
+    if (ev?.result === "uncover" && same(ev.at, c.chamber.door)) {
+      open(d.id);
+      known.doorOpen[d.chamber.id] = true;
+    }
+    if (ev?.result === "solved" && same(ev.at, c.chamber.vault.door)) {
+      open(d.id);
+      known.doorOpen[d.chamber.id] = true;
+      known.doorOpen[d.vault.id] = true;
+      const b = known.stations[d.id];
+      if (b) b.solved = true;
+    }
+    if (ev?.result === "taken" && same(ev.at, c.chamber.vault.item)) taken(d.id);
+    if (view.entities.some((e) => e.kind === "door" && e.secret && e.id === d.chamber.id)) {
+      open(d.id);
+    }
+    if (view.cache?.id === d.id) {
+      if (view.cache.state === "open" || view.cache.state === "vault") open(d.id);
+      if (view.cache.state === "vault" || view.cache.state === "taken") {
+        // solved: its vault is open too
+        known.doorOpen[d.vault.id] = true;
+        const b = known.stations[d.id];
+        if (b) b.solved = true;
+      }
+      if (view.cache.state === "taken") taken(d.id);
+    }
+  }
+}
+
+// A send-back shuts every chamber again: what was perceived of them is forgotten, and re-learned
+// from the door (if seen) or the owner's view.
+function forgetCaches(room: Room, view: RoleView, known: Known, m: BotMemory): void {
+  m.cacheDone.clear();
+  known.cachesOpen = {};
+  known.cachesTaken = {};
+  for (const d of secretDoors(room)) {
+    known.doorOpen[d.chamber.id] = false;
+    known.doorOpen[d.vault.id] = false;
+  }
+  perceiveCaches(room, view, known);
+}
+
+// The job a seat is on: a cache job that is active (its cache perceived open, not taken, not done)
+// comes first; otherwise the first beat job from the pointer on. The beat job is parked, not lost:
+// when the cache jobs end it is current again.
+function currentJob(
+  room: Room,
+  m: BotMemory,
+  known: Known,
+  own: Role,
+  seat: Seat,
+  at?: Vec,
+): Job | null {
+  const queue = queuesOf(room, m, own)[seat];
+  const active = queue.find((j) => {
+    if (j.cache === undefined || m.cacheDone.has(`${seat}:${j.index}`)) return false;
+    if (known.cachesOpen?.[j.cache] !== true || known.cachesTaken?.[j.cache] === true) return false;
+    if (j.target.kind === "keepsake" && known.stations[j.cache]?.solved !== true) return false;
+    if (!isDone(room, j, known, at, seat)) return true;
+    m.cacheDone.add(`${seat}:${j.index}`); // done by being there: leaving does not undo it
+    return false;
+  });
+  return active ?? queue.slice(m.ptr[seat]).find((j) => j.cache === undefined) ?? null;
 }
 
 function rolesOf(m: BotMemory, own: Role): readonly [Role, Role, Role] {
@@ -675,9 +760,18 @@ function goalFor(
   const behind = (i: number) =>
     isDone(room, queue[i] as Job, known, at, seat) ||
     (queue[i]?.target.kind === "tile" &&
-      queue.slice(i + 1).some((j) => j.target.kind !== "exit" && isDone(room, j, known, at, seat)));
-  while (m.ptr[seat] < queue.length && behind(m.ptr[seat])) m.ptr[seat]++;
-  const queued = queue[m.ptr[seat]] ?? null;
+      queue
+        .slice(i + 1)
+        .some(
+          (j) =>
+            j.cache === undefined && j.target.kind !== "exit" && isDone(room, j, known, at, seat),
+        ));
+  while (
+    m.ptr[seat] < queue.length &&
+    (queue[m.ptr[seat]]?.cache !== undefined || behind(m.ptr[seat]))
+  )
+    m.ptr[seat]++;
+  const queued = currentJob(room, m, known, own, seat, at);
   // A torch only lights what is in its pool, so a seat carrying one whose ink has not yet been cut
   // stands at that ink and lights it for the others (a teammate who has no reading job of its own).
   // (Only for the bot's own seat: the same function works out where the Can't-see seat it guides goes.
@@ -808,6 +902,10 @@ function workGoal(room: Room, m: BotMemory, job: Job, known: Known, seat: Seat):
   const t = job.target;
   if (t.kind === "station") return stationStep(room, m, known, t.id)?.tile ?? null;
   if (t.kind === "listen") return t.tile;
+  if (t.kind === "keepsake") {
+    const vault = secretDoors(room).find((d) => d.id === t.cache)?.vault.id;
+    return known.stations[t.cache]?.solved && vault && known.doorOpen[vault] ? t.tile : null;
+  }
   if (t.kind === "watch") return known.stations[t.station]?.card ? t.tile : (t.read ?? t.tile);
   if (t.kind === "take" || t.kind === "give" || t.kind === "sill") {
     const g = known.gear?.[t.gear];
@@ -956,6 +1054,7 @@ function thinkSighted(
       forgetPlans(m);
       m.markedFor = null;
       known.read = {}; // a plate read before says something else now
+      forgetCaches(room, view, known, m); // every chamber is shut again
       // sent back: every unsolved station has a fresh answer, so what was heard of it is stale
       for (const [id, b] of Object.entries(known.stations)) {
         if (b.solved) continue;
@@ -1030,7 +1129,7 @@ function workSend(
       return { method: "text", text: String(d) };
     }
   }
-  const job = queuesOf(room, m, view.role)[m.seat][m.ptr[m.seat]];
+  const job = currentJob(room, m, known, view.role, m.seat, pos);
   // A wire panel whose answer this bot read from ink or a plaque that only it can read (room 7's ink
   // needs the torch it holds): it marks that wire whatever its job is, so a teammate who has no way
   // to read it cuts the right one, and marks it again each time the last mark has faded, until it
@@ -1086,7 +1185,7 @@ function syncCount(
   known: Known,
   pos: Vec,
 ): number | null {
-  const job = queuesOf(room, m, view.role)[m.seat][m.ptr[m.seat]];
+  const job = currentJob(room, m, known, view.role, m.seat, pos);
   const o =
     job?.target.kind === "station"
       ? room.objects.find((x) => x.id === (job.target as { id: string }).id)
@@ -1119,7 +1218,7 @@ function press(
   pos: Vec,
   input: PlayerInput,
 ): PlayerInput {
-  const job = queuesOf(room, m, view.role)[m.seat][m.ptr[m.seat]];
+  const job = currentJob(room, m, known, view.role, m.seat, pos);
   const tile = tileOf(pos);
   const centred = Math.hypot(pos.x - (tile.x + 0.5), pos.y - (tile.y + 0.5)) < 0.15;
   const goal = job ? workGoal(room, m, job, known, m.seat) : null;
@@ -1176,6 +1275,7 @@ function pressFor(
     if (t.kind === "give") return nearestIs(m, known.roles?.indexOf(t.to) ?? -1) ? "gear" : "wait";
     return t.kind === "sill" ? "act" : null;
   }
+  if (t.kind === "keepsake") return "act";
   if (t.kind === "tow") return "act"; // take their hand beside them, or let go at the end
   return null;
 }
@@ -1339,7 +1439,7 @@ function guideBlind(
 
   const tile = tileOf(p);
   // while the guide works a station or gear job of its own, the Can't-see seat waits where it is
-  const mine = queuesOf(room, m, view.role)[m.seat][m.ptr[m.seat]];
+  const mine = currentJob(room, m, known, view.role, m.seat, p) ?? undefined;
   const parked = mine !== undefined && WORK_KINDS.has(mine.target.kind);
   const { goal, job } = parked
     ? { goal: tile, job: null }

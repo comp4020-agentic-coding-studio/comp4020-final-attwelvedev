@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ChannelMessage } from "../channels.ts";
 import { type RoleView, viewFor } from "../perception.ts";
+import { type CacheSpec, cacheOf } from "../rooms/format.ts";
 import { loadRooms } from "../rooms/load.ts";
+import { syncCacheDoors } from "../sim/cache.ts";
 import { step } from "../sim/step.ts";
 import { roomWith } from "../sim/testing.ts";
 import { createWorld, TICK_MS } from "../sim/world.ts";
@@ -9,6 +11,7 @@ import type { Role, Seat } from "../types.ts";
 import { createBotMemory, think } from "./brain.ts";
 import { type BotSeat, botsAct } from "./crew.ts";
 import { claimJobs, hintsOf } from "./jobs.ts";
+import { solveRoom } from "./solve.ts";
 
 // First Job left the heist in escape-room phase 04, Don't Blink and the old vault in phase 10;
 // they stay fixtures for what they test
@@ -1330,5 +1333,177 @@ describe("a Can't-see bot reads a braille plate (Task 74)", () => {
     }
     expect(acts).toHaveLength(1);
     expect(sent).toEqual([String(world.stations.Q1?.answer[1])]);
+  });
+});
+
+// ADR 0024: once a person has uncovered a cache, bots take its cache jobs before their beat job.
+describe("cache jobs (ADR 0024)", () => {
+  const GRID = [
+    "###############",
+    "#1............#",
+    "#2............#",
+    "#3.....Q......#",
+    "###############",
+  ];
+  const CACHE = {
+    owner: 1,
+    motif: "moon",
+    riddle: "r",
+    item: "watch",
+    tiles: [{ at: [13, 1], motif: "moon" }],
+  };
+  // seat 1 is Can't speak: no guide duty, so the bot is free to walk its jobs
+  const ROLES_M: [Role, Role, Role] = ["deaf", "mute", "blind"];
+  const make = () => {
+    const probe = roomWith(GRID, {
+      Q1: {
+        type: "dial",
+        pads: [
+          [5, 1],
+          [9, 1],
+        ],
+        back: [7, 2],
+        digits: 1,
+        cache: CACHE,
+      },
+    });
+    const c = cacheOf(probe.objects.find((o) => o.id === "Q1") as never) as CacheSpec;
+    const inside = [c.chamber.rect[0], c.chamber.rect[1]];
+    return roomWith(
+      GRID,
+      {
+        Q1: {
+          type: "dial",
+          pads: [
+            [5, 1],
+            [9, 1],
+          ],
+          back: [7, 2],
+          digits: 1,
+          cache: CACHE,
+        },
+      },
+      {
+        beats: [{ name: "b", x: [0, 14], intent: { blind: "b", deaf: "d", mute: "m" } }],
+        hints: {
+          jobs: [
+            { beat: 1, goTo: [13, 2], prefer: "mute" },
+            { beat: 1, cache: "Q1", goTo: inside, prefer: "mute" },
+            { beat: 1, cache: "Q1", keepsake: "Q1" },
+          ],
+        },
+      },
+    );
+  };
+  const r = make();
+  const chamber = (cacheOf(r.objects.find((o) => o.id === "Q1") as never) as CacheSpec).chamber;
+  const uncover = (world: ReturnType<typeof createWorld>) => {
+    world.cacheUncovered.push("Q1");
+    syncCacheDoors(world);
+    world.events.push({
+      kind: "cache",
+      id: "Q1",
+      result: "uncover",
+      seat: 2,
+      at: { x: chamber.door.x + 0.5, y: chamber.door.y + 0.5 },
+    });
+  };
+  const crew = (humans: ReadonlySet<Seat> = new Set()) => {
+    const world = createWorld(r, 1, ROLES_M);
+    const bots: Partial<Record<Seat, BotSeat>> = {
+      1: { memory: createBotMemory(1, humans, ROLES_M), inbox: [] },
+    };
+    const cd = { until: {} };
+    // one tick; `before` runs on the world before the bot looks (so a cacheEvent shows in its view)
+    const seen = { maxX: 0, chamber: false };
+    const tick = (before?: () => void) => {
+      world.events = [];
+      before?.();
+      const out = botsAct(r, world, ROLES_M, bots, cd, world.tick * TICK_MS, () => "Bot");
+      const events = world.events;
+      step(world, out.inputs, TICK_MS);
+      world.events = [...events, ...world.events];
+      seen.maxX = Math.max(seen.maxX, world.players[1].pos.x);
+      seen.chamber ||= inChamber(world);
+    };
+    return { world, bots, tick, seen };
+  };
+  const inChamber = (world: ReturnType<typeof createWorld>) => {
+    const p = world.players[1].pos;
+    return (
+      p.x >= chamber.rect[0] &&
+      p.x <= chamber.rect[2] + 1 &&
+      p.y >= chamber.rect[1] &&
+      p.y <= chamber.rect[3] + 1
+    );
+  };
+
+  it("a bot ignores its cache job until it perceives the uncover", () => {
+    const { tick, seen } = crew();
+    for (let i = 0; i < 300; i++) tick();
+    expect(seen.chamber).toBe(false);
+    expect(seen.maxX).toBeGreaterThan(13); // it walked its beat job
+  });
+
+  it("on the uncover event it leaves its beat job for the cache job, and returns after it", () => {
+    const { world, tick, seen } = crew();
+    for (let i = 0; i < 20; i++) tick(); // under way along its beat
+    expect(world.players[1].pos.x).toBeLessThan(13);
+    tick(() => uncover(world));
+    for (let i = 0; i < 400; i++) tick();
+    expect(seen.chamber).toBe(true);
+    expect(seen.maxX).toBeGreaterThan(13); // and it went back to its beat job
+  });
+
+  it("a send-back that shuts the chamber returns it to its beat job", () => {
+    const { world, tick, bots, seen } = crew();
+    for (let i = 0; i < 10; i++) tick();
+    tick(() => uncover(world));
+    for (let i = 0; i < 12; i++) tick();
+    expect(bots[1]?.memory.known?.cachesOpen?.Q1).toBe(true);
+    // the team is caught and sent back: chamber shut, bot at its spawn
+    world.cacheUncovered.length = 0;
+    syncCacheDoors(world);
+    world.players[1].pos = { x: 1.5, y: 2.5 };
+    seen.chamber = false;
+    seen.maxX = 0;
+    for (let i = 0; i < 3; i++) tick();
+    expect(bots[1]?.memory.known?.cachesOpen?.Q1).toBeUndefined();
+    for (let i = 0; i < 300; i++) tick();
+    expect(seen.chamber).toBe(false);
+    expect(seen.maxX).toBeGreaterThan(13);
+  });
+
+  it("a bot owner Acts on the keepsake once the vault is open; a bot that is not the owner never steps on the item tile", () => {
+    const item = chamber.vault.item;
+    // owner is seat 0 (owner 1): a bot there
+    const owner = createWorld(r, 1, ROLES_M);
+    owner.cacheUncovered.push("Q1");
+    owner.cacheBy.Q1 = 1;
+    if (owner.stations.Q1) owner.stations.Q1.solved = true;
+    syncCacheDoors(owner);
+    const bots: Partial<Record<Seat, BotSeat>> = {
+      0: { memory: createBotMemory(0, new Set([1, 2]), ROLES_M), inbox: [] },
+    };
+    const cd = { until: {} };
+    for (let i = 0; i < 600 && owner.cacheTaken.Q1 === undefined; i++) {
+      const out = botsAct(r, owner, ROLES_M, bots, cd, owner.tick * TICK_MS, () => "Bot");
+      step(owner, out.inputs, TICK_MS);
+    }
+    expect(owner.cacheTaken.Q1).toBe(0);
+    expect(item).toBeDefined();
+    // a bot that is not the owner (seat 1) is never given the keepsake job
+    const others = claimJobs(
+      r,
+      hintsOf(r),
+      ([0, 1, 2] as const).map((seat) => ({ seat, role: ROLES_M[seat], human: seat === 0 })),
+    );
+    for (const s of [0, 1, 2] as const)
+      expect(others[s].some((j) => j.target.kind === "keepsake")).toBe(false);
+  });
+
+  it("a bot never Acts on a motif tile (FR1): three bots in room 4 open no cache", () => {
+    const run = solveRoom(room("04-the-safe"), ROLES3, 120);
+    expect(run.world.cacheUncovered).toEqual([]);
   });
 });
