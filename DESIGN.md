@@ -288,3 +288,7 @@ are instant or fade. **Flashing is at most 3 per second**, always.
 - Say what is true now and what to do: "Dark on purpose. Listen."; "Tap where, in sight".
 - A refusal says why: "You can't send clips. Ana and Cy can."
 - A vote says how it ended: "Restarting the room.", "Not restarted: Bo kept playing."
+- A wire plaque from room 4 on is a riddle, not an instruction: an image or a count that the wires in
+  front of you answer (`One sky among them: sever it.`). It names no colour or position the plain rule
+  would not, it is one sentence, and it never uses arithmetic beyond one. Rooms 1 to 3 and teaching
+  stations keep the plain rule.

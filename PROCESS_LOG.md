@@ -1332,3 +1332,22 @@ read or would misread. It keeps the finding I most wanted (unreadable clues, mis
 about 4% of the cost and three tasks instead of six. What it gives up, comms gaps, is what my human
 playtests already catch. How I'll know it was right: the plan's last task reviews room 01 for real and
 I judge whether its findings are leads or noise before any full heist is reviewed.
+
+## 2026-11-07 — Four rulings from an investigation, and the corrections the reviews of phases 02 and 03 left unlogged
+
+a110515, 3bd4745, b7d221e
+
+Before the blind-purpose plan was cut, the agent investigated the spec against the code and came back with four
+facts the spec had got wrong; I ruled on each (the spec's A1 to A4). A1: keypad clues are chime tunes, not text, so
+riddles apply to wire plaques only. A2: an ordinary station's wrong answer already dyes the team and sends it
+back, so the 3 s jam applies only to teaching stations and caches. A3: room 9's plate carries a digit of keypad Q7,
+not the wire, whose plaque becomes a riddle. A4: a person who has played nothing shows no Played group, which keeps
+the role screen's rule "nothing to say is nothing drawn". The obvious move was to build the spec as written and
+patch each mismatch in the phase that hit it; ruling first kept four phases from each rediscovering one.
+
+Corrections after seeing a result, not logged where they happened: the braille card's second round (it still
+overlapped the side-job chip, and the gap I had read as vertical was between cells; fixed in `3bd4745` by putting
+the card in the chip's column and widening the cell gap, a spec for each), and the Played row for bots (a bot is
+not a person, so nothing recorded its roles; fixed in `b7d221e` with a socket spec that fails on the old server).
+Both share a cause: the check measured a stand-in (the wheel, the people) and not the neighbour or the case a real
+player meets. How I knew each was right: the new spec is red on the old code.

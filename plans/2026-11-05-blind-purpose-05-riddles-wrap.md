@@ -129,7 +129,7 @@ See overview §2.4.
   a plain instruction with words swapped. Pass = the user accepts the wording.
 - **Depends on:** none in this phase.
 
-### Task 80: Docs and process log
+### Task 80: Docs and process log (done)
 
 - **Description:** bring CLAUDE.md, DESIGN.md and the process log up to date.
 - **Files touched:** `CLAUDE.md`, `DESIGN.md`, `PROCESS_LOG.md`, and the spec's §6/§7 if anything
