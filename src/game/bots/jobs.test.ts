@@ -492,6 +492,88 @@ describe("a job that names a cache (phase 14, Task 53)", () => {
       expect(typeof job === "string" ? job : "a job was made").toMatch(/Q1.*cache/);
     }
   });
+
+  const chamberOf = () =>
+    (cacheOf(cacheRoom.objects.find((o) => o.id === "Q1") as never) as CacheSpec).chamber;
+  const botSeats = (humans: number[] = [], pos: Record<number, { x: number; y: number }> = {}) =>
+    ([0, 1, 2] as const).map((seat) => ({
+      seat,
+      role: (["blind", "deaf", "mute"] as const)[seat] as Role,
+      human: humans.includes(seat),
+      pos: pos[seat],
+    }));
+
+  it("a job without `cache` still may not (and the message says the fix)", () => {
+    const inside = chamberOf().rect.slice(0, 2);
+    expect(parseJob(cacheRoom, { beat: 1, goTo: inside }, 0)).toMatch(/only a cache job may/);
+    expect(parseJob(cacheRoom, { beat: 1, station: "Q1" }, 0)).toMatch(/only a cache job may/);
+  });
+
+  it("a cache job may work the cache and stand in its chamber", () => {
+    const inside = chamberOf().rect.slice(0, 2);
+    expect(parseJob(cacheRoom, { beat: 1, cache: "Q1", station: "Q1" }, 0)).toMatchObject({
+      cache: "Q1",
+      target: { kind: "station", id: "Q1" },
+    });
+    expect(
+      parseJob(cacheRoom, { beat: 1, cache: "Q1", listen: "Q1", at: [4, 3] }, 0),
+    ).toMatchObject({ cache: "Q1", target: { kind: "listen" } });
+    expect(parseJob(cacheRoom, { beat: 1, cache: "Q1", goTo: inside }, 0)).toMatchObject({
+      cache: "Q1",
+      target: { kind: "tile" },
+    });
+  });
+
+  it("`cache` naming a non-cache is an error", () => {
+    expect(parseJob(cacheRoom, { beat: 1, cache: "g1", goTo: [1, 1] }, 0)).toBe(
+      "hint job 1 names cache g1, which is not a cache",
+    );
+    expect(parseJob(cacheRoom, { beat: 1, cache: "nope", goTo: [1, 1] }, 0)).toMatch(/not a cache/);
+  });
+
+  it("a keepsake job goes to the owner seat's bot, and to nobody when the owner is a person", () => {
+    const job = parseJob(cacheRoom, { beat: 1, cache: "Q1", keepsake: "Q1" }, 0) as Job;
+    expect(job.target).toMatchObject({
+      kind: "keepsake",
+      cache: "Q1",
+      tile: chamberOf().vault.item,
+    });
+    expect(jobTile(cacheRoom, job, 0)).toEqual(chamberOf().vault.item);
+    // owner 1 is seat 0
+    const bots = claimJobs(cacheRoom, [job], botSeats());
+    expect(bots[0]).toEqual([job]);
+    expect(bots[1]).toEqual([]);
+    expect(bots[2]).toEqual([]);
+    const person = claimJobs(cacheRoom, [job], botSeats([0]));
+    expect([person[0], person[1], person[2]]).toEqual([[], [], []]);
+    // a keepsake job must carry its own cache
+    expect(parseJob(cacheRoom, { beat: 1, keepsake: "Q1" }, 0)).toMatch(/cache/);
+    expect(parseJob(cacheRoom, { beat: 1, cache: "Q1", keepsake: "g1" }, 0)).toMatch(/cache/);
+  });
+
+  it("a keepsake is done once the cache is known taken", () => {
+    const job = parseJob(cacheRoom, { beat: 1, cache: "Q1", keepsake: "Q1" }, 0) as Job;
+    const known = { stations: {}, cachesTaken: { Q1: true } } as unknown as Known;
+    expect(isDone(cacheRoom, job, known, undefined, 0)).toBe(true);
+    expect(isDone(cacheRoom, job, { ...known, cachesTaken: {} }, undefined, 0)).toBe(false);
+  });
+
+  it("a person chooses a cache job before a bot", () => {
+    const a = parseJob(cacheRoom, { beat: 1, cache: "Q1", station: "Q1" }, 0) as Job;
+    const queues = claimJobs(cacheRoom, [a], botSeats([2], { 2: { x: 1, y: 1 } }));
+    expect(queues[2]).toEqual([a]);
+    expect(queues[0]).toEqual([]);
+    expect(queues[1]).toEqual([]);
+  });
+
+  it("Can't hear is never given a cache `listen`", () => {
+    const a = parseJob(cacheRoom, { beat: 1, cache: "Q1", listen: "Q1", at: [4, 3] }, 0) as Job;
+    for (const humans of [[], [1]]) {
+      const queues = claimJobs(cacheRoom, [a], botSeats(humans));
+      expect(queues[1]).toEqual([]); // seat 1 is the deaf role
+      expect(queues[0].length + queues[2].length).toBe(1);
+    }
+  });
 });
 
 // Braille (Task 74): a read job sends Can't see to a plate, and only Can't see.

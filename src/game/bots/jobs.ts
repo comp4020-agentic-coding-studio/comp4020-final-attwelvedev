@@ -22,6 +22,7 @@ export type JobTarget =
   | { kind: "give"; gear: string; to: Role } // hand it to the seat with this role
   | { kind: "sill"; gear: string; hatch: string } // put it on a hatch sill
   | { kind: "tow"; role: Role; to: Vec } // hold this role's hand and lead them to a tile
+  | { kind: "keepsake"; cache: string; tile: Vec } // a bot owner takes its keepsake from the vault
   | { kind: "read"; plate: string; tile: Vec }; // Can't see reads a braille plate and texts its number
 
 // A plate chosen by a chime: the clue, and the plates of its beat in reading order (plate n is the
@@ -39,6 +40,7 @@ export interface Job {
   until?: string; // a plate job is done when this door is open
   after?: string; // wait for this plate to be pressed before stepping on
   all: boolean; // every seat does it, rather than one
+  cache?: string; // a cache job: only while this cache is uncovered and not done (ADR 0024)
 }
 
 // What a bot has seen of the room: kept between ticks, since a dark zone hides things. Stations,
@@ -56,6 +58,8 @@ export interface Known {
   seenHazards: Record<string, { lastTick: number }>; // hazards perceived (seen, or heard from the right place), by id
   clues: Record<string, number>; // the count n of each clue chime heard, by clue id
   read?: Record<string, true>; // braille plates seen read (a hand on them), by id: forgotten on a send-back
+  cachesOpen?: Record<string, true>; // caches perceived uncovered: forgotten on a send-back
+  cachesTaken?: Record<string, true>; // caches whose keepsake was seen taken
 }
 
 export interface SeatInfo {
@@ -80,14 +84,23 @@ export function parseJob(room: Room, j: unknown, index: number): Job | string {
     return `hint job ${index + 1} is in beat ${j.beat}, but the room has ${room.beats.length}`;
   }
   let target: JobTarget | null = null;
+  let cache: string | undefined;
+  if (j.cache !== undefined) {
+    const named =
+      typeof j.cache === "string" ? room.objects.find((o) => o.id === j.cache) : undefined;
+    if (!named || !cacheOf(named)) {
+      return `hint job ${index + 1} names cache ${String(j.cache)}, which is not a cache`;
+    }
+    cache = named.id;
+  }
   // a chamber is for the people (caches FR8): no job may send a bot to a tile inside one
   for (const key of ["at", "read", "to", "goTo"] as const) {
     const t = j[key];
-    if (!isTile(t)) continue;
+    if (!isTile(t) || cache !== undefined) continue;
     for (const o of room.objects) {
       const c = cacheOf(o);
       if (c && inRect(c.chamber.rect, { x: t[0], y: t[1] })) {
-        return `hint job ${index + 1} has "${key}" ${JSON.stringify(t)} inside the chamber of cache ${o.id}: bots never go in`;
+        return `hint job ${index + 1} has "${key}" ${JSON.stringify(t)} inside the chamber of cache ${o.id}: bots never go in; only a cache job may`;
       }
     }
   }
@@ -95,13 +108,23 @@ export function parseJob(room: Room, j: unknown, index: number): Job | string {
   for (const key of ["station", "listen", "watch"] as const) {
     const named =
       typeof j[key] === "string" ? room.objects.find((o) => o.id === j[key]) : undefined;
-    if (named && cacheOf(named)) {
-      return `hint job ${index + 1} ${key === "station" ? "works" : key === "listen" ? "listens at" : "watches"} ${named.id}, which is a cache: bots never work a cache`;
+    if (named && cacheOf(named) && cache === undefined) {
+      return `hint job ${index + 1} ${key === "station" ? "works" : key === "listen" ? "listens at" : "watches"} ${named.id}, which is a cache: bots never work a cache; only a cache job may`;
     }
   }
   const gearId = (id: unknown) =>
     room.objects.find((o) => o.id === id && o.kind === "gear") ? (id as string) : null;
-  if (typeof j.station === "string") {
+  if (j.keepsake !== undefined) {
+    const spec = room.objects.find((o) => o.id === j.keepsake);
+    const c = spec ? cacheOf(spec) : null;
+    if (!spec || !c) {
+      return `hint job ${index + 1} takes the keepsake of ${String(j.keepsake)}, which is not a cache`;
+    }
+    if (cache !== spec.id) {
+      return `hint job ${index + 1} takes the keepsake of ${spec.id}, so it needs "cache": "${spec.id}"`;
+    }
+    target = { kind: "keepsake", cache: spec.id, tile: c.chamber.vault.item };
+  } else if (typeof j.station === "string") {
     if (!room.objects.some((o) => o.id === j.station && o.kind === "station")) {
       return `hint job ${index + 1} works ${j.station}, which is not a station in this room`;
     }
@@ -240,6 +263,7 @@ export function parseJob(room: Room, j: unknown, index: number): Job | string {
     return `hint job ${index + 1} needs "goTo" (a plate id, "E" or [x, y]), "push", "station", "listen", "watch", "take", "give", "sill" or "tow"`;
   }
   const job: Job = { index, beat: j.beat, target, all: j.all === true };
+  if (cache !== undefined) job.cache = cache;
   if (j.prefer !== undefined) {
     if (typeof j.prefer !== "string" || !ROLES.has(j.prefer)) {
       return `hint job ${index + 1} prefers "${String(j.prefer)}", which is not a role`;
@@ -292,6 +316,7 @@ export function jobTile(room: Room, job: Job, seat: Seat): Vec {
     case "listen":
     case "watch":
     case "read":
+    case "keepsake":
       return job.target.tile;
     case "exit":
       return exitTile(room, seat);
@@ -334,6 +359,7 @@ const SIGHTED_ONLY = new Set<JobTarget["kind"]>([
   "tow",
 ]);
 const eligible = (role: Role, job: Job) =>
+  job.target.kind !== "keepsake" &&
   !(role !== "blind" && job.target.kind === "read") &&
   !(role === "blind" && SIGHTED_ONLY.has(job.target.kind)) &&
   !(role === "deaf" && job.target.kind === "plate" && job.target.clue !== undefined) &&
@@ -353,10 +379,19 @@ const distance = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
 // agrees on it without talking.
 export function claimJobs(room: Room, jobs: Job[], seats: SeatInfo[]): Record<Seat, Job[]> {
   const queues: Record<Seat, Job[]> = { 0: [], 1: [], 2: [] };
-  const count = (seat: Seat) => queues[seat].filter((j) => !j.all).length;
+  const count = (seat: Seat) =>
+    queues[seat].filter((j) => !j.all && j.target.kind !== "keepsake").length;
   const beats = [...new Set(jobs.map((j) => j.beat))].sort((a, b) => a - b);
+  // a keepsake goes only to its cache's owner seat, and only when that seat is a bot
+  const keepsakes = jobs.filter((j) => j.target.kind === "keepsake");
+  for (const job of keepsakes) {
+    const spec = room.objects.find((o) => o.id === job.cache);
+    const owner = spec ? cacheOf(spec)?.owner : undefined;
+    const seat = seats.find((s) => s.seat === (owner ?? 0) - 1);
+    if (seat && !seat.human) queues[seat.seat].push(job);
+  }
   for (const beat of beats) {
-    const left = jobs.filter((j) => j.beat === beat && !j.all);
+    const left = jobs.filter((j) => j.beat === beat && !j.all && j.target.kind !== "keepsake");
     const free = new Set(seats.map((s) => s.seat));
     const give = (seat: Seat, job: Job) => {
       queues[seat].push(job);
@@ -455,6 +490,8 @@ export function isDone(
     }
     case "watch":
       return known.stations[job.target.station]?.solved === true;
+    case "keepsake":
+      return known.cachesTaken?.[job.target.cache] === true;
     case "take": {
       const by = known.gear?.[job.target.gear]?.heldBy;
       return seat === undefined ? by != null : by === seat;
