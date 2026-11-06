@@ -1,0 +1,17 @@
+{"id":"01-far-door","name":"Far door","version":1,
+ "beats":[
+  {"name":"Open","x":[0,29],"intent":{"blind":"holds the plate and hears the door unlock","deaf":"sees the door open far ahead","mute":"sees the door open far ahead"}},
+  {"name":"Out","x":[30,39],"intent":{"blind":"follows the footsteps to the exit","deaf":"guides the others onto the exit","mute":"confirms everyone is on it"}}
+ ],
+ "objects":{"D1":{"opensWhen":["p1","p2","p3"]}},
+ "hints":{"jobs":[
+  {"beat":1,"goTo":"p2","prefer":"blind"},
+  {"beat":1,"goTo":"p1","prefer":"deaf"},
+  {"beat":1,"goTo":"p3","prefer":"mute"},
+  {"beat":2,"goTo":"E","all":true}]}}
+---
+########################################
+#1p...........................D......E.#
+#2p...........................D........#
+#3p...........................D........#
+########################################

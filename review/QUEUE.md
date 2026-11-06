@@ -494,3 +494,10 @@ plate is part of the station it serves, so the pacing test does not count it), m
 
 - **Ask:** accept `doc/adr/0024-*.md` (status `proposed`; left unchanged overnight). On acceptance, ADR 0020's status gains "its bots clause superseded by 0024" (not edited overnight: 0020 is accepted).
 - **Built:** Tasks 83 to 86 (cache jobs, `currentJob`, rooms 4 to 9, `spec/bots-caches.test.ts`: 36 cases). The human play of room 4 is queued above (Task 85).
+
+### doors Task 89: the door ring anywhere, and a door pill off screen (human review, pending)
+
+- **Look at:** three tabs in room 4 (or the fixture `spec/fixtures/rooms-door`, a 40-wide room with one far door). The person at the far end sees a "Door" pill at the edge toward a door that opens off screen, and the door drawn open. A pass is: readable at a glance, and it does not collide with a face pill.
+- **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080`, make a lobby, play to room 4. For the fixture: `ROOMS_DIR=spec/fixtures/rooms-door pnpm start`.
+- **Screenshots:** `review/n7-doors-task89-pill-deaf-1280.png`, `-deaf-375.png`, `-mute-1280.png`, `-mute-375.png`.
+- **Judged:** the pill reads "Door" in a gold stroke at the east edge on both viewports, clear of the HUD and the caption strip; a 3-tile door gives one pill (fixed after the first screenshot showed three).

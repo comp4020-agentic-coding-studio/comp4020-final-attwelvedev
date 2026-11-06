@@ -1132,6 +1132,33 @@ describe("mist, night and marks out of sight (FR5, FR7, FR8)", () => {
       expect(named(base(mark(38.5))).length).toBe(1);
       expect(named(base(mark(20.5)))).toEqual([]);
     });
+
+    it("pills a door that opened off screen, on its side, in the door's colour; on screen, none", () => {
+      const door = (x: number): Partial<Scene> => ({
+        pops: [{ seat: null, fade: 1, from: { x, y: 3.5 }, name: "Door", mark: "door" }],
+        layout: "follow",
+        w: 343,
+        h: 300,
+      });
+      const drawn = (s: Scene) => {
+        const { ctx, ops } = recorder();
+        draw(ctx, s);
+        return ops;
+      };
+      const off = drawn(base(door(38.5)));
+      const pills = off.filter((o) => o.name === "roundRect" && o.strokeStyle === WORLD.door);
+      expect(pills.length).toBe(1);
+      expect(pills[0]?.args[0] as number, "on the right half").toBeGreaterThan(150);
+      expect(off.some((o) => o.name === "fillText" && o.args[0] === "Door")).toBe(true);
+      const left = drawn(base(door(0.5))).filter(
+        (o) => o.name === "roundRect" && o.strokeStyle === WORLD.door,
+      );
+      expect(left[0]?.args[0] as number).toBeLessThan(150);
+      const on = drawn(base(door(20.5))).filter(
+        (o) => o.name === "roundRect" && o.strokeStyle === WORLD.door,
+      );
+      expect(on).toEqual([]);
+    });
   });
 });
 

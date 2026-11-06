@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EntityView } from "../net/protocol.ts";
-import { detectFx, FX_MS, fxMs, fxOfCacheEvent } from "./fx.ts";
+import { detectFx, FX_MS, fxMs, fxOfCacheEvent, openedDoors } from "./fx.ts";
 
 const e = (over: Partial<EntityView> & Pick<EntityView, "id" | "kind">): EntityView => ({
   pos: { x: 5.5, y: 2.5 },
@@ -21,23 +21,29 @@ describe("detectFx: small effects for what just changed between two views", () =
     expect(detectFx([down], [up])).toMatchObject([{ kind: "ring", tone: "muted" }]);
   });
 
-  // A door out of your sight is sent closed, whatever the truth, so walking into range flips an open
-  // door from closed to open without it having opened. That is not an opening: no ring.
-  it("rings a door that opens while it is in sight, and not one that only comes into sight open", () => {
+  // ADR 0025: every ordinary door's true state is sent, so a door opening out of sight rings as well.
+  it("a door that opens out of sight rings", () => {
     const closed = e({ id: "D1", kind: "door", state: "closed", pos: { x: 5.5, y: 2.5 } });
-    const open = { ...closed, state: "open" as const };
-    const seesIt = { has: (x: number, y: number) => x === 5 && y === 2 };
-    const seesNothing = { has: () => false };
-    expect(detectFx([closed], [open], seesIt), "seen last view: it opened").toMatchObject([
-      { kind: "ring", tone: "ui" },
+    expect(detectFx([closed], [{ ...closed, state: "open" }])).toMatchObject([
+      { kind: "ring", tone: "ui", pos: closed.pos },
     ]);
-    expect(detectFx([closed], [open], seesNothing), "unseen last view: it came into view").toEqual(
-      [],
-    );
-    expect(
-      detectFx([closed], [open]),
-      "no sight data (a watcher): every change counts",
-    ).toHaveLength(1);
+  });
+
+  it("a door of three tiles is one opening, not three", () => {
+    const tile = (y: number, state: "closed" | "open") =>
+      e({ id: "D1", kind: "door", state, pos: { x: 5.5, y } });
+    const before = [tile(1.5, "closed"), tile(2.5, "closed"), tile(3.5, "closed")];
+    const after = [tile(1.5, "open"), tile(2.5, "open"), tile(3.5, "open")];
+    expect(openedDoors(before, after)).toHaveLength(1);
+  });
+
+  it("two doors in one view ring twice, and one that was already open does not ring", () => {
+    const door = (id: string, x: number, state: "closed" | "open") =>
+      e({ id, kind: "door", state, pos: { x, y: 2.5 } });
+    const before = [door("D1", 5.5, "closed"), door("D2", 9.5, "closed"), door("D3", 12.5, "open")];
+    const after = [door("D1", 5.5, "open"), door("D2", 9.5, "open"), door("D3", 12.5, "open")];
+    expect(detectFx(before, after)).toHaveLength(2);
+    expect(openedDoors(before, after).map((d) => d.id)).toEqual(["D1", "D2"]);
   });
 
   it("rings a door the moment it opens", () => {

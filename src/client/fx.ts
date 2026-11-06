@@ -47,14 +47,23 @@ export function fxOfCacheEvent(event: NonNullable<RoleView["cacheEvent"]>): Fx[]
 
 const key = (e: EntityView): string => `${e.id}@${e.pos.x},${e.pos.y}`;
 
-// `seenBefore` is the tiles that were in sight in the previous view (none for a watcher). A door out of
-// sight is sent closed whatever the truth, so one that is open when it comes into sight looks as if it
-// just opened; it only counts as opening if its tile was in sight the view before.
-export function detectFx(
-  prev: EntityView[],
-  next: EntityView[],
-  seenBefore?: { has(x: number, y: number): boolean } | null,
-): Fx[] {
+// Every ordinary door's true state is sent to every sighted seat (ADR 0025), so a door that goes from
+// closed to open between two views has just opened, wherever it is. One per door.
+// A door of several tiles is one entity per tile with one id: it counts once.
+export function openedDoors(prev: EntityView[], next: EntityView[]): EntityView[] {
+  if (prev.length === 0) return []; // the first view: everything would look new
+  const was = new Map(prev.map((e) => [key(e), e]));
+  const seen = new Set<string>();
+  return next.filter((e) => {
+    if (e.kind !== "door" || was.get(key(e))?.state !== "closed" || e.state !== "open")
+      return false;
+    if (seen.has(e.id)) return false;
+    seen.add(e.id);
+    return true;
+  });
+}
+
+export function detectFx(prev: EntityView[], next: EntityView[]): Fx[] {
   if (prev.length === 0) return []; // the first view: everything would look new
   const out: Fx[] = [];
   const was = new Map(prev.map((e) => [key(e), e]));
@@ -66,12 +75,7 @@ export function detectFx(
     const before = was.get(key(e));
     if (e.kind === "plate" && before && before.state !== e.state) {
       out.push({ kind: "ring", pos: e.pos, tone: e.state === "pressed" ? "goal" : "muted" });
-    } else if (
-      e.kind === "door" &&
-      before?.state === "closed" &&
-      e.state === "open" &&
-      (!seenBefore || seenBefore.has(Math.floor(e.pos.x), Math.floor(e.pos.y)))
-    ) {
+    } else if (e.kind === "door" && before?.state === "closed" && e.state === "open") {
       out.push({ kind: "ring", pos: e.pos, tone: "ui" });
     } else if (e.kind === "braille" && e.flash === "ok") {
       // Can't see read the plate: a ring where it lies, the picture of its tap (parity row `tap`)

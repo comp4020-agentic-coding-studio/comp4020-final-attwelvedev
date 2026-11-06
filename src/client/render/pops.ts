@@ -56,10 +56,13 @@ export function drawEdgePills(ctx: CanvasRenderingContext2D, scene: Scene, cam: 
   for (const pop of scene.pops ?? []) {
     if (!pop.from || !pop.name) continue;
     // a sender you can see already shows over their head, and a mark on screen is just a mark
-    const sender = scene.entities.find((e) => e.kind === "player" && e.seat === pop.seat);
+    const sender =
+      pop.seat === null
+        ? undefined
+        : scene.entities.find((e) => e.kind === "player" && e.seat === pop.seat);
     const target = toScreen(cam, pop.from.x, pop.from.y);
     const onScreen = target.x >= 0 && target.x <= scene.w && target.y >= 0 && target.y <= scene.h;
-    if (pop.mark ? onScreen : sender !== undefined) continue;
+    if (pop.mark ? onScreen : sender !== undefined) continue; // (a door has no seat: a mark)
     drawPill(ctx, scene, pop, exitPoint(scene.w, scene.h, target, PILL_MARGIN + PILL_H / 2));
   }
 }
@@ -70,40 +73,50 @@ function drawPill(
   pop: FacePop,
   at: { x: number; y: number },
 ) {
-  const role = scene.roles[pop.seat] ?? "blind";
+  // a door's pill has no seat: the door's colour, no role shape, just "Door"
+  const role = pop.seat === null ? null : (scene.roles[pop.seat] ?? "blind");
+  const colour = role === null ? WORLD.door : ROLE_COLOR[role];
   ctx.save();
   ctx.globalAlpha = pop.fade;
   ctx.font = `700 ${NAME_PX}px "Archivo", system-ui, sans-serif`;
-  const name = pop.name ?? "";
+  const name = role === null ? "" : (pop.name ?? "");
   const hasPicture = !!pop.img && !pop.alone;
   const glyph = pop.mark ? STAMP_FACE[pop.mark] : "";
+  if (role === null) ctx.font = `700 ${NAME_PX + 2}px system-ui, sans-serif`; // measured as drawn
+  // a door's pill is "Door" alone; the others are shape, name and the glyph
   const w =
-    12 +
-    PILL_H * 0.6 +
-    6 +
-    ctx.measureText(name).width +
-    8 +
-    (glyph ? 22 : 0) +
-    (hasPicture ? FACE_PX : 0);
+    role === null
+      ? 24 + ctx.measureText(glyph).width
+      : 12 +
+        PILL_H * 0.6 +
+        6 +
+        ctx.measureText(name).width +
+        8 +
+        (glyph ? 22 : 0) +
+        (hasPicture ? FACE_PX : 0);
   const x = Math.max(PILL_MARGIN, Math.min(scene.w - PILL_MARGIN - w, at.x - w / 2));
   const y = at.y - PILL_H / 2;
   ctx.fillStyle = "rgba(20, 30, 54, 0.88)"; // --glass: the canvas can't read an rgba token
-  ctx.strokeStyle = ROLE_COLOR[role];
+  ctx.strokeStyle = colour;
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.roundRect(x, y, w, PILL_H, PILL_H / 2);
   ctx.fill();
   ctx.stroke();
   let cursor = x + 12;
-  ctx.fillStyle = ROLE_COLOR[role];
-  shapePath(ctx, ROLE_SHAPE[role], cursor + PILL_H * 0.15, y + PILL_H / 2, PILL_H * 0.2);
-  ctx.fill();
-  cursor += PILL_H * 0.6 + 6;
+  ctx.fillStyle = colour;
+  if (role !== null) {
+    shapePath(ctx, ROLE_SHAPE[role], cursor + PILL_H * 0.15, y + PILL_H / 2, PILL_H * 0.2);
+    ctx.fill();
+    cursor += PILL_H * 0.6 + 6;
+  }
   ctx.fillStyle = COLOR.ui;
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
-  ctx.fillText(name, cursor, y + PILL_H / 2 + 1);
-  cursor += ctx.measureText(name).width + 8;
+  if (role !== null) {
+    ctx.fillText(name, cursor, y + PILL_H / 2 + 1);
+    cursor += ctx.measureText(name).width + 8;
+  }
   if (glyph) {
     ctx.font = `700 ${NAME_PX + 2}px system-ui, sans-serif`;
     ctx.fillText(glyph, cursor, y + PILL_H / 2 + 1);

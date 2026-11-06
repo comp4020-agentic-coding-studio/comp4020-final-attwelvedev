@@ -96,7 +96,7 @@ export interface Motion {
 }
 
 export interface FacePop {
-  seat: Seat;
+  seat: Seat | null; // null: a door that opened off screen, whose pill belongs to no one
   img?: CanvasImageSource; // a face; absent for a mark
   fade: number; // 1 while fully shown, down to 0 as it goes
   // Where the sender stood (a face) or the mark was placed, and the sender's name: what an edge

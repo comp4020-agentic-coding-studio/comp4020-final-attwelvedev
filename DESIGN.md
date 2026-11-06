@@ -151,6 +151,7 @@ a symbol into copy; it would fall back to another font and look wrong.
 - **Night** is a dark zone: `--w-night` with a rim along its edge. Only Show items, marks and your own ring are in it.
 - **Marks** in a tile you can't see are drawn at 35 % through the mist: only a teammate's message, never room state.
 - **Edge pills.** A face or mark from someone you can't see (or a mark placed off screen) is a glass pill at the screen edge, where the ray from the middle of the screen to them leaves it: their role shape, their name in the HUD's font, and the face (a 1.5 s plate) or the mark's glyph. The face goes after 1.5 s; the pill stays alone for 4 s, then fades. A sender in sight shows over their head instead.
+  A door that opens off screen: a pill in the door's colour with "Door", no role shape, 4 s (ADR 0025).
 
 ### 4.5 The world rises (built, Task 21)
 

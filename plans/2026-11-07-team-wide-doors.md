@@ -150,7 +150,7 @@ including through `sendBack`, which does not touch `doorOpen` for ordinary doors
 - **Break check:** restore the `state: "closed"` line with a script, and watch "true state" go red.
 - **Depends on:** none (Task 87 is only the ordering).
 
-### Task 89: The ring anywhere, and a door pill off screen (FR5, FR7)
+### Task 89: The ring anywhere, and a door pill off screen (FR5, FR7) [done]
 
 - **Description:**
   - `detectFx` rings on every ordinary door closed→open. The `seenBefore` door condition is removed, and
