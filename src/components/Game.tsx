@@ -1138,8 +1138,12 @@ function Hud({
           role="img"
           aria-label={role === "blind" ? "No map. Listen to the room." : "Map of the room"}
         />
-        <SideJob cache={cache} keepsake={keepsake} />
-        {braille && <BrailleCard cells={braille.cells} teach={braille.teach} />}
+        {/* the side-job chip and the open plate share one column, so the plate sits under the chip at whatever
+            height the chip has (a riddle wraps to two lines); neither covers the other */}
+        <div class="top-stack">
+          <SideJob cache={cache} keepsake={keepsake} />
+          {braille && <BrailleCard cells={braille.cells} teach={braille.teach} />}
+        </div>
         {moment && (
           <div class="cache-moment" role="status">
             <p>{moment}</p>

@@ -1595,10 +1595,26 @@ fieldset.settings {
 /* the side job: a chip at the frame's top-left, past the notch; tap for the whole line. Unsolved it
    is the motif and the riddle; in the vault it is the keepsake on its plate and "Waiting in the
    vault"; taken it adds a tick and "Taken by you". Shape and words carry it, never colour alone. */
-.side-job {
+/* one column at the frame's top: the side-job chip, then Can't see's open plate under it, whatever height the chip is */
+.top-stack {
   position: absolute;
   top: var(--s-2);
-  left: calc(var(--s-2) + 32px);
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s-2);
+  pointer-events: none;
+}
+.top-stack > * {
+  pointer-events: auto;
+}
+.side-job {
+  position: relative;
+  align-self: flex-start;
+  margin-left: calc(var(--s-2) + 32px);
   z-index: 3;
   display: flex;
   align-items: center;
@@ -2021,12 +2037,10 @@ fieldset.settings {
    dots are filled discs, flat positions small rings: shape, never colour alone. On a phone it lets
    touches through, and the comms wheel draws above it. */
 .braille-card {
-  position: absolute;
-  top: calc(var(--s-2) + var(--target) + var(--s-2)); /* below the side-job chip's slot */
-  left: 50%;
+  position: relative;
+  align-self: center;
   z-index: 4;
-  transform: translateX(-50%);
-  width: max-content; /* left: 50% alone would shrink it into the right half */
+  width: max-content;
   min-width: 0;
   margin: 0;
   max-width: calc(100% - 2 * var(--s-2));
@@ -2077,7 +2091,9 @@ fieldset.settings {
 .braille-key {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--s-2);
+  /* the empty gap between two cells must read as wider than the pitch of the dots inside one (11 px at this size),
+     or a row of cells reads as one even row of dots */
+  gap: var(--s-2) var(--s-4);
   margin: 0;
   padding: 0 0 0 var(--s-3);
   border-left: 1px solid var(--ui-muted);
@@ -2099,7 +2115,6 @@ fieldset.settings {
 }
 @media (max-width: 600px) {
   .braille-card {
-    top: calc(var(--s-1) + var(--target) + var(--s-1));
     padding: var(--s-1) var(--s-2);
     font-size: var(--t-14);
   }
@@ -2115,7 +2130,7 @@ fieldset.settings {
   .braille-key {
     display: grid;
     grid-template-columns: repeat(6, auto);
-    gap: var(--s-2) var(--s-1);
+    gap: var(--s-2) var(--s-4);
     padding-left: var(--s-2);
   }
   .braille-label {

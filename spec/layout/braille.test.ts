@@ -136,8 +136,35 @@ describe.each([
       // the whole card, key and all, inside the game frame, clear of the captions under it
       const frame = await blind.locator(".frame").boundingBox();
       expect(box && frame && box.y + box.height <= frame.y + frame.height).toBe(true);
-      // below the side-job chip's slot (top s-2, at least a 48 px target), so the two never overlap
-      if (box && frame) expect(box.y >= frame.y + 8 + 48).toBe(true);
+      // this fixture room has no cache, so no chip: when there is one the card is under its real box, and either
+      // way the card shares one column with the chip, so it sits under it at whatever height the chip has
+      if ((await blind.locator(".side-job").count()) > 0) {
+        const chip = await blind.locator(".side-job").boundingBox();
+        if (chip && box)
+          expect(box.y >= chip.y + chip.height, "the card is under the chip").toBe(true);
+      }
+      expect(await group.evaluate((el) => el.parentElement?.className)).toBe("top-stack");
+      // the empty gap between two cells of the key is wider than the dot pitch inside one cell, or a row of
+      // cells reads as one even row of dots (the user, Task 75 review)
+      const gaps = await group.locator(".braille-key li").evaluateAll((els) => {
+        const r = els.map((e) => (e.querySelector("svg") as SVGElement).getBoundingClientRect());
+        const first = els[0]?.querySelector("svg");
+        const dots = first
+          ? [...first.querySelectorAll("circle")].map((c) => c.getBoundingClientRect())
+          : [];
+        const pitch =
+          dots.length > 1 ? Math.abs((dots[3] as DOMRect).left - (dots[0] as DOMRect).left) : 0;
+        const between: number[] = [];
+        for (let i = 1; i < r.length; i++) {
+          const a = r[i - 1] as DOMRect;
+          const b = r[i] as DOMRect;
+          if (Math.abs(a.top - b.top) < 2) between.push(b.left - a.right);
+        }
+        return { pitch, min: Math.min(...between) };
+      });
+      expect(gaps.min, `cell gap ${gaps.min} vs dot pitch ${gaps.pitch}`).toBeGreaterThan(
+        gaps.pitch,
+      );
       // the key's rows are apart: the two rows of a phone key never touch
       const rows = await group
         .locator(".braille-key li")
