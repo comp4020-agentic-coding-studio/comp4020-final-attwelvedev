@@ -67,5 +67,5 @@ bells station's tune box is at one end, so the line meets the right of the bells
 
 ## Phase Definition of Done
 
-- [ ] Tasks 43, 46 and 47 committed, \`pnpm check\` green, \`DESIGN.md\` updated for the UV rim and links, review screenshots written.
-- [ ] Covers demo 4, 6, 8.
+- [x] Tasks 43, 46 and 47 committed (checked 2026-11-07: all `[x]`), \`pnpm check\` green, \`DESIGN.md\` updated for the UV rim and links. Review screenshots: Task 43's were written (`review/13-task43-uv-*.png`); Task 47's `13-task47-links-*.png` were never written, and the user reviewed the links by hand on 2026-11-02 without them.
+- [x] Covers demo 4, 6, 8 (Tasks 43, 47 and 46).

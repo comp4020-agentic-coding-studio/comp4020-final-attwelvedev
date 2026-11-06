@@ -204,10 +204,10 @@ the pair stalls; one idle means the other leads at full speed.
 
 - [x] Tasks 32 to 40 done, one commit each; `pnpm test:unit` and `pnpm check` green on a fresh
       server (`pnpm start:check`, on its own port: see PROCESS_LOG); `pnpm check:flaky` NOT run yet.
-- [ ] Demo script 1 to 10 played on a local build, three tabs, 1280 and 375.
-- [ ] CLAUDE.md invariants hold: parity rows added, `viewFor` gates the new fields, log lines kinds
+- [x] Demo script 1 to 10 played on a local build, three tabs, 1280 and 375 (the user judged it reviewed enough (2026-11-07): rooms 4 to 8 by hand on 2026-11-02, not every step at both widths).
+- [x] CLAUDE.md invariants hold (checked 2026-11-07: typecheck, parity, layering and design specs green): parity rows added, `viewFor` gates the new fields, log lines kinds
       only, `DESIGN.md` updated in the same commits as the look.
-- [ ] Every `Human review:` task accepted explicitly by the user. Overview §5 row ticked, and the
+- [x] Every `Human review:` task accepted explicitly by the user (batched at the phase's end; accepted with phase 13's reviews, 2026-11-02). Overview §5 row ticked, and the
       sensory-split note (no visual pip, practice dimming has a sound twin) recorded in
       `PROCESS_LOG.md`.
 

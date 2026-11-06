@@ -46,4 +46,4 @@ that blocks the task (do not edit the linter to pass).
 ## Phase Definition of Done
 
 - [x] Tasks 44 and 45 committed, \`pnpm lint:rooms\`, \`spec/room07.test.ts\` and \`spec/rooms.test.ts\` green.
-- [ ] Covers demo 5, 7.
+- [x] Covers demo 5, 7 (Tasks 44 and 45).

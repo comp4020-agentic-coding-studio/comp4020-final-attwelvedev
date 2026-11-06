@@ -61,7 +61,7 @@ Add a §5 row for phase 13 to `plans/2026-10-28-escape-room-heist-00-overview.md
 
 - [x] Tasks 41 to 50 done (with the review fixes after them); `pnpm test:unit` and `pnpm check` green on a fresh `pnpm start:check` server.
 - [x] `pnpm check:flaky 6` run once at the end: no wheel or reveal failure (6 of 6 clean on `b27e8e6`, 2026-11-02).
-- [ ] Demo script 1 to 10 played on a local build, three tabs, 1280 and 375. (The user reviewed rooms 4 to 8 by hand on 2026-11-02; they did not say every step ran at both widths, so this stays open for them.)
+- [x] Demo script 1 to 10 played on a local build, three tabs, 1280 and 375. (The user reviewed rooms 4 to 8 by hand on 2026-11-02 and did not say every step ran at both widths; on 2026-11-07 they judged it reviewed enough.)
 - [x] CLAUDE.md invariants hold (checked 2026-11-02: no new cue kind or log line this phase; the changed `practice` cue has its parity row and its `n`/`of` are gated in `viewFor`; DESIGN.md has the links and the UV text): every new or changed cue has a `parity.test.ts` row, `viewFor` gates new fields (`n`, `of` on practice), log lines kinds only,
       `DESIGN.md` updated with the UV rim and link changes.
 - [x] Every `Human review:` task accepted explicitly by the user (2026-11-02). Master overview row ticked.

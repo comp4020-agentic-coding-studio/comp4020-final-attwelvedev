@@ -299,22 +299,28 @@ matching `/^\d$/`, or `"stop"` as a callout for a dial; bots read only those two
 | 09 | `…-09-music-room.md` | 24–25 | 08 | music box and earpiece decoders; room 8; **human review** | [x] |
 | 10 | `…-10-vault.md` | 26–27 | 09 | vault and sync decoders; room 9; old rooms removed; **human review** | [x] |
 | 11 | `…-11-wrap-up.md` | 28–31 | 10 | credits and the cleared card (28), comms map, edition 2, docs, ADRs (31); floor-item side jobs replaced by phase 14; **human review** | [x] |
-| 12 | `…-12-review-fixes.md` | 32–40 | 10 | fixes from the human review of phases 02 to 10 (G, crate plate, labels, links, chimes, room 7, practice lever, HUD, hand-holding); **human review** | [ ] |
+| 12 | `…-12-review-fixes.md` | 32–40 | 10 | fixes from the human review of phases 02 to 10 (G, crate plate, labels, links, chimes, room 7, practice lever, HUD, hand-holding); **human review** | [x] |
 | 13 | `2026-11-01-escape-room-heist-13-00-overview.md` | 41–50 | 12 | fixes from the human review of phase 12 (vent chimes, practice sound, UV ink, room 7 door, link wires, bots, flaky specs); **human review** | [x] |
 | 14 | `2026-11-02-escape-room-heist-14-00-overview.md` | 51–60 | 11 (28–30), 12, 13 | side jobs as hidden caches: sim and view, server, client, six caches, docs and ADR 0020; **human review** | [x] |
 
 ## 6. Feature-level Definition of Done
 
-- [ ] Every phase in §5 is ticked, and every task is complete with tests passing
-- [ ] `pnpm test:unit` passes
-- [ ] `pnpm build && pnpm start` then `pnpm check` passes
-- [ ] Manually verified on a local build, three tabs, desktop and phone: the clues spec's demo
+Checked 2026-11-07, each box against the record or the code, not copied from a phase file.
+
+- [x] Every phase in §5 is ticked, and every task is complete with tests passing (every §5 row and every
+  phase checklist is ticked; `pnpm test:unit` passes)
+- [x] `pnpm test:unit` passes (1,784 tests, 2026-11-07)
+- [x] `pnpm build && pnpm start` then `pnpm check` passes (157 files, 2,294 tests, 2026-11-07)
+- [x] Manually verified on a local build, three tabs, desktop and phone: the clues spec's demo
   (rooms 1 to 3 teach two things each; the teaching then real safe; a plaque read across rooms; a
-  radio digit found in the keypad by its motif; the vault fed by its wings)
-- [ ] Every requirement in §2 is covered (see §7)
-- [ ] Every `Human review:` task explicitly accepted by the user
-- [ ] ADRs 0017 and 0018 accepted by the user; CLAUDE.md and DESIGN.md match the code
-- [ ] No item remains in §8
+  radio digit found in the keypad by its motif; the vault fed by its wings) (the user played rooms 4
+  to 8 by hand on 2026-11-02 and did not say every step ran at both widths; on 2026-11-07 they judged it
+  reviewed enough, so this is their judgement and not a full two-width run)
+- [x] Every requirement in §2 is covered (see §7) (each row names ticked tasks)
+- [x] Every `Human review:` task explicitly accepted by the user (recorded task by task in the phase files)
+- [x] ADRs 0017 and 0018 accepted by the user (2026-11-06); CLAUDE.md and DESIGN.md match the code
+  (`spec/design.test.ts` and the typecheck pass)
+- [x] No item remains in §8 (§8: "None open")
 
 ## 7. Requirements coverage check
 
