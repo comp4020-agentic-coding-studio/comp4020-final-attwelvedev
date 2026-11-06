@@ -2036,15 +2036,16 @@ fieldset.settings {
   font-style: italic;
 }
 /* Can't see's open braille plate, "felt, not lit" (spec §4.1 A, DESIGN.md: BrailleCard): a thin
-   outline straight on black, top-centre over the side-job chip, no fill and no Close button. Raised
+   outline straight on black, top-centre just under the side-job chip, no fill and no Close button. Raised
    dots are filled discs, flat positions small rings: shape, never colour alone. On a phone it lets
    touches through, and the comms wheel draws above it. */
 .braille-card {
   position: absolute;
-  top: var(--s-2);
+  top: calc(var(--s-2) + var(--target) + var(--s-2)); /* below the side-job chip's slot */
   left: 50%;
   z-index: 4;
   transform: translateX(-50%);
+  width: max-content; /* left: 50% alone would shrink it into the right half */
   min-width: 0;
   margin: 0;
   max-width: calc(100% - 2 * var(--s-2));
@@ -2117,7 +2118,7 @@ fieldset.settings {
 }
 @media (max-width: 600px) {
   .braille-card {
-    top: var(--s-1);
+    top: calc(var(--s-1) + var(--target) + var(--s-1));
     padding: var(--s-1) var(--s-2);
     font-size: var(--t-14);
   }
@@ -2133,7 +2134,7 @@ fieldset.settings {
   .braille-key {
     display: grid;
     grid-template-columns: repeat(6, auto);
-    gap: 2px var(--s-1);
+    gap: var(--s-2) var(--s-1);
     padding-left: var(--s-2);
   }
   .braille-label {

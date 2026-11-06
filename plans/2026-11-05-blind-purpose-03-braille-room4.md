@@ -354,4 +354,8 @@ None.
 
 ## Corrections log
 
-(empty)
+- 2026-11-06, Task 75 human review: the card sat at the top and covered the side-job chip; on a phone
+  the key's two rows touched. Wanted: the card lower, more vertical space between key rows. Missed
+  because the layout spec checked the card against the wheel and captions but never against the
+  side-job chip, and checked no row gap. Fixed with a spec for both (red on the old CSS, both
+  viewports), then the CSS.

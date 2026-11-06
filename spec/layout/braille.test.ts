@@ -136,6 +136,17 @@ describe.each([
       // the whole card, key and all, inside the game frame, clear of the captions under it
       const frame = await blind.locator(".frame").boundingBox();
       expect(box && frame && box.y + box.height <= frame.y + frame.height).toBe(true);
+      // below the side-job chip's slot (top s-2, at least a 48 px target), so the two never overlap
+      if (box && frame) expect(box.y >= frame.y + 8 + 48).toBe(true);
+      // the key's rows are apart: the two rows of a phone key never touch
+      const rows = await group
+        .locator(".braille-key li")
+        .evaluateAll((els) => els.map((e) => e.getBoundingClientRect()));
+      const tops = [...new Set(rows.map((r) => Math.round(r.top)))].sort((a, b) => a - b);
+      for (let i = 1; i < tops.length; i++) {
+        const above = rows.find((r) => Math.round(r.top) === tops[i - 1]);
+        if (above) expect(tops[i] - above.bottom >= 6).toBe(true);
+      }
       const caps = await blind.locator(".captions").boundingBox();
       if (caps && box) expect(box.y + box.height <= caps.y).toBe(true);
       const wheel = blind.locator(".wheel-btn");
