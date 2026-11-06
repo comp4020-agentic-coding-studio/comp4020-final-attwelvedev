@@ -328,7 +328,13 @@ export function regionOf(
   for (const { foot, planar, wallBehind } of parts) {
     if (wallBehind && !planar) {
       const behind = behindWall(cam, light, foot, height);
-      if (behind === "whole") continue; // lit end to end: no clip, no box (a lit figure is drawn bare)
+      // lit end to end: this part needs no cut. It still adds its own rectangle, so that when another part of
+      // the same thing is cut, the clip reaches this one too (a safe has several parts); if every part is lit,
+      // `whole` stays true and nothing is clipped at all (a lit figure is drawn bare)
+      if (behind === "whole") {
+        pieces.push(screenRect(cam, foot, height, SIDE));
+        continue;
+      }
       whole = false;
       pieces.push(...behind);
       continue;
@@ -409,6 +415,9 @@ function behindWall(
   const rect = screenRect(cam, foot, height, SIDE);
   const out: S[][] = [];
   const lit = cutToBox(light, foot);
+  // lit end to end: no cone edge crosses the thing's rectangle, and the wall's foot is lit across the whole width,
+  // so there is nothing to cut and a lit figure is drawn bare, with no clip around it
+  let clear = false;
   if (lit.length >= 3) {
     const edges = coneEdges(cam, light);
     const through = edgesNear(edges, boxOf(rect));
@@ -418,19 +427,19 @@ function behindWall(
       const c = clipAtLine(q, line, true);
       if (c.length >= 3) out.push(c);
     }
+    clear = through.length === 0;
   }
   const wide = { x0: foot.x0 - SIDE, x1: foot.x1 + SIDE };
   const spans = litSpans(light, foot.y0 + OUT, wide.x0, wide.x1);
   const only = spans[0];
   if (
+    clear &&
     spans.length === 1 &&
     only &&
     only[0] <= wide.x0 + 1e-6 &&
     only[1] >= wide.x1 - 1e-6 &&
     out.length === 1 &&
-    lit.length >= 3 &&
-    areaOfPlan(lit) !== 0 &&
-    Math.abs(areaOfPlan(lit)) >= (foot.x1 - foot.x0) * (foot.y1 - foot.y0) - 1e-6
+    inLight(light, { x: (foot.x0 + foot.x1) / 2, y: foot.y1 - OUT })
   )
     return "whole";
   const top = toScreen(cam, 0, foot.y0, height).y - 1;
