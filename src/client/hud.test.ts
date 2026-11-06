@@ -115,6 +115,12 @@ describe("cueCaptions", () => {
   const east = { x: 1, y: 0 };
   const west = { x: -1, y: 0 };
 
+  it("a door cue is captioned 'door unlocked' with its direction", () => {
+    expect(cueCaptions([{ kind: "door", pan: -0.6, gain: 1, dir: { x: -1, y: 0 } }])).toEqual([
+      { text: "door unlocked", dir: "W" },
+    ]);
+  });
+
   it("describes each sound once per direction, with the direction as data", () => {
     const cues = [
       { kind: "footsteps", pan: -0.8, gain: 0.5, dir: west },
@@ -127,7 +133,7 @@ describe("cueCaptions", () => {
       { text: "footsteps", dir: "W" },
       { text: "footsteps", dir: "E" },
       { text: "hum", dir: null },
-      { text: "door click", dir: "N" },
+      { text: "door unlocked", dir: "N" },
     ]);
   });
 

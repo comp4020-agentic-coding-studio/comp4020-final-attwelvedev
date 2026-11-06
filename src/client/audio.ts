@@ -19,8 +19,8 @@ const HUM_HZ = 110;
 const RADIO_GAP_MS = 250; // static and a tuned tone are sent every tick in range: played four times a second
 
 // The cues are made here rather than loaded, so there is nothing to download
-// or credit: a soft tick for footsteps, a steady hum on a plate, a click for a
-// door, and for the heist a lower tick for guards, a whir for a camera, a
+// or credit: a soft tick for footsteps, a steady hum on a plate, a bolt and
+// thunk for a door, and for the heist a lower tick for guards, a whir for a camera, a
 // buzz for a laser, chimes, a siren and an alarm. Each is panned and scaled
 // by the cue the server computed. Nothing flashes or flickers: a steady cue is
 // a steady tone.
@@ -105,18 +105,6 @@ export function createAudio(): GameAudio {
     src.start();
   };
 
-  const click = (c: AudioContext, cue: SoundCue) => {
-    const osc = c.createOscillator();
-    osc.type = "square";
-    osc.frequency.value = 1400;
-    const gain = c.createGain();
-    gain.gain.setValueAtTime(0.25 * cue.gain, c.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.06);
-    osc.connect(gain).connect(panner(c, cue.pan));
-    osc.start();
-    osc.stop(c.currentTime + 0.07);
-  };
-
   // One short tone, optionally sliding from `from` to `to` Hz over `secs`.
   const tone = (
     c: AudioContext,
@@ -156,9 +144,9 @@ export function createAudio(): GameAudio {
   };
 
   // The families, so they can be learned instead of memorised one by one:
-  //   object clicks     plate, plate-up, door              short, dry
+  //   object clicks     plate, plate-up                    short, dry
   //   things moving     crate, hide                        scrapes and rustles
-  //   team progress     flag, exit, seq-ok                 a tone that rises with how many
+  //   team progress     flag, exit, seq-ok, door           a tone that rises with how many; a door is a heavy unlock
   //   mistakes          seq-wrong                          low and buzzy
   //   successes         seq-open, cleared, loot, checkpoint   bright arpeggios and chimes
   // a burst of the short noise through a filter: a wire's snap, the radio's static, the dye's pomf
@@ -195,6 +183,13 @@ export function createAudio(): GameAudio {
     tone(c, cue, "sine", hz, hz, secs, level, delay);
     tone(c, cue, "sine", hz * 2.76, hz * 2.76, secs * 0.5, level * 0.35, delay);
     tone(c, cue, "sine", hz * 5.4, hz * 5.4, secs * 0.25, level * 0.15, delay);
+  };
+
+  // A door unlocking, heard by the whole team from anywhere (ADR 0025): a bolt (a short band-passed
+  // noise burst), then a low thunk (a sine at about 90 Hz over 180 ms), both panned toward the door.
+  const unlock = (c: AudioContext, cue: SoundCue) => {
+    burst(c, cue, "bandpass", 1100, 0.9, 4);
+    tone(c, cue, "sine", 95, 80, 0.18, 0.9, 0.12);
   };
 
   const progress = (
@@ -372,7 +367,7 @@ export function createAudio(): GameAudio {
         lastStep = now;
         tick(c, loudest);
       }
-      for (const s of sounds) if (s.kind === "door") click(c, s);
+      for (const s of sounds) if (s.kind === "door") unlock(c, s);
       for (const s of sounds) {
         if (s.kind === "camera") tone(c, s, "sawtooth", 500, 900, 0.35, 0.18);
         else if (s.kind === "loot") tone(c, s, "sine", 988, 1318, 0.25, 0.3);

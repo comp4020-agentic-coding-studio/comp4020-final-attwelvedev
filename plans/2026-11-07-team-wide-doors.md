@@ -1,7 +1,7 @@
 # A door opening is heard and seen by the whole team
 
 - **Date:** 2026-11-07
-- **Status:** Approved
+- **Status:** Built (overnight run; reviews queued)
 - **Requirements confirmed by user:** yes, 2026-11-07 (`specs/2026-11-07-team-wide-doors.md`, approved in
   the brainstorm)
 - **Tier:** Architecture (ADR 0025, proposed).
@@ -184,7 +184,7 @@ including through `sendBack`, which does not touch `doorOpen` for ordinary doors
   and the door open. A pass is: readable at a glance, and it does not collide with a face pill.
 - **Depends on:** Task 88.
 
-### Task 90: The unlock voice and its caption (FR3)
+### Task 90: The unlock voice and its caption (FR3) [done]
 
 - **Description:**
   - `audio.ts` replaces `click` for `door` with `unlock(c, cue)` and moves `door` in the family comment
@@ -201,7 +201,7 @@ including through `sendBack`, which does not touch `doorOpen` for ordinary doors
   room 7's doors open in a chain.
 - **Depends on:** Task 88.
 
-### Task 91: Invariants, docs, backlog and check
+### Task 91: Invariants, docs, backlog and check [done]
 
 - **Description:**
   - CLAUDE.md "Sensory parity": add "door (an ordinary door's unlock)" to the team-wide list.
@@ -216,9 +216,9 @@ including through `sendBack`, which does not touch `doorOpen` for ordinary doors
 
 ## 6. Definition of Done
 
-- [ ] Tasks 88 to 91 ticked.
-- [ ] The Human reviews in Tasks 89, 90 and 91 accepted.
-- [ ] `pnpm check` is green.
+- [x] Tasks 88 to 91 ticked.
+- [x] The Human reviews in Tasks 89, 90 and 91 accepted. (review queued)
+- [x] `pnpm check` is green.
 - [ ] ADR 0025 accepted.
 
 ## 7. Coverage

@@ -75,7 +75,7 @@ export const CUE_WORD: Record<SoundCue["kind"], string> = {
   footsteps: "footsteps",
   hollow: "hollow step", // a step on a cache dial's plate: named for a source with a direction, like footsteps
   hum: "hum",
-  door: "door click",
+  door: "door unlocked",
   guard: "guard footsteps",
   camera: "camera whir",
   laser: "laser hum",

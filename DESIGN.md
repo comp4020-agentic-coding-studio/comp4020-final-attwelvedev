@@ -264,6 +264,8 @@ pattern and outline), `turnPad` (a floor pad with its arrow), `symbolGlyph` (a v
 | Keepsake taken | the item lifts off its plinth and fades over 1 s with a spark burst and a `--goal` ring; reduced motion: it fades in place |
 | Taken side-job chip | one 600 ms pulse; none under reduced motion (the vault chip does not pulse) |
 
+**Door sound** (`door`, team-wide, ADR 0025): an unlock, not a click: a short band-passed noise burst (the bolt, about 120 ms) then a low sine thunk (about 90 Hz over 180 ms), panned toward the door at full gain, caption "door unlocked" with its direction.
+
 **Cache sounds** (`uncover`, `stash`; team-wide, like `solved`): the uncover is one soft low thunk (a sine falling from 150 to 90 Hz and a dull knock); the stash is two soft rising triangle notes about half a second long, a fifth apart. Neither is the `solved` arpeggio (three rising sines) or the `dye` pomf. High contrast: the tile draws from the same world tokens, so it remaps by itself, and the item itself is flat (see `ItemGlyph`).
 
 **Reduced motion** (`prefers-reduced-motion`): no pulses, no hop or squash, no

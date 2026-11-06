@@ -501,3 +501,15 @@ plate is part of the station it serves, so the pacing test does not count it), m
 - **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080`, make a lobby, play to room 4. For the fixture: `ROOMS_DIR=spec/fixtures/rooms-door pnpm start`.
 - **Screenshots:** `review/n7-doors-task89-pill-deaf-1280.png`, `-deaf-375.png`, `-mute-1280.png`, `-mute-375.png`.
 - **Judged:** the pill reads "Door" in a gold stroke at the east edge on both viewports, clear of the HUD and the caption strip; a 3-tile door gives one pill (fixed after the first screenshot showed three).
+
+### doors Task 90: the unlock voice (human review, pending)
+
+- **Look at (listen):** as Can't see, open a door from across the room; then play room 7 and listen to its doors opening in a chain. A pass is that it sounds like a heavy unlock (not a click, not a chime), is clearly panned, and is not unpleasant in a chain.
+- **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080`, make a lobby, play to room 4 (or 7).
+- **Screenshots:** none: the artifact is a sound (a bolt: 120 ms band-passed noise at 1.1 kHz, then a 95 to 80 Hz sine thunk over 180 ms, starting 120 ms in). The caption "door unlocked" with its direction is tested in `src/client/hud.test.ts`.
+- **Judged:** not listened to; synthesised to the plan's description. If it is wrong, the numbers are in `unlock` in `src/client/audio.ts`.
+
+### doors Task 91: accept ADR 0025 (a door opening reaches the whole team)
+
+- **Ask:** accept `doc/adr/0025-*.md` (status `proposed`; left unchanged overnight), after a three-tab playtest of rooms 4 and 7. On acceptance, ADR 0012 gains "amended by 0025" if the process requires it (0012 is accepted; not edited overnight).
+- **Built:** Tasks 88 to 90. Human reviews for 89 and 90 are queued above.

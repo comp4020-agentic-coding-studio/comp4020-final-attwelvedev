@@ -19,7 +19,7 @@
 - **Perception:** the server sends each client only what its role perceives (ADR 0007).
   Check any new view or message field against the role tables in `src/game/types.ts`.
 - **Sensory parity:** team-wide events (loot, checkpoint, caught, alarm, cleared, flag,
-  exit, sequence results, a cache's `uncover` and `stash`) reach every role in the same
+  exit, sequence results, door (an ordinary door's unlock), a cache's `uncover` and `stash`) reach every role in the same
   tick. Local events reach the roles that can perceive them from where they stand: the
   sighted see their line of sight (`visibleFrom`; walls, vents and closed doors block it,
   glass does not), the hearing hear what the sound reaches (walls and glass stop it, vents
