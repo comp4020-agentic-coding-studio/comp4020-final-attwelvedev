@@ -4,7 +4,7 @@
 
 accepted
 
-Relates to 0017 (balance by presence, stations and gear), which is itself proposed.
+Relates to 0017 (balance by presence, stations and gear), which is itself accepted.
 
 ## Context
 
