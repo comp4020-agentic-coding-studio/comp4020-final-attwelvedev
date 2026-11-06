@@ -186,6 +186,7 @@ function lightOf(scene: Scene): Vec[] | null {
 // tallest, 3.2 tiles above its foot; a bell 2.9; you with your arrow 1.5), with a margin. A test
 // measures the real draw routines against it, so a taller thing added later cannot be silently cut.
 export const SWEEP_TILES = 3.5;
+const FIGURE_FOOT = 0.36; // tiles each way: the radius of a figure's shadow (figures.ts draws it at 0.36)
 function flatLight(cam: Camera, light: readonly Vec[]): { x: number; y: number }[] {
   return light.map((p) => toScreen(cam, p.x, p.y));
 }
@@ -405,28 +406,38 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
         // (the user, screenshots 110 and 111): its foot starts at the tile's north edge, the wall's own foot line
         const wallBehind =
           kind === "player" && isBlock(tiles[Math.floor(e.pos.y) - 1]?.[Math.floor(e.pos.x)]);
+        // a figure is a flat sprite at one depth, as wide as its shadow: lit where its feet are, whole at every height,
+        // and cut by a vertical line where a shadow edge crosses its depth (the user, screenshots 117 and 118)
         const ground = groundSlice(tiles, e.pos.x, e.pos.y, 0.5);
+        const figureFoot = groundSlice(tiles, e.pos.x, e.pos.y, FIGURE_FOOT);
         const foot = box
           ? tileFoot(Math.floor(e.pos.x), Math.floor(e.pos.y))
           : bolted
             ? groundSlice(tiles, e.pos.x, Math.floor(e.pos.y) - 0.5, 0.5)
             : wallBehind
               ? { ...ground, y0: Math.max(ground.y0, Math.floor(e.pos.y)) }
-              : ground;
-        cut([{ foot, planar: bolted, faceOnly: bolted, wallBehind }], HEIGHT[kind] ?? 1.5, (c) => {
-          if (kind === "camera" || kind === "laser" || kind === "guard")
-            drawHazard(c, e, cam, scene);
-          else if (kind === "player") drawPlayer(c, e, cam, scene);
-          else if (kind === "gear")
-            drawGear(c, e, cam, hatches.has(`${Math.floor(e.pos.x)},${Math.floor(e.pos.y)}`));
-          else if (kind === "bell") drawBell(c, e, cam, scene);
-          else if (kind === "lamp") drawLampSwitch(c, e, cam);
-          else if (kind === "lever") drawLever(c, e, cam);
-          else if (kind === "keepsake") drawKeepsake(c, e, cam);
-          else if (kind === "card") drawTargetCard(c, e, cam);
-          else if (kind === "order") drawOrder(c, e, cam);
-          else drawStanding(c, e, cam, scene);
-        });
+              : kind === "player"
+                ? figureFoot
+                : ground;
+        const figure = kind === "player" && !wallBehind;
+        cut(
+          [{ foot, planar: bolted, faceOnly: bolted, wallBehind, figure }],
+          HEIGHT[kind] ?? 1.5,
+          (c) => {
+            if (kind === "camera" || kind === "laser" || kind === "guard")
+              drawHazard(c, e, cam, scene);
+            else if (kind === "player") drawPlayer(c, e, cam, scene);
+            else if (kind === "gear")
+              drawGear(c, e, cam, hatches.has(`${Math.floor(e.pos.x)},${Math.floor(e.pos.y)}`));
+            else if (kind === "bell") drawBell(c, e, cam, scene);
+            else if (kind === "lamp") drawLampSwitch(c, e, cam);
+            else if (kind === "lever") drawLever(c, e, cam);
+            else if (kind === "keepsake") drawKeepsake(c, e, cam);
+            else if (kind === "card") drawTargetCard(c, e, cam);
+            else if (kind === "order") drawOrder(c, e, cam);
+            else drawStanding(c, e, cam, scene);
+          },
+        );
       }
     }
   }

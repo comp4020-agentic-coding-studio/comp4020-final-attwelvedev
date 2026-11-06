@@ -1255,3 +1255,21 @@ The miss behind the card overlapping the side-job chip was a sensor gap: the lay
 the wheel and the captions, never against the chip beside it. The spec now measures that, and the row gap too.
 Rule for the harness: when a new overlay shares a corner of the frame with an existing one, its layout spec names
 that neighbour.
+
+## 2026-11-07 — A figure's cut is a vertical plane, and I measured the wrong op for an hour
+
+(the commit that follows 65859a4)
+
+You reported a figure standing in the hallway with its head cut though it was in line of sight. I could not reproduce
+it three times: each of my probes measured the figure's shadow ellipse, which is drawn under the floor's clip and so
+says nothing about the body. Every fix I tried on that evidence broke an older test and fixed nothing. What cracked it
+was drawing the real scene on a real canvas and looking, then recording the arc the hat draws at the crown. The cause
+was the cone edge carried up the screen as a diagonal: a thin edge that only crossed the figure's head cut the whole
+upper body while its feet were lit.
+
+Your answer to my question settled the rule better than either of my options: a figure is a flat sprite at one depth
+and a shadow edge is a vertical plane, so it is whole where its feet are lit and cut by a vertical line where the edge
+crosses its depth, "like in real life". That superseded screenshot 48's hat cut, which had the identical geometry.
+Rules for the harness: measure the op that carries the symptom, not a neighbour of it; when a render bug will not
+reproduce from the model, render the real scene and look before writing another fix; and run pnpm check, not only the
+tests near the change (b7d221e shipped a lint error I would have caught).

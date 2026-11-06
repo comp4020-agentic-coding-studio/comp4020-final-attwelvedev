@@ -364,11 +364,19 @@ describe("the cut goes on past where the edge lands", () => {
     // only figures with open floor behind them: one against the north wall is cut over that wall by its vertical
     // line instead (the test of screenshots 110 and 111 below)
     if (fx < 3.4 || fx > 5.6) for (const fy of [2.0, 2.6]) FIGURE_SPOTS.push([fx, fy]);
-  it("cuts a figure's head and body on the edge's line", () => {
+  // The user (screenshots 117 and 118, superseding the diagonal cut of screenshot 48): a figure is a flat sprite standing
+  // at one depth, and a shadow edge is a vertical plane. So a point of it is drawn exactly where the light reaches the
+  // ground it stands on, the same at every height: where its feet are lit it is whole, head and all, and where the
+  // edge crosses its depth it is cut by a vertical line there. Oracle: `inLight` at the figure's own depth, at the
+  // x of the point, which the corridor-corner wedge (the old oracle) is not: that carried the edge up the screen.
+  it("draws each point of a figure exactly where the light reaches its depth, at every height", () => {
     const wrong: string[] = [];
     let checked = 0;
+    let lit = 0;
+    let dark = 0;
     for (const v of VIEWERS) {
       if (v.y < 3) continue;
+      const light = lightPolygon({ x: v.x, y: v.y }, TILES);
       for (const [fx, fy] of FIGURE_SPOTS) {
         const s: Scene = { ...sceneAt(v.x, v.y), entities: [FIGURE(fx, fy)] };
         const { ctx, ops } = recorder();
@@ -376,20 +384,24 @@ describe("the cut goes on past where the edge lands", () => {
         const cam = camera(s);
         const shadow = ops.findIndex((o) => o.name === "ellipse" && o.args[2] === cam.scale * 0.36);
         if (shadow < 0) continue; // not drawn at all: the next test's business
-        for (const dx of [-0.3, 0, 0.3])
+        for (const dx of [-0.3, 0, 0.3]) {
+          const near = [-0.04, 0.04].map((e) => inLight(light, { x: fx + dx + e, y: fy }));
+          if (near[0] !== near[1]) continue; // a point on the edge itself
           for (const z of [0.05, 0.6, 1.2, 1.5]) {
-            const p = toScreen(cam, fx + dx, fy, z);
-            const want = wedgeOf(cam, v, p);
-            if (want === null) continue;
             checked++;
-            if (drawnAt(ops, shadow, p) !== want)
+            if (near[0]) lit++;
+            else dark++;
+            if (drawnAt(ops, shadow, toScreen(cam, fx + dx, fy, z)) !== near[0])
               wrong.push(
                 `viewer ${v.x.toFixed(2)},${v.y.toFixed(2)} figure ${fx},${fy} at ${dx},${z}`,
               );
           }
+        }
       }
     }
     expect(checked, "points of figures checked").toBeGreaterThan(200);
+    expect(lit, "points on lit ground").toBeGreaterThan(50);
+    expect(dark, "points on dark ground").toBeGreaterThan(50);
     expect(wrong.slice(0, 5), `${wrong.length} points of figures wrong`).toEqual([]);
   });
 });
@@ -546,11 +558,12 @@ describe("a cache dial's inspection plate, in room 4", () => {
   });
 });
 
-// The user (screenshot 48): Can't hear stands far to the left in room 4, Can't speak stands in the room,
-// half in the cone. The top of Can't speak (the hat) lies beyond where the cone's edge lands, and was drawn
-// whole. Here the hat's tip must be cut and the feet, in the light, drawn.
-describe("a figure the cone's edge crosses, in room 4", () => {
-  it("cuts the hat above the cone's edge and keeps the feet in the light", () => {
+// The user (screenshot 48, superseded by screenshots 117 and 118): Can't hear stands far to the left in room 4, Can't
+// speak stands in the room, half in the cone. Screenshot 48 had the hat cut where the cone's edge passes above the
+// figure; the user then pointed out that is wrong whenever the figure is in line of sight ("the cone edge should start
+// from the corner, like in real life"). The figure's feet are in the light here, so the hat is drawn with the rest.
+describe("a figure in the light keeps its hat, however the cone's edge passes above it, in room 4", () => {
+  it("draws the hat's tip and a foot of a figure whose ground is lit", () => {
     vi.stubGlobal("Path2D", class {});
     const room = loadRooms().find((r) => r.id === "04-the-safe") as ReturnType<typeof loadRooms>[0];
     const viewer = { x: 10.8, y: 5.5 };
@@ -571,12 +584,15 @@ describe("a figure the cone's edge crosses, in room 4", () => {
       entities: v.entities,
       self: viewer,
     };
+    expect(inLight(lightPolygon(viewer, v.tiles as string[]), other), "its ground is lit").toBe(
+      true,
+    );
     const { ctx, ops } = recorder();
     draw(ctx, scene);
     const cam = camera(scene);
     const shadow = ops.findIndex((o) => o.name === "ellipse" && o.args[2] === cam.scale * 0.36);
     expect(shadow, "the figure is drawn").toBeGreaterThan(-1);
-    expect(drawnAt(ops, shadow, toScreen(cam, other.x, other.y, 1.4)), "the hat's tip").toBe(false);
+    expect(drawnAt(ops, shadow, toScreen(cam, other.x, other.y, 1.4)), "the hat's tip").toBe(true);
     expect(drawnAt(ops, shadow, toScreen(cam, other.x + 0.2, other.y, 0.05)), "a foot").toBe(true);
   });
 });
@@ -1706,6 +1722,67 @@ describe("a station in the light is never cut off while the viewer walks about, 
       }
     expect(checked, "points checked").toBeGreaterThan(300);
     expect(wrong.slice(0, 5), `${wrong.length} points wrong`).toEqual([]);
+  });
+});
+
+// The user (screenshots 117 and 118): the viewer stands in room 4 one tile above the checkpoint; Can't see stands in the
+// hallway, one tile down and four right of it. The doorway's edge clips the corner of the figure's tile, and the cut was
+// carried up the screen across the whole upper body: the body showed below the line and the head was cut, though the
+// figure's own feet were in the light. Measured on the hat the figure draws at its crown (not its shadow, which is drawn
+// under the floor's clip), and the body at three heights.
+describe("a figure standing wholly in the light keeps its head, room 4's hallway (screenshots 117 and 118)", () => {
+  it("draws the crown and the body of Can't see at the hallway spot, whatever corner of its tile the edge clips", () => {
+    vi.stubGlobal("Path2D", class {});
+    const room = loadRooms().find((r) => r.id === "04-the-safe") as ReturnType<typeof loadRooms>[0];
+    const viewer = { x: 17.5, y: 3.5 };
+    const cut: string[] = [];
+    let checked = 0;
+    for (const fx of [21.3, 21.5, 21.7])
+      for (const fy of [5.2, 5.5, 5.8]) {
+        const world = worldAt(room, 17, 3);
+        world.players[1].pos = viewer;
+        world.players[0].pos = { x: fx, y: fy };
+        const v = viewFor(world, 1, "deaf", false);
+        const tiles = viewFor(world, 1, "deaf", true).tiles as string[];
+        const sc: Scene = {
+          layout: "follow",
+          w: 600,
+          h: 400,
+          role: "deaf",
+          seat: 1,
+          roles: ["blind", "deaf", "mute"],
+          tiles,
+          seen: v.seen,
+          entities: v.entities,
+          self: viewer,
+        };
+        const light = lightPolygon(viewer, tiles);
+        // the figure's own feet: a disc of its shadow's radius, here its square, every point lit
+        const feet = [-0.3, 0, 0.3].flatMap((dx) =>
+          [-0.3, 0, 0.3].map((dy) => ({ x: fx + dx, y: fy + dy })),
+        );
+        if (!feet.every((p) => inLight(light, p))) continue;
+        const { ctx, ops } = recorder();
+        draw(ctx, sc);
+        const cam = camera(sc);
+        const foot = toScreen(cam, fx, fy, 0);
+        const crown = { x: foot.x, y: foot.y - cam.scale * 1.07 };
+        const arcs = ops
+          .map((o, i) => ({ o, i }))
+          .filter(
+            ({ o }) =>
+              o.name === "arc" &&
+              Math.abs((o.args[0] as number) - crown.x) < 3 &&
+              Math.abs((o.args[1] as number) - crown.y) < 3 &&
+              o.globalAlpha === 1,
+          );
+        if (arcs.length === 0) continue;
+        checked++;
+        const solid = arcs[0] as { i: number };
+        if (!drawnAt(ops, solid.i, crown)) cut.push(`figure ${fx},${fy}: crown cut`);
+      }
+    expect(checked, "figures standing wholly in the light").toBeGreaterThan(3);
+    expect(cut, `${cut.length} crowns cut`).toEqual([]);
   });
 });
 

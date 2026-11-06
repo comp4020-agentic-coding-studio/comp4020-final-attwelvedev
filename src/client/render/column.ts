@@ -309,6 +309,10 @@ export interface Part {
   // the wall's own vertical line, and only the part below the wall's foot by the diagonal (the user, screenshots 103
   // and 104).
   wallBehind?: boolean;
+  // A figure: a flat sprite at one depth. Where its feet are lit it is whole at every height, and where a shadow edge
+  // crosses its depth it is cut by a vertical line there (a shadow edge is a vertical plane), never by the diagonal
+  // carried up the screen (the user, screenshots 117 and 118: a head cut though the feet were in the light).
+  figure?: boolean;
 }
 const SIDE = 0.3; // tiles each side of a piece that its drawing may reach (a figure's shoulders, a plate's overhang)
 
@@ -325,7 +329,7 @@ export function regionOf(
   const pieces: S[][] = [];
   let whole = true;
   let edges: ConeEdge[] | null = null;
-  for (const { foot, planar, wallBehind } of parts) {
+  for (const { foot, planar, wallBehind, figure } of parts) {
     if (wallBehind && !planar) {
       const behind = behindWall(cam, light, foot, height);
       // lit end to end: this part needs no cut. It still adds its own rectangle, so that when another part of
@@ -342,6 +346,33 @@ export function regionOf(
     const lit = cutToBox(light, foot);
     if (lit.length < 3) {
       whole = false;
+      continue;
+    }
+    if (!planar && figure) {
+      const rect = screenRect(cam, foot, height, SIDE);
+      const y = (foot.y0 + foot.y1) / 2;
+      const reach = { x0: foot.x0 - SIDE, x1: foot.x1 + SIDE };
+      const spans = litSpans(light, y, reach.x0, reach.x1);
+      const first = spans[0];
+      if (
+        spans.length === 1 &&
+        first &&
+        first[0] <= reach.x0 + 1e-6 &&
+        first[1] >= reach.x1 - 1e-6
+      ) {
+        pieces.push(rect);
+        continue;
+      }
+      whole = false;
+      const top = (rect[0] as S).y;
+      const bottom = (rect[2] as S).y;
+      for (const [x0, x1] of spans)
+        pieces.push([
+          { x: toScreen(cam, x0, 0).x, y: top },
+          { x: toScreen(cam, x1, 0).x, y: top },
+          { x: toScreen(cam, x1, 0).x, y: bottom },
+          { x: toScreen(cam, x0, 0).x, y: bottom },
+        ]);
       continue;
     }
     if (!planar) {
