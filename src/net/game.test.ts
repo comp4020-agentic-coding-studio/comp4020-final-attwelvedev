@@ -18,6 +18,7 @@ import {
   markPlayed,
   PAUSE_MS,
   pauseFor,
+  playedBy,
   proposeVote,
   readyAgain,
   relay,
@@ -668,6 +669,19 @@ describe("a lobby of five", () => {
     expect(l.people.map((p) => p.played)).toEqual([["blind"], ["deaf"], ["mute"], [], []]);
     expect(markPlayed(game, l)).toBe(false); // a restart of the same room is not a second play
     expect(l.people[0]?.played).toEqual(["blind"]);
+  });
+
+  it("keeps a bot's roles too, under its own name, for the reveal's Played row (the user, Task 81 review)", () => {
+    const l = withBots("a", 1, 2);
+    const game = startGame(l, rooms);
+    expect(playedBy(l, game)).toEqual({ A: [], "Bot Jinx": [], "Bot Moss": [] }); // nothing yet: nothing shown
+    markPlayed(game, l);
+    expect(markPlayed(game, l)).toBe(false); // a restart is not a second play
+    expect(playedBy(l, game)).toEqual({
+      A: [game.roles[0]],
+      "Bot Jinx": [game.roles[1]],
+      "Bot Moss": [game.roles[2]],
+    });
   });
 
   it("seats the others next, and moves the first three to sit out", () => {

@@ -35,6 +35,7 @@ import {
   markPlayed,
   PAUSE_MS,
   pauseFor,
+  playedBy,
   proposeVote,
   readyAgain,
   relay,
@@ -193,7 +194,7 @@ function revealFor(
     sittingOut: lobby.sittingOut.flatMap(
       (w) => lobby.people.find((p) => p.who === w)?.nickname ?? [],
     ),
-    played: Object.fromEntries(lobby.people.map((p) => [p.nickname, p.played])),
+    played: playedBy(lobby, game),
     real: realFor(lobby, running, who, role),
     cues: role === "blind" ? cuesIn(game.world.room) : [],
     ...(cache ? { cache: { motif: cache.motif, riddle: cache.riddle, item: cache.item } } : {}),

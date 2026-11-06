@@ -82,6 +82,7 @@ export interface Game {
   vacated: Partial<Record<Seat, string>>; // the device that left a seat a bot now plays, who may take it back
   heistPeople: Map<string, { nickname: string; bot: boolean }>; // everyone who played any room, for the heist record
   counted: number; // the last room whose crew was written to people's `played` (a restart is not a second play)
+  botPlayed: Record<string, Role[]>; // what each bot has played this heist, by its name: a bot is not a person, so it has no `played`
   comms: Comms; // this room's deliveries, for the comms map on the cleared card
 }
 
@@ -181,6 +182,7 @@ export function startGame(lobby: LobbyState, rooms: Room[]): Game {
     vacated: {},
     heistPeople: new Map(),
     counted: -1,
+    botPlayed: {},
     comms: {},
   };
   seatBots(
@@ -263,6 +265,7 @@ export function markPlayed(game: Game, lobby: LobbyState): boolean {
     } else {
       const nickname = `Bot ${BOT_NAME[seat]}`;
       game.heistPeople.set(`bot:${seat}`, { nickname, bot: true });
+      (game.botPlayed[nickname] ??= []).push(role);
     }
   }
   return true;
@@ -339,6 +342,7 @@ export function finishVote(
   for (const person of lobby.people) person.played = [];
   game.roomIndex = 0;
   game.heistPeople = new Map();
+  game.botPlayed = {};
   game.counted = -1;
   setCrew(game, lobby, crewFor(lobby, 0));
   game.world = freshWorld(first);
@@ -369,6 +373,17 @@ export function crewOf(lobby: LobbyState, game: Game): CrewMember[] {
     bot: s.bot,
     ...(s.who === null && !s.bot ? { left: true as const } : {}),
   }));
+}
+
+// The roles each seated name has played this heist, people and bots alike, for the reveal's Played row. A bot
+// keeps its history under its own name, so the row reads the same for a bot as for a person.
+export function playedBy(lobby: LobbyState, game: Game): Record<string, Role[]> {
+  const out: Record<string, Role[]> = {};
+  for (const p of lobby.people) out[p.nickname] = p.played;
+  for (const seat of lobby.seats) {
+    if (seat.bot && seat.nickname) out[seat.nickname] = game.botPlayed[seat.nickname] ?? [];
+  }
+  return out;
 }
 
 // A seat's last connection dropped: the game stops for everyone and the seat is
