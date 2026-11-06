@@ -147,8 +147,8 @@ name, lines; side by side while three fit, stacked on a phone), the buttons, the
 - [x] **Done** in the overnight run (2026-11-05, lane B): CLAUDE.md's Shape, Sensory parity and Rooms
   bullets edited; DESIGN.md 4.6 and 4.8 checked against the code (no change; the `RoomCleared` line
   moved the comms map after the buttons in the merge); backlog has nothing this phase settled;
-  PROCESS_LOG entry for the 2026-11-02 pacing ruling. ADRs 0017 and 0018 stay `proposed`: human
-  review queued in `review/QUEUE.md`.
+  PROCESS_LOG entry for the 2026-11-02 pacing ruling. The user read the CLAUDE.md diff (approved, with a
+  request to shorten it: done in `a4c99ee`) and accepted ADRs 0017 and 0018 on 2026-11-06 (`49231ab`).
 
 - **Description:** Bring the harness docs in line with the code.
 - **Files touched:** `CLAUDE.md`: the **Sensory parity** bullet gains the
@@ -172,7 +172,7 @@ name, lines; side by side while three fit, stacked on a phone), the buttons, the
 - [x] Every task in §5 is complete and its tests pass
 - [x] `pnpm test:unit` passes
 - [x] `pnpm build && pnpm start` then `pnpm check` passes
-- [x] Tasks 28 and 31 human reviews accepted; ADRs 0017 and 0018 accepted by the user (ADR 0020 is phase 14's) (review queued: Task 28 accepted 2026-11-02; Task 31 and the ADRs queued)
+- [x] Tasks 28 and 31 human reviews accepted; ADRs 0017 and 0018 accepted by the user (ADR 0020 is phase 14's) (Task 28 accepted 2026-11-02; Task 31 and ADRs 0017 and 0018 accepted 2026-11-06)
 - [x] The overview's feature-level Definition of Done holds (review queued: its human playtest items wait on the morning reviews)
 - [x] Tick this phase in overview §5 and commit
 
@@ -194,4 +194,14 @@ None.
 
 <!-- one line per user redirect during execution -->
 
+- 2026-11-06, Task 29 human review: the comms map's hover buttons were messy, and "voice in spurts" does not
+  make sense for someone who holds the mic open (toggle to talk), where a whole talk is one spurt. Wanted:
+  hover the arrow itself with no buttons, and voice as seconds or minutes. The first attempt counted a spurt
+  because it was cheap to count, without asking what a spurt means for a held mic. Fixed in `b8020cf`: the
+  arrows are the stops, voice is time from the 60 ms frames the server relays, and the quietest-sender line
+  went. Task 30 ("seems ok"; the earlier-edition link stays buried) was accepted without change.
+- 2026-11-06, Task 31 human review: CLAUDE.md was too long, with detail most sessions do not need. Wanted it
+  simplified with no rule lost. The first pass only rewrapped it (9%); the user chose what to cut and
+  to tighten the rest. Done in `a4c99ee`: 213 to 153 lines, the flaky-test rules moved into
+  `spec/flaky-patterns.test.ts`.
 - 2026-11-02: expected side jobs in room 4 to pass `pacing.test.ts`; the user ruled a side job is loot with an owner and does not count as a new thing, so `sidejob` joins `EVERYWHERE` there. The plan had two requirements that contradicted (clues FR11 "from room 4" vs FR9/FR10 "two new things") and never said so.
