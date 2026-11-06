@@ -171,7 +171,13 @@ export function dialStep(o: RoomObject, b: StationBelief): Vec | null {
 // A sighted bot reads the plaque (a sign whose text is one of the rules) and sees the wires'
 // colours, and applies the rule it read, as a person would. Wires seen to change colour (a panel
 // drawn again after a wrong cut) make the rule read before stale: beliefFrom forgets it.
-const wires: Decoder = (view, _inbox, b, o) => {
+const wires: Decoder = (view, _inbox, b, o, _now, plated) => {
+  // a wire a plate names: Can't see texted the digit n, so cut wire n - 1
+  if (plated !== undefined) {
+    const n = b.numbers.at(-1);
+    b.answer = [n === undefined ? null : n - 1];
+    return;
+  }
   const plaque = view.entities.find((e) => e.id === o.params?.plaque && e.text);
   const read = plaque ? WIRE_RULES.findIndex((r) => r.text === plaque.text) : -1;
   if (read >= 0) b.rule = read;
@@ -227,23 +233,35 @@ export function tuneOf(heard: { tick: number; n: number }[], now: number): numbe
 const KEYPAD_LENGTH = (o: RoomObject) =>
   Math.max(3, Math.min(4, typeof o.params?.length === "number" ? o.params.length : 3));
 
-const keypad: Decoder = (view, _inbox, b, o, now) => {
+const keypad: Decoder = (view, _inbox, b, o, now, plated) => {
   if (String(o.params?.clue ?? "").startsWith("g")) {
     const len = KEYPAD_LENGTH(o);
+    // a plate carries one key: its text comes first (the room reads the plate before the earpiece
+    // is handed over), then the tune's other keys, so the plate's digit is spliced in at its part
+    if (plated !== undefined) {
+      if (b.numbers.length >= len) {
+        const told = b.numbers.slice(-len).map((d) => d - 1);
+        const [plate, ...tune] = told;
+        b.answer = [...tune.slice(0, plated), plate as number, ...tune.slice(plated)];
+      }
+      return;
+    }
     if (b.numbers.length >= len) b.answer = b.numbers.slice(-len).map((d) => d - 1);
     return;
   }
   for (const s of view.sounds)
     if (s.kind === "clue" && s.n !== undefined) b.heard.push({ tick: view.tick, n: s.n - 1 });
   const tune = tuneOf(b.heard, now);
-  const slot = slotOf(o);
+  // the held key's place in the tune: a slot a radio feeds, or a key a plate carries (rest markers
+  // make no note, so the tune heard lacks it either way)
+  const slot = slotOf(o) ?? plated ?? null;
   if (tune) {
     const code: (number | null)[] = [...tune];
     if (slot !== null) code.splice(slot, 0, null);
     b.answer = code;
   }
   if (slot !== null && b.answer.length > slot) {
-    const d = b.fed ?? b.numbers.at(-1);
+    const d = (plated === undefined ? b.fed : undefined) ?? b.numbers.at(-1);
     b.answer[slot] = d === undefined || d === null ? null : d - 1;
   }
   b.heard = b.heard.slice(-12);

@@ -1157,23 +1157,39 @@ describe("lintPlates", () => {
     expect(plates(r)).toEqual([]);
   });
 
-  it("a keypad whose tune plays the carried key fails", () => {
+  it("a plated keypad's tune cannot play the carried key: the sim rests it (Task 77)", () => {
     const grid = [
       "################",
-      "#1....Q...KKK.o#",
-      "#2..c.....KKK..#",
-      "#3........KKK..#",
+      "#1....Q.......o#",
+      "#2..c..........#",
+      "#3.............#",
       "################",
-    ].map((row) => row.replace(/K/g, "."));
+    ];
     const r = plateRoom(
       "05-x",
       { Q1: { type: "keypad", keys: KEYS, clue: "c1", length: 3 }, o1: { for: "Q1", part: 1 } },
       grid,
     );
-    expect(plates(r)).toEqual(["plate o1: Q1's tune plays the key it carries"]);
+    expect(plates(r)).toEqual([]);
   });
 
-  it("a numbered wire panel names the cut, so fails", () => {
+  it("a wire panel with a rule sign names the cut by rule and colours, so fails", () => {
+    const r = plateRoom("05-x", {
+      Q1: {
+        type: "wires",
+        wires: [
+          [5, 2],
+          [6, 2],
+          [7, 2],
+        ],
+        plaque: "S1",
+      },
+      o1: { for: "Q1", part: 0 },
+    });
+    expect(plates(r)).toEqual(["plate o1: Q1's rule sign and colours name the wire to cut"]);
+  });
+
+  it("a numbered wire panel's ink is blanked by the sim for a plated panel, so it passes", () => {
     const r = plateRoom("05-x", {
       Q1: {
         type: "wires",
@@ -1187,23 +1203,17 @@ describe("lintPlates", () => {
       },
       o1: { for: "Q1", part: 0 },
     });
-    expect(plates(r)).toEqual(["plate o1: Q1's plaque names the wire to cut"]);
+    expect(plates(r)).toEqual([]);
   });
 
-  it("today's rooms 5 to 9, gated, each lack only their plate; rooms 4 and 6 have their own", () => {
+  it("every room 4 to 9 is gated and passes: PLATE_ROOMS is all six, none forgotten", () => {
     const rooms = loadRooms("./rooms").filter((r) => /^0[4-9]-/.test(r.id));
     expect(rooms).toHaveLength(6);
-    for (const r of rooms) {
-      const want =
-        r.id === "04-the-safe" || r.id === "06-lights-out"
-          ? []
-          : ["room needs exactly one braille plate (o), has 0"];
-      expect(plates(r), r.id).toEqual(want);
-    }
+    expect([...PLATE_ROOMS].sort()).toEqual(rooms.map((r) => r.id).sort());
+    for (const r of rooms) expect(plates(r), r.id).toEqual([]);
   });
 
   it("room 4 is gated, and carries one plate for Q2's second digit (Task 74)", () => {
-    expect(PLATE_ROOMS).toEqual(["04-the-safe", "06-lights-out"]);
     const four = loadRooms("./rooms").find((r) => r.id === "04-the-safe") as Room;
     expect(lintPlates(four)).toEqual([]);
     const plate = four.objects.filter((o) => o.kind === "braille");

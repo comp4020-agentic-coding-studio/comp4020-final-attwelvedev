@@ -3,6 +3,7 @@
 // team back (FR15). Each type's parts are tiles named in the station's metadata.
 import { cacheOf, type RoomObject, secretDoors } from "../rooms/format.ts";
 import type { Seat, Vec } from "../types.ts";
+import { platePart } from "./braille.ts";
 import { syncCacheDoors, takeKeepsake } from "./cache.ts";
 import { groupStartingOn, restStartingOn, tuneGroups } from "./chimes.ts";
 import { rng } from "./rng.ts";
@@ -248,6 +249,8 @@ export function plaqueText(world: World, id: string): string | undefined {
   const o = stationObjects(world).find((s) => s.params?.type === "wires" && s.params.plaque === id);
   const s = o && world.stations[o.id];
   if (!s) return undefined;
+  // a wire a braille plate names is told by the plate alone: its ink or plaque says nothing (FR5)
+  if (platePart(world.room, o.id) !== undefined) return undefined;
   if (o.params?.numbered === true) return String((s.answer[0] as number) + 1);
   return WIRE_RULES[s.answer[1] as number]?.text;
 }
@@ -530,12 +533,16 @@ export function noteOf(world: World, station: StationState): number | undefined 
   return groupStartingOn(world.tick, tuneOf(world, station))?.note;
 }
 
-// The tune of a station's code, its rests (a slot fed by a radio) left out of the groups.
+// The tune of a station's code, its rests (a slot fed by a radio, a key a plate carries) left out of
+// the groups.
 function tuneOf(world: World, station: StationState) {
   const slot = world.room.objects.find((o) => o.id === station.id)?.params?.slot as
     | { at?: unknown }
     | undefined;
   const rests = typeof slot?.at === "number" ? [slot.at] : [];
+  // a key a braille plate carries is no note either: it rests, so only Can't see's plate tells it (FR5)
+  const plated = station.type === "keypad" ? platePart(world.room, station.id) : undefined;
+  if (plated !== undefined) rests.push(plated);
   return tuneGroups(station.answer, rests);
 }
 

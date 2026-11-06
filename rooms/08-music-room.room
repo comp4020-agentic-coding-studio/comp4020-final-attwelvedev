@@ -3,7 +3,8 @@
  "beats":[
   {"name":"Gear up","x":[0,9],"intent":{"blind":"waits in the corridor","deaf":"picks up the earpiece","mute":"puts on the goggles"}},
   {"name":"Two notes","x":[0,9],"intent":{"blind":"is handed the earpiece and hears its tune","deaf":"hands Can't see the earpiece","mute":"listens to the little music box through the glass, then strikes its two bells in order"}},
-  {"name":"The earpiece","x":[10,18],"intent":{"blind":"texts the earpiece's tune, a number a note","deaf":"brings Can't see to the flag","mute":"presses the keys in the dark nook as the numbers come"}},
+  {"name":"The braille plate","x":[10,18],"intent":{"blind":"is led to the braille plate and reads the keypad's second digit, texts it","deaf":"leads Can't see to the plate","mute":"waits at the flag"}},
+  {"name":"The earpiece","x":[10,18],"intent":{"blind":"hears the earpiece's tune, finds the gap, and texts the other two numbers","deaf":"brings Can't see to the flag","mute":"presses the keys in the dark nook as the numbers come"}},
   {"name":"The real tune","x":[19,29],"intent":{"blind":"hears the bells ring","deaf":"strikes each bell Can't speak marks","mute":"listens to the big music box through the glass and marks its bells in order"}},
   {"name":"Out","x":[30,34],"intent":{"blind":"walks out","deaf":"walks out","mute":"walks out"}}],
  "objects":{
@@ -16,6 +17,7 @@
     "chamber":{"rect":[2,8,10,10],"door":[4,7],"vault":{"rect":[10,10,10,10],"door":[9,10],"item":[10,10]}}}},
   "g1":{"item":"earpiece"},
   "g2":{"item":"goggles"},
+  "o1":{"for":"Q2","part":1},
   "D1":{"opensWhen":["Q1","Q2","Q3"]}},
  "hints":{"jobs":[
   {"beat":1,"take":"g1","prefer":"deaf"},
@@ -23,18 +25,20 @@
   {"beat":1,"goTo":[3,5],"prefer":"blind"},
   {"beat":2,"give":"g1","to":"blind","prefer":"deaf"},
   {"beat":2,"station":"Q1","at":[4,5],"prefer":"mute"},
-  {"beat":3,"goTo":"K1","all":true},
-  {"beat":3,"station":"Q2","prefer":"mute"},
-  {"beat":4,"watch":"Q3","at":[23,5],"prefer":"mute"},
-  {"beat":4,"station":"Q3","prefer":"deaf"},
-  {"beat":5,"goTo":"E","all":true}]}}
+  {"beat":3,"tow":"blind","to":[12,5],"prefer":"deaf"},
+  {"beat":3,"read":"o1","prefer":"blind"},
+  {"beat":4,"goTo":"K1","all":true},
+  {"beat":4,"station":"Q2","prefer":"mute"},
+  {"beat":5,"watch":"Q3","at":[23,5],"prefer":"mute"},
+  {"beat":5,"station":"Q3","prefer":"deaf"},
+  {"beat":6,"goTo":"E","all":true}]}}
 ---
 ###################################
 #1......Q#.Q.......#.......Q.######
 #2.g...v.#.v.......#.......v.######
 #3..g....#.........#.........######
 #..#==####..#######.##====#..###.##
-#..................K...........D.E#
+#...........o......K...........D.E#
 #..............................D.E#
 ####D#########################%####
 ##....Q....###################.####

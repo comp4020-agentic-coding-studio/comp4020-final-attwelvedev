@@ -884,7 +884,14 @@ function reachesSighted(room: Room, check: (view: RoleView) => boolean, gear?: G
 
 // The rooms that must carry exactly one plate. Grown room by room as each gets its plate (Tasks 74,
 // 77, 78), so `pnpm lint:rooms` stays green between them; phase 04 ends with all six.
-export const PLATE_ROOMS: readonly string[] = ["04-the-safe", "06-lights-out"];
+export const PLATE_ROOMS: readonly string[] = [
+  "04-the-safe",
+  "05-the-gallery",
+  "06-lights-out",
+  "07-night-shift",
+  "08-music-room",
+  "09-the-vault",
+];
 
 // How many pieces of its answer a station of each type offers a plate (overview §4.1).
 function plateParts(p: Record<string, unknown>): number | undefined {
@@ -955,16 +962,18 @@ function plateLeak(room: Room, station: RoomObject, part: number): string | null
     return heard ? "tumbler sounds the digit it carries" : null;
   }
   if (p.type === "keypad") {
-    // its tune (a clue chime or an earpiece) plays every key but the slot it rests at (Task 76)
-    const slot = p.slot as { at?: unknown } | undefined;
-    const tuned = typeof p.clue === "string";
-    return tuned && slot?.at !== part ? "tune plays the key it carries" : null;
+    // its tune (a clue chime or an earpiece) rests at the plate's key: the sim guarantees it
+    // (stations.ts: tuneOf; guarded by stations.test.ts), so a plated keypad cannot leak it
+    return null;
   }
   if (p.type === "wires") {
+    // a numbered panel's ink names the wire, but the sim leaves a plated panel's ink blank
+    // (plaqueText), so only a rule sign leaks: its rule and the colours give the cut away
     const world = worldAt(room, 1, 1);
     const plaque = typeof p.plaque === "string" ? plaqueText(world, p.plaque) : undefined;
     const cut = String((world.stations[station.id]?.answer[0] as number) + 1);
-    return p.numbered === true && plaque === cut ? "plaque names the wire to cut" : null;
+    if (p.numbered === true) return plaque === cut ? "plaque names the wire to cut" : null;
+    return typeof p.plaque === "string" ? "rule sign and colours name the wire to cut" : null;
   }
   return null; // a radio's pips carry its digit, never its band
 }

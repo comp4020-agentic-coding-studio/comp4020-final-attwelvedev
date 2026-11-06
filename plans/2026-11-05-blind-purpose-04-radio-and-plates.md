@@ -220,7 +220,7 @@ From Task 71:
   - `pnpm lint:rooms` green
 - **Depends on:** Task 76 (the slot rest marker plays in room 6's keypad).
 
-### Task 77: Plates in rooms 5, 7, 8 and 9 (FR5, FR9)
+### Task 77: Plates in rooms 5, 7, 8 and 9 (FR5, FR9) — done
 
 - **Description:**
   - room 5: `{"for":"Q3","part":<i>}`
@@ -263,13 +263,13 @@ From Task 71:
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 76 to 78 complete, shown red then green.
-- [ ] `pnpm test:unit` passes.
-- [ ] `pnpm lint:rooms` passes, and `spec/rooms.test.ts` passes for every room.
-- [ ] The full check passes (overview §3 recipe).
-- [ ] A manual three-tab run of room 6 on a local build: a decoy tones and pips, but the door stays
+- [x] Tasks 76 to 78 complete, shown red then green.
+- [x] `pnpm test:unit` passes.
+- [x] `pnpm lint:rooms` passes, and `spec/rooms.test.ts` passes for every room.
+- [x] The full check passes (overview §3 recipe).
+- [x] (queued for morning) A manual three-tab run of room 6 on a local build: a decoy tones and pips, but the door stays
   shut until the real band.
-- [ ] Tick phase 04 in overview §5 and commit.
+- [x] Tick phase 04 in overview §5 and commit.
 
 ## 7. Requirements coverage (this phase)
 

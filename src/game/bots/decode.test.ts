@@ -1128,3 +1128,43 @@ describe("a plated radio's turner (FR10)", () => {
     expect(b.answer).toEqual([2]);
   });
 });
+
+describe("a plate-held keypad key and wire (Task 77)", () => {
+  const grid = ["#########", "#1.Q.Q..#", "#2......#", "#3......#", "#########"];
+  const keys = [0, 1, 2].flatMap((y) => [0, 1, 2].map((x) => [10 + x, 1 + y]));
+  const r = roomWith(grid, {
+    Q1: { type: "keypad", keys, clue: "g1", length: 3 },
+    Q2: {
+      type: "wires",
+      wires: [
+        [4, 1],
+        [5, 1],
+        [6, 1],
+      ],
+      plaque: "u1",
+      numbered: true,
+    },
+  });
+  const o = (id: string) => {
+    const x = r.objects.find((z) => z.id === id);
+    if (!x) throw new Error(id);
+    return x;
+  };
+  const view = { sounds: [], entities: [], tick: 0 } as unknown as RoleView;
+
+  it("the earpiece keypad takes the texted plate digit at the plate's slot", () => {
+    // told: the plate's digit first (7), then the tune's other keys (2, 5): keys 6, 1, 4
+    const b = { ...emptyBelief(), numbers: [7, 2, 5] };
+    DECODERS.keypad?.(view, [], b, o("Q1"), 0, 1);
+    expect(b.answer).toEqual([1, 6, 4]);
+  });
+
+  it("the wires answer takes cut = n - 1 from a text, for a wire a plate names", () => {
+    const b = { ...emptyBelief(), numbers: [3] };
+    DECODERS.wires?.(view, [], b, o("Q2"), 0, 0);
+    expect(b.answer).toEqual([2]);
+    const none = emptyBelief();
+    DECODERS.wires?.(view, [], none, o("Q2"), 0, 0);
+    expect(none.answer).toEqual([null]);
+  });
+});

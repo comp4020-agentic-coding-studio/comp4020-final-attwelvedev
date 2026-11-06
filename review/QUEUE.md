@@ -461,3 +461,12 @@ run (load average 25 with the other lane running); alone it passes in 15.6 s, an
 Nothing parked. Task 74 (room 4's braille plate and the Can't-see bot that reads it) was ruled option 1 (a
 plate is part of the station it serves, so the pacing test does not count it), merged, and verified
 (`bb0ed58`, `f986a25`). Task 75, the braille card, was accepted on 2026-11-07 and phase 03 is closed.
+
+## Overnight run 2026-11-07
+
+### bp04 (blind-purpose phase 04): manual three-tab run of room 6 (queued for morning)
+
+- **Look at:** room 6 (Lights Out) with three people: Can't see reads the braille plate at (21,1) in the radio beat and texts the band; Can't speak turns the radio. Turn onto a *decoy* band: the tone sounds and the pips come, but with a wrong digit and the keypad's door stays shut; only the real band solves it. Also: a keypad's tune plays a quiet low marker at the gap (rooms 5 to 9).
+- **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080` in three tabs, create a lobby, play to room 6.
+- **Screenshots:** none (no new visual; sound and behaviour only).
+- **Judged:** bots clear rooms 4 to 9 in every rotation and the unit tests show a decoy tones but never solves; the human feel of the decoy bands and the `rest` marker is not judged.

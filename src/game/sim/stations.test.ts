@@ -9,6 +9,7 @@ import {
   noteOf,
   plaqueText,
   redrawOne,
+  restOf,
   ruleFor,
   stationShows,
   WIRE_COLOURS,
@@ -368,6 +369,61 @@ describe("a radio a braille plate names has decoy bands (FR10)", () => {
     const w = stationWorld({ Q1: RADIO }, 3);
     expect(st(w).answer).toHaveLength(2);
     expect(st(w).tuned).toBeUndefined();
+  });
+});
+
+describe("plates in keypad and wire rooms (FR5)", () => {
+  const keys = [0, 1, 2].flatMap((y) => [0, 1, 2].map((x) => [10 + x, 1 + y]));
+  const plate = (w: World, params: Record<string, unknown>) =>
+    w.room.objects.push({
+      id: "o1",
+      kind: "braille",
+      tiles: [{ x: 2, y: 2 }],
+      visibleTo: ["deaf", "mute"],
+      audibleTo: [],
+      params,
+    });
+
+  it("a plate-named keypad's tune rests at the plate's part (a rest marker, not a note)", () => {
+    const w = stationWorld({ Q1: { type: "keypad", keys, clue: "c1", length: 3 }, c1: {} }, 2);
+    plate(w, { for: "Q1", part: 1 });
+    const ticks = Array.from({ length: 400 }, (_, i) => i);
+    const heard: (number | undefined)[] = [];
+    const rests: number[] = [];
+    for (const t of ticks) {
+      w.tick = t;
+      const n = noteOf(w, st(w));
+      if (n !== undefined) heard.push(n);
+      if (restOf(w, st(w))) rests.push(t);
+    }
+    const answer = st(w).answer;
+    expect(heard.slice(0, 2)).toEqual([answer[0], answer[2]]);
+    expect(rests.length).toBeGreaterThan(0);
+    // a keypad with no plate rests nowhere
+    const bare = stationWorld({ Q1: { type: "keypad", keys, clue: "c1", length: 3 }, c1: {} }, 2);
+    const bareRests = ticks.filter((t) => {
+      bare.tick = t;
+      return restOf(bare, st(bare));
+    });
+    expect(bareRests).toEqual([]);
+  });
+
+  it("a plate-named numbered wire's plaque text is undefined; without a plate it names the wire", () => {
+    const WIRES = {
+      type: "wires",
+      wires: [
+        [10, 1],
+        [11, 1],
+        [12, 1],
+      ],
+      plaque: "u1",
+      numbered: true,
+    };
+    const bare = stationWorld({ Q1: WIRES, u1: { text: "" } }, 3);
+    expect(plaqueText(bare, "u1")).toBe(String((st(bare).answer[0] as number) + 1));
+    const w = stationWorld({ Q1: WIRES, u1: { text: "" } }, 3);
+    plate(w, { for: "Q1", part: 0 });
+    expect(plaqueText(w, "u1")).toBeUndefined();
   });
 });
 
