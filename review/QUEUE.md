@@ -477,3 +477,8 @@ plate is part of the station it serves, so the pacing test does not count it), m
 - **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080` in a tab, play to room 5 (or 9) and read the sign near the second wire panel.
 - **Screenshots:** `review/n7-bp05-task79-riddle-table-1280.png`, `review/n7-bp05-task79-riddle-table-375.png` (a rendering of the table).
 - **Judged:** every riddle resolves to its rule in the unit test (exact match, no pool overlaps); bots clear rooms 5, 7, 9 in every rotation (`spec/rooms.test.ts`). The voice is a little ornate; the numbered ones are plainer on purpose (arithmetic limited to one).
+
+### bp05 Task 82: accept ADR 0023 (braille plates)
+
+- **Ask:** accept `doc/adr/0023-*.md` (status `proposed`; left unchanged overnight). Phases 01 to 05 that it governs are built.
+- Also still queued for accepting: ADRs 0024 to 0028 (proposed).

@@ -150,7 +150,7 @@ See overview §2.4.
   checks.
 - **Depends on:** Task 79.
 
-### Task 82: Backlog, ADR and final check
+### Task 82: Backlog, ADR and final check (done; ADR 0023 acceptance queued)
 
 - **Description:**
   - Move these backlog lines to "Decided" with a pointer to this plan:
@@ -171,12 +171,12 @@ See overview §2.4.
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 79, 80 and 82 complete.
-- [ ] `pnpm test:unit` passes.
-- [ ] `pnpm lint:rooms` passes, and `spec/rooms.test.ts` passes.
-- [ ] The full check passes (overview §3 recipe).
-- [ ] The user accepted Task 79's wording.
-- [ ] Tick phase 05 in overview §5, and the overview §6 Definition of Done, then commit.
+- [x] Tasks 79, 80 and 82 complete.
+- [x] `pnpm test:unit` passes.
+- [x] `pnpm lint:rooms` passes, and `spec/rooms.test.ts` passes.
+- [x] The full check passes (overview §3 recipe).
+- [x] The user accepted Task 79's wording. (review queued)
+- [x] Tick phase 05 in overview §5, and the overview §6 Definition of Done, then commit.
 
 ## 7. Requirements coverage (this phase)
 

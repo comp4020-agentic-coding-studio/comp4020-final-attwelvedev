@@ -7,3 +7,10 @@
 - bp04/77: a plated numbered-wire panel's ink is blank, so the torch holder's `inkPost` waiting spot skipped it too (`brain.ts`) → I made `inkPost` ignore plated panels, because otherwise the torch bot waited at blank ink forever. Reversible by removing that `continue`.
 - bp04/77: `lintPlates`' old keypad check (tune plays the carried key unless the slot rests there) became wrong once the sim itself rests a plated keypad's key → I made the keypad check pass (the sim guarantees it; `stations.test.ts` guards it), and made the wires check meaningful for a rule-sign panel (rule and colours name the cut) instead of the numbered ink the sim now blanks. Reversible by editing `lint.ts` `plateLeak`.
 - bp04/78: the manual three-tab run of room 6 (a decoy tones and pips but the door stays shut) → bots clear the room in all rotations and `stations.test.ts` shows decoys never solve; the three-tab run is queued in `review/QUEUE.md` (queued for morning).
+
+## bp05
+
+- bp05/79: the numbered-ink phrasings in the plan example ("N-1 wires stay before the cut") read as bare arithmetic and "1 wires" is ungrammatical at n=2 → I wrote three phrasings ("Cut the wire that has N-1 before it.", "Step past N-1; the next one bleeds.", "The knife waits at the Nth wire from the left."), because each states the number unambiguously with only ±1. Reversible by editing `NUMBER_RIDDLES` in `src/game/sim/stations.ts`.
+- bp05/79: the human review of the riddle wording → built, committed and queued in `review/QUEUE.md` (review queued), because the user is asleep. Reversible by editing the pools.
+- bp05/82: the five backlog lines were already under "Decided" as "undecided" → I rewrote their tails to point at the plan's tasks that built them (the brute-force line to Task 71, the jam), and added the parked braille-cache-hints line. Reversible by `git revert` of the backlog commit.
+- bp05/82: ADR 0023 stays `proposed`; acceptance requested in `review/QUEUE.md`.
