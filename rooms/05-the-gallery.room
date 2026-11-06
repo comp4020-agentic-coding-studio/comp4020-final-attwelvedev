@@ -26,6 +26,9 @@
   {"beat":3,"read":"o1","prefer":"blind"},
   {"beat":4,"station":"Q3","at":[17,5],"prefer":"mute"},
   {"beat":4,"listen":"Q3","at":[18,5],"prefer":"blind"},
+  {"beat":4,"cache":"Q4","station":"Q4","at":[2,5],"prefer":"mute"},
+  {"beat":4,"cache":"Q4","listen":"Q4","at":[3,5],"prefer":"blind"},
+  {"beat":4,"cache":"Q4","keepsake":"Q4"},
   {"beat":5,"goTo":"E","all":true}]}}
 ---
 #############################S######

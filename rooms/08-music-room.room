@@ -31,6 +31,9 @@
   {"beat":4,"station":"Q2","prefer":"mute"},
   {"beat":5,"watch":"Q3","at":[23,5],"prefer":"mute"},
   {"beat":5,"station":"Q3","prefer":"deaf"},
+  {"beat":5,"cache":"Q4","watch":"Q4","at":[30,6],"prefer":"mute"},
+  {"beat":5,"cache":"Q4","station":"Q4","prefer":"deaf"},
+  {"beat":5,"cache":"Q4","keepsake":"Q4"},
   {"beat":6,"goTo":"E","all":true}]}}
 ---
 ###################################

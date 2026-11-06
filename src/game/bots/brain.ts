@@ -89,7 +89,7 @@ export interface BotMemory {
   bodies: Partial<Record<Seat, Vec>>; // where it last saw each player
   actWas: boolean; // pressed Act last tick: a press needs a release before the next
   gearWas: boolean;
-  markedFor: string | null; // a switches watcher: the lamps (as seen) it last marked a button for
+  markedFor: string | null; // a switches watcher: the station and lamps (as seen) it last marked a button for
   lastMarkAt: number; // when it last sent a mark (game ms): marks have a cooldown
   wireMarkedAt: Record<string, number>; // when it last marked a wire panel's answer, by station
   postSince: number | null; // when it got to the ink it is lighting (game ms), or null
@@ -378,7 +378,21 @@ function readStations(
     const heard = aside
       ? inbox.filter((m) => !(m.method === "callout" && m.callout === "stop"))
       : inbox;
-    DECODERS[o.params?.type as StationType]?.(view, heard, b, o, view.tick, platePart(room, o.id));
+    // a keypad takes only the chimes of its own clue: another keypad's (a cache's, heard from the same
+    // vent) names a different clue by its bearing and would spoil its code (ADR 0024)
+    const own = o.params?.clue;
+    const seen =
+      o.params?.type === "keypad" && typeof own === "string" && view.you.pos
+        ? {
+            ...view,
+            sounds: view.sounds.filter((c) => {
+              if (c.kind !== "clue" || !c.dir || !view.you.pos) return true;
+              const from = alongBearing(room, "clue", view.you.pos, c.dir);
+              return from === null || from === own;
+            }),
+          }
+        : view;
+    DECODERS[o.params?.type as StationType]?.(seen, heard, b, o, view.tick, platePart(room, o.id));
   }
   linkedFrom(room, view, known.stations);
   if (view.sounds.some((c) => c.kind === "caught")) known.holding = {};
@@ -566,8 +580,12 @@ function currentJob(
   at?: Vec,
 ): Job | null {
   const queue = queuesOf(room, m, own)[seat];
+  // a cache job waits for its beat: a cache uncovered early is worked when the seat gets there, since
+  // what it needs (a door, a teammate, the gear) may not be in play before
+  const beat = queue.slice(m.ptr[seat]).find((j) => j.cache === undefined)?.beat ?? Infinity;
   const active = queue.find((j) => {
-    if (j.cache === undefined || m.cacheDone.has(`${seat}:${j.index}`)) return false;
+    if (j.cache === undefined || m.cacheDone.has(`${seat}:${j.index}`) || j.beat > beat)
+      return false;
     if (known.cachesOpen?.[j.cache] !== true || known.cachesTaken?.[j.cache] === true) return false;
     if (j.target.kind === "keepsake" && known.stations[j.cache]?.solved !== true) return false;
     if (!isDone(room, j, known, at, seat)) return true;
@@ -862,7 +880,11 @@ function lookAtDoor(room: Room, known: Known, from: Vec, goal: Vec): Vec {
   const ignoringDoors = (x: number, y: number) =>
     believed(x, y) && !(room.grid[y]?.[x] === "D" && doorAt.has(`${x},${y}`));
   const path = findPath({ ...grid, blocked: ignoringDoors }, from, goal);
-  const door = path?.findIndex((t) => room.grid[t.y]?.[t.x] === "D") ?? -1;
+  // the first door it believes shut (one it believes open, such as a cache's vault door, is no reason to stop)
+  const door =
+    path?.findIndex(
+      (t) => room.grid[t.y]?.[t.x] === "D" && known.doorOpen[doorAt.get(key(t)) ?? ""] !== true,
+    ) ?? -1;
   return path && door > 0 ? (path[door - 1] as Vec) : goal;
 }
 
@@ -969,7 +991,13 @@ function besideOf(
   const clear = free.filter((t) =>
     avoid.every((a) => Math.hypot(a.x - (t.x + 0.5), a.y - (t.y + 0.5)) > 1.01),
   );
-  const options = clear.length > 0 ? clear : free;
+  // never a cache's motif or decoy tile: an Act there (a hand taken, gear lifted) would uncover it, and
+  // uncovering is for the people (ADR 0024, FR1)
+  const motifs = new Set(
+    room.objects.flatMap((o) => cacheOf(o)?.tiles.map((t) => key(t.at)) ?? []),
+  );
+  const plain = (clear.length > 0 ? clear : free).filter((t) => !motifs.has(key(t)));
+  const options = plain.length > 0 ? plain : clear.length > 0 ? clear : free;
   if (!from) return options[0] ?? null;
   const d = (t: Vec) => Math.hypot(t.x + 0.5 - from.x, t.y + 0.5 - from.y);
   return options.reduce<Vec | null>((a, b) => (a === null || d(b) < d(a) ? b : a), null);
@@ -1178,7 +1206,7 @@ function workSend(
   }
   const left = switchesLeft(o, b, view.tick);
   const next = left?.[0];
-  const lamps = b.shows.join();
+  const lamps = `${o.id}:${b.shows.join()}`; // per station: two watchers' lamps may read alike
   if (next === undefined || m.markedFor === lamps) return null;
   const at = tilesOf(o.params?.buttons)[next];
   if (!at || cool) return null;
@@ -1426,7 +1454,10 @@ function guideBlind(
     p = seen.pos;
     // sent back; a hand taken in front swings them round behind, which is no reason to forget
     const towing = known.holding[b as Seat] === m.seat;
-    if (g.last && !towing && Math.hypot(p.x - g.last.x, p.y - g.last.y) > 1.5) forgetPlans(m);
+    // (against where it was reckoned to be, which is where it was last seen while it stays in sight:
+    // a seat that walked out of sight and is seen again further on has not been sent back)
+    const was = g.est ?? g.last;
+    if (was && !towing && Math.hypot(p.x - was.x, p.y - was.y) > 1.5) forgetPlans(m);
     g.est = p;
     if (g.last && Math.hypot(p.x - g.last.x, p.y - g.last.y) < 0.01) g.still++;
     else g.still = 0;

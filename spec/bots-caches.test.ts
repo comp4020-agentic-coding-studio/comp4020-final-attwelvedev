@@ -10,9 +10,17 @@ import { loadRooms } from "../src/game/rooms/load.ts";
 // still clear the room within budget with no catches. Bots never uncover one (src/game/bots/brain.test.ts,
 // spec/caches.test.ts).
 const ROOMS = loadRooms("./rooms");
-const CASES: [room: string, cache: string][] = [["04-the-safe", "Q3"]];
+// `from` is the column where a person would find the motif tile (room 4: the chamber's own columns)
+const CASES: [room: string, cache: string, from: true | number][] = [
+  ["04-the-safe", "Q3", true], // its moon tile is at x 10, before the beat's gear has changed hands
+  ["05-the-gallery", "Q4", 13],
+  ["06-lights-out", "Q5", 17],
+  ["07-night-shift", "Q7", 8],
+  ["08-music-room", "Q4", 3],
+  ["09-the-vault", "Q8", 14],
+];
 
-for (const [id, cache] of CASES) {
+for (const [id, cache, from] of CASES) {
   const room = ROOMS.find((r) => r.id === id);
   if (!room) throw new Error(`no room ${id}`);
   const budgetS = typeof room.meta.budgetS === "number" ? room.meta.budgetS : 600;
@@ -21,7 +29,7 @@ for (const [id, cache] of CASES) {
     const roles = rolesFor(rotation);
     describe(`${id} with ${roles.join("/")} (seats 1-3)`, () => {
       it("bots solve the uncovered cache and the owner takes the keepsake", () => {
-        const result = solveRoom(room, roles, budgetS, { uncoverWhenReached: true });
+        const result = solveRoom(room, roles, budgetS, { uncoverWhenReached: from });
         const world = result.world;
         expect(world.cacheUncovered, "the harness uncovers it").toContain(cache);
         expect(world.cacheBy[cache], "the cache was solved").toBeDefined();
@@ -30,6 +38,19 @@ for (const [id, cache] of CASES) {
         expect(result.ticks / 20).toBeLessThanOrEqual(budgetS);
         expect(result.caught).toBe(0);
       });
+    });
+  }
+}
+
+// FR1: uncovering stays human. Three bots with no help from the harness open no cache in any room, in
+// any rotation, however they stand beside each other to hand gear on or take a hand.
+for (const [id] of CASES) {
+  const room = ROOMS.find((r) => r.id === id);
+  if (!room) throw new Error(`no room ${id}`);
+  for (const rotation of [0, 1, 2]) {
+    it(`${id} with ${rolesFor(rotation).join("/")}: three bots alone uncover nothing`, () => {
+      const result = solveRoom(room, rolesFor(rotation), 240);
+      expect(result.world.cacheUncovered).toEqual([]);
     });
   }
 }

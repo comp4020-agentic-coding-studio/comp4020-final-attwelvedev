@@ -35,6 +35,8 @@
   {"beat":8,"watch":"Q4","at":[41,4],"prefer":"mute"},
   {"beat":8,"station":"Q4","prefer":"deaf"},
   {"beat":9,"station":"Q6","prefer":"mute"},
+  {"beat":9,"cache":"Q7","station":"Q7","at":[34,1],"prefer":"deaf"},
+  {"beat":9,"cache":"Q7","keepsake":"Q7"},
   {"beat":10,"goTo":"E","all":true}]}}
 ---
 ###################################t################

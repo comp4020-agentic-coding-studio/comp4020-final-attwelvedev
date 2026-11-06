@@ -292,7 +292,7 @@ state to keep in step across send-backs, for no behaviour `currentJob` lacks.
   listens.
 - **Depends on:** Task 84.
 
-### Task 86: Rooms 5 to 9's cache jobs (FR7)
+### Task 86: Rooms 5 to 9's cache jobs (FR7) ✅
 
 - **Description:** cache jobs for 05 Q4 (keypad), 06 Q5 (switches), 07 Q7 (numbered wires), 08 Q4
   (bells) and 09 Q8 (dial), written from each room's existing beat jobs for the same station type. They
