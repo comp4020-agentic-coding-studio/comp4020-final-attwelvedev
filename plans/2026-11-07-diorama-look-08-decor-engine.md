@@ -190,7 +190,7 @@ them through `atlasTile` when settled, and directly otherwise.
 - **Break check:** remove the clip in `paintDecor` (scripted). The clip case goes red.
 - **Depends on:** Task 113.
 
-### Task 115: Decor never paints a floor pixel, in a real browser; rooms 05, 08 and 09 reviewed (FR11, NFR-perf)
+### [x] Task 115: Decor never paints a floor pixel, in a real browser; rooms 05, 08 and 09 reviewed (FR11, NFR-perf)
 
 - **Description:** a browser check that draws the real scene on a real canvas (CLAUDE.md "A render bug
   … reproduced by drawing the real scene on a real canvas"). For rooms 05, 08 and 09, as Can't hear at
@@ -221,12 +221,12 @@ them through `atlasTile` when settled, and directly otherwise.
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 113 to 115 are complete and their tests pass.
-- [ ] `pnpm test:unit` passes.
-- [ ] The full check passes (overview §3).
-- [ ] `pnpm bench:frame --compare` passes.
-- [ ] The user has accepted Task 115's review.
-- [ ] Tick phase 7 in overview §5 and commit.
+- [x] Tasks 113 to 115 are complete and their tests pass.
+- [x] `pnpm test:unit` passes.
+- [x] The full check passes (overview §3).
+- [x] `pnpm bench:frame --compare` passes.
+- [x] The user has accepted Task 115's review. (review queued)
+- [x] Tick phase 7 in overview §5 and commit.
 
 ## 7. Requirements coverage (this phase)
 

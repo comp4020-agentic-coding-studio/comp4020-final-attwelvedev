@@ -107,6 +107,7 @@ by room (never lilac); the room's `hue` meta picks it, defaulting to rose: `setH
 | `--w-nv` | Night vision: the goggles' tint and lenses | built |
 | `--w-card` | Card faces: the safe's dial, the radio's band, gear mats | built |
 | `--w-dye-pink`, `--w-dye-mint`, `--w-dye-sky` | The dye pack's splats | built |
+| `--w-sconce` | Decor's light: a picture light's or a sconce's glow, clipped to its own wall face (unused in high contrast) | built |
 
 **Materials** (built, Tasks 104 and 105; ADR 0026 `proposed`): light comes from the north-west, and every tone is a world token mixed toward white or black (`mix` in `src/client/tokens.ts`), so no material brings a colour of its own. The painters are in `src/client/render/materials.ts`: stone flags in four tones with a 1.5 px `--w-seam` groove, a lit lip south-east of it and a faint speckle (boards in rooms 04 and 08, `FLOOR_OF`); a soft `--w-wall-shade` shade (at most 16 %) on the floor at a wall's foot; a wall top graded from its lit north-west corner with a bright lip along its south edge; a wall front darker toward the foot with a 1 px bevel along its top. The backdrop adds a sun glow in the top-left corner (it holds through a pan north or south: the last sky is drawn a few pixels stale until the horizon settles, then repainted), three strata across the cliff, a `--w-ripple` foam line with a white crest where the cliff meets the water, and a still reflection of the slab at 12 %. Floor and wall tiles are painted once into a per-tile **atlas** (`src/client/render/atlas.ts`) at the frame's device scale and copied after, except while the board tips at the start of a room or dusk is blending; `pnpm bench:frame --compare` holds the frame time to the committed baseline. **High contrast draws none of it**: today's flat fills only. Mist, night, cones and labels stay flat.
 
@@ -215,6 +216,29 @@ in the same 3/4 world, steel and brass, as quiet as a plate; the UV pool is the 
 - **Clues (escape-room phase 03):** a sign's own words (a plaque) sit on a brass plate on the wall over its tile, wrapped to about four tiles wide, outlined, never below 11 px (`drawPlaque`). The switches' target card is a cream card on a stand with the station's lamp grid, lit lamps filled with rays and hollow ones outlined (`drawTargetCard`). A link's motif (moon, star, wave, key, eye, leaf; `motifGlyph`, a family apart from the vault's symbols) sits on a cream disc at the front corner of both stations it joins (`motifBadge`); the vault's order clue is a brass plate of its wings' motifs in socket order (`drawOrder`). A solved wing shows a card plate above it with its vault symbol. A teaching safe has a small lamp by its face: lit with rays on the right number, hollow otherwise.
 - **Inspection plate (escape-room phase 14, Task 66):** a cache dial's back tile is a small steel plate set flush in the floor (`drawInspectionPlate`): outlined in `--w-line`, two rivets, a faint worn ring round it where someone has knelt. It is flat (nothing stands up from the floor, unlike the plinth under an ordinary safe's back box), unlabelled, and has no wire to it. It adds no token. Its sound is `hollow`, a low dropping sine with a thin ring above it, played in place of the step (yours) or the footsteps (a teammate's) while someone walks on it, captioned "hollow step" with a direction. Ordinary safes are unchanged, and `hollow` is deliberately left out of Can't see's briefing, which would announce that a cache exists.
 - **Hatch:** a wall with a waist-high sill and a lintel on two posts, open between. **Bell:** brass on a bracket with its rope; it swings ±15° three times in 1.2 s when rung (a static tilt under reduced motion). **Lamp switch:** a steel post with a lever and a small bulb. **Holding hands:** a 2 px arc between the hands, a bead each end, an arrowhead toward the leader; the towed figure's eyes look at the leader.
+
+### 4.9 Decor (built, Tasks 113 to 115)
+
+Each room has a theme, and its walls carry a little of it: the gallery (05) gilt-framed abstract
+paintings each under a picture light, the music salon (08) violin and lute silhouettes, staves with no
+notes and curtain swags, the strongroom (09) rivet rows, steel cladding with vertical seams and caged
+sconces. The other six themes come with phase 8. Why: a room should feel like a place, without
+anything that could be read as a clue.
+
+- **Placement** (`decorFor` in `src/client/render/decor.ts`): seeded from the room id, and read only
+  from the layout every sighted seat already has (the tiles and the wires). Fronts of south-open `#`
+  walls (at most 1 in 6, 3 tiles apart) and `#` tops (at most 1 in 8); nothing within a tile of a
+  door, hatch, glass, vent, night or wire; room 01 at half. A room's `SALT` is nudged until no item
+  stands beside a station, plaque, camera or ink (`decor.test.ts`). The page works it out once per
+  room, so a cache opening never moves it, and a secret wall's decor sinks with it.
+- **Drawing** (`decor-paint.ts`): inside the wall's own tile, after its fills, so it shares the wall's
+  see-through and mist. Each item is clipped to its own face: a glow is a `--w-sconce` radial at 30 %
+  that never reaches the floor (`spec/layout/decor.test.ts`). Tones are wall, steel or brass tokens
+  mixed toward the wall. No outline, no motion.
+- **Never** shaped like a game object or a motif: no clock, dial, bell, horn, window, slat or rail,
+  lantern with rays, role shape, moon, star, wave, key, eye or leaf, and no note head. Circles stay
+  under 0.15 of a face, and at most two lines run across one (the staff's five carry no notes).
+- **High contrast draws no decor.**
 
 ### 4.7 The role frame (built)
 

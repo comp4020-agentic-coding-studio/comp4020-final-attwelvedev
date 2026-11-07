@@ -84,11 +84,19 @@ if (process.env.BENCH !== "1") return new Response(null, { status: 404 });
               ),
       };
       if (q.get("still") === "1") {
-        // one settled frame: the atlas warm, then drawn again, and the camera told to the page
+        // one settled frame (drawn twice: the atlas warm the second time), with or without the decor;
+        // the camera and the tiles drawn are told to the page
         const cam = camera(base);
-        draw(ctx, { ...base, cam, nowMs: 0 });
-        draw(ctx, { ...base, cam, nowMs: 0 });
+        const still = (withDecor: boolean) => {
+          const s: Scene = { ...base, cam, nowMs: 0, decor: withDecor ? base.decor : [] };
+          draw(ctx, s);
+          draw(ctx, s);
+        };
+        (window as unknown as { __still: typeof still }).__still = still;
+        still(q.get("decor") !== "0");
         canvas.dataset.camera = `${cam.scale},${cam.ox},${cam.oy}`;
+        canvas.dataset.tiles = JSON.stringify(base.tiles);
+        canvas.dataset.decor = JSON.stringify(base.decor);
         canvas.dataset.ready = "1";
       }
       const times: number[] = [];
