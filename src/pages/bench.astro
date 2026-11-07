@@ -1,0 +1,94 @@
+---
+// The frame bench (scripts/bench-frame.ts): the real renderer drawing a room in a loop, timed. It is
+// served only when the server runs with BENCH=1; everywhere else it is a 404.
+if (process.env.BENCH !== "1") return new Response(null, { status: 404 });
+---
+
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Frame bench</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="bench"></canvas>
+    <script>
+      import room05 from "../../rooms/05-the-gallery.room?raw";
+      import room09 from "../../rooms/09-the-vault.room?raw";
+      import { camera, draw, type Scene } from "../client/render.ts";
+      import { setHue } from "../client/tokens.ts";
+      import { viewFor } from "../game/perception.ts";
+      import { parseRoom } from "../game/rooms/format.ts";
+      import { createWorld } from "../game/sim/world.ts";
+      import type { Role } from "../game/types.ts";
+
+      const FRAMES = 300;
+      const WARMUP = 30;
+      const ROLES: [Role, Role, Role] = ["blind", "deaf", "mute"];
+      const which = new URLSearchParams(location.search).get("room") === "09" ? room09 : room05;
+      const room = parseRoom(which);
+      setHue(room.meta.hue as string | undefined);
+      // three players at their spawns; the drawing seat is Can't hear (seat 1), who sees the most
+      const world = createWorld(room, 1, ROLES);
+      const view = viewFor(world, 1, "deaf", true);
+      const self = world.players[1].pos;
+      const canvas = document.getElementById("bench") as HTMLCanvasElement;
+      const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const base: Scene = {
+        w,
+        h,
+        role: "deaf",
+        seat: 1,
+        roles: ROLES,
+        tiles: view.tiles ?? room.grid,
+        entities: view.entities,
+        self,
+        layout: "follow",
+        seen: view.seen,
+      };
+      const times: number[] = [];
+      let frame = 0;
+      const start = performance.now();
+      function tick(now: number) {
+        // the camera pans slowly side to side, so the tile window moves as it does in play
+        const cam = camera(base);
+        const pan = Math.sin(frame / 60) * cam.scale * 3;
+        const t0 = performance.now();
+        draw(ctx, { ...base, cam: { ...cam, ox: cam.ox + pan }, nowMs: now - start });
+        // read one pixel back so the frame is rasterised inside the timing, not deferred past it
+        ctx.getImageData(0, 0, 1, 1);
+        const ms = performance.now() - t0;
+        if (frame >= WARMUP) times.push(ms);
+        frame++;
+        if (times.length < FRAMES) return void requestAnimationFrame(tick);
+        const sorted = [...times].sort((a, b) => a - b);
+        const at = (q: number) => sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] ?? 0;
+        (window as unknown as { __bench: { p50: number; p95: number } }).__bench = {
+          p50: at(0.5),
+          p95: at(0.95),
+        };
+      }
+      requestAnimationFrame(tick);
+    </script>
+  </body>
+</html>

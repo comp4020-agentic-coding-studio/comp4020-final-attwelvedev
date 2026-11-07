@@ -134,6 +134,8 @@ export function currentHue(): Hue;
 
 ### Task 103: The phone-profile frame bench and its committed baseline (NFR-perf)
 
+- [x] Done (overnight run): bench page, script, spec and baseline committed.
+
 - **Description:** Write `src/pages/bench.astro` (gated by `BENCH=1`) and `scripts/bench-frame.ts`
   (this file's §4). Run it 3 times on today's renderer, take the median of each `p95`, and commit
   `review/diorama/bench-baseline.json` with the machine named in it. Add
