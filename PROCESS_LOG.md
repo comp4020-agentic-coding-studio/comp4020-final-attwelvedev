@@ -1467,3 +1467,18 @@ changes no eligibility; it was moved beside a wall, with a 3-tile reach
 (NEAR + APART - 1) instead of the plan's 2, and shown red before it was trusted.
 The running cap became a test over the shipped rooms, and seven salts were
 re-picked against R2.
+
+## 2026-11-08 — A sweep that only placed figures at tile centres could not tell two send rules apart
+
+resolved by the autofix3 Task 230 commit (overnight run)
+
+The playtest fix for L1 sent a partly lit figure from the server, but the gate
+still asked whether the figure's own tile was lit. The regression test swept
+every spot in rooms 6 and 8, yet stood each figure at its tile's centre, where
+its 0.36-wide feet never leave that tile, so "own tile lit" and "any tile under
+the feet lit" gave the same answer every time. The sweep now also stands the
+figure near each edge of its tile. It went red on the old gate (6 figures lost,
+e.g. room 8, viewer 3.3,1.6, figure 3.15,5.5) and is green with the gate over
+every tile the footprint overlaps. A break script that put the own-tile gate
+back turned it red again. Lesson for sweeps: place the subject where the two
+rules disagree, not only where it is convenient.

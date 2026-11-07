@@ -977,6 +977,15 @@ function inSight(
     asked.set(key, hit);
     return hit;
   };
+  // whether the exact light covers part of the square `half` each way round `at`: some tile the square
+  // overlaps is touched (an edge that only meets a tile's border overlaps none of it), then the lit area
+  const footInLight = (at: Vec, half: number) => {
+    let touched = false;
+    for (let ty = Math.floor(at.y - half); ty < Math.ceil(at.y + half) && !touched; ty++)
+      for (let tx = Math.floor(at.x - half); tx < Math.ceil(at.x + half) && !touched; tx++)
+        touched = lit({ x: tx, y: ty });
+    return touched && footLit(light(), at, half);
+  };
   for (const e of entities) {
     if (
       e.kind === "stamp" ||
@@ -1004,14 +1013,12 @@ function inSight(
       }
     } else if (seen.has(Math.floor(e.pos.x), Math.floor(e.pos.y))) {
       out.push(e);
-    } else if (
-      ON_FLOOR.has(e.kind) &&
-      lit({ x: Math.floor(e.pos.x), y: Math.floor(e.pos.y) }) &&
-      footLit(light(), e.pos, footHalf(e.kind))
-    ) {
+    } else if (ON_FLOOR.has(e.kind) && footInLight(e.pos, footHalf(e.kind))) {
       // a thing on the floor whose tile the tile set missed but whose footprint the exact light covers in
-      // part: the client draws that light, and the thing in it (the user, playtest L1, L3, L5: a figure, the
-      // flag and the goggles vanished while part of each was lit). By the client's own rule (litEntities).
+      // part, in whichever tile that part falls: the client draws that light, and the thing in it (the user,
+      // playtest L1, L3, L5: a figure, the flag and the goggles vanished while part of each was lit). The
+      // cheap per-tile test over every tile the footprint overlaps comes first, then the exact area, by the
+      // client's own rule (litEntities, footLit with the same half).
       out.push(e);
     } else if (e.kind === "door" && !e.secret) {
       // a door is part of the map every sighted player holds, so it is sent whether or not its tile is

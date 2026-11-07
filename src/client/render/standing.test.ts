@@ -1863,6 +1863,16 @@ const footOf = (c: P, half = 0.36): P[] => [
   })),
 ];
 
+// Where on its tile the L1 sweep stands a figure: the centre, and near each edge, so its feet (0.36 each way) cross
+// into the neighbouring tile.
+const OFF_CENTRE: [number, number, string][] = [
+  [0.5, 0.5, "centre"],
+  [0.15, 0.5, "west edge"],
+  [0.85, 0.5, "east edge"],
+  [0.5, 0.15, "north edge"],
+  [0.5, 0.85, "south edge"],
+];
+
 describe("what stands is dropped only when the light touches none of its footprint (L1, L3, L5)", () => {
   it("draws a figure whose feet are partly lit, from every spot of room 6 and room 8 (L1, screenshots 122 and 123)", () => {
     vi.stubGlobal("Path2D", class {});
@@ -1877,16 +1887,22 @@ describe("what stands is dropped only when the light touches none of its footpri
           for (let fy = vy - 4; fy <= vy + 4; fy++)
             for (let fx = vx - 6; fx <= vx + 6; fx++) {
               if (room.grid[fy]?.[fx] !== "." || (fx === vx && fy === vy)) continue;
-              const f = { x: fx + 0.5, y: fy + 0.5 };
-              const { view, light, tiles } = viewAt(room, v, f);
-              // a figure in a dark zone is never sent (FR19): its tiles are masked out of the map
-              if (tiles[fy]?.[fx] !== "." || tiles[vy]?.[vx] !== ".") continue;
-              if (!footOf(f).some((p) => inLight(light, p))) continue;
-              checked++;
-              const kept = litEntities(view.entities, light, 1).some(
-                (e) => e.kind === "player" && e.seat === 0,
-              );
-              if (!kept) lost.push(`${id} viewer ${v.x},${v.y} figure ${f.x},${f.y}`);
+              // the tile's centre, and off-centre on each axis, where the feet cross into the next tile
+              // (a figure at a centre never leaves its own tile, so a gate on that tile alone passed)
+              for (const [ox, oy, spot] of OFF_CENTRE) {
+                const f = { x: fx + ox, y: fy + oy };
+                const { view, light, tiles } = viewAt(room, v, f);
+                // a figure in a dark zone is never sent (FR19): the tile it stands on is masked out of the map
+                const tx = Math.floor(f.x);
+                const ty = Math.floor(f.y);
+                if (tiles[ty]?.[tx] !== "." || tiles[vy]?.[vx] !== ".") continue;
+                if (!footOf(f).some((p) => inLight(light, p))) continue;
+                checked++;
+                const kept = litEntities(view.entities, light, 1).some(
+                  (e) => e.kind === "player" && e.seat === 0,
+                );
+                if (!kept) lost.push(`${id} viewer ${v.x},${v.y} figure ${f.x},${f.y} (${spot})`);
+              }
             }
         }
     }
