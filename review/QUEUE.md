@@ -543,3 +543,12 @@ plate is part of the station it serves, so the pacing test does not count it), m
 - **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080` in three tabs, make a lobby, Start, press I'm ready. The cleared card needs a cleared room (or `ROOMS_DIR=spec/fixtures/rooms-next`, where walking east clears it).
 - **Screenshots:** `review/n7-dl02-task99-{home,lobby,reveal,game,cleared}-{1280,375}.png` (also `review/diorama/p1-<page>-<width>.png`).
 - **Judged:** home at 1280, game at 375, cleared at 1280 and reveal at 375 viewed: plum reads well, nothing clipped. The lobby shots were not individually inspected. The panels are flat until the next phase gives them gradients. `door-pill.test.ts` is an existing flake (fails on the base commit too); see `plans/2026-11-07-overnight.md`.
+
+## dl03 (overnight run 2026-11-07)
+
+### dl03 Task 100: lit panels, wells, pills and buttons (human review, pending)
+
+- **Look at:** the lobby, the reveal, the HUD and the cleared card. A pass is panels lit from the upper left, buttons clearly pressable with primary obvious, and nothing embossed or heavy.
+- **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080` in three tabs, make a lobby, Start, press I'm ready. The cleared card needs `ROOMS_DIR=spec/fixtures/rooms-next`.
+- **Screenshots:** `review/n7-dl03-task100-{lobby,reveal-blind,reveal-deaf,reveal-mute,game-blind,game-deaf,game-mute}-{1280,375}.png` (one width each; the cleared card was not shot).
+- **Judged:** reveal at 1280 (Cy) and game at 375 (Bo) viewed: the card and crew wells read as lit, nothing clipped. Others not individually inspected.

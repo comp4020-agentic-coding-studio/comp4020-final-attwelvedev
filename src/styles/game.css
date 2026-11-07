@@ -97,10 +97,9 @@ body.playing main {
   gap: var(--s-4);
   justify-items: start;
   padding: var(--s-5);
-  background: var(
-    --glass
-  ); /* text over the canvas sits on --glass, and the room shows through it */
-  border-radius: var(--r);
+  background: var(--surface); /* a lit panel over the dusk room */
+  box-shadow: var(--sheen), var(--lift);
+  border-radius: var(--r-lg);
 }
 .reveal-crew-panel {
   justify-items: stretch;
@@ -211,7 +210,8 @@ body.playing main {
   align-items: center;
   gap: var(--s-2) var(--s-3);
   padding: var(--s-2) var(--s-3);
-  background: var(--bg);
+  background: var(--well);
+  box-shadow: var(--well-shadow);
   border-radius: var(--r);
 }
 .reveal-crew .crew-who {
@@ -386,8 +386,9 @@ body.playing main {
   min-height: var(--target);
   margin: var(--s-1) var(--s-3) 0;
   padding: var(--s-1) var(--s-2);
-  background: var(--glass);
-  border-radius: var(--r);
+  background: var(--surface);
+  box-shadow: var(--sheen), var(--lift);
+  border-radius: var(--r-lg);
   font-stretch: 75%;
   font-weight: 700;
 }
@@ -409,7 +410,8 @@ body.playing main {
   min-height: var(--target);
   min-width: var(--target);
   padding: 0 var(--s-2);
-  background: transparent;
+  background: var(--panel-hi);
+  box-shadow: var(--sheen);
   color: var(--ui);
   border: 2px solid var(--ui-muted);
   border-radius: var(--r);
@@ -438,7 +440,7 @@ body.playing main {
   gap: var(--s-1);
   padding: var(--s-1) var(--s-2);
   border: 2px solid transparent;
-  border-radius: var(--r);
+  border-radius: 999px;
 }
 .hud-crew li.you {
   border-color: var(--ui-muted);
@@ -447,7 +449,7 @@ body.playing main {
   padding: 0 var(--s-1);
   background: var(--ui);
   color: var(--bg);
-  border-radius: var(--r);
+  border-radius: 999px;
   font-size: 12px;
 }
 .hud-hint {
@@ -872,9 +874,10 @@ fieldset.settings {
   max-width: calc(100vw - var(--s-5));
   margin-top: var(--s-1);
   padding: var(--s-3);
-  background: var(--panel);
+  background: var(--surface);
+  box-shadow: var(--sheen), var(--lift);
   border: 2px solid var(--ui);
-  border-radius: var(--r);
+  border-radius: var(--r-lg);
   font-stretch: 100%;
   font-weight: 400;
 }
@@ -965,7 +968,8 @@ fieldset.settings {
   align-content: start;
   gap: var(--s-2);
   padding: var(--s-3);
-  background: var(--panel);
+  background: var(--well);
+  box-shadow: var(--well-shadow);
   border-radius: var(--r);
   text-align: left;
   overflow-wrap: anywhere;

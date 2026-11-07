@@ -44,7 +44,8 @@ input {
   min-height: var(--target);
   min-width: var(--target);
   padding: 0 var(--s-4);
-  background: var(--panel);
+  background: var(--panel-hi);
+  box-shadow: var(--sheen);
   color: var(--ui);
   border: 2px solid var(--ui-muted);
   border-radius: var(--r);
@@ -434,7 +435,8 @@ input {
   gap: var(--s-2) var(--s-3);
   min-height: var(--target);
   padding: var(--s-2) var(--s-3);
-  background: var(--panel);
+  background: var(--well);
+  box-shadow: var(--well-shadow);
   border-radius: var(--r);
 }
 /* a person just joined: an outline in --ui for a second (the picture twin of the join chime). Inset, so it
@@ -694,10 +696,11 @@ input {
   width: min(100%, 26rem);
   padding: var(--s-5);
   background: var(
-    --panel
+    --surface
   ); /* solid: --glass is for chips over the canvas, and text behind a modal would bleed through */
+  box-shadow: var(--sheen), var(--lift);
   border: 2px solid var(--ui-muted);
-  border-radius: var(--r);
+  border-radius: var(--r-lg);
 }
 .modal-title {
   margin: 0 0 var(--s-3);

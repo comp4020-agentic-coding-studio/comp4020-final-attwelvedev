@@ -61,3 +61,9 @@
 - dl02/99: canvas chips' glass is now `SHELL.glass` in `tokens.ts` (rgba(34, 28, 48, 0.9)), because the canvas cannot read an rgba token; `SHELL.r = 8` drives the label and pop chips.
 - dl02/99: human review of the plum retint → built, committed and queued in `review/QUEUE.md` (review queued), because the user is asleep.
 
+
+## dl03
+
+- dl03/100: the plan says `.hud-top` gets the lit surface, but it floats over the canvas on `--glass` → I gave it `--surface` with `--sheen`/`--lift` and `--r-lg`, because the plan names it and the spec's FR3 says "the HUD bar gets the same". Reversible by restoring `background: var(--glass)` in `.hud-top`.
+- dl03/100: new tokens `--surface`, `--well`, `--well-shadow` in `tokens.css` (HC overrides: `--panel`, `--bg`, `none`) and the reveal card and crew panel move from `--glass` to `--surface`, because the plan's recipe is one property HC can drop. `.credits > li` and `.player-row` became wells. Reversible by editing those rules.
+- dl03/100: the cleared card was not screenshotted (needs a cleared room); the lobby shots are one width each. Reversible by taking them by hand.

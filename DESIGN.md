@@ -59,6 +59,12 @@ Names and jobs only. Look the value up in `src/styles/tokens.css`.
 | `--scrim` | Dims the world behind a modal or the reveal |
 | `--hatch` | "Can't": 45° stripes of `--ui-muted`. Marks something you cannot do |
 | `--paper` | The QR code's quiet zone only; scanners need dark on light |
+| `--surface` | A lit panel's body: `--panel-hi` to `--panel` at 135°; `--panel` alone in high contrast |
+| `--well` | A row nested in a panel (crew rows, players, credits): a flat, slightly sunk fill with `--well-shadow`; `--bg` and no shadow in high contrast |
+
+**Surfaces.** A panel (the reveal card and crew, the HUD bar, the menu, a modal) is `--surface` with `--sheen` and `--lift` and `--r-lg` corners, so it reads as lit from the upper left. Rows nested in it are wells, never panels in panels. Status chips are pills (999 px radius). High contrast drops the gradient, `--sheen` and `--lift` through the same tokens.
+
+**Buttons.** Secondary: a `--panel-hi` body with `--sheen`, a 2 px `--ui-muted` outline, `--ui` on hover. Primary: a `--ui` fill with `--bg` text. A disabled button keeps its hatch.
 
 `--solid` is no longer a world colour: only the disabled Join button's border and the code field's placeholder use it. The flat map's own floor and crate fills are gone; the world tokens below replaced them.
 

@@ -82,3 +82,59 @@ describe("every button's text can be read, resting and on hover", () => {
     }
   }
 });
+
+describe("the lit buttons and panels (diorama FR3, FR4)", () => {
+  for (const width of [1280, 375]) {
+    it(`a secondary button has a 2 px outline and a lit body; a primary has a --ui fill at ${width}`, async () => {
+      await page.setViewportSize({ width, height: 800 });
+      const read = (i: number) =>
+        page.$eval(`#b${i}`, (el) => {
+          const s = getComputedStyle(el);
+          return {
+            width: s.borderTopWidth,
+            color: s.borderTopColor,
+            bg: s.backgroundColor,
+            image: s.backgroundImage,
+          };
+        });
+      const secondary = await read(0);
+      expect(secondary.width).toBe("2px");
+      expect(secondary.color).toBe("rgb(171, 161, 192)"); // --ui-muted
+      expect(secondary.bg).toBe("rgb(38, 31, 53)"); // --panel-hi
+      const primary = await read(1);
+      expect(primary.bg).toBe("rgb(239, 234, 245)"); // --ui
+    });
+  }
+
+  it("in high contrast no panel has a box-shadow or gradient", async () => {
+    const probe = async (high: boolean) => {
+      await page.evaluate((h) => {
+        if (h) document.documentElement.dataset.contrast = "high";
+        else delete document.documentElement.dataset.contrast;
+        document.getElementById("panels")?.remove();
+        const box = document.createElement("div");
+        box.id = "panels";
+        box.innerHTML =
+          '<div id="p-reveal" class="reveal"></div><div id="p-lobby" class="modal"></div><header id="p-hud" class="hud-top"></header>';
+        document.body.append(box);
+      }, high);
+      return page.evaluate(() =>
+        ["p-reveal", "p-lobby", "p-hud"].map((id) => {
+          const s = getComputedStyle(document.getElementById(id) as Element);
+          return { id, shadow: s.boxShadow, image: s.backgroundImage };
+        }),
+      );
+    };
+    const normal = await probe(false);
+    // sanity: in the normal look the panels are lit (a shadow and a gradient)
+    for (const p of normal) {
+      expect(p.shadow, `${p.id} lit`).not.toBe("none");
+      expect(p.image, `${p.id} gradient`).toContain("gradient");
+    }
+    for (const p of await probe(true)) {
+      expect(p.shadow, `${p.id} box-shadow in HC`).toBe("none");
+      expect(p.image, `${p.id} gradient in HC`).toBe("none");
+    }
+    await page.evaluate(() => delete document.documentElement.dataset.contrast);
+  });
+});
