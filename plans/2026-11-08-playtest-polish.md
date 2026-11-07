@@ -43,7 +43,7 @@ Defaults taken, to veto before running: the desktop hint stays left as it is (th
 
 Each new or changed assertion that guards a promise is shown red first, with a break script that asserts the text it replaces (CLAUDE.md), and the commit says what was broken. `pnpm check` must be green against `PORT=8092 pnpm start:check` with `APP_URL=http://localhost:8092`.
 
-- [ ] **Task 1: Centre the phone hint; rename the disclosure**
+- [x] **Task 1: Centre the phone hint; rename the disclosure**
   - Files: `src/components/Game.tsx` (the touch branch's `<p class="keys">` gets `keys keys-touch`), `src/styles/game.css` (`.keys-touch { text-align: center }`, its comment), `src/components/RoleReveal.tsx` (the button label, the comment above it), `src/styles/game.css` (the disclosure's comment), `src/client/revealPrefs.ts` and `.test.ts` (comments and describe title), `spec/layout/reveal.test.ts` (every `getByRole("button", { name: "Who hears what" })` and the test titles), `DESIGN.md` §7 (the `RoleReveal` line).
   - Tests first (red, then green): in `spec/layout/game.test.ts`, the phone-hint test also asserts the hint's text is centred (its box's centre within 2 px of the `.game` frame's centre, at 375). In `spec/layout/reveal.test.ts`, the buttons match `Who perceives what` and a new assertion checks that no element on the reveal has the text "Who hears what". Break: remove `keys-touch`; restore the old label.
   - Acceptance: demo steps 1 and 2. `grep -rn "Who hears what" src spec DESIGN.md` finds nothing.

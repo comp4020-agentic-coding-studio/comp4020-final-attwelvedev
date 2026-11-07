@@ -1414,7 +1414,7 @@ function Hud({
             quickLabel={quickSlot(role, settings.quick).name}
             act={act}
           />
-          <p class={cleared ? "keys is-off" : "keys"}>
+          <p class={cleared ? "keys keys-touch is-off" : "keys keys-touch"}>
             Stick moves · big button acts · hold Wheel to send
           </p>
         </>

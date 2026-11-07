@@ -124,6 +124,16 @@ describe("the game screen", () => {
     if (!hintBox || !act) throw new Error("touch hint or Act not drawn");
     expect(hintBox.y).toBeGreaterThanOrEqual(act.y + act.height);
     expect(await hint.evaluate((e) => e.scrollHeight <= e.clientHeight)).toBe(true);
+    // centred: the hint's text sits in the middle of the frame, not against its left edge
+    const centre = await hint.evaluate((e) => {
+      const frame = (e.closest(".game") ?? e.parentElement) as HTMLElement;
+      const range = document.createRange();
+      range.selectNodeContents(e);
+      const t = range.getBoundingClientRect();
+      const f = frame.getBoundingClientRect();
+      return { text: t.x + t.width / 2, frame: f.x + f.width / 2 };
+    });
+    expect(Math.abs(centre.text - centre.frame)).toBeLessThanOrEqual(2);
     const hints = await phone.locator(".keys").allInnerTexts();
     expect(hints).toEqual(["Stick moves · big button acts · hold Wheel to send"]);
     for (const text of hints) expect(text).not.toMatch(/WASD|Space/);

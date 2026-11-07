@@ -55,7 +55,7 @@ describe("each role's reveal card", () => {
         await goal.waitFor({ timeout: 5000 });
         const box = await goal.boundingBox();
         const head = await page.locator("#reveal-title").boundingBox();
-        await page.getByRole("button", { name: "Who hears what" }).click();
+        await page.getByRole("button", { name: "Who perceives what" }).click();
         const facts = await page.locator(".reveal-facts").boundingBox();
         if (!box || !head || !facts) throw new Error("goal, title or facts not drawn");
         expect(box.y).toBeGreaterThanOrEqual(head.y + head.height);
@@ -65,7 +65,7 @@ describe("each role's reveal card", () => {
     }
   });
 
-  it("says one sentence for each role under the goal, and keeps who hears what folded until pressed", async () => {
+  it("says one sentence for each role under the goal, and keeps who perceives what folded until pressed", async () => {
     const LINES = [
       "Your teammates guide you. Talk to them; listen for the room.",
       "You see the map but hear nothing. Watch for faces and marks.",
@@ -80,8 +80,9 @@ describe("each role's reveal card", () => {
       if (!box || !goal) throw new Error("role line or goal not drawn");
       expect(box.y).toBeGreaterThanOrEqual(goal.y + goal.height);
       // folded at first: the receiver names are not on screen
-      const more = page.getByRole("button", { name: "Who hears what" });
+      const more = page.getByRole("button", { name: "Who perceives what" });
       expect(await more.getAttribute("aria-expanded")).toBe("false");
+      expect(await page.getByText(/who hears what/i).count()).toBe(0);
       expect(await page.locator(".reveal-lines").isVisible()).toBe(false);
       expect(await page.getByText("You can send").isVisible()).toBe(false);
       await more.click();
@@ -98,7 +99,8 @@ describe("each role's reveal card", () => {
   it("names who hears what they send, by name, and never says Say, Sound or Show", async () => {
     const { pages } = await revealed(["Ana", "Bo", "Cy"]);
     const [blind, deaf, mute] = pages as [Page, Page, Page];
-    for (const page of pages) await page.getByRole("button", { name: "Who hears what" }).click();
+    for (const page of pages)
+      await page.getByRole("button", { name: "Who perceives what" }).click();
     expect(await title(blind)).toBe("You can't see");
     expect(await title(deaf)).toBe("You can't hear");
     expect(await title(mute)).toBe("You can't speak");
@@ -421,7 +423,7 @@ describe("the crew column after a room", () => {
   );
 });
 
-describe("who hears what is remembered", () => {
+describe("who perceives what is remembered", () => {
   // three sockets play room 1; Ana's own device opens each reveal in one browser context, so its
   // storage carries from one reveal to the next as it would for a person
   it("starts as the person last left it: open carries to the next room, folded survives a reload", async () => {
@@ -434,7 +436,7 @@ describe("who hears what is remembered", () => {
     ]);
     await context.addInitScript(() => localStorage.setItem("heist.nickname", "Ana"));
     const url = new URL(`/lobby/${code}`, baseUrl).href;
-    const more = (page: Page) => page.getByRole("button", { name: "Who hears what" });
+    const more = (page: Page) => page.getByRole("button", { name: "Who perceives what" });
     const expanded = (page: Page) => more(page).getAttribute("aria-expanded");
 
     let page = await context.newPage();
@@ -737,7 +739,7 @@ describe.each([
       // folded, then open
       expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
       expect(await axeViolations(page)).toEqual([]);
-      await page.getByRole("button", { name: "Who hears what" }).click();
+      await page.getByRole("button", { name: "Who perceives what" }).click();
       await page.locator(".reveal-lines").waitFor({ state: "visible" });
       expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
       expect(await axeViolations(page)).toEqual([]);

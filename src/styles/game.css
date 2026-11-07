@@ -195,7 +195,7 @@ body.playing main {
 .reveal-role-line {
   margin: 0;
 }
-/* "Who hears what": a disclosure, folded the first time; the arrow says which way it is */
+/* "Who perceives what": a disclosure, folded the first time; the arrow says which way it is */
 .reveal-more::before {
   content: "▸" / "";
   margin-right: var(--s-2);
@@ -759,6 +759,10 @@ body.playing main {
   .keys {
     text-align: center;
   }
+}
+/* the phone's hint is centred under the stick and the big button; the desktop line stays left */
+.keys-touch {
+  text-align: center;
 }
 /* touch: joystick bottom-left, Act bottom-right; the tray never overlaps them */
 .touch-zone {

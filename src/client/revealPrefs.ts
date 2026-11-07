@@ -1,4 +1,4 @@
-// Whether the reveal's "Who hears what" is open: folded the first time, then as the person last left
+// Whether the reveal's "Who perceives what" is open: folded the first time, then as the person last left
 // it. Its own key, not a field of `heist.settings`: Game.tsx holds the Settings it loaded at mount and
 // writes them back whole on any in-game change, which would undo a toggle made after mount.
 

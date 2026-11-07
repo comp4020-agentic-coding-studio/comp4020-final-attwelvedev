@@ -93,7 +93,7 @@ export function RoleReveal({
       old.includes(who) ? old.filter((n) => n !== who) : [...old, who].slice(-2),
     );
   const [a, b] = picked;
-  // "Who hears what": folded the first time, then as this person last left it
+  // "Who perceives what": folded the first time, then as this person last left it
   const [open, setOpen] = useState(loadRevealOpen);
   const flip = () => {
     const next = !open;
@@ -147,7 +147,7 @@ export function RoleReveal({
           aria-controls="reveal-more"
           onClick={flip}
         >
-          Who hears what
+          Who perceives what
         </button>
         <div id="reveal-more" class="reveal-more-body" hidden={!open}>
           <dl class="reveal-facts">

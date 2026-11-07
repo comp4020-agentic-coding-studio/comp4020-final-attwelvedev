@@ -21,7 +21,7 @@ const throwing = {
   },
 };
 
-describe("the reveal's Who hears what memory", () => {
+describe("the reveal's Who perceives what memory", () => {
   it("starts folded in a fresh browser", () => {
     expect(loadRevealOpen(store())).toBe(false);
     expect(loadRevealOpen(null)).toBe(false);
