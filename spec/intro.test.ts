@@ -7,6 +7,7 @@ import {
   byRole,
   closeAll,
   nextTick,
+  nextView,
   type Player,
   ready,
   startedFive,
@@ -110,6 +111,38 @@ describe("the start of a room holds the first tick (FR14)", () => {
     while (view.tick > 2) view = await nextTick(deaf, HOLD + 3000);
     expect(Date.now() - again).toBeGreaterThanOrEqual(1400);
     expect(view.elapsedMs).toBeLessThan(200);
+    await closeAll(players);
+  });
+
+  it("a passed room restart sends every seat the restarted room's tick-0 view, at spawn, before its first tick", async () => {
+    const { players } = await startedGame(baseUrl);
+    // the reveal's tick-0 view holds each seat's spawn
+    const spawns = await Promise.all(players.map((p) => nextView(p, 3000)));
+    ready(players);
+    const deaf = byRole(players, "deaf");
+    await nextTick(deaf.socket); // running
+    deaf.socket.send({ t: "input", seq: 1, move: { x: 1, y: 0 }, act: false });
+    const x0 = spawns[players.indexOf(deaf)]?.you.pos?.x ?? Number.NaN;
+    let moved = await nextTick(deaf.socket);
+    while ((moved.you.pos?.x ?? x0) <= x0) moved = await nextTick(deaf.socket);
+    const [a, b, c] = players as [Player, Player, Player];
+    a.socket.send({ t: "vote.propose", kind: "room" });
+    await b.socket.next("vote", 2000);
+    b.socket.send({ t: "vote.cast", yes: true });
+    c.socket.send({ t: "vote.cast", yes: true });
+    await deaf.socket.next("vote.end", 2000);
+    for (const [i, p] of players.entries()) {
+      // views from before the restart may still be queued; the first view whose tick falls is the
+      // restarted room's, and it must be its tick 0, not its first tick
+      let last = p === deaf ? moved.tick : 0;
+      let view = await nextView(p, HOLD + 3000);
+      while (view.tick >= last) {
+        last = view.tick;
+        view = await nextView(p, HOLD + 3000);
+      }
+      expect(view.tick, `seat ${i}'s first view of the restarted room`).toBe(0);
+      expect(view.you.pos).toEqual(spawns[i]?.you.pos);
+    }
     await closeAll(players);
   });
 

@@ -535,6 +535,11 @@ function endVote(code: string, result: "passed" | "declined" | "timeout", by?: s
     // the restarted room starts afresh: its start plays again and its first tick waits for it (FR14)
     if (running.timer) clearInterval(running.timer);
     running.timer = null;
+    if (running.introTimer) clearTimeout(running.introTimer);
+    running.introTimer = null;
+    // the restarted room's tick-0 view (its map, everyone at spawn) goes out before its intro, so the
+    // start of the room plays on the restarted room and not the old one's last frame
+    sendRevealViews(code);
     runIfReady(code, running); // a restarted room has everyone ready already
   } else if (acted === "heist") {
     if (running.timer) clearInterval(running.timer);
