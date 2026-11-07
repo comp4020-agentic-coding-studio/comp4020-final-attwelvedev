@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { STATION_TYPES } from "../../game/rooms/format.ts";
 import type { EntityView } from "../../net/protocol.ts";
-import { setContrast, WORLD } from "../tokens.ts";
+import { type Shape, setContrast, WORLD } from "../tokens.ts";
 import { drawBackdrop } from "./backdrop.ts";
 import { drawGoggles } from "./gear.ts";
 import { draw, type Scene } from "./index.ts";
@@ -12,6 +12,7 @@ import {
   paintDoor,
   paintFloor,
   paintGlass,
+  paintHatSheen,
   paintSteel,
   paintVent,
   paintWallFront,
@@ -457,5 +458,88 @@ describe("figures in material, and the goggles' grain", () => {
     };
     expect(grain(0)).toBe(grain(100));
     expect(grain(0)).not.toBe(grain(170));
+  });
+});
+
+describe("the hat's sheen", () => {
+  // the outline shapePath draws, as a polygon (the circle as 64 points)
+  const outline = (shape: Shape, cx: number, cy: number, r: number): [number, number][] => {
+    if (shape === "square")
+      return [
+        [cx - r, cy - r],
+        [cx + r, cy - r],
+        [cx + r, cy + r],
+        [cx - r, cy + r],
+      ];
+    if (shape === "triangle")
+      return [
+        [cx, cy - r],
+        [cx + r, cy + r * 0.85],
+        [cx - r, cy + r * 0.85],
+      ];
+    return Array.from({ length: 64 }, (_, i) => [
+      cx + r * Math.cos((i / 64) * Math.PI * 2),
+      cy + r * Math.sin((i / 64) * Math.PI * 2),
+    ]);
+  };
+  const inside = (p: [number, number], poly: [number, number][]) => {
+    let hit = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const [xi, yi] = poly[i] as [number, number];
+      const [xj, yj] = poly[j] as [number, number];
+      if (yi > p[1] !== yj > p[1] && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) hit = !hit;
+    }
+    return hit;
+  };
+  // the points the sheen strokes: moveTo/lineTo points, and an arc sampled along its sweep
+  const points = (shape: Shape) => {
+    const { ctx, ops } = recorder();
+    paintHatSheen(ctx, 100, 80, 20, shape);
+    const pts: [number, number][] = [];
+    for (const o of ops) {
+      if (o.name === "moveTo" || o.name === "lineTo")
+        pts.push([o.args[0] as number, o.args[1] as number]);
+      if (o.name === "arc") {
+        const [x, y, rad, a0, a1] = o.args as number[];
+        for (let i = 0; i <= 8; i++) {
+          const a = (a0 as number) + (((a1 as number) - (a0 as number)) * i) / 8;
+          pts.push([
+            (x as number) + (rad as number) * Math.cos(a),
+            (y as number) + (rad as number) * Math.sin(a),
+          ]);
+        }
+      }
+    }
+    return { pts, ops };
+  };
+
+  for (const shape of ["circle", "square", "triangle"] as const) {
+    it(`strokes once, faintly, wholly inside the ${shape}`, () => {
+      const { pts, ops } = points(shape);
+      expect(ops.filter((o) => o.name === "stroke")).toHaveLength(1);
+      expect(ops.find((o) => o.name === "stroke")?.globalAlpha).toBeCloseTo(0.4);
+      expect(pts.length).toBeGreaterThanOrEqual(2);
+      const poly = outline(shape, 100, 80, 20);
+      for (const p of pts) expect(inside(p, poly), `${shape} ${p}`).toBe(true);
+    });
+  }
+
+  it("the square's is an L: a vertical and a horizontal run meeting at a corner", () => {
+    const { pts } = points("square");
+    expect(pts).toHaveLength(3);
+    const [a, corner, b] = pts as [number, number][];
+    expect(a[0]).toBe(corner[0]);
+    expect(corner[1]).toBe(b[1]);
+  });
+
+  it("the cone's is one straight line", () => {
+    expect(points("triangle").pts).toHaveLength(2);
+  });
+
+  it("draws nothing in high contrast", () => {
+    setContrast(true);
+    const { ctx, ops } = recorder();
+    paintHatSheen(ctx, 100, 80, 20, "square");
+    expect(ops).toHaveLength(0);
   });
 });

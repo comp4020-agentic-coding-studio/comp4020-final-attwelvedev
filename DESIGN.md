@@ -146,7 +146,7 @@ a symbol into copy; it would fall back to another font and look wrong.
 
 ### 4.2 Figures (built, Tasks 18 and 19)
 
-- A pill body in the role colour with a soft vertical gradient (a lighter crown, the role colour, a darker foot), a 2 px outline, a face disc whose eyes lean toward the facing, and a radial floor shadow (the outline colour at 22 % fading to nothing). The hat has a sheen arc. High contrast draws the flat role colour and a flat shadow.
+- A pill body in the role colour with a soft vertical gradient (a lighter crown, the role colour, a darker foot), a 2 px outline, a face disc whose eyes lean toward the facing, and a radial floor shadow (the outline colour at 22 % fading to nothing). The hat has one faint sheen stroke inset from its upper-left contour, always inside the shape: a short arc on the dome, a straight line along the cone's left edge, an L on the box's top and left edges. High contrast draws the flat role colour and a flat shadow.
 - **The hat is the role's shape**: dome (circle), box (square), cone (triangle), sitting on the crown. The shape is therefore on the figure, not only in the colour.
 - Your own avatar has a floor ring and a "You" chevron; a bot has an antenna.
 - **Moving:** a hop of about 2 px at 2.5 Hz and a puff of dust every quarter second. **Blocked** against a wall: a 10 % squash toward the facing. **Pushing a crate** (blocked with a crate in line ahead): an 8° lean. **Reduced motion keeps facing only**: no hop, squash, lean or dust, and a frame with no clock is byte-stable.

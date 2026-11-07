@@ -165,7 +165,7 @@ function figure(
   hat(ctx, at, s, ROLE_SHAPE[who.role]);
   ctx.fill();
   ctx.stroke();
-  paintHatSheen(ctx, at.x, at.y - s * BODY_H - s * 0.2 * 0.6, s * 0.2);
+  paintHatSheen(ctx, at.x, at.y - s * BODY_H - s * 0.2 * 0.6, s * 0.2, ROLE_SHAPE[who.role]);
   if (extra.dyed) {
     // just splattered: the blotches splat in one by one, 80 ms apart (reduced motion: at once)
     const dye = fxOf("dye");

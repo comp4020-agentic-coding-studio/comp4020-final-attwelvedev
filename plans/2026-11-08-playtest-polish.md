@@ -49,7 +49,7 @@ Each new or changed assertion that guards a promise is shown red first, with a b
   - Acceptance: demo steps 1 and 2. `grep -rn "Who hears what" src spec DESIGN.md` finds nothing.
   - Depends on: none.
 
-- [ ] **Task 2: A sheen that follows the hat**
+- [x] **Task 2: A sheen that follows the hat**
   - Files: `src/client/render/materials.ts` (`paintHatSheen` gains the shape: `paintHatSheen(c, cx, cy, r, shape)`; one stroke, 40 % white, inset about 0.25 r from the upper-left contour: the existing arc for a circle; a line parallel to the cone's left edge, trimmed 20 % at each end; an L (top edge and left edge, each trimmed) for a square), `src/client/render/figures.ts` (the one call passes `ROLE_SHAPE[who.role]`), `DESIGN.md` §4.2 ("The hat has a sheen arc" becomes the per-shape rule).
   - Test first, in `src/client/render/materials.test.ts`: for each of the three shapes, record the stroke's points and assert every point lies strictly inside `shapePath`'s outline (a point-in-polygon check; the triangle's apex is `cy - r`, its base is `cy + 0.85 r`, per `shapePath` in `shared.ts`), and that high contrast draws nothing. Red by passing `"circle"` for every shape.
   - Acceptance: demo step 3.

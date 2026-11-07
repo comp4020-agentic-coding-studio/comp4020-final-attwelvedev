@@ -1,4 +1,4 @@
-import { COLOR, isHighContrast, mix, WORLD } from "../tokens.ts";
+import { COLOR, isHighContrast, mix, type Shape, WORLD } from "../tokens.ts";
 import { floorRing } from "./shared.ts";
 
 // The world's materials (FR8): every tone is a world token mixed toward white or black, lit from the
@@ -421,12 +421,16 @@ export function paintFigureBody(
   c.fill();
 }
 
-// A sheen arc on the hat's upper-left, drawn after the hat's own outline. None in high contrast.
+// A sheen on the hat's upper-left, drawn after the hat's own outline: one stroke inset about 0.25 r
+// from the contour, so it stays inside the shape. A short arc on the dome, a line parallel to the
+// cone's left edge, an L on the box's top-left corner; each straight run is trimmed 20 % at its ends.
+// None in high contrast.
 export function paintHatSheen(
   c: CanvasRenderingContext2D,
   cx: number,
   cy: number,
   r: number,
+  shape: Shape,
 ): void {
   if (isHighContrast()) return;
   c.save();
@@ -434,7 +438,25 @@ export function paintHatSheen(
   c.strokeStyle = WHITE;
   c.lineWidth = 1.5;
   c.beginPath();
-  c.arc(cx, cy, r * 0.55, Math.PI * 1.05, Math.PI * 1.55);
+  if (shape === "circle") c.arc(cx, cy, r * 0.75, Math.PI * 1.05, Math.PI * 1.55);
+  else if (shape === "square") {
+    const edge = r * 1.5; // the inset square's side
+    const left = cx - r * 0.75;
+    const top = cy - r * 0.75;
+    c.moveTo(left, top + edge * 0.8);
+    c.lineTo(left, top);
+    c.lineTo(left + edge * 0.8, top);
+  } else {
+    // the left edge runs (cx, cy - r) to (cx - r, cy + 0.85 r); step 0.25 r toward the inside
+    const len = Math.hypot(1, 1.85);
+    const nx = (1.85 / len) * r * 0.25;
+    const ny = (1 / len) * r * 0.25;
+    const at = (t: number) => [cx - r * t + nx, cy - r + r * 1.85 * t + ny] as const;
+    const a = at(0.2);
+    const b = at(0.8);
+    c.moveTo(a[0], a[1]);
+    c.lineTo(b[0], b[1]);
+  }
   c.stroke();
   c.restore();
 }
