@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { Browser, Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { WORLD } from "../../src/client/tokens.ts";
+import type { Role } from "../../src/game/types.ts";
 import { DESKTOP, launch, PHONE } from "../browser.ts";
 import { playRoom, type Table } from "../playUi.ts";
 
@@ -18,7 +19,8 @@ const dir = mkdtempSync(join(tmpdir(), "door-pill-spec-"));
 const url = `http://127.0.0.1:${port}`;
 let app: ChildProcess;
 let browser: Browser;
-let table: Table;
+let desk: Table; // the deaf and mute players read the door at 1280
+let phone: Table; // a second table in the same fixture, read at 375
 
 beforeAll(async () => {
   if (!existsSync("dist/server/entry.mjs")) execSync("pnpm build", { stdio: "ignore" });
@@ -41,9 +43,12 @@ beforeAll(async () => {
     }
   }
   browser = await launch();
-  table = await playRoom(browser, url);
-  for (const page of table.pages) await page.emulateMedia({ reducedMotion: "reduce" });
-}, 60_000);
+  // two tables: a door opens once and its pill lasts 4 s, so each screen size gets its own door
+  desk = await playRoom(browser, url);
+  phone = await playRoom(browser, url);
+  for (const page of [...desk.pages, ...phone.pages])
+    await page.emulateMedia({ reducedMotion: "reduce" });
+}, 90_000);
 
 afterAll(async () => {
   app?.kill();
@@ -51,6 +56,7 @@ afterAll(async () => {
   await browser?.close();
 }, 30_000);
 
+const ROLES = ["blind", "deaf", "mute"] as const;
 const door = [0xf6, 0xcf, 0x63];
 
 // the bounding box, in CSS px on the canvas, of every pixel in the door's colour (null if none)
@@ -81,58 +87,101 @@ const boxOf = async (page: Page, selector: string) => {
   return (await loc.count()) ? await loc.boundingBox() : null;
 };
 
-// "stand on the plate": a short step east of the spawn, onto the plate one tile along
-const standOn = async (page: Page) => {
+// "stand on the plate": the plate is the tile east of the spawn (x 2 to 3; the spawn is at 1.5). A hold
+// of 300 ms walked the deaf and mute figures to x of about 2.3 to 2.4 (probed), so a 150 ms tap
+// ended near the plate's edge and a slow machine could fall short of it. The two pages that publish
+// where their figure is (data-self; the blind page does not) walk until it is mid-plate; the blind
+// one holds 320 ms, which is mid-plate by the same probe.
+const standOn = async (page: Page, role: Role) => {
   await page.keyboard.down("d");
-  await page.waitForTimeout(150);
-  await page.keyboard.up("d");
+  try {
+    if (role === "blind") await page.waitForTimeout(320);
+    else {
+      const selfX = async () => {
+        const raw = await page.locator("canvas[data-camera]").getAttribute("data-self");
+        return Number((raw ?? "").split(",")[0]);
+      };
+      await expect
+        .poll(selfX, { timeout: 10_000, interval: 25, message: "walked onto the plate" })
+        .toBeGreaterThan(2.3);
+    }
+  } finally {
+    await page.keyboard.up("d");
+  }
 };
 
-describe("a door opening off screen, drawn as an edge pill", () => {
-  const cases: [string, "deaf" | "mute", { width: number; height: number }][] = [
-    ["Can't hear at 1280", "deaf", DESKTOP],
-    ["Can't hear at 375", "deaf", PHONE],
-    ["Can't speak at 1280", "mute", DESKTOP],
-    ["Can't speak at 375", "mute", PHONE],
-  ];
+// Everything the checks need, read in one go while the pill is whole: a pill fading out is drawn at
+// partial alpha, so it stops matching the door's colour and would read as a few stray pixels.
+const snapshot = async (page: Page) => {
+  const box = await pillBox(page);
+  if (!box || box.y1 - box.y0 < 24 || box.x1 - box.x0 < 40) return null;
+  const canvas = await page.locator(".frame canvas").boundingBox();
+  if (!canvas) return null;
+  const neighbours = [".captions", ".hud-top"].map(
+    async (sel) => [sel, await boxOf(page, sel)] as const,
+  );
+  return { box, canvas, neighbours: await Promise.all(neighbours) };
+};
 
-  it("shows a pill at the edge toward the door, clear of the captions and the top bar", async () => {
-    for (const [, role, size] of cases) await table.byRole[role].setViewportSize(size);
-    // the whole table stands on its plates; the door opens at the far end
-    for (const page of table.pages) await standOn(page);
-    for (const [label, role, size] of cases) {
-      const page = table.byRole[role];
-      await page.setViewportSize(size);
-      // 4 s of pill: poll until it is on this canvas (the first role to read it spends the time)
-      await expect
-        .poll(() => pillBox(page), { timeout: 3500, message: `${label}: the door pill is drawn` })
-        .not.toBeNull();
-      const box = await pillBox(page);
-      if (!box) continue;
-      const canvas = await page.locator(".frame canvas").boundingBox();
-      if (!canvas) throw new Error("no canvas");
-      const w = canvas.width;
-      expect(box.x0, `${label}: on the east side, toward the door`).toBeGreaterThan(w / 2);
-      expect(box.x1, `${label}: inside the canvas`).toBeLessThanOrEqual(w);
-      expect(box.y1 - box.y0, `${label}: a pill, 24 px or more tall`).toBeGreaterThanOrEqual(24);
-      expect(box.x1 - box.x0, `${label}: wide enough to read "Door"`).toBeGreaterThanOrEqual(40);
-      // its neighbours: the caption strip and the top bar never touch it. (The face pills for
-      // the other seats sit on the west side, toward them, so they are at least half a canvas away.)
-      for (const sel of [".captions", ".hud-top"]) {
-        const other = await boxOf(page, sel);
-        if (!other || other.height === 0) continue;
-        const top = canvas.y + box.y0;
-        const bottom = canvas.y + box.y1;
-        const left = canvas.x + box.x0;
-        const right = canvas.x + box.x1;
-        const apart =
-          bottom <= other.y ||
-          top >= other.y + other.height ||
-          right <= other.x ||
-          left >= other.x + other.width;
-        expect(apart, `${label}: the door pill clears ${sel}`).toBe(true);
+// A door opening off screen, one table per screen size. The sizes are set before the door opens (a
+// resize inside the 4 s costs part of it), and both roles are read at once, each from its own first
+// sight of the pill: nothing waits on another check's turn, so a slow machine cannot use the 4 s up.
+describe("a door opening off screen, drawn as an edge pill", () => {
+  const sizes: [string, () => Table, { width: number; height: number }][] = [
+    ["1280", () => desk, DESKTOP],
+    ["375", () => phone, PHONE],
+  ];
+  const roles = [
+    ["Can't hear", "deaf"],
+    ["Can't speak", "mute"],
+  ] as const;
+
+  for (const [width, tableOf, size] of sizes) {
+    it(`shows a pill at the edge toward the door at ${width}, clear of the captions and the top bar`, async () => {
+      const table = tableOf();
+      for (const [, role] of roles) await table.byRole[role].setViewportSize(size);
+      // the whole table stands on its plates; the door opens at the far end
+      for (const role of ROLES) await standOn(table.byRole[role], role);
+      const seen = await Promise.all(
+        roles.map(async ([name, role]) => {
+          const label = `${name} at ${width}`;
+          const page = table.byRole[role];
+          let shot = null as Awaited<ReturnType<typeof snapshot>>;
+          await expect
+            .poll(async () => (shot = await snapshot(page)), {
+              timeout: 10_000,
+              interval: 50,
+              message: `${label}: the door pill is drawn`,
+            })
+            .not.toBeNull();
+          return { label, shot };
+        }),
+      );
+      for (const { label, shot } of seen) {
+        if (!shot) throw new Error(`${label}: no snapshot`);
+        const { box, canvas, neighbours } = shot;
+        const w = canvas.width;
+        expect(box.x0, `${label}: on the east side, toward the door`).toBeGreaterThan(w / 2);
+        expect(box.x1, `${label}: inside the canvas`).toBeLessThanOrEqual(w);
+        expect(box.y1 - box.y0, `${label}: a pill, 24 px or more tall`).toBeGreaterThanOrEqual(24);
+        expect(box.x1 - box.x0, `${label}: wide enough to read "Door"`).toBeGreaterThanOrEqual(40);
+        // its neighbours: the caption strip and the top bar never touch it. (The face pills for
+        // the other seats sit on the west side, toward them, so they are at least half a canvas away.)
+        for (const [sel, other] of neighbours) {
+          if (!other || other.height === 0) continue;
+          const top = canvas.y + box.y0;
+          const bottom = canvas.y + box.y1;
+          const left = canvas.x + box.x0;
+          const right = canvas.x + box.x1;
+          const apart =
+            bottom <= other.y ||
+            top >= other.y + other.height ||
+            right <= other.x ||
+            left >= other.x + other.width;
+          expect(apart, `${label}: the door pill clears ${sel}`).toBe(true);
+        }
       }
       expect(WORLD.door.toLowerCase()).toBe("#f6cf63"); // the colour this reads is the token's
-    }
-  }, 30_000);
+    }, 30_000);
+  }
 });
