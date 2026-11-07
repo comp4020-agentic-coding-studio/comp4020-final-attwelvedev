@@ -314,6 +314,31 @@ describe("station bodies in brushed steel", () => {
       expect(gradients, `code ${code}`).toHaveLength(0);
       expect(ops.every((o) => !isGradient(o))).toBe(true);
     }
+    // Every swatch a station paints is filled with its code's plain colour. A wire panel shows a
+    // swatch per wire, in the code it shows; a bell is painted in its own index's code. The other
+    // types paint no code colour at all (a dial's number, keys, symbols, lamps, a tuner's needle),
+    // so they are named here and must draw none.
+    const SWATCHES: Record<(typeof STATION_TYPES)[number], "shows" | "index" | "none"> = {
+      dial: "none",
+      wires: "shows",
+      keypad: "none",
+      radio: "none",
+      switches: "none",
+      bells: "index",
+      vault: "none",
+      sync: "none",
+    };
+    const CODE_KEYS = [
+      "codeRed",
+      "codeBlue",
+      "codeYellow",
+      "codeGreen",
+      "codeWhite",
+      "codeBlack",
+    ] as const;
+    const codeColour = (code: number) => WORLD[CODE_KEYS[code] as (typeof CODE_KEYS)[number]];
+    const shows = [1, 2, 3, 4];
+    const tiles = shows.map((_, i) => ({ x: 4 + i, y: 2 }));
     for (const type of STATION_TYPES) {
       const e: EntityView = {
         id: "Q9",
@@ -321,23 +346,30 @@ describe("station bodies in brushed steel", () => {
         pos: { x: 4.5, y: 2.5 },
         station: {
           type,
-          shows: [1, 2, 3, 4],
+          shows,
           solved: false,
           parts: [
             { key: "anchor", at: [{ x: 4, y: 2 }] },
-            { key: "wires", at: [{ x: 4, y: 2 }] },
-            { key: "bells", at: [{ x: 4, y: 2 }] },
+            { key: "wires", at: tiles },
+            { key: "bells", at: tiles },
           ] as never,
         },
       };
       const { ctx, ops } = recorder();
       drawStationStanding(ctx, e, cam, scene, 2);
-      // a swatch is a rect path filled with a code colour: that fill is a plain colour
-      const codeFills = ops.filter((o) => o.name === "fill" && typeof o.fillStyle === "string");
-      expect(
-        codeFills.every((o) => !isGradient(o)),
-        type,
-      ).toBe(true);
+      const filled = new Set(
+        ops
+          .filter((o) => o.name === "fill" || o.name === "fillRect")
+          .map((o) => o.fillStyle)
+          .filter((f) => typeof f === "string"),
+      );
+      const want = SWATCHES[type];
+      const codes = want === "shows" ? shows : want === "index" ? tiles.map((_, i) => i) : [];
+      for (const code of codes)
+        expect(filled.has(codeColour(code)), `${type}: code ${code}'s swatch colour`).toBe(true);
+      if (want === "none")
+        for (const code of CODE_KEYS.keys())
+          expect(filled.has(codeColour(code)), `${type} paints no code colour`).toBe(false);
     }
   });
 
