@@ -2,7 +2,7 @@
 
 - **Date:** 2026-11-08
 - **Tier:** Slice (investigate first: Task 1 decides which of Tasks 2 to 4 apply)
-- **Status:** Approved
+- **Status:** Partly done (Tasks 1 and 2; 3 parked, 4 needs a ruling)
 - **Requirements confirmed by user:** yes, 2026-11-08, in conversation (the seven symptoms and the two stated expectations: veil starts after the corner; a diagonal cut in front of glass)
 - **Comes from:** `overnight/playtest-2026-11-08-findings.md` (L1 to L7); screenshots 122 to 130 in `overnight/playtest-2026-11-08-shots/`
 - **Runs:** first of the four follow-up plans. L4 and L6 may be a perception bug, which matters for play more than the look does.
@@ -54,13 +54,13 @@ Each new or changed assertion is shown red first with a break script (CLAUDE.md)
   - Tests first: the Task 1 tests for L1, L3 and L5 go green; a thing wholly in the dark is still dropped (it must stay red if `litEntities` keeps everything). Break: restore the own-tile test.
   - Depends on: Task 1.
 
-- [ ] **Task 3: Glass veil and the diagonal in front of glass** (if (b))
+- [ ] **Task 3: Glass veil and the diagonal in front of glass** (if (b)) (PARKED: `auto/overnight-parked-los-task3`, see `review/QUEUE.md`)
   - Files: `src/client/render/column.ts` (`darkOfGlass` and `splitOfWall`'s overlap rule: no veil on glass before the corner; a station over glass takes the cone's diagonal), `DESIGN.md` §4.4 (the sentence about glass being cut the same way and about a station over a wall's front).
   - Tests first: the Task 1 tests for L2 and L7 go green; a station over a wall's front still takes the vertical cut (it must stay red if the rule is applied to walls too). Break: restore the vertical cut.
   - Depends on: Task 1.
   - Human review: screenshots of 124 and 130's scenes at 1280 and 375, after. A pass means the glass reads as glass and the cut reads as light.
 
-- [ ] **Task 4: A music box in sight is drawn whole** (if (c))
+- [ ] **Task 4: A music box in sight is drawn whole** (if (c)) (not (c): back to the user; tests on `auto/overnight-parked-los-task4`)
   - Files: `src/client/render/sight.ts` (`cutToSight`) and/or `src/game/perception.ts`, whichever Task 1 names. If the fix is in perception, a test in `src/game/perception.test.ts` shows a seat that can see the box gets it whole, a seat that cannot gets nothing, and `parity.test.ts` still holds (ADR 0007, 0012).
   - Tests first: the Task 1 tests for L4 and L6 go green; the existing furniture test (`perception.test.ts`, "the buttons are furniture and drawn, the lamps' state…") stays green.
   - Acceptance: demo 4. If it needs a new field on the wire, stop and ask: that is an ADR question.
