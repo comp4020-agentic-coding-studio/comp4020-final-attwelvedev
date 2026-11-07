@@ -1038,6 +1038,31 @@ describe("viewFor: stations, gear and signals", () => {
     expect(JSON.stringify(blind)).not.toContain("shows");
   });
 
+  // A cut wire is seen by whoever sees the panel's face, and by no one else (G1: wire cut and station bob, Task 1)
+  it("a cut wire is in the view of a seat that sees the panel's face, and nowhere else", () => {
+    const w = wiresWorld();
+    w.stations.Q1?.input.push(1);
+    const q = viewFor(w, 1, "deaf", false).entities.find((e) => e.id === "Q1");
+    expect(q?.station?.cut).toEqual([1]);
+    expect(JSON.stringify(viewFor(w, 0, "blind", false))).not.toContain('"cut"');
+    // the anchor in sight, the wires behind a wall: furniture only, so no cut
+    const grid = ["##########", "#1..Q.#..#", "#2....#..#", "#3....#..#", "##########"];
+    const behind = worldWith(grid, {
+      Q1: {
+        type: "wires",
+        wires: [
+          [7, 1],
+          [7, 2],
+          [7, 3],
+        ],
+      },
+    });
+    behind.stations.Q1?.input.push(0);
+    const f = viewFor(behind, 1, "deaf", false).entities.find((e) => e.id === "Q1");
+    expect(f?.station?.furniture).toBe(true);
+    expect(f?.station?.cut).toBeUndefined();
+  });
+
   // The user heard the caption "Tumbler" and no sound: a click at a third of its level, 0.07 s long, on the
   // same tick as the dial's own louder tick. Within touch range it must carry, not fade to nothing.
   it("the tumbler is still plainly audible at the edge of touch range, and absent beyond it", () => {

@@ -129,6 +129,7 @@ export interface EntityView {
     solved: boolean;
     parts: { key: StationPartKey; at: Vec[] }[];
     furniture?: true; // only its parts are in sight, not where it shows its state: `shows` is empty
+    cut?: number[]; // a wires panel: the indices of its cut wires, state like `shows` (never in a furniture-only view)
     teach?: true; // a teaching station (clues FR7)
     practice?: true; // its practice lever is on: dimmed, and its keys and bells only play (Task 38)
     jammed?: true; // a teaching station or cache after a wrong answer: it ignores input for 3 s (FR13)
@@ -450,6 +451,7 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
           type: s.type,
           shows: stationShows(world, s),
           solved: s.solved,
+          ...(s.type === "wires" && s.input.length > 0 ? { cut: [...s.input] } : {}),
           parts: stationParts(o),
           ...(o.params?.teach === true ? { teach: true as const } : {}),
           ...(typeof o.params?.practice === "string" && world.levers[o.params.practice]
@@ -1004,8 +1006,10 @@ function inSight(
       const parts = e.station?.parts ?? [];
       const furniture = parts.some((p) => p.at.some(lit));
       if (shown) out.push(e);
-      else if (furniture && e.station)
-        out.push({ ...e, station: { ...e.station, shows: [], furniture: true } });
+      else if (furniture && e.station) {
+        const { cut: _cut, ...station } = e.station;
+        out.push({ ...e, station: { ...station, shows: [], furniture: true } });
+      }
     } else if (e.beam) {
       const beam = e.beam.filter((t) => seen.has(Math.floor(t.x), Math.floor(t.y)));
       if (seen.has(Math.floor(e.pos.x), Math.floor(e.pos.y)) || beam.length > 0) {

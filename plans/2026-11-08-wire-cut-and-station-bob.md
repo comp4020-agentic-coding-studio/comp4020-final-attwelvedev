@@ -41,7 +41,7 @@ Default taken, to veto: the spark is tone `ui` (not goal or danger), since a cut
 
 Each new or changed assertion is shown red first, with a break script that asserts the text it replaces, and the commit says what was broken. `pnpm check` green against `PORT=8092 pnpm start:check`.
 
-- [ ] **Task 1: The cut wires in the sighted view**
+- [x] **Task 1: The cut wires in the sighted view**
   - Files: `src/game/perception.ts` (the `station` view type gains `cut?: number[]`, the indices of cut wires; set from `StationState.input` for wires in the same place `shows` is set, so a furniture-only view carries none), `src/net/protocol.ts` if the view is mirrored there.
   - Tests first, in `src/game/perception.test.ts`: after a wire is cut, a seat that sees the panel's face gets `cut` with that index; a seat that only sees the panel's parts (`furniture: true`) gets no `cut`; a Can't see seat gets no station state. Red against the current view.
   - Acceptance: demo 5. Checked against the role tables in `src/game/types.ts` (ADR 0007), and the `snap` row in `parity.test.ts` still holds.
