@@ -13,6 +13,9 @@ first.
 
 <!-- - YYYY-MM-DD — one line: the idea, and what prompted it -->
 
+- 2026-11-07 — the decoy band's parity (bp04, review fixes A §5): a hearing seat hears static turn to a steady tone the moment the knob lands on a decoy, while a sighted seat sees nothing until the next pip, up to 2 s later. Spec-level: a new `detectFx` effect with a sound row, or accept the delay.
+- 2026-11-07 — bots that plan for a human seat in room 4 (review fixes A Task 132): with a seat flagged as a person but played by a bot, room 4 does not clear even with no cache uncovered (the job split assumes the person claims by nearness). Only a harness shape today, but worth a look before bots fill seats beside real people in more rooms.
+
 - 2026-10-09 — a pivoting camera (sweeps its cone back and forth, with a slim gap to sneak through) as a later variant, perhaps one in a late room. Needs: a lint rule that works out safe windows geometrically (today it is simply watchingS/periodS), a continuous panned servo sound for Can't see instead of the one whir, and its own tuning. Raised while reviewing phase 05 Task 14; the cone cameras and gradual guard turning were built instead. Left out of the play overhaul (spec §2.3).
 
 - 2026-11-07 — cache hints in braille: a plate that tells where a cache's chamber is, or a station's role in it. Out of scope of the blind-purpose spec (§2.3); parked until the plates have been played.

@@ -1,7 +1,7 @@
 # Review fixes A: bots, lints and the door ring
 
 - **Date:** 2026-11-07
-- **Status:** Draft (not yet approved to run)
+- **Status:** Done (overnight run 2026-11-07, unit fixesA): Tasks 132, 133, 134 and 138 built and committed; §5 items logged to the backlog and `review/QUEUE.md`.
 - **Requirements confirmed by user:** no. They come from three cold, read-only code reviews of the units
   bp04, bp05, caches, doors, sounds, dl01, dl02 and dl03. This plan is half of a split: the other half is
   ``plans/2026-11-07-review-fixes-b.md` (Tasks 135 to 137, Sonnet)`.

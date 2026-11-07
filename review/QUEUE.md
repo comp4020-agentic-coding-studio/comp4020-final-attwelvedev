@@ -576,3 +576,12 @@ plate is part of the station it serves, so the pacing test does not count it), m
 - **Screenshots:** `review/diorama/p3-room{01,04,05,09}-{canthear,cantspeak,spectator}-{1280,375}.png`.
 - **Bench:** `pnpm bench:frame --compare` (about 9 minutes; median of 3 runs against `review/diorama/bench-baseline.json`).
 - **Judged:** room 4 (boards), room 5 (stone, mist) and room 9 (spectator: strata, foam, glow) viewed; the materials read as intended and the mist still reads as unseen. The high-contrast shot was not taken (the scripted run failed); HC flatness is proven by the unit tests (`materials.test.ts`).
+
+## fixesA (overnight run 2026-11-07)
+
+No human review in this unit (nothing here changes how the game looks, beyond edge pills keeping apart). Left for the user from the plan's §5:
+
+- **A listen: masking beds and the door bolt.** The masking beds are about 3.5 dB louder than the old brown noise (`TARGET_RMS = 0.3` against about 0.2), and the door bolt is 50 ms, not the 120 ms its plan names. Start locally: `pnpm build && pnpm start`, open `http://localhost:8080`, Settings → masking noise; a door opens in room 01 once all three stand on their plates.
+- **A note: Task 88's commit message** claims all three perception tests fail on old code; one cannot. No change made.
+- **The decoy band's parity** went to `specs/backlog.md` as a dated line (spec-level).
+- **Edge pills spread (Task 134):** a door pill and a mark pill toward the same edge now stack 48 px apart. Seen at 375 (Can't hear's phone, a mark at (12, 2) and the far door): the Door pill above, Cy's mark pill below, neither clipped. Reproduce: `pnpm vitest run spec/layout/door-pill.test.ts -t "never touch"`.
