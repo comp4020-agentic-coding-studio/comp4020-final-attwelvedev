@@ -1,7 +1,7 @@
 # Review fixes B: high contrast, the role tab and menu sounds
 
 - **Date:** 2026-11-07
-- **Status:** Draft (not yet approved to run)
+- **Status:** Done (overnight run 2026-11-07, unit fixesB; Tasks 135 and 136 review queued)
 - **Requirements confirmed by user:** no. They come from three cold, read-only code reviews of the units
   bp04, bp05, caches, doors, sounds, dl01, dl02 and dl03. This plan is half of a split: the other half is
   ``plans/2026-11-07-review-fixes-a.md` (Tasks 132, 133, 134 and 138, Opus)`.
