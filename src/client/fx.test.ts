@@ -275,6 +275,25 @@ describe("detectFx: small effects for what just changed between two views", () =
     expect(capSparks(gate, [spark], 1001)).toEqual([spark]);
   });
 
+  // G3 (Task 4): the radio coming back into line of sight dipped as if a part had been set
+  it("a station going from furniture-only to full, or back, starts no part dip", () => {
+    const radio = (shows: number[], furniture?: true) =>
+      e({
+        id: "Q3",
+        kind: "station",
+        station: {
+          type: "radio",
+          shows,
+          solved: false,
+          parts,
+          ...(furniture ? { furniture } : {}),
+        },
+      });
+    expect(detectFx([radio([], true)], [radio([3])])).toEqual([]);
+    expect(detectFx([radio([3])], [radio([], true)])).toEqual([]);
+    expect(detectFx([radio([3])], [radio([4])])).toMatchObject([{ kind: "part", targetId: "Q3" }]);
+  });
+
   it("makes no ring for a solved station that comes back into sight (Task 46)", () => {
     const other = e({ id: "P0", kind: "player", seat: 0, pos: { x: 2.5, y: 2.5 } });
     // absent from prev (out of sight), present and already solved in next: not newly solved

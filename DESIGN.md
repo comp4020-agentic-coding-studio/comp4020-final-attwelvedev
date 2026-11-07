@@ -341,7 +341,7 @@ pattern and outline), `turnPad` (a floor pad with its arrow), `symbolGlyph` (a v
 | Hide | the figure squashes into the box | 250 | hidden |
 | Sequence right / wrong / done | the sign stamps / one ±4 px shake (300 ms) and a steady danger outline / a fill spreads across it | 200 / 900 / 400 | end state |
 | Station solved | the **ring** (big, at the anchor), and the tick plate drops in | 600 | the ring only fades |
-| Station part set | the station dips once, like a detent | 250 | end state |
+| Station part set | the station dips once, like a detent; never for a station coming into or leaving line of sight | 250 | end state |
 | Wire cut | the swatch snips: its two halves lift apart by up to 3 px and settle, one spark (`ui`) at the cut; only for a cut made while the panel's face is in sight, never for one walked into | 150 | the cut state |
 | Bell rung | three swings, **once**, then still while it stays on (FR17) | 1200 | a static tilt |
 | Braille read | the studs lift in reading order; no ring | 400 | the outline only |

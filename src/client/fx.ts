@@ -226,7 +226,14 @@ export function detectFx(prev: EntityView[], next: EntityView[]): Fx[] {
           const t = at[i];
           if (t) out.push({ kind: "spark", pos: { x: t.x + 0.5, y: t.y + 0.5 }, tone: "ui" });
         }
-      } else if (st.shows.join() !== old.station.shows.join()) on(e, "part");
+      } else if (
+        // a station coming into or leaving line of sight is not a part set: a furniture-only view's
+        // `shows` is empty, so it would always look changed (G3: the radio dipped on coming back)
+        !old.station.furniture &&
+        !st.furniture &&
+        st.shows.join() !== old.station.shows.join()
+      )
+        on(e, "part");
     } else if (e.kind === "bell" && old && e.state === "on" && old.state !== "on") {
       on(e, "bell");
     } else if (e.kind === "lever" && old && e.state !== old.state) {

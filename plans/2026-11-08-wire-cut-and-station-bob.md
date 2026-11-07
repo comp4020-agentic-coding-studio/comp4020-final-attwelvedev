@@ -60,7 +60,7 @@ Each new or changed assertion is shown red first, with a break script that asser
   - Depends on: Task 1 (the `cut` field).
   - Human review: the snip in a local build. A pass means it reads as a cut, not a glitch.
 
-- [ ] **Task 4: No dip on re-entering line of sight**
+- [x] **Task 4: No dip on re-entering line of sight**
   - Files: `src/client/fx.ts` (`detectFx`'s station branch: the "shows changed" test, `on(e, "part")`, is skipped when `old.station.furniture` or `e.station.furniture` is set).
   - Reproduce first: in `src/client/fx.test.ts`, `detectFx([furnitureOnlyRadio], [fullRadio])` where the full one has `shows: [3]`. Today it returns a `part`, because `st.shows.join() !== old.station.shows.join()` compares `""` with `"3"`. The test fails, which is the repro. If it passes, the bob comes from elsewhere (the radio's `shows` pip, or `motionT`): stop and say so in the commit; do not guess.
   - Acceptance: demo 3. A real change while both views are full still starts `part`.
