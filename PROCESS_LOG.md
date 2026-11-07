@@ -1470,7 +1470,7 @@ re-picked against R2.
 
 ## 2026-11-08 — A sweep that only placed figures at tile centres could not tell two send rules apart
 
-resolved by the autofix3 Task 230 commit (overnight run)
+resolved by 02788a4
 
 The playtest fix for L1 sent a partly lit figure from the server, but the gate
 still asked whether the figure's own tile was lit. The regression test swept
