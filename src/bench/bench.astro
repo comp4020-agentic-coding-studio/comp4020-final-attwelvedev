@@ -32,6 +32,7 @@ if (process.env.BENCH !== "1") return new Response(null, { status: 404 });
       import room09 from "../../rooms/09-the-vault.room?raw";
       import { camera, draw, type Scene } from "../client/render.ts";
       import { setHue } from "../client/tokens.ts";
+      import { benchCam } from "./benchCam.ts";
       import { viewFor } from "../game/perception.ts";
       import { parseRoom } from "../game/rooms/format.ts";
       import { createWorld } from "../game/sim/world.ts";
@@ -71,11 +72,9 @@ if (process.env.BENCH !== "1") return new Response(null, { status: 404 });
       let frame = 0;
       const start = performance.now();
       function tick(now: number) {
-        // the camera pans slowly side to side, so the tile window moves as it does in play
-        const cam = camera(base);
-        const pan = Math.sin(frame / 60) * cam.scale * 3;
+        const cam = benchCam(camera(base), frame);
         const t0 = performance.now();
-        draw(ctx, { ...base, cam: { ...cam, ox: cam.ox + pan }, nowMs: now - start });
+        draw(ctx, { ...base, cam, nowMs: now - start });
         // read one pixel back so the frame is rasterised inside the timing, not deferred past it
         ctx.getImageData(0, 0, 1, 1);
         const ms = performance.now() - t0;
