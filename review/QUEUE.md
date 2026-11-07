@@ -647,3 +647,10 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
 - **Start it:** `pnpm install && pnpm build && pnpm start`, open `http://localhost:8080/`.
 - **Screenshots:** `review/n7-dl09-task117-home-feeds-1280.png`, `review/n7-dl09-task117-home-1280.png`, `review/n7-dl09-task117-home-375.png`, `review/n7-dl09-task117-home-feeds-375.png`.
 - **Judged:** room 1 is at half density and a feed shows the whole room, so only two planters on the south wall's top and one ivy trail are placed; they are small but visible. Raise room 01's density if you want more. Can't see's feed draws none (it is sent no map).
+
+### dl09 / Task 119 and 120: the whole look, and ADR 0026
+
+- **Look at:** the overview §6 manual walkthrough on a local build (`pnpm install && pnpm build && pnpm start`, `http://localhost:8080/`): room 1 tilt, swoop and land; room 5 through to cleared; the alarm in room 3; high contrast on; reduced motion on; at 1280 and 375 for each sighted role and a spectator. Also the DESIGN.md diff (`git diff 29ccc69..HEAD -- DESIGN.md`). *(queued for morning: the 3-tab walkthrough needs a person.)*
+- **Screenshots:** `review/diorama/final-room01..09-{1280,375}.png` (each room's settled frame with its decor, from the bench page: `BENCH=1 pnpm build`, `BENCH=1 node server.ts`, `/bench?room=NN&still=1`). The lobby, reveal, cleared, HC and reduced-motion shots were not taken overnight (they need live play).
+- **Judged:** bench passes (p95 81.9 / 87.2 / 159.3 / 178.6 ms against the baseline). Full check green on a quiet run except `door-pill` at 375 once (5 of 5 alone; the same flake dl08 logged).
+- **Ask: accept ADR 0026** (`doc/adr/0026-*.md`, `proposed`; left unchanged). On acceptance set `## Status accepted`, and 0016's status line gains a new sentence "partly superseded by 0026 (flat shading)"; confirm this is how you handle a partial supersession. The 0016 file name in 0026 was fixed overnight (0026 is still proposed).

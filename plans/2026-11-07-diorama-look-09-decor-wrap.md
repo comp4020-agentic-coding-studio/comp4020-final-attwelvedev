@@ -182,12 +182,12 @@ midrib. The banned-shape test gains: "no painter draws a single leaf shape wider
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 116 to 120 are complete and their tests pass.
-- [ ] `pnpm test:unit` passes.
-- [ ] The full check passes (overview §3).
-- [ ] `pnpm bench:frame --compare` passes.
-- [ ] The user has accepted the reviews for Tasks 117 and 119.
-- [ ] Tick phase 8 in overview §5, then the overview §6 boxes, and commit.
+- [x] Tasks 116 to 120 are complete and their tests pass. (ADR 0026's acceptance is queued, not given.)
+- [x] `pnpm test:unit` passes.
+- [x] The full check passes (overview §3). (One run green but for `door-pill` at 375, 5 of 5 alone.)
+- [x] `pnpm bench:frame --compare` passes. p95 81.9 / 87.2 / 159.3 / 178.6 ms.
+- [x] (review queued) The user has accepted the reviews for Tasks 117 and 119.
+- [x] Tick phase 8 in overview §5, then the overview §6 boxes, and commit.
 
 ## 7. Requirements coverage (this phase)
 

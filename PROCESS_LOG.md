@@ -1406,3 +1406,27 @@ a scripted break that asserted the text it replaced.
 - **The test that could not fail** (f1e2574). It filtered to string fills and then asserted none was
   a gradient. The replacement names each station type's swatches; under a gradient break the old
   half stayed green and the new one went red.
+
+## 2026-11-07 — The diorama look: three planning rulings and what the checks caught (overnight run)
+
+7ef5f1d..f71b757 (plans/2026-11-07-diorama-look-*; phase 8 is 4484348, 0e796f2, f71b757)
+
+- **R1, the ring is reserved, doors included.** A door opening was about to ring "wherever it is" (Task
+  89); the plan gave the door its own motion instead and left the ring to a solved station and a
+  landing. `src/client/render/ring.test.ts` fails on any other ring, so the rule is a sensor, not a
+  memory.
+- **R2, decor reads layout only.** Decor cannot know where a station stands, so it must never be able to
+  hide or imitate one. The test walks every shipped room and asserts no item lies within a tile of a
+  station part, plaque, camera, bell, lamp, lever or ink; a failing room gets its seed nudged (04, 06
+  and 07 needed 1, 4 and 12). Cache state is not an argument, so a cache opening cannot move decor.
+- **R3, `INTRO_MS` is an env seam.** The 2.4 s hold would make every spec slow, but CI is course-fixed
+  and starts the app without the seam; so specs wait with a default that covers the hold, and one spec
+  runs its own app. Checked by the full run in both settings.
+- **A test that could be satisfied by the wrong picture.** The first no-floor-pixel spec asked "is the
+  changed pixel on some wall"; on the atlas path a tile's own canvas already clips, so a glow leaving
+  its face could never fail it. It now asks "on the face of a wall that carries an item", and went red
+  with the clip removed. Extending it to nine rooms found one-pixel edge differences from the atlas's
+  half-pixel blit; those got a 2 px ring around the tile, not a looser face test.
+- **The unlit sconce.** The break check lit the watch-house sconce and two cases went red.
+
+(Nobody corrected anything overnight: no Corrections-log entries.)

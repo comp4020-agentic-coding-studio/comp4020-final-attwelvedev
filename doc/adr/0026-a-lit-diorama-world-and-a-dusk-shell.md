@@ -4,7 +4,7 @@
 
 proposed
 
-This supersedes the "flat-shaded blocks" part of 0016 (`doc/adr/0016-tilted-three-quarter-world.md`). The
+This supersedes the "flat-shaded blocks" part of 0016 (`doc/adr/0016-tilted-three-quarter-view.md`). The
 tilted 3/4 view, north up, the island over water and drawing everything in code all stand. The design
 is `specs/2026-11-07-diorama-look.md`.
 
