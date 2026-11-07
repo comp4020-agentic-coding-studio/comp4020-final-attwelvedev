@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# the frame bench's build (BENCH=1): build output only
+dist-bench/
 *.log
 
 # editor and OS junk

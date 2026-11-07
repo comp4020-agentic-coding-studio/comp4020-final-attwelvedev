@@ -9,7 +9,9 @@ process.env.ASTRO_NODE_AUTOSTART = "disabled";
 
 // Imported by a variable path so `pnpm typecheck` passes before the first
 // build (CI typechecks on a checkout that has no dist/ yet).
-const entry = "./dist/server/entry.mjs";
+// The frame bench's build (BENCH=1, see astro.config.ts) lives apart in dist-bench/.
+const entry =
+  process.env.BENCH === "1" ? "./dist-bench/server/entry.mjs" : "./dist/server/entry.mjs";
 const { handler } = (await import(entry)) as {
   handler: (req: IncomingMessage, res: ServerResponse) => void;
 };

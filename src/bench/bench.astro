@@ -1,6 +1,7 @@
 ---
 // The frame bench (scripts/bench-frame.ts): the real renderer drawing a room in a loop, timed. It is
-// served only when the server runs with BENCH=1; everywhere else it is a 404.
+// built only with BENCH=1 (astro.config.ts injects its route, into dist-bench/), and even there it is
+// a 404 unless the server also runs with BENCH=1.
 if (process.env.BENCH !== "1") return new Response(null, { status: 404 });
 ---
 

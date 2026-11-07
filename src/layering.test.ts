@@ -53,6 +53,11 @@ const RULES: Rule[] = [
     why: "src/pages/ stays thin and never imports src/net/: the socket server is a separate module instance, so shared state goes on globalThis behind one accessor",
     allowed: (_file, to) => !/^net\//.test(to),
   },
+  {
+    layer: "bench",
+    why: "src/bench/ (the frame bench's page, built only with BENCH=1) is a page like the others: it never imports src/net/",
+    allowed: (_file, to) => !/^net\//.test(to),
+  },
 ];
 
 // Test files are exempt: they may read fixtures and cross layers. `devSocket.ts` is the Astro integration that loads net/attach.ts in dev, so it is the

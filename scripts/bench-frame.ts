@@ -28,19 +28,19 @@ export interface Row {
   p95: number;
 }
 
-// dist/ is stale when any source file is newer than the built server entry
+// The bench page is built only with BENCH=1, into dist-bench/ (astro.config.ts), which is stale when
+// any source file is newer than its server entry
 function buildIfStale() {
-  const entry = "dist/server/entry.mjs";
+  const entry = "dist-bench/server/entry.mjs";
   let built = 0;
   try {
     built = statSync(entry).mtimeMs;
   } catch {}
   const newest = Number(
-    execSync(
-      "find src rooms -type f -newer dist/server/entry.mjs 2>/dev/null | head -1 | wc -l",
-    ).toString(),
+    execSync(`find src rooms -type f -newer ${entry} 2>/dev/null | head -1 | wc -l`).toString(),
   );
-  if (!built || newest > 0) execSync("pnpm build", { stdio: "inherit" });
+  if (!built || newest > 0)
+    execSync("pnpm build", { stdio: "inherit", env: { ...process.env, BENCH: "1" } });
 }
 
 async function up(url: string) {
