@@ -654,3 +654,10 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
 - **Screenshots:** `review/diorama/final-room01..09-{1280,375}.png` (each room's settled frame with its decor, from the bench page: `BENCH=1 pnpm build`, `BENCH=1 node server.ts`, `/bench?room=NN&still=1`). The lobby, reveal, cleared, HC and reduced-motion shots were not taken overnight (they need live play).
 - **Judged:** bench passes (p95 81.9 / 87.2 / 159.3 / 178.6 ms against the baseline). Full check green on a quiet run except `door-pill` at 375 once (5 of 5 alone; the same flake dl08 logged).
 - **Ask: accept ADR 0026** (`doc/adr/0026-*.md`, `proposed`; left unchanged). On acceptance set `## Status accepted`, and 0016's status line gains a new sentence "partly superseded by 0026 (flat shading)"; confirm this is how you handle a partial supersession. The 0016 file name in 0026 was fixed overnight (0026 is still proposed).
+
+### autofix2 / Task 220: a rung bell swings for its fx's 1.2 s
+
+- **Look at:** a bell mid-swing. No shipped room has a bell rope (`b`), so the stills draw room 01 with one injected beside the players and its `bell` fx at age 0.2 (240 ms in), with no `state` on the entity, as the server sends after the pull tick.
+- **Start it:** `BENCH=1 pnpm build && BENCH=1 PORT=8181 node server.ts`, open `http://localhost:8181/bench?room=01&still=1`, then in the console `__still(true, { entities: [...__scene.entities, { id: "b9", kind: "bell", pos: { x: 3.5, y: 1.5 } }], fx: [{ kind: "bell", targetId: "b9", pos: { x: 3.5, y: 1.5 }, tone: "ui", age: 0.2 }] })` (vary `age` from 0 to 1 to step through the swing).
+- **Screenshots:** `review/n7-autofix2-task220-bell-1280.png`, `review/n7-autofix2-task220-bell-375.png`.
+- **Judged:** the bell hangs visibly tilted on its bracket at both widths; nothing broken. Live, it now swings for 1.2 s (before: one 50 ms tick).

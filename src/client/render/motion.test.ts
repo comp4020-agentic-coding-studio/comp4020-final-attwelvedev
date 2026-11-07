@@ -178,6 +178,21 @@ describe("each object's drawer moves it from its own fx (FR15, FR17)", () => {
     expect(angle(base({ fx: [], nowMs: 1300 })), "at any time").toBe(0);
   });
 
+  it("a rung bell swings for its fx's whole 1.2 s, though the server sent state on for one tick", () => {
+    // the view's state is "on" only on the tick the rope is pulled; the fx carries the ring
+    const bell: EntityView = { id: "b1", kind: "bell", pos: { x: 2.5, y: 2.5 } };
+    const angle = (scene: Scene) =>
+      trace((c) => drawBell(c, bell, cam, scene)).find((o) => o.name === "rotate")?.args[0];
+    const ring = (ms: number) => fx({ kind: "bell", targetId: "b1" }, ms / 1200);
+    expect(angle(base({ fx: ring(250) })), "at 250 ms").not.toBe(0);
+    expect(angle(base({ fx: ring(1000) })), "at 1000 ms").not.toBe(0);
+    expect(angle(base({ reducedMotion: true, fx: ring(250) })), "reduced motion").toBeCloseTo(
+      (15 * Math.PI) / 180,
+      9,
+    );
+    expect(angle(base({ fx: [] })), "no fx").toBe(0);
+  });
+
   it("on cleared every visible figure is drawn higher at age 0.25 than at 0", () => {
     for (const seat of [0, 1, 2] as const) {
       const p: EntityView = { id: `P${seat}`, kind: "player", seat, pos: { x: 2.5, y: 3.5 } };

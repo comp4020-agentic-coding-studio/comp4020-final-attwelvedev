@@ -181,3 +181,8 @@
 - dl09/117: the feed's decor count is told to the spec as `data-decor` on each canvas; Can't see's feed gets `decor: []` (its feed has no map, so no picture of it). Human review queued in `review/QUEUE.md`. Break check: `decor: []` turned the new case red. Reversible by reverting the Task 117 commit.
 - dl09/119: bench green (p95 81.9 / 87.2 / 159.3 / 178.6 ms); full check green but for `door-pill` at 375 once (5 of 5 alone, the flake dl08 logged); `pnpm check:flaky 3` clean, 3 of 3, whole suite. Screenshots are the nine rooms' settled frames from the bench page at 1280 and 375 (`review/diorama/final-room*`); the lobby, reveal, cleared, HC and reduced-motion shots and the 3-tab walkthrough are queued for morning. Reversible: n/a.
 - dl09/120: ADR 0026 stays `proposed`; its 0016 file reference was fixed (still proposed, so editable) and the request to accept is in `review/QUEUE.md`. ADR 0016's status line is untouched. Backlog line and overview ticks done.
+
+## autofix2
+
+- autofix2/220: the bench page has no bell and no way to draw a fx, so its `__still` gained an optional `extra: Partial<Scene>` laid over the settled frame (and `window.__scene`), and the screenshot injects a bell into room 01 → chosen over adding a bell to a room, because rooms are linted and bot-cleared and the bench is bench-only (BENCH=1). Reversible by reverting the `bench.astro` hunk.
+- autofix2/220: kept `motionT` imported in signals.ts (the lever still uses it); the bell uses `activeFx` directly as the plan says.

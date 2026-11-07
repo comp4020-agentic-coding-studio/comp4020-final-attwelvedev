@@ -102,12 +102,15 @@ if (process.env.BENCH !== "1") return new Response(null, { status: 404 });
         // one settled frame (drawn twice: the atlas warm the second time), with or without the decor;
         // the camera and the tiles drawn are told to the page
         const cam = camera(base);
-        const still = (withDecor: boolean) => {
-          const s: Scene = { ...base, cam, nowMs: 0, decor: withDecor ? base.decor : [] };
+        // extra: scene fields laid over the settled frame (a fx mid-flight, an added figure) for a
+        // screenshot script; the scene itself is on window.__scene
+        const still = (withDecor: boolean, extra: Partial<Scene> = {}) => {
+          const s: Scene = { ...base, cam, nowMs: 0, decor: withDecor ? base.decor : [], ...extra };
           draw(ctx, s);
           draw(ctx, s);
         };
-        (window as unknown as { __still: typeof still }).__still = still;
+        (window as unknown as { __still: typeof still; __scene: Scene }).__still = still;
+        (window as unknown as { __scene: Scene }).__scene = base;
         still(q.get("decor") !== "0");
         canvas.dataset.camera = `${cam.scale},${cam.ox},${cam.oy}`;
         canvas.dataset.tiles = JSON.stringify(base.tiles);

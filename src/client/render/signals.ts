@@ -1,5 +1,5 @@
 import type { EntityView } from "../../net/protocol.ts";
-import { motionT } from "../fx.ts";
+import { activeFx, motionT } from "../fx.ts";
 import { COLOR, WORLD } from "../tokens.ts";
 import { block } from "./blocks.ts";
 import type { Scene } from "./index.ts";
@@ -7,8 +7,8 @@ import { ease, swing } from "./motion.ts";
 import { type Camera, LIVE, toScreen, wallAt } from "./project.ts";
 
 // The bell rope, the lamp switch and the hatch (spec §4.1). The bell swings ±15° three times in
-// 1.2 s when rung, once (FR17): then it hangs still while it stays on (a static tilt under reduced
-// motion); the lamp's light is in the HUD, not here.
+// 1.2 s when rung, once (FR17), for the life of its bell fx, then hangs still (a static tilt for
+// that 1.2 s under reduced motion); the lamp's light is in the HUD, not here.
 
 const SWING_DEG = 15;
 
@@ -43,16 +43,10 @@ export function drawHatch(ctx: CanvasRenderingContext2D, x: number, y: number, c
 export function drawBell(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera, scene: Scene) {
   const s = cam.scale;
   const hang = toScreen(cam, e.pos.x, e.pos.y, LIVE.wall * 0.95);
-  const rung = e.state === "on";
-  const t = motionT(scene, e.id, "bell");
-  // rung: three swings within its fx's 1.2 s, then still; reduced motion: a static tilt while on
-  const deg = !rung
-    ? 0
-    : scene.reducedMotion
-      ? SWING_DEG
-      : t === undefined
-        ? 0
-        : swing(t, SWING_DEG, 3);
+  // rung: three swings within its fx's 1.2 s, then still; reduced motion: a static tilt for the
+  // same 1.2 s. The fx, not the view's state, drives it: the server sends "on" for one tick only.
+  const ring = activeFx(scene.fx, e.id, "bell");
+  const deg = !ring ? 0 : scene.reducedMotion ? SWING_DEG : swing(ring.age, SWING_DEG, 3);
   // the bracket
   ctx.strokeStyle = WORLD.line;
   ctx.lineWidth = 2;
