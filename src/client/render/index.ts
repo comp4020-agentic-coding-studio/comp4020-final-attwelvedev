@@ -138,6 +138,10 @@ export interface FacePop {
 
 const FAINT_MARK = 0.35; // a mark in a tile you cannot see
 const isBlock = (ch: string | undefined) => ch === "#" || ch === "%" || ch === "=" || ch === "H";
+// A block that stops sight. What stands in front of one takes its vertical cut over its front; what stands in front
+// of glass, which sight passes, takes the cone's diagonal (the user, playtest L7: a music box under a pane was cut by
+// a vertical line where the cone met the glass behind it).
+const opaque = (ch: string | undefined) => isBlock(ch) && ch !== "=";
 
 // Entities drawn flat on the floor, under everything standing up in their row.
 const FLAT: EntityView["kind"][] = [
@@ -449,7 +453,7 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
         q.at.map(
           (t): Part => ({
             foot: groundSlice(tiles, t.x + 0.5, t.y + 0.5, 0.5),
-            wallBehind: isBlock(tiles[t.y - 1]?.[t.x]),
+            wallBehind: opaque(tiles[t.y - 1]?.[t.x]),
           }),
         ),
       );
@@ -468,7 +472,7 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
         // a figure with a wall behind it is cut over that wall's front by the wall's vertical line, as a station is
         // (the user, screenshots 110 and 111): its foot starts at the tile's north edge, the wall's own foot line
         const wallBehind =
-          kind === "player" && isBlock(tiles[Math.floor(e.pos.y) - 1]?.[Math.floor(e.pos.x)]);
+          kind === "player" && opaque(tiles[Math.floor(e.pos.y) - 1]?.[Math.floor(e.pos.x)]);
         // a figure is a flat sprite at one depth, as wide as its shadow: lit where its feet are, whole at every height,
         // and cut by a vertical line where a shadow edge crosses its depth (the user, screenshots 117 and 118)
         const ground = groundSlice(tiles, e.pos.x, e.pos.y, 0.5);
