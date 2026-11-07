@@ -10,6 +10,7 @@ import {
   heardCues,
 } from "../client/hud.ts";
 import { introAt } from "../client/intro.ts";
+import { type RoomDecor, roomDecor } from "../client/render/decor.ts";
 import { draw, type Scene } from "../client/render.ts";
 import type { ConnectionState, GameSocket } from "../client/socket.ts";
 import { setHue } from "../client/tokens.ts";
@@ -74,6 +75,7 @@ export function Spectator({
   const frame = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const view = useRef<RoleView | null>(early.view);
+  const decor = useRef<RoomDecor | null>(null); // the room's decor, from its first view with tiles
   const intro = useRef<{ at: number; ms: number; reduced: boolean } | null>(null);
   const roles = useRef<[Role, Role, Role]>(
     crew.reduce(
@@ -232,12 +234,14 @@ export function Spectator({
       const v = view.current;
       if (!v) return;
       if (v.full) setHue(v.hue);
+      decor.current = roomDecor(decor.current, v);
       const scene: Scene = {
         ...size,
         role: v.role,
         seat: v.you.seat,
         roles: roles.current,
         roomId: v.room, // its floor's material
+        decor: decor.current?.items,
         tiles: v.tiles ?? null,
         entities: v.entities,
         self: v.you.pos ?? null,

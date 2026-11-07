@@ -5,6 +5,8 @@ import { motionT } from "../fx.ts";
 import { STAMP_FACE } from "../hud.ts";
 import { COLOR, MAP, WORLD } from "../tokens.ts";
 import { drawTile } from "./atlas.ts";
+import type { DecorItem } from "./decor.ts";
+import { decorTile, paintDecor } from "./decor-paint.ts";
 import type { Scene } from "./index.ts";
 import {
   type FloorKind,
@@ -75,12 +77,15 @@ export function floorTop(
 }
 
 // A wall: its lit top and its graded front, with the contact shade along the foot when south-open.
+// Its decor (render/decor.ts) is painted inside the same tile, after the wall's own fills, so it
+// shares the wall's see-through alpha and mist, and is clipped to its face.
 export function wall(
   ctx: CanvasRenderingContext2D,
   cam: Camera,
   x: number,
   y: number,
   southOpen: boolean,
+  decor: { front?: DecorItem; top?: DecorItem } = {},
 ) {
   const s = cam.scale;
   const d = s * LIVE.depth;
@@ -90,7 +95,7 @@ export function wall(
   drawTile(
     ctx,
     s,
-    southOpen ? "wall:open" : "wall",
+    `${southOpen ? "wall:open" : "wall"}${decor.top ? `:${decorTile(decor.top)}` : ""}${decor.front ? `:${decorTile(decor.front)}` : ""}`,
     t.x,
     t.y,
     s + 0.5,
@@ -98,8 +103,26 @@ export function wall(
     (c, ox, oy) => {
       paintWallTop(c, s, d, ox, oy);
       paintWallFront(c, s, h, southOpen, ox, oy + d);
+      onFace(c, decor.top, ox, oy, s, d);
+      onFace(c, decor.front, ox, oy + d, s, h);
     },
   );
+}
+
+// Paints a decor item with its face's top-left at (ox, oy), w × h.
+export function onFace(
+  c: CanvasRenderingContext2D,
+  item: DecorItem | undefined,
+  ox: number,
+  oy: number,
+  w: number,
+  h: number,
+) {
+  if (!item) return;
+  c.save();
+  c.translate(ox, oy);
+  paintDecor(c, item, w, h);
+  c.restore();
 }
 
 // Glass: a wall you can see through. Graded translucent top and front, a sheen band and two glints,

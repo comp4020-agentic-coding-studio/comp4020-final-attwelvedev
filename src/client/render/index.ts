@@ -18,6 +18,7 @@ import {
 } from "./blocks.ts";
 import { drawKeepsake, drawMotifTile, drawSlide } from "./chamber.ts";
 import { drawCut, groundSlice, HEIGHT, type Part, rememberOrigin, tileFoot } from "./column.ts";
+import { type DecorItem, decorAt } from "./decor.ts";
 import { drawCloud } from "./dye.ts";
 import { drawHidden, drawOwnBlind, drawPlayer } from "./figures.ts";
 import { drawGear, drawGoggles, drawHold, drawLetGo, drawUv, gearGlyph } from "./gear.ts";
@@ -98,6 +99,8 @@ export interface Scene {
   avoid?: Box[];
   // The room's id ("04-the-safe"), for its floor's material. Absent: stone.
   roomId?: string;
+  // The room's decor (render/decor.ts), worked out once per room by the page from its first full view.
+  decor?: DecorItem[];
   floorEntities?: EntityView[]; // every entity sent, before what stands out of the light is dropped: the floor layer reads these (a hazard's cone outlives its body)
 }
 
@@ -402,7 +405,7 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
       // a wall in front of a figure is see-through by distance: a soft window that follows them
       ctx.save();
       ctx.globalAlpha = wallAlpha(cam, x, y, behindWalls);
-      if (ch === "#") wall(ctx, cam, x, y, !isBlock((tiles[y + 1] ?? "")[x]));
+      if (ch === "#") wall(ctx, cam, x, y, !isBlock((tiles[y + 1] ?? "")[x]), decorOf(scene, x, y));
       else if (ch === "H") drawHatch(ctx, x, y, cam);
       else if (ch === "%") vent(ctx, cam, x, y);
       else glass(ctx, cam, x, y);
@@ -585,6 +588,10 @@ function drawPuff(
 // slide. Each object's own motion (a plate sinking, a bell swinging) is its drawer's, read through
 // `activeFx`. Drawn in the effect's own row, inside the row's clip to the light (FR15). With reduced
 // motion nothing grows or flies: what is drawn only fades, or is not drawn at all.
+// The decor on the wall tile under (x, y), if the scene has any.
+const decorOf = (scene: Scene, x: number, y: number) =>
+  scene.decor ? decorAt(scene.decor, Math.floor(x), Math.floor(y)) : {};
+
 function drawFx(
   ctx: CanvasRenderingContext2D,
   scene: Scene,
@@ -607,7 +614,7 @@ function drawFx(
       ctx.stroke();
     } else if (f.kind === "slide") {
       ctx.restore(); // the slide draws the door itself, over the floor the wall left
-      drawSlide(ctx, f.pos, cam, f.age, still);
+      drawSlide(ctx, f.pos, cam, f.age, still, decorOf(scene, f.pos.x, f.pos.y));
       continue;
     } else if (f.kind === "lift") {
       // the item rises off the plinth and fades (reduced motion: it only fades, in place)

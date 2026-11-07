@@ -31,6 +31,7 @@ import { createInput, inputKey } from "../client/input.ts";
 import { INTRO, INTRO_TOTAL, type IntroFrame, introAt, REDUCED_FADE } from "../client/intro.ts";
 import { ESCAPE_KINDS, LABEL_CAP, type Label, labelsFor } from "../client/labels.ts";
 import { createPredictor, type Predictor } from "../client/predict.ts";
+import { type RoomDecor, roomDecor } from "../client/render/decor.ts";
 import { inSight, seenOf } from "../client/render/sight.ts";
 import {
   type Camera,
@@ -141,6 +142,7 @@ interface Runtime {
   metKinds: Set<string>; // kinds whose chip was shown in an EARLIER room: a kind not here is new, and leads
   roomKinds: Set<string>; // kinds shown in this room; they join metKinds when the next room starts
   labelRoom: number; // the room index metKinds is current for
+  decor: RoomDecor | null; // the room's decor, from its first view with tiles (render/decor.ts)
 }
 
 const CAPTION_MS = 5000;
@@ -256,6 +258,7 @@ function useDraw(
         seat: view.you.seat,
         roles: crew.map((c) => c.role) as Scene["roles"],
         roomId: view.room, // its floor's material
+        decor: rt.decor?.items,
         tiles: role === "blind" ? null : rt.tiles,
         seen: role === "blind" ? undefined : view.seen, // the tiles in line of sight: the rest is mist
         entities: lerpEntities(rt.prevEntities, view.entities, t),
@@ -416,6 +419,7 @@ function onView(rt: Runtime, view: RoleView, audio: GameAudio, names: readonly s
   ].slice(-FX_MAX);
   rt.at = performance.now();
   if (view.full) setHue(view.hue); // the room's wall tints ride with its layout (FR1)
+  rt.decor = roomDecor(rt.decor, view);
   if (view.tiles) {
     rt.tiles = view.tiles;
     rt.predictor?.setTiles(view.tiles); // the map is re-sent when a secret door opens: walk the new one
@@ -464,6 +468,7 @@ export function Game({
     prevEntities: [],
     at: 0,
     tiles: null,
+    decor: null,
     predictor: null,
     self: null,
     shown: null,

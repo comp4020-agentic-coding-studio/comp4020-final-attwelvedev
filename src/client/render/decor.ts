@@ -176,6 +176,27 @@ export function decorFor(
   return out;
 }
 
+// A page's decor for the room it is in: worked out from the room's first view with tiles (its layout
+// and its wires), then kept for as long as the room id stays the same, so a cache opening (which
+// changes the tiles) never moves it.
+export interface RoomDecor {
+  room: string;
+  items: DecorItem[];
+}
+export function roomDecor(
+  kept: RoomDecor | null,
+  view: {
+    room: string;
+    tiles?: readonly string[] | null;
+    entities: readonly { kind: string; route?: Vec[] }[];
+  },
+): RoomDecor | null {
+  if (kept?.room === view.room) return kept;
+  if (!view.tiles) return null; // a new room, its layout not yet come
+  const wires = view.entities.flatMap((e) => (e.kind === "wire" && e.route ? [e.route] : []));
+  return { room: view.room, items: decorFor(view.room, view.tiles, wires) };
+}
+
 // The items on one wall tile's faces: a lookup built once per decorFor result.
 const index = new WeakMap<
   readonly DecorItem[],

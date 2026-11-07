@@ -160,7 +160,7 @@ them through `atlasTile` when settled, and directly otherwise.
   spacing case goes red.
 - **Depends on:** none in this phase.
 
-### Task 114: Painters for the gallery, salon and strongroom, drawn inside the wall (FR11, FR12)
+### [x] Task 114: Painters for the gallery, salon and strongroom, drawn inside the wall (FR11, FR12)
 
 - **Description:**
   - Write `src/client/render/decor-paint.ts`: `paintDecor` and one painter per kind for 05, 08 and 09.

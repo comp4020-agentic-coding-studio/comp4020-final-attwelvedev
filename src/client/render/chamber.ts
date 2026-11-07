@@ -1,6 +1,8 @@
 import type { Vec } from "../../game/types.ts";
 import type { EntityView } from "../../net/protocol.ts";
 import { WORLD } from "../tokens.ts";
+import { onFace } from "./blocks.ts";
+import type { DecorItem } from "./decor.ts";
 import { drawItem } from "./items.ts";
 import { type Camera, LIVE, toScreen } from "./project.ts";
 import { motifGlyph } from "./stations.ts";
@@ -59,13 +61,15 @@ export function drawKeepsake(ctx: CanvasRenderingContext2D, e: EntityView, cam: 
 
 // A secret door sinking into the floor, `age` 0 to 1 over the slide's 600 ms: the door's own face
 // (DESIGN 4.8) shrinking to nothing, as an ordinary door does. Reduced motion has no slide: the
-// full wall cross-fades out over the same time instead.
+// full wall cross-fades out over the same time instead. Its decor, if the wall had any, sinks with it:
+// each item is painted on what is left of its face.
 export function drawSlide(
   ctx: CanvasRenderingContext2D,
   pos: { x: number; y: number },
   cam: Camera,
   age: number,
   reduced: boolean,
+  decor: { front?: DecorItem; top?: DecorItem } = {},
 ) {
   const s = cam.scale;
   const t = toScreen(cam, pos.x - 0.5, pos.y - 0.5, LIVE.block);
@@ -83,6 +87,8 @@ export function drawSlide(
   ctx.fillRect(t.x, f.y + drop, s + 0.5, h);
   ctx.fillStyle = WORLD.doorSeam;
   ctx.fillRect(t.x + s / 2 - 1, f.y + drop, 2, h);
+  onFace(ctx, decor.top, t.x, t.y + drop, s, s * LIVE.depth);
+  onFace(ctx, decor.front, t.x, f.y + drop, s, h);
   ctx.restore();
 }
 

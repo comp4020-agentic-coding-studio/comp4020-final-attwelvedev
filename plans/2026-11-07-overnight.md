@@ -164,3 +164,6 @@
 - dl08/113: decor caps its count at floor(eligible × p) as well as rolling p, so "at most 1 per 6" holds for every seed, not just on average. Reversible by removing `cap` in `decorFor`.
 - dl08/113: R2 salts: 05 → 36, 09 → 2995 (09 had no passing salt under 200; its densest walls run past many station parts). 08 passes at 0. Reversible by editing `SALT`.
 - dl08/113: `spec/layout/door-pill.test.ts` (1280 case) failed once in the full check and passed 3 of 3 alone; decor draws nothing yet, so it is a pre-existing flake under load → committed Task 113 and noted it; not retried for green. Reversible: n/a.
+- dl08/114: the atlas tile key gains `:<face>:<kind>:<look>` where look is `variant % LOOKS[kind]` (kinds with one look share one tile), so the 64-tile atlas is not filled with copies. Reversible by keying on the raw variant in `decorTile`.
+- dl08/114: "once per room" lives in a small pure `roomDecor(kept, view)` in `decor.ts` shared by Game and Spectator, rather than two copies of the same check. Reversible by inlining it.
+- dl08/114: the bench page edit (rooms 08, `?decor`, `?still`, `?hc`) went in with Task 114 so its render could be looked at before committing; Task 115 builds on it. Reversible by reverting `src/bench/bench.astro`.

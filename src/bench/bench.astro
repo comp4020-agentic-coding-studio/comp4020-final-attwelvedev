@@ -29,9 +29,11 @@ if (process.env.BENCH !== "1") return new Response(null, { status: 404 });
     <canvas id="bench"></canvas>
     <script>
       import room05 from "../../rooms/05-the-gallery.room?raw";
+      import room08 from "../../rooms/08-music-room.room?raw";
       import room09 from "../../rooms/09-the-vault.room?raw";
       import { camera, draw, type Scene } from "../client/render.ts";
-      import { setHue } from "../client/tokens.ts";
+      import { decorFor } from "../client/render/decor.ts";
+      import { setContrast, setHue } from "../client/tokens.ts";
       import { benchCam } from "./benchCam.ts";
       import { viewFor } from "../game/perception.ts";
       import { parseRoom } from "../game/rooms/format.ts";
@@ -41,9 +43,13 @@ if (process.env.BENCH !== "1") return new Response(null, { status: 404 });
       const FRAMES = 300;
       const WARMUP = 30;
       const ROLES: [Role, Role, Role] = ["blind", "deaf", "mute"];
-      const which = new URLSearchParams(location.search).get("room") === "09" ? room09 : room05;
+      // ?room=05|08|09 (05 by default); ?decor=0 draws the room without its decor (spec/layout/decor.test.ts);
+      // ?still=1 draws one settled frame and stops, for a spec to read; ?hc=1 is high contrast
+      const q = new URLSearchParams(location.search);
+      const which = { "08": room08, "09": room09 }[q.get("room") ?? ""] ?? room05;
       const room = parseRoom(which);
       setHue(room.meta.hue as string | undefined);
+      if (q.get("hc") === "1") setContrast(true);
       // three players at their spawns; the drawing seat is Can't hear (seat 1), who sees the most
       const world = createWorld(room, 1, ROLES);
       const view = viewFor(world, 1, "deaf", true);
@@ -67,7 +73,24 @@ if (process.env.BENCH !== "1") return new Response(null, { status: 404 });
         self,
         layout: "follow",
         seen: view.seen,
+        roomId: room.id,
+        decor:
+          q.get("decor") === "0"
+            ? []
+            : decorFor(
+                room.id,
+                view.tiles ?? room.grid,
+                view.entities.flatMap((e) => (e.kind === "wire" && e.route ? [e.route] : [])),
+              ),
       };
+      if (q.get("still") === "1") {
+        // one settled frame: the atlas warm, then drawn again, and the camera told to the page
+        const cam = camera(base);
+        draw(ctx, { ...base, cam, nowMs: 0 });
+        draw(ctx, { ...base, cam, nowMs: 0 });
+        canvas.dataset.camera = `${cam.scale},${cam.ox},${cam.oy}`;
+        canvas.dataset.ready = "1";
+      }
       const times: number[] = [];
       let frame = 0;
       const start = performance.now();
@@ -88,7 +111,7 @@ if (process.env.BENCH !== "1") return new Response(null, { status: 404 });
           p95: at(0.95),
         };
       }
-      requestAnimationFrame(tick);
+      if (q.get("still") !== "1") requestAnimationFrame(tick);
     </script>
   </body>
 </html>

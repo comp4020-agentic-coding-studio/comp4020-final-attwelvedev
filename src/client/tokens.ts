@@ -94,6 +94,7 @@ export interface WorldTokens {
   dyePink: string;
   dyeMint: string;
   dyeSky: string;
+  sconce: string; // decor's light: a lit item's glow (render/decor-paint.ts)
 }
 
 const WORLD_NORMAL: WorldTokens = {
@@ -148,6 +149,7 @@ const WORLD_NORMAL: WorldTokens = {
   dyePink: "#ff9ec7",
   dyeMint: "#8fe3c0",
   dyeSky: "#9cc9ff",
+  sconce: "#ffe9c4",
 };
 const WORLD_HIGH: WorldTokens = {
   skyHi: "#000000",
@@ -201,6 +203,7 @@ const WORLD_HIGH: WorldTokens = {
   dyePink: "#ff66cc",
   dyeMint: "#33ffcc",
   dyeSky: "#66ccff",
+  sconce: "#ffffff",
 };
 // The alarm's dusk set (--dusk-*): only what is listed changes; lasers, roles and Show items do not.
 export const DUSK: Partial<WorldTokens> = {
