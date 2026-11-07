@@ -109,3 +109,14 @@
 - fixesB/136: `.notch` z-index 0 or 1 → 1, because at 0 the canvas (later in DOM order, same stacking level) painted over the tab at 375 (screenshot looked at); 1 keeps it over the canvas and under the top stack (3). Reversible by editing `game.css`.
 - fixesB/137: the in-game "Menu sounds" switch → `installUiSounds` now keeps the latest caller's settings getter (the listeners still go on once), and `Hud` hands it the live settings, because the Lobby page installs first and its saved-settings reader cannot read a blocked `localStorage`. Reversible by restoring `installUiSounds`'s `installed` early return.
 - fixesB/all: full `pnpm check` timed out in different browser specs on each of three runs while the load average was 8 to 16 (other sessions), but each file passed alone and the last full check was green (169 files); `pnpm check:flaky 1` hit the same 30 s timeouts in the spectator specs, which pass alone. Logged as load, not a bug.
+
+## dl05
+
+- dl05/106: how a material goes over a flat fill → each painter lays today's flat fills first and the gradient or texture over them (as `materials.ts` already does), because the existing render tests find a door, crate or body by its flat fill, and HC then needs only to skip the second layer. Reversible by dropping the second layer in each painter.
+- dl05/106: the glass front's grade (0.55 → 0.8 alpha) → a base fill at 0.55 plus a same-colour gradient at 0.45 from clear to full, which sums to about 0.8 at the foot, because a single alpha cannot vary down a fill. Reversible by editing `paintGlass`.
+- dl05/107: how to band the vault's round door and the wire panel's body → `paintSteel` for rects and `steelStyle` for the disc; brass rails get `paintSteel` with the brass base, because the plan names rails. Reversible by reverting `stations.ts`.
+- dl05/107: `jammed.test.ts`'s canvas stub had no gradients → added `createLinearGradient`/`createRadialGradient` stubs (no assertion touched), as dl04 did for five other recorders.
+- dl05/107: the full check's `door-pill.test.ts` and later `home.test.ts` (open-lobby list) timed out at 30 s while the machine's load was 9 to 16, once each; both pass alone, the second only on a fresh `start:check` server. Logged as load and server state, not a bug.
+- dl05/107,108: human reviews → built, committed and queued in `review/QUEUE.md`, because the user is asleep.
+- dl05/108: the figure's shadow → keeps `floorRing` and fills it with a radial gradient (no `scale` transform), because standing.test.ts finds the shadow by its ellipse and `render.test.ts` counts `scale` ops for the squash. Reversible by editing `paintFigureShadow`.
+- dl05/108: spectator and high-contrast screenshots were not taken (the helper seats three players only); the unit tests prove HC flatness. Said so in the queue entry.

@@ -172,12 +172,12 @@ are drawn live (each is a handful of gradient fills).
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 106 to 108 are complete and their tests pass.
-- [ ] `pnpm test:unit` passes.
-- [ ] The full check passes (overview §3).
-- [ ] `pnpm bench:frame --compare` passes, and the numbers are in the Task 108 commit.
-- [ ] The user has accepted the reviews for Tasks 107 and 108.
-- [ ] Tick phase 4 in overview §5 and commit.
+- [x] Tasks 106 to 108 are complete and their tests pass.
+- [x] `pnpm test:unit` passes (inside the full check).
+- [x] The full check passes (overview §3): 169 files, 2503 tests.
+- [x] `pnpm bench:frame --compare` passes, and the numbers are in the Task 108 commit.
+- [x] The user has accepted the reviews for Tasks 107 and 108. (review queued)
+- [x] Tick phase 4 in overview §5 and commit.
 
 ## 7. Requirements coverage (this phase)
 
