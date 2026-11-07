@@ -64,7 +64,7 @@ important: one can hang a room, the other restores a check CLAUDE.md says must s
   goes red; restore.
 - **Depends on:** none.
 
-### Task 133: Restore the checks that were made unable to fail (FR2)
+### Task 133: Restore the checks that were made unable to fail (FR2) — [x] done
 
 - **Description:**
   - `src/game/rooms/lint.ts` `plateLeak`: the keypad branch returns `null` and the numbered-wire branch

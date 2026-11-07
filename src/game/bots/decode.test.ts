@@ -1143,9 +1143,10 @@ describe("a plated radio's turner (FR10)", () => {
     const b = { ...emptyBelief(), shows: [3, 2] };
     DECODERS.radio?.({ sounds: [] } as unknown as RoleView, [], b, o, 0, 0);
     expect(b.answer).toEqual([]);
-    DECODERS.radio?.({ sounds: [] } as unknown as RoleView, [], { ...b, solved: true }, o, 0, 0);
-    DECODERS.radio?.({ sounds: [] } as unknown as RoleView, [], b, o, 0);
-    expect(b.answer).toEqual([2]);
+    // plated and solved (on its real band): now the face's pips are its digit
+    const solved = { ...b, solved: true };
+    DECODERS.radio?.({ sounds: [] } as unknown as RoleView, [], solved, o, 0, 0);
+    expect(solved.answer).toEqual([2]);
   });
 });
 

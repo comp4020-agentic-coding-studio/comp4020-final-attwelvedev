@@ -2,9 +2,9 @@ import { parseJob, rawJobs } from "../bots/jobs.ts";
 import { type RoleView, viewFor } from "../perception.ts";
 import { TUNE_MAX_TICKS } from "../sim/chimes.ts";
 import { cameraParams, laserBeam, laserParams } from "../sim/hazards.ts";
-import { PIP_TICKS, plaqueText, tilesOf } from "../sim/stations.ts";
+import { noteOf, numberOfText, PIP_TICKS, restOf, tilesOf } from "../sim/stations.ts";
 import { step } from "../sim/step.ts";
-import { type GearItem, patrolOf, TICK_MS } from "../sim/world.ts";
+import { type GearItem, patrolOf, type StationState, TICK_MS, type World } from "../sim/world.ts";
 import type { Role, Vec } from "../types.ts";
 import {
   cacheOf,
@@ -905,7 +905,11 @@ function plateParts(p: Record<string, unknown>): number | undefined {
 // Rooms 4 to 9 (those in `gated`) carry exactly one plate, rooms 1 to 3 none; a plate names a
 // station in the room that is neither teaching nor a cache, and a piece of its answer that it has;
 // and that piece reaches nobody any other way (a tumbler, a tune, a plaque).
-export function lintPlates(room: Room, gated: readonly string[] = PLATE_ROOMS): string[] {
+export function lintPlates(
+  room: Room,
+  gated: readonly string[] = PLATE_ROOMS,
+  tune: Tune = SIM_TUNE,
+): string[] {
   const out: string[] = [];
   const plates = room.objects.filter((o) => o.kind === "braille");
   const number = Number(/^(\d+)-/.exec(room.id)?.[1] ?? Number.NaN);
@@ -937,7 +941,7 @@ export function lintPlates(room: Room, gated: readonly string[] = PLATE_ROOMS): 
         `plate ${id} carries part ${String(part)} of ${forId} (${String(p.type)}), which has ${parts}`,
       );
     } else {
-      const leak = plateLeak(room, station, part);
+      const leak = plateLeak(room, station, part, tune);
       if (leak) out.push(`plate ${id}: ${forId}'s ${leak}`);
     }
   }
@@ -945,7 +949,15 @@ export function lintPlates(room: Room, gated: readonly string[] = PLATE_ROOMS): 
 }
 
 // Whether the piece a plate carries is told some other way, from the game's own sim and views.
-function plateLeak(room: Room, station: RoomObject, part: number): string | null {
+// What a keypad's tune does on a tick: the note a group starting then plays, or a rest's marker.
+// The sim's own (stations.ts); the lint's tests pass a broken one to show the check can fail.
+export interface Tune {
+  note: (world: World, s: StationState) => number | undefined;
+  rest: (world: World, s: StationState) => boolean;
+}
+const SIM_TUNE: Tune = { note: noteOf, rest: restOf };
+
+function plateLeak(room: Room, station: RoomObject, part: number, tune: Tune): string | null {
   const p = station.params ?? {};
   if (p.type === "dial") {
     // a stethoscope at the safe's back while the dial is turned onto the carried digit
@@ -962,18 +974,41 @@ function plateLeak(room: Room, station: RoomObject, part: number): string | null
     return heard ? "tumbler sounds the digit it carries" : null;
   }
   if (p.type === "keypad") {
-    // its tune (a clue chime or an earpiece) rests at the plate's key: the sim guarantees it
-    // (stations.ts: tuneOf; guarded by stations.test.ts), so a plated keypad cannot leak it
-    return null;
+    // its tune (a clue chime or an earpiece) must rest at the plate's key: play one whole tune as the
+    // sim plays it and see, in order, which keys sound as notes and where the rests fall
+    if (typeof p.clue !== "string") return null;
+    const world = worldAt(room, 1, 1);
+    const s = world.stations[station.id];
+    if (!s) return null;
+    // (from the tune's start, tick 0, one entry a key in the code's order: a note or a rest's marker)
+    const heard: ("note" | "rest")[] = [];
+    for (let t = 0; t < TUNE_MAX_TICKS && heard.length < s.answer.length; t++) {
+      world.tick = t;
+      if (tune.note(world, s) !== undefined) heard.push("note");
+      else if (tune.rest(world, s)) heard.push("rest");
+    }
+    return heard[part] === "rest" ? null : "tune plays the key it carries";
   }
   if (p.type === "wires") {
-    // a numbered panel's ink names the wire, but the sim leaves a plated panel's ink blank
-    // (plaqueText), so only a rule sign leaks: its rule and the colours give the cut away
     const world = worldAt(room, 1, 1);
-    const plaque = typeof p.plaque === "string" ? plaqueText(world, p.plaque) : undefined;
-    const cut = String((world.stations[station.id]?.answer[0] as number) + 1);
-    if (p.numbered === true) return plaque === cut ? "plaque names the wire to cut" : null;
-    return typeof p.plaque === "string" ? "rule sign and colours name the wire to cut" : null;
+    if (p.numbered !== true) {
+      // a rule sign: its rule and the wires' colours give the cut away
+      return typeof p.plaque === "string" ? "rule sign and colours name the wire to cut" : null;
+    }
+    // a numbered panel: what a sighted reader holding the torch at the plaque is shown of it
+    const s = world.stations[station.id];
+    const ink = room.objects.find((o) => o.id === p.plaque)?.tiles[0];
+    if (!s || !ink) return null;
+    const cut = (s.answer[0] as number) + 1;
+    for (const role of ["deaf", "mute"] as const) {
+      const near = worldAt(room, ink.x, ink.y, "uv"); // seat 1 stands on it with the torch
+      const view = viewFor(near, 1, role, false);
+      const told = view.entities.some(
+        (e) => e.id === p.plaque && e.text !== undefined && numberOfText(e.text) === cut,
+      );
+      if (told) return "plaque names the wire to cut";
+    }
+    return null;
   }
   return null; // a radio's pips carry its digit, never its band
 }

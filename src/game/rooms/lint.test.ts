@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { groupStartingOn, tuneGroups } from "../sim/chimes.ts";
 import { giveChambers } from "../sim/testing.ts";
+import type { StationState, World } from "../sim/world.ts";
 import type { Role } from "../types.ts";
 import { parseRoom, type Room } from "./format.ts";
 import { cacheTypeFaults, lintPlates, lintRoom, PLATE_ROOMS, uncoverSplitFault } from "./lint.ts";
@@ -1171,6 +1173,29 @@ describe("lintPlates", () => {
       grid,
     );
     expect(plates(r)).toEqual([]);
+  });
+
+  it("a keypad whose tune plays the carried key fails", () => {
+    // the tune as it was before the sim rested a plate's key: every key a note (stations.ts: tuneOf)
+    const grid = [
+      "################",
+      "#1....Q.......o#",
+      "#2..c..........#",
+      "#3.............#",
+      "################",
+    ];
+    const r = plateRoom(
+      "05-x",
+      { Q1: { type: "keypad", keys: KEYS, clue: "c1", length: 3 }, o1: { for: "Q1", part: 1 } },
+      grid,
+    );
+    const everyKey = {
+      note: (w: World, st: StationState) => groupStartingOn(w.tick, tuneGroups(st.answer))?.note,
+      rest: () => false,
+    };
+    expect(lintPlates(r, [r.id], everyKey)).toEqual([
+      "plate o1: Q1's tune plays the key it carries",
+    ]);
   });
 
   it("a wire panel with a rule sign names the cut by rule and colours, so fails", () => {
