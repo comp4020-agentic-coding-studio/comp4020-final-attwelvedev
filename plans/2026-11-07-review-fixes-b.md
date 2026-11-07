@@ -38,7 +38,7 @@ important: one can hang a room, the other restores a check CLAUDE.md says must s
 
 ## 3. Tasks
 
-### Task 135: High contrast keeps the rim, the reveal and the glass (FR4)
+### Task 135 (done): High contrast keeps the rim, the reveal and the glass (FR4)
 
 - **Description:**
   - `src/styles/game.css` `.frame { box-shadow: var(--lift), 0 0 0 1px var(--frame) }`: high contrast sets
@@ -62,7 +62,7 @@ important: one can hang a room, the other restores a check CLAUDE.md says must s
 - **Break check:** restore each of the three causes with a script; each test goes red.
 - **Depends on:** none.
 
-### Task 136: The role tab never covers an overlay (FR5)
+### Task 136 (done): The role tab never covers an overlay (FR5)
 
 - **Description:** `.notch` now has `z-index: 4` and sits first in the frame, so it paints over
   `.top-stack` and `.vote-prompt` (3), the in-frame overlays and Can't see's braille card at 375 px. Before

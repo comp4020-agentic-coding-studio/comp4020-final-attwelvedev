@@ -184,8 +184,10 @@
   --bg: #000000;
   --panel: #000000;
   --panel-hi: #000000;
-  --sheen: none;
-  --lift: none;
+  /* a valid empty shadow, not `none`: `none` is invalid inside a box-shadow list and would drop the
+     frame's role rim with it */
+  --sheen: 0 0 0 0 transparent;
+  --lift: 0 0 0 0 transparent;
   --surface: var(--panel);
   --well: var(--bg);
   --well-shadow: none;

@@ -9,6 +9,7 @@ import {
   HUES,
   MIST,
   ROLE_COLOR,
+  SHELL,
   setContrast,
   setDusk,
   setHue,
@@ -83,6 +84,20 @@ describe("setContrast(true)", () => {
     for (const [key, value] of Object.entries(WORLD)) {
       expect(cssTokens(`w-${kebab(key)}`)[1], key).toBe(value.toLowerCase());
     }
+  });
+
+  it("SHELL.glass follows --glass in both looks", () => {
+    const glass = (block: number) => {
+      const m = [...css.matchAll(/--glass:\s*rgb\((\d+) (\d+) (\d+) \/ (\d+)%\)/g)][
+        block
+      ] as RegExpMatchArray;
+      return `rgba(${m[1]}, ${m[2]}, ${m[3]}, ${Number(m[4]) / 100})`;
+    };
+    expect(SHELL.glass).toBe(glass(0));
+    setContrast(true);
+    expect(SHELL.glass).toBe(glass(1));
+    setContrast(false);
+    expect(SHELL.glass).toBe(glass(0));
   });
 
   it("veils with half black instead of 60% mist", () => {

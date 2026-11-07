@@ -23,7 +23,7 @@ body.playing main {
   background: linear-gradient(var(--dusk-sky-hi), var(--dusk-sky-lo));
 }
 .reveal-frame.blind,
-:root[data-contrast="high"] .reveal-frame {
+:root[data-contrast="high"] .reveal-frame:not(.covering) {
   background: var(--ink);
 }
 .reveal-canvas {
@@ -661,7 +661,7 @@ body.playing main {
   position: absolute;
   top: 0;
   left: 0;
-  z-index: 4;
+  z-index: 1; /* over the canvas, under every overlay (the top stack and the vote prompt are 3) */
   pointer-events: none; /* decorative: a tap on the canvas corner still reaches the canvas */
   display: grid;
   place-items: center;

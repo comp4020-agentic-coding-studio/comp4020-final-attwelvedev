@@ -334,6 +334,7 @@ export function setContrast(on: boolean): void {
   high = on;
   MIST.alpha = on ? 0.5 : 0.6;
   OVERLAY.wash = !on;
+  SHELL.glass = on ? GLASS_HIGH : GLASS_NORMAL;
   shown = -1;
   paintWorld();
 }
@@ -348,7 +349,10 @@ export const ROLE_SHAPE: Record<Role, Shape> = {
 // Map layout. The server runs at 20 Hz; the client draws every frame.
 // The shell's chip: the canvas can't read an rgba CSS token, so --glass (rgb(34 28 48 / 90%)) and
 // --r (8px) are mirrored here for labels and pops.
-export const SHELL = { r: 8, glass: "rgba(34, 28, 48, 0.9)" } as const;
+// setContrast swaps glass (to --glass's high-contrast value, rgb(0 0 0 / 92%)).
+const GLASS_NORMAL = "rgba(34, 28, 48, 0.9)";
+const GLASS_HIGH = "rgba(0, 0, 0, 0.92)";
+export const SHELL: { r: number; glass: string } = { r: 8, glass: GLASS_NORMAL };
 
 export const MAP = {
   desktopMinTilePx: 12,

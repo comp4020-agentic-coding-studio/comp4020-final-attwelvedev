@@ -132,9 +132,46 @@ describe("the lit buttons and panels (diorama FR3, FR4)", () => {
       expect(p.image, `${p.id} gradient`).toContain("gradient");
     }
     for (const p of await probe(true)) {
-      expect(p.shadow, `${p.id} box-shadow in HC`).toBe("none");
+      // --sheen and --lift are a valid empty shadow (not `none`, which is invalid inside a list and
+      // would drop the frame's rim): every layer is transparent and has no offset, blur or spread.
+      expect(p.shadow, `${p.id} box-shadow in HC`).toMatch(
+        /^(none|(rgba\(0, 0, 0, 0\) 0px 0px 0px 0px(, )?)+)$/,
+      );
       expect(p.image, `${p.id} gradient in HC`).toBe("none");
     }
     await page.evaluate(() => delete document.documentElement.dataset.contrast);
+  });
+
+  it("in high contrast the frame keeps its 1 px role rim", async () => {
+    const shadow = async (high: boolean) =>
+      page.evaluate((h) => {
+        if (h) document.documentElement.dataset.contrast = "high";
+        else delete document.documentElement.dataset.contrast;
+        document.getElementById("rim")?.remove();
+        const el = document.createElement("div");
+        el.id = "rim";
+        el.className = "frame";
+        el.style.setProperty("--frame", "rgb(242, 169, 59)");
+        document.body.append(el);
+        return getComputedStyle(el).boxShadow;
+      }, high);
+    expect(await shadow(false)).toContain("rgb(242, 169, 59) 0px 0px 0px 1px");
+    expect(await shadow(true)).toContain("rgb(242, 169, 59) 0px 0px 0px 1px");
+    await page.evaluate(() => delete document.documentElement.dataset.contrast);
+  });
+
+  it("in high contrast the rising reveal is transparent, not an opaque sheet over the game", async () => {
+    const bg = await page.evaluate(() => {
+      document.documentElement.dataset.contrast = "high";
+      document.getElementById("cover")?.remove();
+      const el = document.createElement("div");
+      el.id = "cover";
+      el.className = "reveal-frame covering";
+      document.body.append(el);
+      const out = getComputedStyle(el).backgroundColor;
+      delete document.documentElement.dataset.contrast;
+      return out;
+    });
+    expect(bg).toBe("rgba(0, 0, 0, 0)");
   });
 });

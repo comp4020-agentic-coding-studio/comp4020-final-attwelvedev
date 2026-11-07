@@ -585,3 +585,12 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
 - **A note: Task 88's commit message** claims all three perception tests fail on old code; one cannot. No change made.
 - **The decoy band's parity** went to `specs/backlog.md` as a dated line (spec-level).
 - **Edge pills spread (Task 134):** a door pill and a mark pill toward the same edge now stack 48 px apart. Seen at 375 (Can't hear's phone, a mark at (12, 2) and the far door): the Door pill above, Cy's mark pill below, neither clipped. Reproduce: `pnpm vitest run spec/layout/door-pill.test.ts -t "never touch"`.
+
+## fixesB (overnight run 2026-11-07)
+
+### fixesB Tasks 135 and 136: high contrast keeps its rim, the reveal and the glass; the role tab sits under overlays (human review, pending)
+
+- **Look at:** (135) Settings → High contrast: the game frame has a 1 px role-coloured rim, the reveal rising into the game is see-through (not a black sheet), and the map's name chips are black glass. (136) At 375 px as Can't see in a plate room, the braille card is not covered by the role tab (the tab is `z-index: 1`: over the canvas, under the top stack).
+- **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080` in three tabs, make a lobby, Start, I'm ready. Press Space at the plate in a plate room (room 4 on) as Can't see.
+- **Screenshots:** `review/n7-fixesB-task135-hc-game-{1280,375}.png` (taken mid-fade of the reveal, the rim visible), `review/n7-fixesB-task136-tab-{1280,375}.png`.
+- **Judged:** all four viewed; the rim shows in cyan/purple, the game shows through the fading reveal, the tab is visible at both widths. The card-over-tab case is proven by `spec/layout/braille.test.ts` (it fails with `z-index: 4`).

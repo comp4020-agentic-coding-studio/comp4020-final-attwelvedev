@@ -67,6 +67,26 @@ async function twoPlayers(viewport: Viewport): Promise<{ blind: Page; deaf: Page
   return { blind, deaf };
 }
 
+// Whether the role tab paints over the card: at the middle of where their boxes overlap (none: they
+// do not meet), read in one go so an animating card cannot move between the measure and the hit.
+const tabCoversCard = (page: Page) =>
+  page.evaluate(() => {
+    const tab = document.querySelector(".frame .notch") as HTMLElement;
+    const card = document.querySelector('[aria-label="Braille plate"]') as HTMLElement;
+    const t = tab.getBoundingClientRect();
+    const c = card.getBoundingClientRect();
+    const x0 = Math.max(t.x, c.x);
+    const x1 = Math.min(t.x + t.width, c.x + c.width);
+    const y0 = Math.max(t.y, c.y);
+    const y1 = Math.min(t.y + t.height, c.y + c.height);
+    if (x0 >= x1 || y0 >= y1) return false;
+    // the tab, the card and its stack ignore the pointer; let them be hit so paint order can be read
+    const hit = [tab, card, card.parentElement as HTMLElement];
+    for (const el of hit) el.style.pointerEvents = "auto";
+    const top = document.elementFromPoint((x0 + x1) / 2, (y0 + y1) / 2);
+    for (const el of hit) el.style.pointerEvents = "";
+    return top?.closest(".notch") != null;
+  });
 const card = (page: Page) => page.getByRole("group", { name: "Braille plate" });
 const decode = (cells: number[][]) =>
   Array.from({ length: 10 }, (_, n) => n).find(
@@ -133,6 +153,8 @@ describe.each([
       expect(clipped).toEqual([]);
       const box = await group.boundingBox();
       expect(box && box.x >= 0 && box.x + box.width <= viewport.width).toBe(true);
+      // the role tab (decorative, at the frame's top-left) never paints over the card
+      expect(await tabCoversCard(blind), "the tab covers the card").toBe(false);
       // the whole card, key and all, inside the game frame, clear of the captions under it
       const frame = await blind.locator(".frame").boundingBox();
       expect(box && frame && box.y + box.height <= frame.y + frame.height).toBe(true);
