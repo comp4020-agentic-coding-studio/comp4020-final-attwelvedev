@@ -104,7 +104,7 @@ From Task 98 (`src/client/tokens.ts`): `COLOR.panelHi: string`.
 
 ## 5. Task breakdown
 
-### Task 100: Lit panels, wells, pills, and buttons (FR3, FR4)
+### Task 100: Lit panels, wells, pills, and buttons (FR3, FR4) [x] (review queued)
 
 - **Description:**
   - Apply the surface recipe (this file's §4) to every shell panel: the home join panel, the lobby
@@ -133,7 +133,7 @@ From Task 98 (`src/client/tokens.ts`): `COLOR.panelHi: string`.
   primary is obvious, and nothing looks embossed or heavy.
 - **Depends on:** none in this phase (phase 1 tokens).
 
-### Task 101: The bezel, role tab and 1 px rim (FR6)
+### Task 101: The bezel, role tab and 1 px rim (FR6) [x] (review queued)
 
 - **Description:**
   - In `Game.tsx`, wrap the canvas and its overlays in `<div class="recess">` inside `.frame`. The

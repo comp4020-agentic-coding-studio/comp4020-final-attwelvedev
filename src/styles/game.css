@@ -529,8 +529,9 @@ body.playing main {
   flex: 0 0 calc(60dvh - var(--target)); /* 60% of the screen, less the bar above it */
   min-height: 0;
   margin: var(--s-1) var(--s-3);
-  border: 4px dashed var(--ui-muted);
-  background: var(--ink);
+  outline: 2px dashed var(--ui-muted);
+  outline-offset: -2px;
+  box-shadow: var(--lift);
 }
 .spectator-frame canvas {
   display: block;
@@ -617,14 +618,33 @@ body.playing main {
   }
 }
 
-/* the role frame: 4 px in the role colour, the role's shape notched in the corner */
+/* the role frame: a recessed bezel with a 1 px rim in the role colour all round, a 36 px role tab at
+   its top-left and a short role line along its top edge (DESIGN.md 4.7). The canvas and its overlays
+   live in .recess, inset 6 px. */
 .frame {
   position: relative;
   flex: 1;
   min-height: 0;
+  display: flex;
   margin: var(--s-1) var(--s-3);
-  border: 4px solid var(--frame);
+  padding: 6px;
+  background: var(--panel);
+  border-radius: var(--r-lg);
+  box-shadow:
+    var(--lift),
+    0 0 0 1px var(--frame);
+}
+.recess {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   background: var(--ink);
+  border-radius: calc(var(--r-lg) - 6px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 8%),
+    inset 0 2px 8px rgb(0 0 0 / 55%);
 }
 .frame canvas {
   display: block;
@@ -633,14 +653,27 @@ body.playing main {
 }
 .notch {
   position: absolute;
-  top: -4px;
-  left: -4px;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  pointer-events: none; /* decorative: a tap on the canvas corner still reaches the canvas */
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   background: var(--frame);
   color: var(--bg);
+  border-radius: var(--r-lg) 0 var(--r) 0;
+}
+.frame:not(.spectator-frame)::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 36px;
+  width: 64px;
+  height: 2px;
+  background: var(--frame);
+  pointer-events: none;
 }
 .overlay {
   position: absolute;
@@ -1644,7 +1677,7 @@ fieldset.settings {
 .side-job {
   position: relative;
   align-self: flex-start;
-  margin-left: calc(var(--s-2) + 32px);
+  margin-left: calc(var(--s-2) + 36px);
   z-index: 3;
   display: flex;
   align-items: center;

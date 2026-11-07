@@ -206,8 +206,14 @@ in the same 3/4 world, steel and brass, as quiet as a plate; the UV pool is the 
 
 ### 4.7 The role frame (built)
 
-The viewport has a 4 px border in the role's colour and the role's shape notched
-into its top-left corner, readable from a distance. The Can't-see viewport is
+The canvas sits in a bezel: a `--panel` frame with `--r-lg` corners and `--lift`, 6 px of padding,
+and a `.recess` inside it (an inset shadow, so the canvas looks set in). A 36 px tab at the bezel's
+top-left carries the role's shape in `--bg` on the role colour, and a short 64 × 2 px line in the same
+colour runs along the top edge past it; a 1 px rim in the role colour goes all round. Why: you tell
+whose screen is whose from across a room by the tab and the line, and the rim keeps the role colour
+on every side without a heavy border. The side-job chip starts past the tab, never under it. A
+spectator's bezel is dashed (a 2 px `--ui-muted` dashed outline inset on the bezel) with no rim and
+no tab, since a watcher plays no role. The Can't-see viewport is
 `--ink` with their own figure at the centre (see 4.2); the dim ring is only for a feed that has no figure to show.
 
 ## Components

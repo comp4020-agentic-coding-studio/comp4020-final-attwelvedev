@@ -552,3 +552,10 @@ plate is part of the station it serves, so the pacing test does not count it), m
 - **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080` in three tabs, make a lobby, Start, press I'm ready. The cleared card needs `ROOMS_DIR=spec/fixtures/rooms-next`.
 - **Screenshots:** `review/n7-dl03-task100-{lobby,reveal-blind,reveal-deaf,reveal-mute,game-blind,game-deaf,game-mute}-{1280,375}.png` (one width each; the cleared card was not shot).
 - **Judged:** reveal at 1280 (Cy) and game at 375 (Bo) viewed: the card and crew wells read as lit, nothing clipped. Others not individually inspected.
+
+### dl03 Task 101: the bezel, role tab and 1 px rim (human review, pending)
+
+- **Look at:** three tabs at 1280 and a phone at 375: from across a room you can tell whose screen is whose by the tab and the line, the canvas looks set into the panel, and nothing overlaps the tab. A cache room's side-job chip starts past the tab (`spec/fixtures/rooms-cache`).
+- **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080` in three tabs, make a lobby, Start, press I'm ready. A spectator: a fourth tab joins and presses Watch.
+- **Screenshots:** `review/n7-dl03-task101-game-{blind,mute}-1280.png`, `review/n7-dl03-task101-game-deaf-375.png`.
+- **Judged:** Can't speak at 1280 and Can't hear at 375 viewed: tab, rim and recess read well, nothing overlaps. The spectator's dashed bezel was proven by `frame.test.ts` but not screenshotted.

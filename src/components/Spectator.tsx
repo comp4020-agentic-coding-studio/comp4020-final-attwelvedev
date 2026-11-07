@@ -307,18 +307,20 @@ export function Spectator({
         <HudMenu restarts={false} leaveLabel="Leave" onLeave={onLeave} />
       </header>
       <div class="spectator-body">
-        <div class="frame spectator-frame" ref={frame}>
-          <canvas
-            ref={canvas}
-            role="img"
-            aria-label={
-              follow === null
-                ? "Spectator view of the whole room"
-                : `Spectator view, following ${ROLE_LABEL[roles.current[follow]]}`
-            }
-          />
-          {braille && <BrailleCard cells={braille.cells} teach={braille.teach} />}
-          <Captions lines={lines} cues={cues} />
+        <div class="frame spectator-frame">
+          <div class="recess" ref={frame}>
+            <canvas
+              ref={canvas}
+              role="img"
+              aria-label={
+                follow === null
+                  ? "Spectator view of the whole room"
+                  : `Spectator view, following ${ROLE_LABEL[roles.current[follow]]}`
+              }
+            />
+            {braille && <BrailleCard cells={braille.cells} teach={braille.teach} />}
+            <Captions lines={lines} cues={cues} />
+          </div>
         </div>
         <section
           class="spectator-panel"

@@ -1151,129 +1151,135 @@ function Hud({
         </p>
       )}
 
-      <div class="frame" ref={frame}>
+      <div class="frame">
         <span class="notch" aria-hidden="true">
-          <RoleShape role={role} size={20} mono />
+          <RoleShape role={role} size={22} mono />
         </span>
-        <canvas
-          ref={canvas}
-          role="img"
-          aria-label={role === "blind" ? "No map. Listen to the room." : "Map of the room"}
-        />
-        {/* the side-job chip and the open plate share one column, so the plate sits under the chip at whatever
-            height the chip has (a riddle wraps to two lines); neither covers the other */}
-        <div class="top-stack">
-          <SideJob cache={cache} keepsake={keepsake} />
-          {braille && <BrailleCard cells={braille.cells} teach={braille.teach} />}
-        </div>
-        {moment && (
-          <div class="cache-moment" role="status">
-            <p>{moment}</p>
-          </div>
-        )}
-        <Captions lines={lines} cues={cues} />
-        {!cleared && (
-          <div class="hud-dock">
-            <GearSlot gear={gear} touch={touch} />
-            {!touch && <ActHint act={act} />}
-          </div>
-        )}
-        <CommsWheel
-          role={role}
-          me={me}
-          crew={reveal.crew}
-          socket={socket}
-          quick={settings.quick}
-          voice={voice}
-          api={comms}
-          typing={typing}
-          toTile={toTile}
-          onPin={(id) => change({ ...settings, quick: id })}
-          onText={() => {
-            if (role === "mute") return;
-            setWriting(true);
-            setTimeout(() => field.current?.focus(), 0);
-          }}
-          onClose={() => setWriting(false)}
-          onOwnFace={(id) => {
-            // Can't see has no map, so there is no character to put it over
-            if (role !== "blind") rt.pops.push({ seat: me, id, at: performance.now() });
-          }}
-        />
-        {typing && (
-          <span class="typing-badge" role="status">
-            Typing
-          </span>
-        )}
-        {heist ? (
-          <HeistComplete
-            ms={heist.ms}
-            loot={heist.loot}
-            lootTotal={heist.lootTotal}
-            rank={heist.rank}
-            caches={heist.caches}
-            onBoard={() => setBoardOpen("heist")}
-            comms={summary?.comms}
-            crew={reveal.crew}
+        <div class="recess" ref={frame}>
+          <canvas
+            ref={canvas}
+            role="img"
+            aria-label={role === "blind" ? "No map. Listen to the room." : "Map of the room"}
           />
-        ) : (
-          cleared && (
-            <RoomCleared
-              ms={summary?.ms ?? rt.view?.elapsedMs ?? 0}
-              loot={summary?.loot ?? 0}
-              lootTotal={summary?.lootTotal ?? 0}
-              last={reveal.index >= reveal.rooms - 1}
-              host={host}
-              onNext={() => socket.send({ t: "next" })}
-              onRestart={() => ask("room")}
-              onRestartHeist={() => ask("heist")}
-              board={summary?.board}
-              credits={summary ? creditRows(summary.credits, reveal.crew) : undefined}
-              cache={summary?.cache}
-              names={seatNames(reveal.crew)}
-              onBoard={() => setBoardOpen(`room-${reveal.index + 1}`)}
+          {/* the side-job chip and the open plate share one column, so the plate sits under the chip at whatever
+            height the chip has (a riddle wraps to two lines); neither covers the other */}
+          <div class="top-stack">
+            <SideJob cache={cache} keepsake={keepsake} />
+            {braille && <BrailleCard cells={braille.cells} teach={braille.teach} />}
+          </div>
+          {moment && (
+            <div class="cache-moment" role="status">
+              <p>{moment}</p>
+            </div>
+          )}
+          <Captions lines={lines} cues={cues} />
+          {!cleared && (
+            <div class="hud-dock">
+              <GearSlot gear={gear} touch={touch} />
+              {!touch && <ActHint act={act} />}
+            </div>
+          )}
+          <CommsWheel
+            role={role}
+            me={me}
+            crew={reveal.crew}
+            socket={socket}
+            quick={settings.quick}
+            voice={voice}
+            api={comms}
+            typing={typing}
+            toTile={toTile}
+            onPin={(id) => change({ ...settings, quick: id })}
+            onText={() => {
+              if (role === "mute") return;
+              setWriting(true);
+              setTimeout(() => field.current?.focus(), 0);
+            }}
+            onClose={() => setWriting(false)}
+            onOwnFace={(id) => {
+              // Can't see has no map, so there is no character to put it over
+              if (role !== "blind") rt.pops.push({ seat: me, id, at: performance.now() });
+            }}
+          />
+          {typing && (
+            <span class="typing-badge" role="status">
+              Typing
+            </span>
+          )}
+          {heist ? (
+            <HeistComplete
+              ms={heist.ms}
+              loot={heist.loot}
+              lootTotal={heist.lootTotal}
+              rank={heist.rank}
+              caches={heist.caches}
+              onBoard={() => setBoardOpen("heist")}
               comms={summary?.comms}
               crew={reveal.crew}
             />
-          )
-        )}
-        {caught && (
-          <p class="caught-banner" role="alert">
-            {caught}
-          </p>
-        )}
-        {vote && (
-          <VotePrompt
-            vote={vote}
-            seat={me as Seat}
-            crew={reveal.crew}
-            secondsLeft={voteLeft}
-            onCast={(yes) => socket.send({ t: "vote.cast", yes })}
-          />
-        )}
-        {pause && (
-          <Disconnect
-            waitingFor={pause.waitingFor}
-            secondsLeft={secondsLeft}
-            choosing={pause.choosing}
-            host={host}
-            sitting={sitting}
-            watching={watchers}
-            gone={pause.gone}
-            forReady={pause.forReady}
-            hostName={hostName}
-            onChoice={(choice, person) =>
-              socket.send({ t: "host.choice", choice, ...(person === undefined ? {} : { person }) })
-            }
-          />
-        )}
-        {boardOpen && <LeaderboardPanel initial={boardOpen} onClose={() => setBoardOpen(null)} />}
-        {!online && (
-          <div class="overlay" role="alert">
-            <h2>Lost connection</h2>
-            <p>Retrying…</p>
-          </div>
-        )}
+          ) : (
+            cleared && (
+              <RoomCleared
+                ms={summary?.ms ?? rt.view?.elapsedMs ?? 0}
+                loot={summary?.loot ?? 0}
+                lootTotal={summary?.lootTotal ?? 0}
+                last={reveal.index >= reveal.rooms - 1}
+                host={host}
+                onNext={() => socket.send({ t: "next" })}
+                onRestart={() => ask("room")}
+                onRestartHeist={() => ask("heist")}
+                board={summary?.board}
+                credits={summary ? creditRows(summary.credits, reveal.crew) : undefined}
+                cache={summary?.cache}
+                names={seatNames(reveal.crew)}
+                onBoard={() => setBoardOpen(`room-${reveal.index + 1}`)}
+                comms={summary?.comms}
+                crew={reveal.crew}
+              />
+            )
+          )}
+          {caught && (
+            <p class="caught-banner" role="alert">
+              {caught}
+            </p>
+          )}
+          {vote && (
+            <VotePrompt
+              vote={vote}
+              seat={me as Seat}
+              crew={reveal.crew}
+              secondsLeft={voteLeft}
+              onCast={(yes) => socket.send({ t: "vote.cast", yes })}
+            />
+          )}
+          {pause && (
+            <Disconnect
+              waitingFor={pause.waitingFor}
+              secondsLeft={secondsLeft}
+              choosing={pause.choosing}
+              host={host}
+              sitting={sitting}
+              watching={watchers}
+              gone={pause.gone}
+              forReady={pause.forReady}
+              hostName={hostName}
+              onChoice={(choice, person) =>
+                socket.send({
+                  t: "host.choice",
+                  choice,
+                  ...(person === undefined ? {} : { person }),
+                })
+              }
+            />
+          )}
+          {boardOpen && <LeaderboardPanel initial={boardOpen} onClose={() => setBoardOpen(null)} />}
+          {!online && (
+            <div class="overlay" role="alert">
+              <h2>Lost connection</h2>
+              <p>Retrying…</p>
+            </div>
+          )}
+        </div>
       </div>
 
       <TalkBar
