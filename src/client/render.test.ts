@@ -2614,6 +2614,8 @@ describe("what stands out of the light is cut by the light, not re-drawn (review
       seat: 1,
       seen: SEEN_ALL,
       entities: [player(2, 4.5, 1.2)],
+      // a lit effect is what draws inside the swept clip (a plaque no longer does: it is never cut)
+      fx: [{ kind: "dust", pos: at(4.5, 2.5), tone: "muted", age: 0.2 }],
     });
     draw(ctx, s);
     const cam = camera(s);
@@ -2645,6 +2647,7 @@ describe("what stands out of the light is cut by the light, not re-drawn (review
       seat: 1,
       seen: SEEN_ALL,
       entities: [{ id: "B1", kind: "crate", pos: at(4.5, 1.5) }],
+      fx: [{ kind: "dust", pos: at(4.5, 2.5), tone: "muted", age: 0.2 }],
     });
     draw(ctx, sc);
     const cam = camera(sc);

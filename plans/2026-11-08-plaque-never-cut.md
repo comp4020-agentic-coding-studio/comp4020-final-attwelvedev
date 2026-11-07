@@ -2,7 +2,7 @@
 
 - **Date:** 2026-11-08
 - **Tier:** Slice
-- **Status:** Approved
+- **Status:** Built; sign-off pending (overnight run, review queued)
 - **Requirements confirmed by user:** yes, 2026-11-08, in conversation (bug report with screenshot 131: room 5's keypad-room plaque, "Bare of red, the bundle gives up second." reads without "its", cut at the right edge)
 - **Comes from:** the user's playthrough, 2026-11-08; `overnight/playtest-2026-11-08-shots/131.png` (copy it there from the message before running)
 - **Runs:** first of the plans, with `2026-11-08-los-cut-fixes.md`. It is a small, separate fix and does not depend on it.
@@ -38,12 +38,12 @@ Default taken, to veto: the sign's text is not new information at that point, be
 
 Each new or changed assertion is shown red first with a break script that asserts the text it replaces, and the commit says what was broken. A bug fix starts with a failing test that reproduces it. `pnpm check` green against `PORT=8092 pnpm start:check`.
 
-- [ ] **Task 1: Reproduce it**
+- [x] **Task 1: Reproduce it**
   - Files: `src/client/render/standing.test.ts` or a new `src/client/render/plaque.test.ts`: build a scene with a `sign` entity and `text` from `src/game/sim/stations.ts`'s "Bare of red, the bundle gives up its second.", a `light` polygon whose edge crosses the plate's box (read the box from `plaqueBox`), draw it through `drawScene`'s path, and assert the recorded text calls draw every word inside the plate's box.
   - Acceptance: the test fails today, with the words after the cone's edge missing. If it passes, the cause is elsewhere: stop and say so, do not guess.
   - Depends on: none.
 
-- [ ] **Task 2: Draw the plate whole**
+- [x] **Task 2: Draw the plate whole**
   - Files: `src/client/render/index.ts` (draw the plaques outside `clipToLight`, still after what stands and before the UV pool, and only for a `sign` with `text` the scene already kept), `DESIGN.md` §4.8 (the clues line: "never cut by the light").
   - Tests first: the Task 1 test goes green; a sign the server did not send (its tile not in `seen`) still draws no plate; `spec/layout/labels.test.ts` stays green (chips keep off the plate). Break: put the clip back.
   - Acceptance: demo 1 to 3, with a screenshot of screenshot 131's view at 1280 and 375.

@@ -520,11 +520,10 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
     drawStanding(ctx, e, cam, scene);
     ctx.restore();
   }
-  // a sign's own words (a plaque), over everything standing, like the names
-  ctx.save();
-  clipToLight(ctx, cam, light);
+  // a sign's own words (a plaque), over everything standing, like the names. Never cut by the light:
+  // the plate floats over its tile and a cone edge across it would drop words. The server only sends a
+  // sign whose tile was seen, and the words are the ones it sent, so a whole plate shows nothing new.
   for (const e of scene.entities) if (e.kind === "sign" && e.text) drawPlaque(ctx, e, cam, scene);
-  ctx.restore();
   // the UV pool and its ink: the one bold effect, over the mist (it is only sent where it is seen)
   drawUv(ctx, scene, cam);
   // the outline of a figure a wall hides: the figure itself, outline only, over the wall

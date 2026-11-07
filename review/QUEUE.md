@@ -675,3 +675,10 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
 - **Start it:** `BENCH=1 pnpm build && BENCH=1 PORT=8181 node server.ts`, open `http://localhost:8181/bench?room=NN&still=1` (NN = 01, 05, 08; any room 01 to 09 works).
 - **Screenshots:** `review/diorama/fixes2-room01-{1280,375}.png`, `review/diorama/fixes2-room05-{1280,375}.png`, `review/diorama/fixes2-room08-{1280,375}.png`.
 - **Judged:** nothing broken. Room 08 now places three items instead of two. Room 05 has two pictures on its lower wall. Room 09 had to go to salt 12365 to find a placement with no item beside a station part. Worth a live 3-tab look: a goggled player and a spectator in room 08 should now see the same walls away from the dark nook.
+
+### plaque / Task 2: a plaque's plate is never cut by the light
+
+- **Look at:** room 5's keypad-nook plaque S1 with the sign in sight and the cone's edge across the plate: the plate and every word are drawn whole, not pasted-over-the-veil looking.
+- **Start it:** `pnpm build && PORT=8092 pnpm start:check`, a sighted seat in room 5, walk down the gap at x 9, east along the corridor, up the gap at x 25 to the nook. (Or `ROOMS_DIR` with only `rooms/05-*.room`, as `spec/layout/labels.test.ts` does.)
+- **Screenshots:** `review/n7-plaque-task2-plate-1280.png`, `review/n7-plaque-task2-plate-375.png`.
+- **Judged:** at 1280 the plate "A lone red keeps watch; the wire at the head falls." reads whole on a whole plate. At 375 it is whole too, but the HUD's side-job card and a label chip sit over part of it in this frame (the card is a HUD overlay, not the light; chips are checked off the plate by `labels.test.ts`, which passed). Worth a glance on whether that overlap is acceptable. Sign-off pending.
