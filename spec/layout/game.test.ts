@@ -102,7 +102,7 @@ describe("the game screen", () => {
     await leaveGameAndClose(table.byRole.mute, baseUrl);
   });
 
-  it("puts the joystick and Act on touch, clear of the talk bar, and no key hints there", async () => {
+  it("puts the joystick and Act on touch, clear of the talk bar, with a touch hint and no key hints", async () => {
     const table = await playRoom(browser, baseUrl);
     const { phone } = table;
     await phone.locator("[data-joystick]").waitFor();
@@ -117,6 +117,16 @@ describe("the game screen", () => {
       expect(stick.x).toBeLessThan(act.x);
       expect(act.width).toBeGreaterThanOrEqual(48);
     }
+    // the phone's hint sits under the controls, whole, and never names keys
+    const hint = phone.getByText("Stick moves · big button acts · hold Wheel to send");
+    await hint.waitFor();
+    const hintBox = await hint.boundingBox();
+    if (!hintBox || !act) throw new Error("touch hint or Act not drawn");
+    expect(hintBox.y).toBeGreaterThanOrEqual(act.y + act.height);
+    expect(await hint.evaluate((e) => e.scrollHeight <= e.clientHeight)).toBe(true);
+    const hints = await phone.locator(".keys").allInnerTexts();
+    expect(hints).toEqual(["Stick moves · big button acts · hold Wheel to send"]);
+    for (const text of hints) expect(text).not.toMatch(/WASD|Space/);
     expect(await table.byRole.blind.locator("[data-joystick]").count()).toBe(0);
     await leaveGameAndClose(table.byRole.blind, baseUrl);
     await leaveGameAndClose(table.byRole.deaf, baseUrl);

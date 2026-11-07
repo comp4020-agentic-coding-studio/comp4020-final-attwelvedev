@@ -1352,12 +1352,17 @@ function Hud({
       />
 
       {touch ? (
-        <TouchControls
-          moveDisabled={cleared}
-          comms={comms}
-          quickLabel={quickSlot(role, settings.quick).name}
-          act={act}
-        />
+        <>
+          <TouchControls
+            moveDisabled={cleared}
+            comms={comms}
+            quickLabel={quickSlot(role, settings.quick).name}
+            act={act}
+          />
+          <p class={cleared ? "keys is-off" : "keys"}>
+            Stick moves · big button acts · hold Wheel to send
+          </p>
+        </>
       ) : (
         <p class={cleared ? "keys is-off" : "keys"}>WASD or arrows move · Space acts</p>
       )}

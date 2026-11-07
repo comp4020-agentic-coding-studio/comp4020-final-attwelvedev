@@ -27,3 +27,15 @@ open `http://localhost:8092` (three tabs, or one tab and bots).
   phone it is now just under the code instead of at the very bottom. On a phone the people list
   still comes after the rotation (unchanged order). `pages.css` needed no change: the existing
   `.start` and column gap place it. Pass, pending your sign-off.
+
+### fm Task 4 (and the plan's "phone seat in room 1" look): the phone controls hint
+
+- **Look at:** a touch phone seat in room 1: under the joystick, Go/Wheel and Act, "Stick moves · big
+  button acts · hold Wheel to send" in the muted `.keys` style; the desktop seat keeps "WASD or
+  arrows move · Space acts". Task 1's "Voice off (optional)…" and Can't see's "No map. Listen. Get to
+  the exit with the others." show in the same shots.
+- **How:** start a team on desktop, join from a phone (or devtools touch emulation at 375 × 812) and a
+  third tab, Start, everyone presses I'm ready.
+- **Screenshots:** `review/n7-fm-task4-phone-375.png`, `review/n7-fm-task4-desktop-1280.png`
+- **My judgement:** the hint fits under the 150 px touch zone inside 812 px without pushing the
+  frame; nothing reads as an error. Pass.

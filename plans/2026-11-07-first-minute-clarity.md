@@ -78,7 +78,7 @@ Each new or changed promise-guarding assertion is shown red first, with a break 
   - Acceptance: demo steps 2–5. The existing lobby tests (overflow, axe, the widest code, the seventh joiner) stay green at 1280 and 375.
   - Depends on: none (Task 1's DESIGN.md edit is in a different section).
 
-- [ ] **Task 4: The phone controls hint**
+- [x] **Task 4: The phone controls hint**
   - Files: `src/components/Game.tsx` (lines 1275–1284): in the `touch` branch, render `<p class={cleared ? "keys is-off" : "keys"}>Stick moves · big button acts · hold Wheel to send</p>` after `<TouchControls …/>`. Reuse the `.keys` style (`src/styles/game.css:651`). Check that it fits under `.touch-zone` (150 px) at 375×812 without pushing the frame.
   - Test first: in `spec/layout/game.test.ts`, extend "puts the joystick and Act on touch…" (line 105). It is retitled, since it currently promises "no key hints there". The phone seat shows the touch hint below `[data-act]`, it is not clipped (`scrollHeight <= clientHeight`), and it never mentions WASD or Space. The desktop seats keep "WASD or arrows move · Space acts" (`wheel.test.ts:334` already checks this). Red by removing the line.
   - Acceptance: demo step 8. "No overflow and no axe violations on the HUD at phone and desktop widths" (`game.test.ts:94`) stays green.
