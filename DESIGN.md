@@ -334,6 +334,11 @@ are instant or fade. **Flashing is at most 3 per second**, always.
 - Sentence case. No exclamation marks. "Room cleared". The canvas banner says "Alarm".
 - Say what is true now and what to do: "Dark on purpose. Listen."; "Tap where, in sight".
 - A refusal says why: "You can't send clips. Ana and Cy can."
+- Three play each room. More than three **take turns**: whoever sits out a room **watches** it and
+  plays a later one ("Up to six can join and take turns."). A watcher is someone sitting out, not a
+  lesser seat.
+- Something optional that is off reads as optional, not broken: "Voice off (optional). Callouts and
+  text still work."
 - A vote says how it ended: "Restarting the room.", "Not restarted: Bo kept playing."
 - A wire plaque from room 4 on is a riddle, not an instruction: an image or a count that the wires in
   front of you answer (`One sky among them: sever it.`). It names no colour or position the plain rule

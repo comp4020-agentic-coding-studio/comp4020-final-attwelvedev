@@ -50,7 +50,7 @@ Run locally on a port other than 8080 (a dev server of yours holds it): `pnpm bu
 
 Each new or changed promise-guarding assertion is shown red first, with a break script that asserts the text it replaces (CLAUDE.md), and the commit says what was broken. `pnpm check` must be green against `PORT=8092 pnpm start:check` with `APP_URL=http://localhost:8092`.
 
-- [ ] **Task 1: Copy — home line, mic lines, Can't see's HUD line**
+- [x] **Task 1: Copy — home line, mic lines, Can't see's HUD line**
   - Files: `src/components/Home.tsx` (line 221), `src/components/TalkBar.tsx` (`blocked`, line 6), `src/components/Spectator.tsx` (line 254), `src/components/Game.tsx` (line 1084, `.hud-hint`), `DESIGN.md` §7.
   - Tests to update first (red, then green): `spec/layout/voice.test.ts:151` (the player's mic line), `src/components/SpectatorChat.test.ts:117–119` (it matches `/Microphone blocked/`; it becomes `/Voice off \(optional\)/`), `spec/layout/braille.test.ts:66` (waits on `.hud-hint` "No map. Listen."; match the new line). Add to `spec/layout/home.test.ts` an assertion that the join panel says "Up to six can join and take turns".
   - Acceptance: demo steps 1 and 7 pass. `grep -r "Microphone blocked" src spec` is empty.

@@ -145,10 +145,10 @@ describe("voice: the microphone refused, or no encoder", () => {
     await browser?.close();
   }, HOOK_MS);
 
-  it("says the microphone is blocked, keeps callouts and text, and offers no mic button", async () => {
+  it("says voice is off and optional, keeps callouts and text, and offers no mic button", async () => {
     const { deaf } = table.byRole;
     await deaf
-      .getByText("Microphone blocked: voice is off. Callouts and text still work.")
+      .getByText("Voice off (optional). Callouts and text still work.")
       .waitFor({ timeout: 5000 });
     expect(await deaf.getByRole("button", { name: /hold to talk/i }).count()).toBe(0);
     expect(await deaf.getByRole("button", { name: "Write a message" }).count()).toBe(1);

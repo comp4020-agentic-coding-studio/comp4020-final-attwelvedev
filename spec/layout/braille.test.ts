@@ -63,7 +63,9 @@ async function twoPlayers(viewport: Viewport): Promise<{ blind: Page; deaf: Page
   for (const page of [blind, deaf]) await page.locator(".reveal").waitFor();
   for (const page of [blind, deaf]) await page.getByRole("button", { name: "I'm ready" }).click();
   for (const page of [blind, deaf]) await page.locator(".frame canvas").waitFor();
-  await blind.locator(".hud-hint", { hasText: "No map. Listen." }).waitFor();
+  await blind
+    .locator(".hud-hint", { hasText: "No map. Listen. Get to the exit with the others." })
+    .waitFor();
   return { blind, deaf };
 }
 

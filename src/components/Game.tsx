@@ -1154,7 +1154,7 @@ function Hud({
         />
       </header>
 
-      {role === "blind" && <p class="hud-hint">No map. Listen.</p>}
+      {role === "blind" && <p class="hud-hint">No map. Listen. Get to the exit with the others.</p>}
 
       {voice.lagging && (
         <p class="hud-alert" role="status">

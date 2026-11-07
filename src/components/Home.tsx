@@ -226,7 +226,10 @@ export function Home() {
         )}
 
         <form class="desk-new" onSubmit={create}>
-          <p>No code? Start a team and send its code to two friends.</p>
+          <p>
+            No code? Start a team and send its code to two friends. Up to six can join and take
+            turns.
+          </p>
           <button type="submit" class="btn">
             Start a new team
           </button>
