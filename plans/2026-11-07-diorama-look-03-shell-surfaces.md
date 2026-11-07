@@ -160,7 +160,7 @@ From Task 98 (`src/client/tokens.ts`): `COLOR.panelHi: string`.
   and nothing overlaps the tab.
 - **Depends on:** Task 100 (the panel recipe the bezel uses).
 
-### Task 102: A dusk reveal, its black backdrop fixed, and the home glow and windows (FR7)
+### Task 102: A dusk reveal, its black backdrop fixed, and the home glow and windows (FR7) [x] (review queued)
 
 - **Description:**
   1. **Reproduce the black backdrop first.** In `spec/layout/backdrop.test.ts` (new): "the reveal of

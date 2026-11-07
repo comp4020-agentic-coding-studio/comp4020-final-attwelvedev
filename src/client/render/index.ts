@@ -47,6 +47,7 @@ export interface Scene {
   pops?: FacePop[]; // faces shown above their senders
   fx?: (Fx & { age: number })[]; // small effects, each with how far through its life it is (0 to 1)
   alarm?: boolean; // the alarm is on: a red border, a banner, and the dusk palette
+  dusk?: boolean; // the dusk palette with no alarm: the reveal's backdrop (drawn at once, no blend)
   nowMs?: number; // the clock the alarm pulse, the water and the dusk blend follow
   reducedMotion?: boolean; // a static alarm, no pulse, no drift
   // A spectator sees the room even while following Can't see (spec §4.1: full
@@ -239,6 +240,8 @@ function clipToLight(
   ctx.clip("nonzero");
 }
 
+let lastDusk = false; // whether the previous scene drawn asked for the dusk palette
+
 function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
   ctx.clearRect(0, 0, scene.w, scene.h);
   setRise(scene.rise ?? 1);
@@ -261,7 +264,15 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
     return;
   }
   // the dusk palette follows the alarm; with no clock (a paused feed) it is simply on or off
-  setDusk(!!scene.alarm, scene.nowMs ?? 0, scene.reducedMotion || scene.nowMs === undefined);
+  // a dusk scene (the reveal's backdrop) is drawn at once, and so is the first frame after one: the
+  // game rising under the fading reveal must not start in dusk and ease back
+  const dusk = !!scene.dusk;
+  setDusk(
+    dusk || !!scene.alarm,
+    scene.nowMs ?? 0,
+    dusk || dusk !== lastDusk || scene.reducedMotion || scene.nowMs === undefined,
+  );
+  lastDusk = dusk;
   const tiles = scene.tiles;
   const cam = scene.cam ?? camera(scene);
   drawBackdrop(ctx, scene, cam);

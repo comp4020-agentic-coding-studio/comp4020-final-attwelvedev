@@ -118,7 +118,7 @@ describe("each role's reveal card", () => {
       )
       .toBeGreaterThan(2);
     const blur = await deaf.locator(".reveal-canvas").evaluate((el) => getComputedStyle(el).filter);
-    expect(blur).toContain("blur(6px)");
+    expect(blur).toContain("blur(3px)");
     await closeAll(pages);
   });
 });

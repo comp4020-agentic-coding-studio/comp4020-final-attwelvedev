@@ -260,7 +260,8 @@ function useDraw(
         fx: rt.fx
           .filter((f) => now - f.at < fxMs(f.fx))
           .map((f) => ({ ...f.fx, age: (now - f.at) / fxMs(f.fx) })),
-        alarm: view.alarm,
+        alarm: flat ? undefined : view.alarm,
+        dusk: flat ? true : undefined, // the reveal's backdrop is the room at dusk, behind its card
         nowMs: now,
         reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
       };
@@ -554,7 +555,13 @@ export function Game({
       )}
       {cover && (
         <div
-          class={covering ? "reveal-frame covering" : "reveal-frame"}
+          class={[
+            "reveal-frame",
+            covering ? "covering" : "",
+            reveal.role === "blind" ? "blind" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
           data-rise={covering ?? undefined}
           inert={covering !== null}
           aria-hidden={covering !== null ? "true" : undefined} // decoration while it fades: the HUD speaks

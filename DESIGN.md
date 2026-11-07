@@ -16,7 +16,7 @@ removes the marker. Status words: *built* means it is in the app today.
 
 **Daylight and night.** The world is a morning in a pastel island garden over
 teal water. Everything that is not the world (HUD, wheel, captions, lobby,
-reveal, menus) is **dusk plum**: a warm dark shell. It matches the world's dusk, which the alarm blends toward, where the old cold navy fought the pastel island.
+reveal, menus) is **dusk plum**: a warm dark shell. It matches the world's dusk, which the alarm blends toward, where the old cold navy fought the pastel island. **The reveal is the room at dusk:** the whole room is drawn flat in the dusk set (`Scene.dusk`, drawn at once, no blend), blurred 3 px under `--scrim`, with the card over it. Until the room's first view lands the frame shows the dusk sky, never black. Can't see's reveal stays `--ink`, as does high contrast. The home page has a still north-west glow of `--role-mute` (none in high contrast), and each feed is a window: a `--panel` bezel with `--lift` and the canvas set in.
 
 - **Light = seen.** Things in your line of sight are drawn in full colour.
 - **Haze = known.** The layout of what you can't see right now is veiled, not hidden.
@@ -229,7 +229,8 @@ Reuse these before drawing something new. The test checks each name exists.
 - `PlayerRow`: a person in the lobby: name, setup chips, plays N.
 - `YourSetup`: a person's own real-life answers; the lobby and `/preferences` both use it.
 - `PreferencesSheet`: the preferences without leaving the lobby; every change is saved and sent as it is made.
-- `RoleReveal`: the reveal screen: what you send and get, in the wheel's words, with the crew's ready states.
+- `RoleReveal`: the reveal screen: what you send and get, in the wheel's words, with the crew's ready states. The room behind it is drawn in dusk (see section 1); its card and crew are lit panels.
+- `Feeds`: the home page's three live windows, one per role: a `--panel` bezel with `--lift`, the canvas recessed, captions over it.
 - `SoundBriefing`: Can't see's "Learn the sounds": one play per cue, and Play all.
 - `CommsWheel`: the marking menu, mark placement and cooldown numbers. Decisions live in `src/client/wheel.ts`.
 - `TalkBar`: Enter to write, V or the mic to talk; roles that can't send say why instead of showing a dead button.

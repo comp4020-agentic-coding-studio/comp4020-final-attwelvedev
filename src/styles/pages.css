@@ -97,6 +97,15 @@ input {
   display: grid;
   grid-template-areas: "title" "desk" "feeds";
   gap: var(--s-6);
+  /* a still dusk glow from the north-west corner behind the hero (flat in high contrast) */
+  background: radial-gradient(
+    at 15% 0%,
+    color-mix(in srgb, var(--role-mute) 18%, transparent),
+    transparent 60%
+  );
+}
+:root[data-contrast="high"] .home {
+  background: none;
 }
 .home-hero {
   display: contents;
@@ -256,15 +265,23 @@ input {
   position: relative;
   margin: 0;
 }
+/* a feed is a window: a --panel bezel with --lift, and the canvas set into it (the recess) */
 .feed-screen {
   position: relative;
+  padding: 4px;
+  background: var(--panel);
+  border-radius: var(--r-lg);
+  box-shadow: var(--lift);
 }
 .feed canvas {
   display: block;
   width: 100%;
   height: 96px;
   background: var(--ink);
-  border-radius: var(--r);
+  border-radius: calc(var(--r-lg) - 4px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 8%),
+    inset 0 2px 8px rgb(0 0 0 / 55%);
 }
 .feed figcaption {
   display: flex;

@@ -501,6 +501,24 @@ describe("the 3/4 world", () => {
     expect(slats.every((o) => o.globalAlpha === 1)).toBe(true);
   });
 
+  it("a scene with dusk: true draws the wall top in the dusk wall colour, with no alarm", () => {
+    const topFills = (over: Partial<Scene>): string[] => {
+      const { ctx, ops } = recorder();
+      draw(ctx, scene({ layout: "fit", w: 300, h: 200, ...over }));
+      return ops.filter((o) => o.name === "fillRect").map((o) => String(o.fillStyle));
+    };
+    const day = topFills({});
+    const dayTop = WORLD.wallTop; // the day palette, read before the dusk draw repaints WORLD
+    const dusk = topFills({ dusk: true });
+    const duskTop = WORLD.wallTop;
+    expect(duskTop).not.toBe(dayTop);
+    expect(day).toContain(dayTop);
+    expect(dusk).toContain(duskTop);
+    expect(dusk).not.toContain(dayTop);
+    // the next scene without dusk is the day palette again at once, not an ease back
+    expect(topFills({})).toContain(dayTop);
+  });
+
   it("says Alarm in sentence case when the alarm is on", () => {
     const { ctx, ops } = recorder();
     draw(ctx, scene({ alarm: true }));

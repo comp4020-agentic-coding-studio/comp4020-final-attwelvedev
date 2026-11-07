@@ -559,3 +559,10 @@ plate is part of the station it serves, so the pacing test does not count it), m
 - **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080` in three tabs, make a lobby, Start, press I'm ready. A spectator: a fourth tab joins and presses Watch.
 - **Screenshots:** `review/n7-dl03-task101-game-{blind,mute}-1280.png`, `review/n7-dl03-task101-game-deaf-375.png`.
 - **Judged:** Can't speak at 1280 and Can't hear at 375 viewed: tab, rim and recess read well, nothing overlaps. The spectator's dashed bezel was proven by `frame.test.ts` but not screenshotted.
+
+### dl03 Task 102: the dusk reveal, the backdrop fix, the home glow and windows (human review, pending)
+
+- **Look at:** the reveal for each role in rooms 1 and 2 (the room shows dimly in dusk behind the card, never black for a sighted role; Can't see's stays black), and the home page (a soft corner glow, feeds that look like windows).
+- **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080` in three tabs, make a lobby, Start. For room 2: `ROOMS_DIR=spec/fixtures/rooms-next pnpm start`, walk east to clear room 1, press Next.
+- **Screenshots:** `review/n7-dl03-task102-reveal-{blind,mute}-1280.png`, `-reveal-deaf-375.png`, `-home-{1280,375}.png`.
+- **Judged:** the mute reveal and the home at 1280 viewed. The dusk room reads dim and calm behind the card. The home glow's upper edge is a little visible where the `.home` box starts; if it bothers you, move the gradient to `body`. Room 2's reveal and the Can't-see reveal were checked by `backdrop.test.ts`, not by eye.
