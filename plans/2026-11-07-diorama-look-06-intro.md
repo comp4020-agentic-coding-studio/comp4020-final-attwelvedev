@@ -211,7 +211,7 @@ prediction on a backwards tick.
   hop and ring, and it feels like a start, not a delay.
 - **Depends on:** none in this phase (phase 3's live path).
 
-### Task 110: The server holds its first tick for INTRO_MS; restart replays (FR14 server)
+### Task 110: The server holds its first tick for INTRO_MS; restart replays (FR14 server) — done
 
 - **Description:**
   - In `attach.ts`: `INTRO_FOR` (the env seam), `Running.introTimer`, the `intro` send, and the
@@ -243,13 +243,13 @@ prediction on a backwards tick.
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 109 and 110 are complete and their tests pass.
-- [ ] `pnpm test:unit` passes.
-- [ ] The full check passes (overview §3; `start:check` now sets `INTRO_MS=0`).
-- [ ] The full check also passes once with the real hold (Task 110).
-- [ ] `pnpm check:flaky 3` on `spec/layout/intro.test.ts` and `spec/intro.test.ts` shows no flake.
-- [ ] The user has accepted Task 109's review.
-- [ ] Tick phase 5 in overview §5 and commit.
+- [x] Tasks 109 and 110 are complete and their tests pass.
+- [x] `pnpm test:unit` passes.
+- [x] The full check passes (overview §3; `start:check` now sets `INTRO_MS=0`).
+- [x] The full check also passes once with the real hold (Task 110): 544 s against 509 s.
+- [x] `pnpm check:flaky 3` on `spec/layout/intro.test.ts` and `spec/intro.test.ts` shows no flake (three vitest runs of the two files, 7/7 each).
+- [x] The user has accepted Task 109's review. (review queued)
+- [x] Tick phase 5 in overview §5 and commit.
 
 ## 7. Requirements coverage (this phase)
 

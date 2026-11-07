@@ -1,7 +1,7 @@
 import { describe, expect, inject, it } from "vitest";
 import { MAX_TEXT } from "../src/game/channels.ts";
 import type { RoleView } from "../src/game/perception.ts";
-import { closeAll, FIVE, ready, startedFive, startedGame } from "./play.ts";
+import { closeAll, FIVE, nextTick, type Player, ready, startedFive, startedGame } from "./play.ts";
 import { connect, type Socket } from "./ws.ts";
 
 const baseUrl = inject("baseUrl");
@@ -35,7 +35,7 @@ describe("a spectator follows a running game", () => {
   it("receives views at 10 Hz or more, defaulting to seat 0", async () => {
     const { players, code } = await startedGame(baseUrl);
     ready(players);
-    await players[0]?.socket.next("view"); // the game is actually ticking
+    await nextTick((players[0] as Player).socket); // the game is actually ticking (after the start's hold)
 
     const spectator = await joinAsSpectator(code);
     const first = await spectator.next<{ view: RoleView }>("view");

@@ -330,7 +330,7 @@ export function activeFx( // added by Task 111fx: readonly (Fx & { age: number }
 | 2 | `…-03-shell-surfaces.md` | 100, 101, 102 | 1 | Lit panels and buttons, display face trimmed, the bezel and tab, the dusk reveal, home glow (human reviews) | [x] (reviews queued) |
 | 3 | `…-04-world-atlas.md` | 103, 104, 105 | 0 | Phone-profile baseline committed; atlas; stone/wood floor, AO, lit walls, backdrop, water; bench ≤ baseline (human review) | [x] (review queued) |
 | 4 | `…-05-objects.md` | 106, 107, 108 | 3 | Doors, crates, glass, vents, stations, figures in material; HC flat; bench ≤ baseline (human review) | [x] (reviews queued) |
-| 5 | `…-06-intro.md` | 109, 110 | 3 (the atlas's `clearAtlas` and the live/atlas switch) | The staged start; the server holds `INTRO_MS`; restart replays (human review) | [ ] |
+| 5 | `…-06-intro.md` | 109, 110 | 3 (the atlas's `clearAtlas` and the live/atlas switch) | The staged start; the server holds `INTRO_MS`; restart replays (human review) | [x] (review queued) |
 | 6 | `…-07-motion.md` | 111, 112 | 5 (the land's ring is the second reserved trigger) | Primitives, every §4.2 row, the ring test, FR17 (human review) | [ ] |
 | 7 | `…-08-decor-engine.md` | 113, 114, 115 | 3, 4 (wall materials it draws inside) | `decorFor`, `drawDecor`, rooms 05, 08, 09 themed; no-floor-pixel test (human review) | [ ] |
 | 8 | `…-09-decor-wrap.md` | 116, 117, 118, 119, 120 | 7 | The other six themes; home feeds; DESIGN.md rewritten; final bench; full check; ADR asked (human review) | [ ] |

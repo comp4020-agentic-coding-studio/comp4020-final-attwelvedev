@@ -81,7 +81,10 @@ at each phase boundary. Plain bugs skip the backlog: fix them now, test first.
 
 - `pnpm check` (types, lint/format, `spec/` tests) must be green, not only the tests near
   the change. It runs against the live app: start it first (`APP_URL`, default
-  `http://localhost:8080`) with `pnpm start:check`, a throwaway database. A spec that needs
+  `http://localhost:8080`) with `pnpm start:check`, a throwaway database and `INTRO_MS=0` (no
+  hold before a room's first tick). CI starts the app without it, so the real 2.4 s hold runs there:
+  a spec waits for the first tick with `nextTick`'s default (it covers the hold), never a short
+  timeout of its own. A spec that needs
   an empty board runs its own app (`spec/leaderboard.test.ts`). `pnpm format` fixes style.
 - A visual change is verified by running the app and looking at a screenshot at desktop and
   phone width: the render is the truth, not the source. A layout spec measures the promise,

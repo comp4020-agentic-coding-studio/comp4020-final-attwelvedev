@@ -83,7 +83,7 @@ describe("taking I'm ready back", () => {
     cy.send({ t: "ready" });
     await noTick(host);
     host.send({ t: "ready" });
-    await nextTick(host, 3000);
+    await nextTick(host);
     await close(five.sockets);
   });
 
@@ -91,9 +91,9 @@ describe("taking I'm ready back", () => {
     const five = await startedFive(baseUrl);
     const [host, bo, cy] = five.sockets as [Socket, Socket, Socket, Socket, Socket];
     for (const s of [host, bo, cy]) s.send({ t: "ready" });
-    await nextTick(host, 3000);
+    await nextTick(host);
     host.send({ t: "ready", on: false });
-    await nextTick(host, 3000); // still ticking: the room did not go back to waiting
+    await nextTick(host); // still ticking: the room did not go back to waiting
     await close(five.sockets);
 
     const [solo] = [await connect(baseUrl)];

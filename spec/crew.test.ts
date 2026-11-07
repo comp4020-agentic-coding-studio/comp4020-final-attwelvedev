@@ -68,17 +68,17 @@ describe("a lobby of five", () => {
     sendReady(table, [2]);
     await noTick(table.sockets[2] as Socket);
     sendReady(table, [0, 1, 2]);
-    await nextTick(table.sockets[2] as Socket, 3000);
+    await nextTick(table.sockets[2] as Socket);
     await closeTable(table);
   });
 
   it("a swap after Ready has started the room is refused", async () => {
     const { table } = await startedFiveHere(baseUrl);
     sendReady(table, [0, 1, 2]);
-    await nextTick(table.sockets[0] as Socket, 3000);
+    await nextTick(table.sockets[0] as Socket);
     table.sockets[0]?.send({ t: "crew.swap", a: 0, b: 2 });
     await noMessage(table.sockets[0] as Socket, "reveal");
-    await nextTick(table.sockets[0] as Socket, 3000); // and the room is still running
+    await nextTick(table.sockets[0] as Socket); // and the room is still running
     await closeTable(table);
   });
 
