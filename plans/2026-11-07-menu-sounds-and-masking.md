@@ -1,7 +1,7 @@
 # Menu sounds and masking-noise choices
 
 - **Date:** 2026-11-07
-- **Status:** Approved
+- **Status:** Built (overnight run 2026-11-07; reviews for Tasks 93 and 94 queued in `review/QUEUE.md`)
 - **Tier:** Slice (client only; no ADR). Approved in `/brainstorm-feature` on 2026-11-07.
 - **Comes after:** `plans/2026-11-07-team-wide-doors.md` (Tasks 88 to 91). Task numbers continue from 91.
 
@@ -134,7 +134,7 @@ Run on a local build (`pnpm build && pnpm start`), with sound on.
   fails, stop: the user picks recordings (a new brainstorm).
 - **Depends on:** Task 92.
 
-### Task 94: Wire menu sounds, the row glow and the ready pulse (R1, R2, R3)
+### Task 94: Wire menu sounds, the row glow and the ready pulse (R1, R2, R3) ✅ (review queued)
 
 - **Behaviour:**
   - **Presses.** One delegated listener on `document` (in a small `installUiSounds(getSettings)`,
@@ -169,7 +169,7 @@ Run on a local build (`pnpm build && pnpm start`), with sound on.
   feel light and are not tiring after a whole lobby wait, and nothing ticks during play.
 - **Depends on:** Task 92.
 
-### Task 95: DESIGN.md, process log, backlog, check
+### Task 95: DESIGN.md, process log, backlog, check ✅
 
 - **Behaviour:**
   - DESIGN.md gets a "Menu sounds" paragraph (each kind, its recipe and its picture twin), the three

@@ -131,6 +131,10 @@ export function Settings({
             <input type="checkbox" checked={settings.labels} onChange={toggle("labels")} />
             Labels
           </label>
+          <label>
+            <input type="checkbox" checked={settings.menuSounds} onChange={toggle("menuSounds")} />
+            Menu sounds
+          </label>
           {deaf && (
             <>
               <label>

@@ -37,6 +37,7 @@ import { loadSettings, type Settings as SettingsState, saveSettings } from "../c
 import type { ConnectionState, GameSocket } from "../client/socket.ts";
 import { browserSpeech } from "../client/speech.ts";
 import { NET, setContrast } from "../client/tokens.ts";
+import { installUiSounds, savedSettings, uiSound } from "../client/uiSound.ts";
 import { quickSlot } from "../client/wheel.ts";
 import { FACE_POP_MS, type Stamp } from "../game/channels.ts";
 import { botRef } from "../game/crew.ts";
@@ -429,6 +430,8 @@ export function Game({
   const [covering, setCovering] = useState<"rise" | "fade" | null>(null);
   const [ready, setReady] = useState(false);
   const [readySeats, setReadySeats] = useState<Seat[]>(early.ready); // who the server says is ready, bots included
+  const readyBefore = useRef<Seat[]>(early.ready);
+  const [pulsing, setPulsing] = useState<string[]>([]); // crew rows whose Ready mark pulses once
   const stage = useRef<HTMLDivElement>(null);
   const backdrop = useRef<HTMLCanvasElement>(null);
 
@@ -451,6 +454,7 @@ export function Game({
         const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
         r.rise = { at: sawReveal ? performance.now() : Number.NEGATIVE_INFINITY, reduced };
         if (sawReveal) setCovering(reduced ? "fade" : "rise");
+        if (sawReveal) uiSound("all-ready", savedSettings());
       }
       setPlaying(true);
     };
@@ -472,6 +476,14 @@ export function Game({
     };
   }, [socket, early]);
 
+  // a sting when the reveal shows (not for a page loaded mid-game, which has no reveal), and the
+  // press sounds; the page's own islands share one listener
+  useEffect(() => {
+    installUiSounds(savedSettings);
+    if (early.view && early.view.room === reveal.room && early.view.tick > 0) return;
+    uiSound("reveal", savedSettings());
+  }, [reveal.room, early]);
+
   // the cover goes when its fade is over
   useEffect(() => {
     if (!covering) return;
@@ -484,6 +496,15 @@ export function Game({
   useEffect(
     () =>
       socket.on("ready", (m) => {
+        const mine = reveal.crew.findIndex((c) => c.role === reveal.role);
+        const fresh = m.seats.filter((x) => !readyBefore.current.includes(x) && x !== mine);
+        readyBefore.current = m.seats;
+        if (fresh.length > 0) {
+          uiSound("ready", savedSettings());
+          const keys = fresh.map((x) => `seat${x}`);
+          setPulsing((old) => [...old, ...keys]);
+          setTimeout(() => setPulsing((old) => old.filter((k) => !keys.includes(k))), 1000);
+        }
         setReadySeats(m.seats);
         setReady(m.seats.includes(reveal.crew.findIndex((c) => c.role === reveal.role) as Seat));
       }),
@@ -551,6 +572,7 @@ export function Game({
             me={me}
             ready={ready}
             readySeats={readySeats}
+            pulsing={pulsing}
             host={host}
             watching={watching}
             audio={audio}

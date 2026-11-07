@@ -28,6 +28,7 @@ export interface RowProps {
   focusMove: -1 | 1 | null; // this row's Move button to focus after a reorder, so the keyboard keeps its place
   onDragStart: () => void;
   onDrop: () => void;
+  glow?: boolean; // someone just joined: the row glows for a second
 }
 
 export function PlayerRow(props: RowProps) {
@@ -59,7 +60,7 @@ export function PlayerRow(props: RowProps) {
   const chips = chipsOf(person.setup, together);
   return (
     <li
-      class="player-row"
+      class={props.glow ? "player-row glow" : "player-row"}
       draggable={canOrder}
       onDragStart={props.onDragStart}
       onDragOver={(e) => canOrder && e.preventDefault()}

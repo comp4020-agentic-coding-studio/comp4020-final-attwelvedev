@@ -1368,3 +1368,19 @@ own code, a watcher that never marked a second time, a guide that jittered at an
 Can't-see seat walking out of sight and back for a send-back, and a bot that stood on a motif tile to hand gear on and
 uncovered a cache by accident. The last is the one FR1 exists for; its guard is a case that is red when the fix is
 removed. How I knew each was right: a headless case per room and rotation, red before and green after.
+
+## 2026-11-07 — Menu sounds: a separate toggle, a picture twin for each, synthesised beds before recordings
+
+(commit cited when the plan closes)
+
+Three rulings shaped the menu-sounds slice. Menu sounds get their own `menuSounds` switch rather than riding on `sound`:
+Can't hear and anyone on a muted phone must be able to keep the game's cues and drop the ticks (or the reverse), and a
+gate on game sound would silence the reveal sting for exactly the people who need to know a teammate is ready. Every
+menu sound has a picture twin (the press itself, the error text, a row glow, a ready pulse, the rise), because the
+parity rule says a sound alone tells the hearing something the rest cannot see; the glow is the twin that had to be
+invented. The masking beds are synthesised first, with recordings the fallback only if the beds fail review, since a
+bundled asset needs a credit and a download and the point is to learn whether a few lines of DSP is pleasant enough.
+How I knew it was right: `spec/layout/lobby-people.test.ts` shows the glow is on the joiner's row only, stays clear of
+the row above, is gone after 1.5 s and is a still outline under reduced motion; `__uiSounds` shows the kinds played, and
+none when Menu sounds is off. The seam test for the beds goes red when the loop crossfade is removed.
+

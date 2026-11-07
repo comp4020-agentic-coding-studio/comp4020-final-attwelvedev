@@ -37,6 +37,7 @@ export function RoleReveal({
   from,
   ready,
   readySeats,
+  pulsing = [],
   onReady,
   real,
   cues,
@@ -57,6 +58,7 @@ export function RoleReveal({
   from?: Role;
   ready: boolean; // this page pressed I'm ready
   readySeats: Seat[];
+  pulsing?: string[]; // crew-row keys whose Ready mark just appeared: it pulses once
   onReady: (on: boolean) => void; // I'm ready, or taking it back
   real: RealLife;
   cues: BriefingCue[];
@@ -205,7 +207,7 @@ export function RoleReveal({
                     </span>
                   )}
                 </span>
-                <span class="crew-state">
+                <span class={pulsing.includes(r.key) ? "crew-state pulse" : "crew-state"}>
                   {r.left
                     ? "Left the game"
                     : r.role === null

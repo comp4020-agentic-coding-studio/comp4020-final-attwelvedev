@@ -69,3 +69,12 @@ describe("uiSound", () => {
     expect(new Set(sigs).size).toBe(sigs.length);
   });
 });
+
+describe("diffPeople", () => {
+  it("a join, a leave, and a reorder (which is neither)", async () => {
+    const { diffPeople } = await import("./uiSound.ts");
+    expect(diffPeople(["a", "b"], ["a", "b", "c"])).toEqual({ joined: ["c"], left: [] });
+    expect(diffPeople(["a", "b", "c"], ["a", "c"])).toEqual({ joined: [], left: ["b"] });
+    expect(diffPeople(["a", "b", "c"], ["c", "a", "b"])).toEqual({ joined: [], left: [] });
+  });
+});

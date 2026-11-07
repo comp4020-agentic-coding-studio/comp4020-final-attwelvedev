@@ -2,7 +2,7 @@
 // reveal. UI feedback, not game cues: they have no SoundCue and no parity row, each has a picture twin
 // (see DESIGN.md "Menu sounds"). Each kind is a pure data plan, as chimeSound.ts does, so it can be
 // tested; `uiSound` plays a plan on one shared AudioContext and never throws.
-import type { Settings } from "./settings.ts";
+import { loadSettings, type Settings } from "./settings.ts";
 
 export type UiSoundKind =
   | "press"
@@ -105,8 +105,47 @@ export function uiSound(
     (globalThis as { __uiSounds?: string[] }).__uiSounds?.push(kind);
     const use = c ?? getContext();
     if (!use) return;
+    // a press is a gesture, so this is when a suspended context may wake; before it, nothing plays
+    if (use.state === "suspended") void use.resume().catch(() => undefined);
     playPlan(use, UI_PLANS[kind]);
   } catch {
     // a sound that does not play is not worth an error
   }
 }
+
+// What a press inside these is not a menu press: the game's own keys and wheel have game cues.
+const SILENT = ".wheel, .touch-zone, canvas, [data-no-ui-sound]";
+
+let installed = false;
+
+// One delegated listener pair on `document`, called from each island's mount: a `button` click ticks,
+// a checkbox change ticks up (on) or down (off). Installed once however many islands ask.
+export function installUiSounds(getSettings: () => Pick<Settings, "menuSounds">): void {
+  if (installed || typeof document === "undefined") return;
+  installed = true;
+  document.addEventListener("click", (e) => {
+    const el = e.target instanceof Element ? e.target : null;
+    const button = el?.closest("button");
+    if (!button || button.disabled || button.closest(SILENT)) return;
+    uiSound("press", getSettings());
+  });
+  document.addEventListener("change", (e) => {
+    const el = e.target;
+    if (!(el instanceof HTMLInputElement) || el.type !== "checkbox" || el.closest(SILENT)) return;
+    uiSound(el.checked ? "toggle-on" : "toggle-off", getSettings());
+  });
+}
+
+// The lobby's change of people, by stable `who`: a reorder is neither a join nor a leave.
+export function diffPeople(
+  before: readonly string[],
+  after: readonly string[],
+): { joined: string[]; left: string[] } {
+  return {
+    joined: after.filter((w) => !before.includes(w)),
+    left: before.filter((w) => !after.includes(w)),
+  };
+}
+
+// The settings as saved in this browser: every island saves on change, so a press reads the latest.
+export const savedSettings = (): Settings => loadSettings("blind");

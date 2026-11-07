@@ -264,6 +264,22 @@ pattern and outline), `turnPad` (a floor pad with its arrow), `symbolGlyph` (a v
 | Keepsake taken | the item lifts off its plinth and fades over 1 s with a spark burst and a `--goal` ring; reduced motion: it fades in place |
 | Taken side-job chip | one 600 ms pulse; none under reduced motion (the vault chip does not pulse) |
 
+**Menu sounds** (client only; not `SoundCue`s, so no parity row): a soft tick or chime for pressing, never for play. Switched by `Settings.menuSounds` (on by default, "Menu sounds" in both settings places), separate from game sound. Each has a picture twin, because a sound alone would tell the hearing something the rest cannot see:
+
+| Kind | Sound (`UI_PLANS` in `src/client/uiSound.ts`) | Picture twin |
+| --- | --- | --- |
+| `press` | a 50 ms sine tick sliding 700 to 560 Hz, on any `button` click outside the game canvas, the wheel and the touch zone | the press itself (the button's own state) |
+| `toggle-on` / `toggle-off` | two sine notes, rising (520 then 780 Hz) for on, falling for off | the checkbox mark |
+| `error` | one low triangle blip, 180 falling to 130 Hz | the error text beside the field |
+| `join` / `leave` | two triangle notes, rising (C5 then G5) for a join, falling for a leave | the joined row's glow (below); a leave has the row going |
+| `reveal` | three rising sines (E4, B4, E5) when your role appears | the reveal card itself |
+| `ready` | one soft high sine (880 Hz), when a teammate (not you) is ready | the crew row's "Ready" mark pulses once |
+| `all-ready` | four rising triangle notes ending on C6, as the game rises | the world rising out of the reveal |
+
+**Row glow and ready pulse:** a lobby row that has just joined gets a 2 px `--ui` outline, inset so it never reaches the row below, fading over 1 s; the crew row's state mark scales down from 1.25 over 1 s once. Under reduced motion neither animates: the glow is a still outline for 1 s and the pulse a still outline.
+
+**Masking noise** (Can't hear, `Settings.maskNoise`, picked in both settings places and applied at once; a changed bed cross-fades over about 300 ms): three synthesised 6 s beds in `src/client/maskBeds.ts`, each looped without a seam and normalised to the same level. **Brown** (the original: a leaky sum of white noise, low and even); **Rain** (noise band-passed 0.9 to 7 kHz, with sparse short droplet pings at random 2 to 5 kHz pitch); **Café** (pink noise band-passed 250 Hz to 2.5 kHz, a slow swell, and a faint high clink every few seconds).
+
 **Door sound** (`door`, team-wide, ADR 0025): an unlock, not a click: a short band-passed noise burst (the bolt, about 120 ms) then a low sine thunk (about 90 Hz over 180 ms), panned toward the door at full gain, caption "door unlocked" with its direction.
 
 **Cache sounds** (`uncover`, `stash`; team-wide, like `solved`): the uncover is one soft low thunk (a sine falling from 150 to 90 Hz and a dull knock); the stash is two soft rising triangle notes about half a second long, a fifth apart. Neither is the `solved` arpeggio (three rising sines) or the `dye` pomf. High contrast: the tile draws from the same world tokens, so it remaps by itself, and the item itself is flat (see `ItemGlyph`).

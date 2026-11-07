@@ -4,6 +4,7 @@ import { loadSetup, saveSetup } from "../client/preferences.ts";
 import { qrSvg } from "../client/qr.ts";
 import { revealOf } from "../client/reveal.ts";
 import { forecast, nextRoomFor } from "../client/rotation.ts";
+import { diffPeople, installUiSounds, savedSettings, uiSound } from "../client/uiSound.ts";
 import { MAX_PEOPLE } from "../game/crew.ts";
 import { sharesRoom } from "../game/setup.ts";
 import type { Seat } from "../game/types.ts";
@@ -53,12 +54,16 @@ export function Lobby({ code }: { code: string }) {
   const [asking, setAsking] = useState<string | null>(null); // where a clicked link was going, while the leave modal is open
   const [moved, setMoved] = useState<{ person: string; dir: -1 | 1 } | null>(null); // the Move button to keep focus on
   const [prefsOpen, setPrefsOpen] = useState(false);
+  const [glowing, setGlowing] = useState<string[]>([]); // people (by `who`) who joined a second ago
+  const knownPeople = useRef<string[] | null>(null); // null until the first lobby message: it is not a join
   const dragging = useRef<number | null>(null);
   const leaveTo = useRef("/"); // where a confirmed leave goes: home, or the link that was clicked
   const sentSetup = useRef(false); // the saved setup goes to the server once per page, when the join is confirmed
   const as = useRef<"player" | "spectator">("player");
   const following = useRef(false); // this page asked to start a new team
   const editingTeam = useRef(false); // an update from the server must not overwrite what the host is typing
+
+  useEffect(() => installUiSounds(savedSettings), []);
 
   useEffect(() => {
     setNickname(readNickname());
@@ -75,6 +80,17 @@ export function Lobby({ code }: { code: string }) {
           if (following.current) location.assign(`/lobby/${m.lobby.code}`);
           return;
         }
+        const now = m.lobby.people.map((p) => p.who);
+        if (knownPeople.current) {
+          const { joined, left } = diffPeople(knownPeople.current, now);
+          const settings = savedSettings();
+          if (joined.length > 0) {
+            uiSound("join", settings);
+            setGlowing((old) => [...old, ...joined]);
+            setTimeout(() => setGlowing((old) => old.filter((w) => !joined.includes(w))), 1000);
+          } else if (left.length > 0) uiSound("leave", settings);
+        }
+        knownPeople.current = now;
         setLobby(m.lobby);
         setRooms(m.rooms);
         // the host gave the game up (or nobody was left): back to the lobby screen
@@ -516,6 +532,7 @@ export function Lobby({ code }: { code: string }) {
               last={i === here - 1}
               together={together}
               plays={crowded ? (plan.plays[i] ?? 0) : null}
+              glow={glowing.includes(person.who)}
               focusMove={moved?.person === person.who ? moved.dir : null}
               onMove={(dir) => move(i, dir)}
               onRename={(nick) => socket?.send({ t: "lobby.nickname", nickname: nick })}

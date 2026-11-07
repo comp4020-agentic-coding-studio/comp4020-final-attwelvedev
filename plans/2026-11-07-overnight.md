@@ -35,3 +35,14 @@
 
 - doors/89: where does the door-pill layout spec live (the plan says `spec/layout/sight.test.ts`)? → a new `spec/layout/door-pill.test.ts` with its own fixture room `spec/fixtures/rooms-door`, because sight.test.ts's wall room has no door far enough off screen and a second fixture app per file is that suite's pattern. Reversible by moving the case into sight.test.ts with a longer fixture.
 - doors/89: a multi-tile door is one entity per tile with one id → `openedDoors` dedupes by id so FR7's "one pill per door" holds (the first screenshot showed three stacked pills).
+
+## sounds
+
+- sounds/92: the plan puts the `uiSound` unlock on "the first pointer or key event" → I register one `once` pointerdown/keydown `resume()` when the context is first made, and also resume a suspended context on each press, because a context created before any gesture stays suspended in Chrome. Reversible by editing `getContext`/`uiSound` in `src/client/uiSound.ts`.
+- sounds/93: the plan's seam test is "first and last 10 ms differ by less than a threshold" → I made it a level comparison over six seeds plus a step-size check, because with the plain first-10ms rule alone the break check (removing the crossfade) stayed green; the level comparison over several seeds goes red. Reversible by editing `maskBeds.test.ts`.
+- sounds/93: the human listening review of Rain and Café → built, committed and queued in `review/QUEUE.md` with WAV loops, because the user is asleep. Reversible by editing the recipes in `maskBeds.ts`.
+- sounds/94: `installUiSounds(getSettings)` reads settings from localStorage (`savedSettings`) instead of each island's React state → because every island saves on change, and a press must see the latest value even in a different island. Reversible by passing each island's state.
+- sounds/94: the ready pulse and reveal sting keyed on `readySeats` growth, with `seat<N>` as the crew row key, and the reveal sting is skipped for a page loaded mid-game (a reload with tick above 0) → because that page has no reveal. Reversible by editing the effect in `Game.tsx`.
+- sounds/94: the human review (three tabs) → built, committed and queued; the `ready`/`reveal`/`all-ready` kinds were seen by script, not asserted in a spec.
+- sounds/95: the full check showed `spec/layout/door-pill.test.ts` failing once (the pill not drawn within 3.5 s on the first case) while it passed in the Task 92 full check and in two of three solo runs afterwards → I treated it as an existing flake of the doors unit (it times a 4 s pill against a 150 ms keypress and does not touch menu sounds) and did not touch it, because it is outside this unit's scope. It needs a look in the morning: `pnpm check:flaky` on that file. Reversible by nothing (no change made).
+

@@ -231,6 +231,26 @@ body.playing main {
   font-size: var(--t-14);
   font-weight: 700;
 }
+/* a teammate just got ready: the mark pulses once (the picture twin of the ready chime) */
+.reveal-crew .crew-state.pulse {
+  animation: ready-pulse 1s ease-out;
+}
+@keyframes ready-pulse {
+  0% {
+    color: var(--ui);
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal-crew .crew-state.pulse {
+    animation: none;
+    outline: 2px solid var(--ui);
+    outline-offset: 2px;
+  }
+}
 .reveal-crew .played {
   /* inside the name column: the history in hollow shapes, the coloured shape is now */
   display: inline-flex;
