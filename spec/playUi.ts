@@ -36,7 +36,7 @@ export async function playRoom(
     await page.getByLabel("Lobby code").fill(code);
     await page.getByRole("button", { name: "Join", exact: true }).click();
     await page.waitForURL(new RegExp(`/lobby/${code}$`));
-    await page.getByRole("heading", { name: /^Players \d of 6/ }).waitFor();
+    await page.getByRole("heading", { name: /^\d here · 3 play each room/ }).waitFor();
   }
   // The button reads plain "Start" only once all three are seated; before that it
   // reads "Start (n bots fill)" and would start a game with bots. click waits for the

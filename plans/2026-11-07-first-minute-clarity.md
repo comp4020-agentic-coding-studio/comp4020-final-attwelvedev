@@ -61,7 +61,7 @@ Each new or changed promise-guarding assertion is shown red first, with a break 
   - Acceptance: demo step 6. The existing "no overflow and no axe violations for each role" test (`reveal.test.ts:638`) stays green.
   - Depends on: none.
 
-- [ ] **Task 3: The lobby — heading, turn-taking hint, Start under the code**
+- [x] **Task 3: The lobby — heading, turn-taking hint, Start under the code**
   - Files: `src/components/Lobby.tsx`:
     - the heading at line 485 becomes `` `${here} here · 3 play each room` `` (the watcher branch is unchanged), followed by `<p class="muted">Up to 6 take turns; the rest watch.</p>` when `!watching`
     - the `here === 1` hint at line 505 becomes `here < 4 && !watching` with the new sentence

@@ -58,7 +58,7 @@ async function twoPlayers(viewport: Viewport): Promise<{ blind: Page; deaf: Page
   await blind.waitForURL(/\/lobby\/[A-Z]{4}$/);
   const code = new URL(blind.url()).pathname.split("/").pop() ?? "";
   const deaf = await joinWithCode(browser, url, code, "Bo", DESKTOP);
-  await blind.getByRole("heading", { name: /^Players 2 of 6/ }).waitFor();
+  await blind.getByRole("heading", { name: /^2 here · 3 play each room/ }).waitFor();
   await blind.getByRole("button", { name: /^Start/ }).click();
   for (const page of [blind, deaf]) await page.locator(".reveal").waitFor();
   for (const page of [blind, deaf]) await page.getByRole("button", { name: "I'm ready" }).click();

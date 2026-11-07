@@ -240,6 +240,10 @@ Reuse these before drawing something new. The test checks each name exists.
 - `ConfirmButton`: asks first; the second press within 3 s acts. For anything that wipes a room or ends a session.
 - `PlayerRow`: a person in the lobby: name, setup chips, plays N.
 - `YourSetup`: a person's own real-life answers; the lobby and `/preferences` both use it.
+- `Lobby`: two columns. Left: the code, Copy / Show QR, then the host's **Start** with its status
+  line ("1 of 3 here. Bots take the rest.") or a guest's "Waiting for the host to start.", so Start
+  is in view at 1280 × 800 without scrolling; then the team name and the rotation. Right: "{n} here ·
+  3 play each room", "Up to 6 take turns; the rest watch.", the people.
 - `PreferencesSheet`: the preferences without leaving the lobby; every change is saved and sent as it is made.
 - `RoleReveal`: the reveal screen: what you send and get, in the wheel's words, with the crew's ready states. The room behind it is drawn in dusk (see section 1); its card and crew are lit panels.
 - `Feeds`: the home page's three live windows, one per role: a `--panel` bezel with `--lift`, the canvas recessed, captions over it.
