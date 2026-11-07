@@ -32,7 +32,7 @@ function paintSky(
   c.fillStyle = glow;
   c.fillRect(0, 0, Math.min(w, r), Math.min(h, r));
 }
-let sky: { id: string; img: HTMLCanvasElement } | null = null;
+let sky: { id: string; base: string; img: HTMLCanvasElement } | null = null;
 let lastSky = ""; // the sky asked for by the previous frame
 function skyImage(
   ctx: CanvasRenderingContext2D,
@@ -42,13 +42,18 @@ function skyImage(
 ): HTMLCanvasElement | null {
   if (typeof document === "undefined") return null; // the unit tests' recorder: drawn directly
   const dpr = ctx.getTransform?.()?.a || 1;
-  const id = `${w}x${h}@${dpr}|${Math.round(horizon * dpr)}|${worldStamp()}`;
+  // everything the picture depends on but the horizon
+  const base = `${w}x${h}@${dpr}|${worldStamp()}`;
+  const id = `${base}|${Math.round(horizon * dpr)}`;
   if (sky?.id === id) return sky.img;
-  // the horizon moved since the last frame (the camera is panning north or south): the plain sky, and
-  // the glow is painted again once it holds still, so a pan never pays for a new image every frame
+  // the horizon moved since the last frame (the camera is panning north or south): the last sky, its
+  // horizon a few pixels stale (the water is drawn from the live horizon over it, and below its own
+  // horizon it is plain skyLo), and it is painted again once the horizon holds still, so a pan never
+  // pays for a new image every frame and never drops the glow. A new size, dpr or palette has no
+  // sky to reuse: the plain sky for that frame.
   if (lastSky !== id) {
     lastSky = id;
-    return null;
+    return sky?.base === base ? sky.img : null;
   }
   const img = document.createElement("canvas");
   img.width = Math.max(1, Math.round(w * dpr));
@@ -59,7 +64,7 @@ function skyImage(
   // painted at the horizon its key names (whole device pixels), so one key always holds one picture,
   // however the eased camera came to rest
   paintSky(c, w, h, Math.round(horizon * dpr) / dpr, true);
-  sky = { id, img };
+  sky = { id, base, img };
   return img;
 }
 
@@ -78,8 +83,8 @@ export function drawBackdrop(ctx: CanvasRenderingContext2D, scene: Scene, cam: C
   // together once per size, horizon and palette and copied opaque, which costs what the sky's fill did
   const img = flat ? null : skyImage(ctx, w, h, horizon);
   if (img) ctx.drawImage(img, 0, 0, w, h);
-  // no image: high contrast (no sun), a pan in progress (no sun until it settles), or no document to
-  // paint one on (drawn directly, sun and all)
+  // no image: high contrast (no sun), the first frame of a new size or palette (no sun until it
+  // settles), or no document to paint one on (drawn directly, sun and all)
   else paintSky(ctx, w, h, horizon, !flat && typeof document === "undefined");
   const water = ctx.createLinearGradient(0, horizon, 0, h);
   water.addColorStop(0, WORLD.water);

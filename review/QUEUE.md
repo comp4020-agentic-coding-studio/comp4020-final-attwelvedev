@@ -618,3 +618,10 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
 - **Start locally:** `pnpm build && pnpm start` (no `INTRO_MS`; `pnpm start:check` sets it to 0 and plays nothing), open `http://localhost:8080` in three tabs (and a fourth to watch), make a lobby, Start, I'm ready in each.
 - **Screenshots:** `review/n7-dl06-task109-intro-{tilt,swoop,land,done}-{1280,375}.png` (Can't speak at 1280, Can't hear at 375, taken 700, 1650 and 2230 ms into the start and after it). No spectator, Can't see or reduced-motion shot was taken; those are unit-tested (`intro.test.ts`, `render.test.ts`).
 - **Judged:** the tilt shot shows walls part-grown and shorter to the south, the swoop shot shows the camera between the whole room and the game camera, and the land shot shows the hop and the ring at Can't speak's feet. Whether the 2.4 s reads as a start rather than a wait is the call to make.
+
+### autofix1 Task 213: the sun glow holds through a vertical pan (human review, pending)
+
+- **Look at:** walk north and south as Can't hear in a room whose sky shows above the north wall (room 05's top edge; the start of any room, as the camera swoops). A pass: the top-left glow never blinks off while the view moves and never pops back at full strength when it stops. A few pixels of stale horizon under the water's edge mid-pan should be invisible.
+- **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080` in three tabs, make a lobby, Start, I'm ready in each; take the Can't hear tab and walk with the arrows.
+- **Screenshots:** `review/diorama/fix213-room05-canthear-pan-{1280,375}.png` (mid-walk south from room 05's top edge). Room 09, the plan's choice, fills the view at both widths so its sky never shows (decision logged in `plans/2026-11-07-overnight.md`). FR4 itself is proven by `src/client/render/backdrop.test.ts`: every frame of a pan after the first draws the cached sky image; high contrast draws no image and no radial gradient.
+- **Judged:** both shots show nothing broken. The glow is a faint corner wash, too subtle to read in a still at these crops; the call is whether the pan looks steady in motion.
