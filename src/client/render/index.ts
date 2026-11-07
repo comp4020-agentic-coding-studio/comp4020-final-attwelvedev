@@ -5,7 +5,16 @@ import type { Fx } from "../fx.ts";
 import { COLOR, MAP, ROLE_COLOR, setDusk, WORLD } from "../tokens.ts";
 import { drawAlarm } from "./alarm.ts";
 import { drawBackdrop } from "./backdrop.ts";
-import { block, drawFlat, drawStanding, floorTop, glass, vent, wall } from "./blocks.ts";
+import {
+  block,
+  drawFlat,
+  drawStanding,
+  type FloorAt,
+  floorTop,
+  glass,
+  vent,
+  wall,
+} from "./blocks.ts";
 import { drawKeepsake, drawMotifTile, drawSlide } from "./chamber.ts";
 import { drawCut, groundSlice, HEIGHT, type Part, rememberOrigin, tileFoot } from "./column.ts";
 import { drawCloud } from "./dye.ts";
@@ -14,6 +23,7 @@ import { drawGear, drawGoggles, drawHold, drawUv, gearGlyph } from "./gear.ts";
 import { drawHazard, drawHazardFloor, drawSight } from "./hazards.ts";
 import { drawItem } from "./items.ts";
 import { drawLabels } from "./labels.ts";
+import { floorOf } from "./materials.ts";
 import { figureCover, wallAlpha } from "./occlusion.ts";
 import { drawEdgePills, drawPops } from "./pops.ts";
 import { type Camera, camera, LIVE, setRise, tileWindow, toScreen } from "./project.ts";
@@ -80,6 +90,8 @@ export interface Scene {
   // Boxes the page has put over the canvas (canvas px), such as the riddle chip: no label chip sits on
   // one, as it would be half hidden. Measured from the DOM by the game, so the chip may grow or wrap.
   avoid?: Box[];
+  // The room's id ("04-the-safe"), for its floor's material. Absent: stone.
+  roomId?: string;
   floorEntities?: EntityView[]; // every entity sent, before what stands out of the light is dropped: the floor layer reads these (a hazard's cone outlives its body)
 }
 
@@ -301,13 +313,19 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
   ];
 
   // floor tops first, so no block front is painted over by the floor of the row behind it
+  const kind = floorOf(scene.roomId);
+  const floorAt = (x: number, y: number): FloorAt => ({
+    kind,
+    north: (tiles[y - 1] ?? "")[x] === "#",
+    west: (tiles[y] ?? "")[x - 1] === "#",
+  });
   for (let y = win.y0; y <= win.y1; y++) {
     const row = tiles[y] ?? "";
     for (let x = win.x0; x <= win.x1; x++) {
       const ch = row[x];
       if (ch === " ") nightTile(ctx, cam, tiles, x, y);
-      else if (!isBlock(ch)) floorTop(ctx, cam, x, y, WORLD.floor);
-      else if (ch === "=" || ch === "H") floorTop(ctx, cam, x, y, WORLD.floor); // glass and hatches stand on the floor
+      else if (!isBlock(ch)) floorTop(ctx, cam, x, y, WORLD.floor, floorAt(x, y));
+      else if (ch === "=" || ch === "H") floorTop(ctx, cam, x, y, WORLD.floor, floorAt(x, y)); // glass and hatches stand on the floor
     }
   }
   // what lies on the floor (plates, an open door's slot, the exit...) is cut by the light like what stands

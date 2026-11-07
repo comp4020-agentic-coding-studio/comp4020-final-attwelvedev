@@ -147,6 +147,7 @@ function paint(canvas: HTMLCanvasElement, run: Run, seat: Seat, now: number, cal
     role: FEED_ROLES[seat],
     seat,
     roles: [...FEED_ROLES] as [Role, Role, Role],
+    roomId: room.id,
     tiles: blind ? null : run.tiles,
     entities,
     self: blind ? null : self,

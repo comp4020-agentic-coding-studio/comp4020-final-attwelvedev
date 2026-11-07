@@ -153,6 +153,8 @@ export function currentHue(): Hue;
 
 ### Task 104: The tile atlas, stone and wood floor, AO, and lit walls (FR8 floor and walls, FR9, NFR-perf)
 
+- [x] Done (overnight run). Executed note: the atlas blits 1:1 on whole device pixels with smoothing off, and `drawTile(ctx, scale, tile, x, y, w, h, paint)` in `atlas.ts` is the one call site pattern (`atlasReady()` decides atlas or live). `tokens.ts` also exports `onWorldChange(f)` and `duskSettled()`. `spec/layout/sight.test.ts` reads floor as any of the four flag tones.
+
 - **Description:**
   - Create `src/client/render/atlas.ts` (overview §4.4) and `src/client/render/materials.ts`, which
     holds the painters: `paintFloor(c, s, d, variant, kind)`, `paintAo(c, s, d, north, west)`,
@@ -191,6 +193,8 @@ export function currentHue(): Hue;
 
 ### Task 105: Backdrop sun glow, cliff strata, foam, and the still water slab (FR8 backdrop and water)
 
+- [x] Done (overnight run; human review queued). Executed note: the sky and sun are one cached image copied 1:1, with the plain sky drawn live while the horizon moves (see `plans/2026-11-07-overnight.md`, dl04).
+
 - **Description:** In `backdrop.ts`, as in this file's §4. HC keeps today's flat draw. DESIGN.md §2
   World gets the material recipe (one paragraph: light from the north-west, every tone a world token
   mixed toward white or black, the atlas, and HC flat). §4.1 notes stone or wood and AO.
@@ -212,12 +216,12 @@ export function currentHue(): Hue;
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 103 to 105 are complete and their tests pass.
-- [ ] `pnpm test:unit` passes.
-- [ ] The full check passes (overview §3).
-- [ ] `pnpm bench:frame --compare` passes, and the numbers are pasted into the Task 105 commit.
-- [ ] The user has accepted Task 105's review.
-- [ ] Tick phase 3 in overview §5 and commit.
+- [x] Tasks 103 to 105 are complete and their tests pass.
+- [x] `pnpm test:unit` passes.
+- [x] The full check passes (overview §3).
+- [x] `pnpm bench:frame --compare` passes, and the numbers are pasted into the Task 105 commit.
+- [x] The user has accepted Task 105's review. (review queued)
+- [x] Tick phase 3 in overview §5 and commit.
 
 ## 7. Requirements coverage (this phase)
 

@@ -245,6 +245,7 @@ function useDraw(
         role,
         seat: view.you.seat,
         roles: crew.map((c) => c.role) as Scene["roles"],
+        roomId: view.room, // its floor's material
         tiles: role === "blind" ? null : rt.tiles,
         seen: role === "blind" ? undefined : view.seen, // the tiles in line of sight: the rest is mist
         entities: lerpEntities(rt.prevEntities, view.entities, t),

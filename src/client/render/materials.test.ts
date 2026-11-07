@@ -1,0 +1,194 @@
+import { afterEach, describe, expect, it } from "vitest";
+import { setContrast, WORLD } from "../tokens.ts";
+import { drawBackdrop } from "./backdrop.ts";
+import { draw, type Scene } from "./index.ts";
+import { paintAo, paintFloor, paintWallFront, paintWallTop } from "./materials.ts";
+import { setRise } from "./project.ts";
+
+// A small recorder (from render.test.ts): every canvas call with the state it was made in, and every
+// gradient with its colour stops.
+interface Op {
+  name: string;
+  args: unknown[];
+  fillStyle: unknown;
+  globalAlpha: number;
+}
+function recorder() {
+  const ops: Op[] = [];
+  const gradients: { kind: string; stops: [number, string][] }[] = [];
+  const state = {
+    fillStyle: "" as unknown,
+    strokeStyle: "" as unknown,
+    globalAlpha: 1,
+    lineWidth: 1,
+  };
+  const saved: (typeof state)[] = [];
+  const ctx = new Proxy(
+    {},
+    {
+      get: (_t, name) => {
+        if (String(name) in state) return state[String(name) as keyof typeof state];
+        if (name === "save") return () => saved.push({ ...state });
+        if (name === "restore") return () => Object.assign(state, saved.pop());
+        if (name === "createLinearGradient" || name === "createRadialGradient")
+          return () => {
+            const g = { kind: String(name), stops: [] as [number, string][] };
+            gradients.push(g);
+            return { addColorStop: (at: number, c: string) => g.stops.push([at, c]) };
+          };
+        if (name === "measureText") return () => ({ width: 10 });
+        return (...args: unknown[]) => {
+          ops.push({
+            name: String(name),
+            args,
+            fillStyle: state.fillStyle,
+            globalAlpha: state.globalAlpha,
+          });
+        };
+      },
+      set: (_t, name, value) => {
+        (state as Record<string, unknown>)[String(name)] = value;
+        return true;
+      },
+    },
+  ) as unknown as CanvasRenderingContext2D;
+  return { ctx, ops, gradients };
+}
+const isGradient = (o: Op) => typeof o.fillStyle === "object";
+
+afterEach(() => {
+  setContrast(false);
+  setRise(1);
+});
+
+describe("floor materials", () => {
+  it("a stone floor tile draws a gradient-free fill, a groove and speckle; in high contrast only today's fill and seam", () => {
+    const { ctx, ops, gradients } = recorder();
+    paintFloor(ctx, 40, 32, 2, "stone");
+    expect(gradients).toHaveLength(0);
+    expect(ops.every((o) => !isGradient(o))).toBe(true);
+    const groove = ops.filter((o) => o.fillStyle === WORLD.seam && o.globalAlpha === 1);
+    expect(groove.length).toBeGreaterThanOrEqual(2);
+    expect(groove.some((o) => o.args[3] === 1.5)).toBe(true); // a 1.5 px groove along the north edge
+    const speckle = ops.filter(
+      (o) => o.fillStyle === WORLD.seam && Math.abs(o.globalAlpha - 0.08) < 1e-9,
+    );
+    expect(speckle).toHaveLength(6);
+
+    setContrast(true);
+    const hc = recorder();
+    paintFloor(hc.ctx, 40, 32, 2, "stone");
+    expect(hc.ops.map((o) => o.fillStyle)).toEqual([WORLD.floor, WORLD.seam, WORLD.seam]);
+  });
+
+  it("room 04's floor is drawn as boards", () => {
+    const s: Scene = {
+      w: 200,
+      h: 200,
+      role: "deaf",
+      seat: 1,
+      roles: ["blind", "deaf", "mute"],
+      tiles: ["....", "....", "...."],
+      entities: [],
+      self: null,
+      layout: "fit",
+      roomId: "04-the-safe",
+    };
+    const boards = (roomId: string) => {
+      const { ctx, ops } = recorder();
+      draw(ctx, { ...s, roomId });
+      // a board's gap: a full-width seam line 1 px tall, three to a tile
+      return ops.filter(
+        (o) => o.name === "fillRect" && o.fillStyle === WORLD.seam && o.args[3] === 1,
+      ).length;
+    };
+    expect(boards("04-the-safe")).toBeGreaterThanOrEqual(3 * 12);
+    expect(boards("05-the-gallery")).toBe(0);
+  });
+
+  it("a floor tile south of a wall gets an AO gradient of wallShade at no more than 16 % alpha; in high contrast none", () => {
+    const { ctx, ops, gradients } = recorder();
+    paintAo(ctx, 40, 32, true, false);
+    expect(gradients).toHaveLength(1);
+    expect(gradients[0]?.stops[0]).toEqual([0, WORLD.wallShade]);
+    const fills = ops.filter((o) => o.name === "fillRect");
+    expect(fills).toHaveLength(1);
+    expect(fills.every((o) => isGradient(o) && o.globalAlpha > 0 && o.globalAlpha <= 0.16)).toBe(
+      true,
+    );
+
+    setContrast(true);
+    const hc = recorder();
+    paintAo(hc.ctx, 40, 32, true, true);
+    expect(hc.ops).toHaveLength(0);
+    expect(hc.gradients).toHaveLength(0);
+  });
+
+  it("a wall top draws a gradient and a lip; a wall front a gradient and a bevel", () => {
+    const top = recorder();
+    paintWallTop(top.ctx, 40, 32);
+    expect(top.gradients).toHaveLength(1);
+    expect(
+      top.ops.some((o) => o.args[3] === 1.5 && !isGradient(o) && o.fillStyle !== WORLD.wallTop),
+    ).toBe(true);
+    const front = recorder();
+    paintWallFront(front.ctx, 40, 44, true);
+    expect(front.gradients).toHaveLength(1);
+    expect(front.gradients[0]?.stops[0]).toEqual([0, WORLD.wallFront]);
+    expect(
+      front.ops.some((o) => o.args[3] === 1 && !isGradient(o) && o.fillStyle !== WORLD.wallFront),
+    ).toBe(true);
+    expect(front.ops.some((o) => o.fillStyle === WORLD.wallShade && o.args[3] === 3)).toBe(true);
+
+    setContrast(true);
+    const flat = recorder();
+    paintWallTop(flat.ctx, 40, 32);
+    paintWallFront(flat.ctx, 40, 44, false);
+    expect(flat.gradients).toHaveLength(0);
+    expect(flat.ops.map((o) => o.fillStyle)).toEqual([WORLD.wallTop, WORLD.wallFront]);
+  });
+});
+
+describe("the backdrop", () => {
+  const cam = { scale: 40, ox: 20, oy: 60 };
+  const backdrop = (over: Partial<Scene> = {}) => {
+    const rec = recorder();
+    const s: Scene = {
+      w: 400,
+      h: 400,
+      role: "deaf",
+      seat: 1,
+      roles: ["blind", "deaf", "mute"],
+      tiles: ["....", "....", "...."],
+      entities: [],
+      self: null,
+      layout: "fit",
+      ...over,
+    };
+    drawBackdrop(rec.ctx, s, cam);
+    return rec;
+  };
+  // the ripples: thin 2 px rects in the ripple colour, half see-through
+  const ripples = (ops: Op[]) =>
+    ops.filter((o) => o.fillStyle === WORLD.ripple && o.globalAlpha === 0.5).map((o) => o.args[0]);
+
+  it("the backdrop draws a radial sun glow and a slab reflection at 12 %; the ripples still drift; in high contrast neither glow nor reflection", () => {
+    const { ops, gradients } = backdrop({ nowMs: 0 });
+    expect(gradients.filter((g) => g.kind === "createRadialGradient")).toHaveLength(1);
+    const reflection = gradients.find(
+      (g) => g.kind === "createLinearGradient" && g.stops[1]?.[1] === `${WORLD.cliffHi}00`,
+    );
+    expect(reflection?.stops[0]).toEqual([0, WORLD.cliffHi]);
+    const faded = ops.filter((o) => o.name === "fillRect" && isGradient(o) && o.globalAlpha < 1);
+    expect(faded.map((o) => o.globalAlpha)).toEqual([0.12]);
+    expect(ripples(ops)).toHaveLength(7);
+    expect(ripples(backdrop({ nowMs: 5000 }).ops)).not.toEqual(ripples(ops));
+
+    setContrast(true);
+    const hc = backdrop({ nowMs: 0 });
+    expect(hc.gradients.filter((g) => g.kind === "createRadialGradient")).toHaveLength(0);
+    expect(hc.ops.some((o) => o.name === "fillRect" && isGradient(o) && o.globalAlpha < 1)).toBe(
+      false,
+    );
+  });
+});

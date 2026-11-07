@@ -2,7 +2,16 @@ import { STAMP_LIFE_MS, type Stamp } from "../../game/channels.ts";
 import type { EntityView } from "../../net/protocol.ts";
 import { STAMP_FACE } from "../hud.ts";
 import { COLOR, MAP, WORLD } from "../tokens.ts";
+import { drawTile } from "./atlas.ts";
 import type { Scene } from "./index.ts";
+import {
+  type FloorKind,
+  floorVariant,
+  paintAo,
+  paintFloor,
+  paintWallFront,
+  paintWallTop,
+} from "./materials.ts";
 import { type Camera, LIVE, toScreen } from "./project.ts";
 import { diamond, hatch } from "./shared.ts";
 
@@ -24,26 +33,40 @@ export function block(
   ctx.fillRect(f.x, f.y, box.w * s + 0.5, box.h * s + 0.5);
 }
 
-// A floor tile's top face, with the seams along its north and west edges.
+// Where a floor tile sits: its material, and whether a wall stands to its north or west (its shade).
+export interface FloorAt {
+  kind: FloorKind;
+  north: boolean;
+  west: boolean;
+}
+
+// A floor tile's top face in the room's material (stone flags or boards), with the soft shade at the
+// foot of a wall beside it. From the tile atlas once the world has settled (render/atlas.ts).
 export function floorTop(
   ctx: CanvasRenderingContext2D,
   cam: Camera,
   x: number,
   y: number,
   fill: string,
+  at: FloorAt = { kind: "stone", north: false, west: false },
 ) {
   const p = toScreen(cam, x, y);
-  const d = cam.scale * LIVE.depth;
-  ctx.fillStyle = fill;
-  ctx.fillRect(p.x, p.y, cam.scale + 0.5, d + 0.5);
-  if (fill === WORLD.floor) {
-    ctx.fillStyle = WORLD.seam;
-    ctx.fillRect(p.x, p.y, cam.scale + 0.5, 1);
-    ctx.fillRect(p.x, p.y, 1, d + 0.5);
+  const s = cam.scale;
+  const d = s * LIVE.depth;
+  if (fill !== WORLD.floor) {
+    ctx.fillStyle = fill;
+    ctx.fillRect(p.x, p.y, s + 0.5, d + 0.5);
+    return;
   }
+  const v = floorVariant(x, y);
+  const tile = `floor:${at.kind}:${v}:${at.north ? "n" : ""}${at.west ? "w" : ""}`;
+  drawTile(ctx, s, tile, p.x, p.y, s + 0.5, d + 0.5, (c, ox, oy) => {
+    paintFloor(c, s, d, v, at.kind, ox, oy);
+    paintAo(c, s, d, at.north, at.west, ox, oy);
+  });
 }
 
-// A wall front, with its contact shade along the foot.
+// A wall: its lit top and its graded front, with the contact shade along the foot when south-open.
 export function wall(
   ctx: CanvasRenderingContext2D,
   cam: Camera,
@@ -51,12 +74,24 @@ export function wall(
   y: number,
   southOpen: boolean,
 ) {
-  block(ctx, cam, { x, y, w: 1, d: 1, h: LIVE.wall }, WORLD.wallTop, WORLD.wallFront);
-  if (southOpen) {
-    const foot = toScreen(cam, x, y + 1);
-    ctx.fillStyle = WORLD.wallShade;
-    ctx.fillRect(foot.x, foot.y - 3, cam.scale + 0.5, 3);
-  }
+  const s = cam.scale;
+  const d = s * LIVE.depth;
+  const h = LIVE.wall * s;
+  const t = toScreen(cam, x, y, LIVE.wall);
+  // the top and the front are one tile: the front starts where the top ends, d below
+  drawTile(
+    ctx,
+    s,
+    southOpen ? "wall:open" : "wall",
+    t.x,
+    t.y,
+    s + 0.5,
+    d + h + 0.5,
+    (c, ox, oy) => {
+      paintWallTop(c, s, d, ox, oy);
+      paintWallFront(c, s, h, southOpen, ox, oy + d);
+    },
+  );
 }
 
 // Glass: a wall you can see through. Translucent top and front with two glints.

@@ -62,7 +62,8 @@ function strokes(
         if (name === "save") return () => saved.push({ ...state });
         if (name === "restore") return () => Object.assign(state, saved.pop());
         if (name === "setLineDash") return (a: number[]) => (state.lineDash = a);
-        if (name === "createLinearGradient") return () => ({ addColorStop() {} });
+        if (name === "createLinearGradient" || name === "createRadialGradient")
+          return () => ({ addColorStop() {} });
         if (name === "measureText") return () => ({ width: 10 });
         return (...args: unknown[]) => {
           ops.push({ name: String(name), args, ...state } as never);
@@ -170,7 +171,8 @@ describe("a music box's tune box has no lid that flashes with the chimes", () =>
           if (name === "save") return () => saved.push({ ...state });
           if (name === "restore") return () => Object.assign(state, saved.pop());
           if (name === "setLineDash") return (a: number[]) => (state.lineDash = a);
-          if (name === "createLinearGradient") return () => ({ addColorStop() {} });
+          if (name === "createLinearGradient" || name === "createRadialGradient")
+            return () => ({ addColorStop() {} });
           if (name === "measureText") return () => ({ width: 10 });
           return () => {
             if (name === "fillRect") rects.push({ fillStyle: state.fillStyle });
@@ -231,7 +233,8 @@ describe("a glass pane does not flicker at the edge of sight", () => {
           if (name === "save") return () => saved.push({ ...state });
           if (name === "restore") return () => Object.assign(state, saved.pop());
           if (name === "setLineDash") return (a: number[]) => (state.lineDash = a);
-          if (name === "createLinearGradient") return () => ({ addColorStop() {} });
+          if (name === "createLinearGradient" || name === "createRadialGradient")
+            return () => ({ addColorStop() {} });
           if (name === "createPattern") return () => null;
           if (name === "measureText") return () => ({ width: 10 });
           if (name === "beginPath") return () => (path = []);

@@ -383,7 +383,8 @@ function recorder() {
             state.lineDash = args[0];
             ops.push({ name: "setLineDash", args, ...state } as unknown as Op);
           };
-        if (name === "createLinearGradient") return () => ({ addColorStop() {} });
+        if (name === "createLinearGradient" || name === "createRadialGradient")
+          return () => ({ addColorStop() {} });
         if (name === "measureText") return () => ({ width: 10 });
         return (...args: unknown[]) => {
           ops.push({ name: String(name), args, ...state } as unknown as Op);

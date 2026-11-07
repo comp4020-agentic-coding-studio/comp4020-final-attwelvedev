@@ -229,6 +229,7 @@ export function Spectator({
         role: v.role,
         seat: v.you.seat,
         roles: roles.current,
+        roomId: v.room, // its floor's material
         tiles: v.tiles ?? null,
         entities: v.entities,
         self: v.you.pos ?? null,

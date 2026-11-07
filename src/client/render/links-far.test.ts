@@ -24,7 +24,8 @@ function wireStrokes(x: number, y: number, withWires: boolean): { sent: boolean;
         if (name === "save") return () => saved.push({ ...state });
         if (name === "restore") return () => Object.assign(state, saved.pop());
         if (name === "setLineDash") return (a: number[]) => (state.lineDash = a);
-        if (name === "createLinearGradient") return () => ({ addColorStop() {} });
+        if (name === "createLinearGradient" || name === "createRadialGradient")
+          return () => ({ addColorStop() {} });
         if (name === "measureText") return () => ({ width: 10 });
         return () => {
           if (
@@ -102,7 +103,8 @@ describe("a wire stops at the wall's foot (screenshot 99)", () => {
           if (name === "save") return () => saved.push({ ...state });
           if (name === "restore") return () => Object.assign(state, saved.pop());
           if (name === "setLineDash") return (a: number[]) => (state.lineDash = a);
-          if (name === "createLinearGradient") return () => ({ addColorStop() {} });
+          if (name === "createLinearGradient" || name === "createRadialGradient")
+            return () => ({ addColorStop() {} });
           if (name === "measureText") return () => ({ width: 10 });
           return (...a: unknown[]) => {
             if (name === "beginPath") path = [];

@@ -254,7 +254,9 @@ let dusk = { p: 0, target: 0, at: 0 }; // p: how far toward dusk, 0 to 1
 let shown = -1; // the blend WORLD currently holds, so a still frame costs nothing
 
 const hex = (c: string) => [1, 3, 5].map((i) => Number.parseInt(c.slice(i, i + 2), 16));
-const mix = (a: string, b: string, t: number) => {
+// Mixes two #rrggbb colours: t = 0 is a, 1 is b. Materials (render/materials.ts) mix world tokens
+// toward white or black with it, so no drawn colour is a literal of its own.
+export const mix = (a: string, b: string, t: number): string => {
   const [x, y] = [hex(a), hex(b)];
   return `#${[0, 1, 2]
     .map((i) =>
@@ -265,10 +267,25 @@ const mix = (a: string, b: string, t: number) => {
     .join("")}`;
 };
 
+// Bumped every time WORLD is repainted, so a cache of drawn tiles (render/atlas.ts) keys on it and
+// never serves a tile painted in another palette.
+let stamp = 0;
+export const worldStamp = (): number => stamp;
+// Whether the dusk palette is at rest (fully day or fully dusk), not mid-blend.
+export const duskSettled = (): boolean => dusk.p === 0 || dusk.p === 1;
+
+// Told every time WORLD is repainted (the tile atlas drops what it painted in the old palette).
+const changed: (() => void)[] = [];
+export function onWorldChange(f: () => void): void {
+  changed.push(f);
+}
+
 function paintWorld() {
   const t = high ? -2 : dusk.p;
   if (t === shown) return;
   shown = t;
+  stamp++;
+  for (const f of changed) f();
   if (high) return void Object.assign(WORLD, WORLD_HIGH);
   Object.assign(WORLD, WORLD_NORMAL, HUE_WALLS[hue]);
   if (t === 0) return;

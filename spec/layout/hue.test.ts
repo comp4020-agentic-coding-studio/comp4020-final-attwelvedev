@@ -43,7 +43,8 @@ afterAll(() => {
 });
 
 const rgb = (hex: string) => [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16));
-// how many sampled canvas pixels are exactly this colour
+// how many sampled canvas pixels are this colour, within `tol` per channel: a wall front is a gradient
+// from its front colour down toward its shade (render/materials.ts), so its upper part is within 6
 const pixels = (page: Page, hex: string) =>
   page.locator(".frame canvas").evaluate((el, want) => {
     const c = el as HTMLCanvasElement;
@@ -53,7 +54,8 @@ const pixels = (page: Page, hex: string) =>
     for (let x = 0; x < c.width; x += 2)
       for (let y = 0; y < c.height; y += 2) {
         const [r, g, b] = ctx.getImageData(x, y, 1, 1).data;
-        if (r === want[0] && g === want[1] && b === want[2]) hits++;
+        if (Math.abs(r - want[0]) <= 6 && Math.abs(g - want[1]) <= 6 && Math.abs(b - want[2]) <= 6)
+          hits++;
       }
     return hits;
   }, rgb(hex));

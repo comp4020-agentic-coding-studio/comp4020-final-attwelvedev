@@ -566,3 +566,13 @@ plate is part of the station it serves, so the pacing test does not count it), m
 - **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080` in three tabs, make a lobby, Start. For room 2: `ROOMS_DIR=spec/fixtures/rooms-next pnpm start`, walk east to clear room 1, press Next.
 - **Screenshots:** `review/n7-dl03-task102-reveal-{blind,mute}-1280.png`, `-reveal-deaf-375.png`, `-home-{1280,375}.png`.
 - **Judged:** the mute reveal and the home at 1280 viewed. The dusk room reads dim and calm behind the card. The home glow's upper edge is a little visible where the `.home` box starts; if it bothers you, move the gradient to `body`. Room 2's reveal and the Can't-see reveal were checked by `backdrop.test.ts`, not by eye.
+
+## dl04 (overnight run 2026-11-07)
+
+### dl04 Task 105: stone and wood floors, wall-base shade, lit walls, sun, strata, foam and reflection (human review, pending)
+
+- **Look at:** walk room 4 and room 5 as Can't hear at 1280 and 375. A pass: the floor reads as stone (wood boards in room 4), walls look lit from the upper left, wall bases sit in a soft shade, the mist and night still read clearly as unseen, and nothing stutters. Also: the sun glow in the sky's top-left corner disappears while the camera pans north or south and comes back when it stops (a perf trade, see `plans/2026-11-07-overnight.md` dl04/105): say if that shows.
+- **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080` in three tabs, make a lobby, Start, press I'm ready. For one room only: `ROOMS_DIR=<a dir holding just rooms/04-the-safe.room> pnpm start`. High contrast: Settings → High contrast (everything flat).
+- **Screenshots:** `review/diorama/p3-room{01,04,05,09}-{canthear,cantspeak,spectator}-{1280,375}.png`.
+- **Bench:** `pnpm bench:frame --compare` (about 9 minutes; median of 3 runs against `review/diorama/bench-baseline.json`).
+- **Judged:** room 4 (boards), room 5 (stone, mist) and room 9 (spectator: strata, foam, glow) viewed; the materials read as intended and the mist still reads as unseen. The high-contrast shot was not taken (the scripted run failed); HC flatness is proven by the unit tests (`materials.test.ts`).

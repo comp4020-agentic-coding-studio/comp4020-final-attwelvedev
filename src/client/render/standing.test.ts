@@ -51,7 +51,8 @@ function recorder() {
             Object.assign(state, saved.pop());
             ops.push({ name: "restore", args: [], ...state } as Op);
           };
-        if (name === "createLinearGradient") return () => ({ addColorStop() {} });
+        if (name === "createLinearGradient" || name === "createRadialGradient")
+          return () => ({ addColorStop() {} });
         if (name === "measureText") return () => ({ width: 10 });
         return (...args: unknown[]) => {
           ops.push({ name: String(name), args, ...state } as Op);

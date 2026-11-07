@@ -30,7 +30,8 @@ function recorder() {
         if (name === "save") return () => saved.push({ ...state });
         if (name === "restore") return () => Object.assign(state, saved.pop());
         if (name === "setLineDash") return (dash: unknown) => (state.lineDash = dash);
-        if (name === "createLinearGradient") return () => ({ addColorStop() {} });
+        if (name === "createLinearGradient" || name === "createRadialGradient")
+          return () => ({ addColorStop() {} });
         if (name === "measureText") return () => ({ width: 10 });
         return (...args: unknown[]) => ops.push({ name: String(name), args, ...state } as Op);
       },
