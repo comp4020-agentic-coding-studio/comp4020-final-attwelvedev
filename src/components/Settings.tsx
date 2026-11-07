@@ -1,5 +1,5 @@
 import { useState } from "preact/hooks";
-import type { Settings as SettingsState } from "../client/settings.ts";
+import type { MaskBed, Settings as SettingsState } from "../client/settings.ts";
 import type { Role } from "../game/types.ts";
 
 // The few things a person may turn on or off. Kept to a button and a small
@@ -161,6 +161,24 @@ export function Settings({
                     })
                   }
                 />
+              </label>
+              <label>
+                Masking noise sound
+                <select
+                  value={settings.maskNoise}
+                  disabled={!maskNoiseAvailable || !maskNoiseOn}
+                  aria-describedby={maskNoiseAvailable ? undefined : "mask-noise-note"}
+                  onChange={(e) =>
+                    onChange({
+                      ...settings,
+                      maskNoise: (e.target as HTMLSelectElement).value as MaskBed,
+                    })
+                  }
+                >
+                  <option value="brown">Brown</option>
+                  <option value="rain">Rain</option>
+                  <option value="cafe">Café</option>
+                </select>
               </label>
               {!maskNoiseAvailable && (
                 <p class="mask-noise-note" id="mask-noise-note">

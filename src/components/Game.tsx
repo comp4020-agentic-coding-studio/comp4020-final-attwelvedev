@@ -739,8 +739,8 @@ function Hud({
   // turned it off, at the volume they chose.
   const maskNoiseOn = real.maskNoise && (settings.maskNoiseOn ?? real.maskDefault);
   useEffect(() => {
-    audio.current?.setMaskNoise(maskNoiseOn, settings.volume);
-  }, [audio, maskNoiseOn, settings.volume]);
+    audio.current?.setMaskNoise(maskNoiseOn, settings.volume, settings.maskNoise);
+  }, [audio, maskNoiseOn, settings.volume, settings.maskNoise]);
 
   // Everything a channel message does on arrival: speak it, play it, show it.
   useEffect(() => {

@@ -109,7 +109,7 @@ Run on a local build (`pnpm build && pnpm start`), with sound on.
   - "each kind's plan is distinct: toggle-on rises, toggle-off falls, error is low"
 - **Break check:** drop the `menuSounds` guard with a script, and watch the test go red.
 
-### Task 93: Three masking beds and the picker (R4)
+### Task 93: Three masking beds and the picker (R4) ✅ (review queued)
 
 - **Behaviour:**
   - `setMaskNoise(on, volume, bed: "brown" | "rain" | "cafe" = "brown")`. A changed bed cross-fades

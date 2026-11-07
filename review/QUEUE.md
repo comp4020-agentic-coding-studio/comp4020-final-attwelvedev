@@ -513,3 +513,10 @@ plate is part of the station it serves, so the pacing test does not count it), m
 
 - **Ask:** accept `doc/adr/0025-*.md` (status `proposed`; left unchanged overnight), after a three-tab playtest of rooms 4 and 7. On acceptance, ADR 0012 gains "amended by 0025" if the process requires it (0012 is accepted; not edited overnight).
 - **Built:** Tasks 88 to 90. Human reviews for 89 and 90 are queued above.
+
+### sounds Task 93: Rain and Café masking beds (human review, pending)
+
+- **Look at (listen):** the beds, a minute each at the default volume with headphones. A pass is that each is pleasant enough to keep on for a heist, with no click at the loop. If either fails, the user picks recordings (a new brainstorm).
+- **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080/preferences`, set Headphones "Yes", and pick Masking noise sound (Rain, Café). In a game, play as Can't hear with headphones set, then Settings → Masking noise sound. Or play the loops directly: `review/n7-sounds-task93-{brown,rain,cafe}-loop2x.wav` (two passes of the 6 s buffer, so the join is heard once; 22 kHz).
+- **Screenshots:** `review/n7-sounds-task93-prefs-1280.png`, `review/n7-sounds-task93-prefs-375.png` (the picker beside the volume).
+- **Judged:** not listened to. Rain is band-passed noise (0.9 to 7 kHz) with about 30 droplet pings a second; Café is pink noise band-passed 250 Hz to 2.5 kHz with a slow swell and a faint 3 to 5 kHz clink every 2.4 to 3.6 s. All beds are normalised to the same RMS. `maskBeds.test.ts` guards the seam (equal-power crossfade into the head). If a bed is wrong, the recipe is in `src/client/maskBeds.ts`.

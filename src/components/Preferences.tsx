@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { readNickname, saveNickname } from "../client/nickname.ts";
 import { loadSetup, saveSetup } from "../client/preferences.ts";
-import { loadSettings, type Settings, saveSettings } from "../client/settings.ts";
+import { loadSettings, type MaskBed, type Settings, saveSettings } from "../client/settings.ts";
 import type { Setup } from "../net/protocol.ts";
 import { YourSetup } from "./YourSetup.tsx";
 
@@ -129,6 +129,19 @@ export function PreferencesForm({
                   changeSettings({ ...settings, volume: Number(e.currentTarget.value) })
                 }
               />
+            </label>
+            <label class="volume">
+              Masking noise sound
+              <select
+                value={settings.maskNoise}
+                onChange={(e) =>
+                  changeSettings({ ...settings, maskNoise: e.currentTarget.value as MaskBed })
+                }
+              >
+                <option value="brown">Brown</option>
+                <option value="rain">Rain</option>
+                <option value="cafe">Café</option>
+              </select>
             </label>
           </form>
         )}

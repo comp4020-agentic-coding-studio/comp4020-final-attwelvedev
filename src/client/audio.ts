@@ -1,6 +1,8 @@
 import type { SoundCue } from "../net/protocol.ts";
 import { chimePlan, isChimeCue, practiceChimes } from "./chimeSound.ts";
 import { hollowPlan, tumblerPlan } from "./hollowSound.ts";
+import { bedSamples } from "./maskBeds.ts";
+import type { MaskBed } from "./settings.ts";
 
 export interface GameAudio {
   resume(): Promise<void>; // call from a tap or key press: browsers keep audio off until then
@@ -8,7 +10,7 @@ export interface GameAudio {
   playClip(id: string): void; // a soundboard clip, from public/sounds/
   // Masking noise for an in-person Can't-hear seat, so their own headphones
   // stop them catching speech over the table. No asset: generated here.
-  setMaskNoise(on: boolean, volume: number): void;
+  setMaskNoise(on: boolean, volume: number, bed?: MaskBed): void;
   dispose(): void;
 }
 
@@ -24,26 +26,20 @@ const RADIO_GAP_MS = 250; // static and a tuned tone are sent every tick in rang
 // buzz for a laser, chimes, a siren and an alarm. Each is panned and scaled
 // by the cue the server computed. Nothing flashes or flickers: a steady cue is
 // a steady tone.
-// A few seconds of brown noise, looped: a leaky running sum of white noise,
-// which weights it toward the low end the way a hum or distant chatter is,
-// rather than the hiss of plain white noise.
-function brownNoiseBuffer(c: AudioContext): AudioBuffer {
-  const frames = Math.floor(c.sampleRate * 3);
-  const buffer = c.createBuffer(1, frames, c.sampleRate);
-  const data = buffer.getChannelData(0);
-  let last = 0;
-  for (let i = 0; i < frames; i++) {
-    const white = Math.random() * 2 - 1;
-    last = (last + 0.02 * white) / 1.02;
-    data[i] = last * 3.5; // the leak keeps it quiet; this brings it back up
-  }
+// The masking beds (brown, rain, café) are sample data from maskBeds.ts: six seconds, looped.
+function bedBuffer(c: AudioContext, bed: MaskBed): AudioBuffer {
+  const data = bedSamples(bed, c.sampleRate, Math.floor(Math.random() * 1e9));
+  const buffer = c.createBuffer(1, data.length, c.sampleRate);
+  buffer.getChannelData(0).set(data);
   return buffer;
 }
+
+const BED_FADE_S = 0.3;
 
 export function createAudio(): GameAudio {
   let ctx: AudioContext | null = null;
   let hum: { osc: OscillatorNode; gain: GainNode } | null = null;
-  let mask: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
+  let mask: { src: AudioBufferSourceNode; gain: GainNode; bed: MaskBed } | null = null;
   let noise: AudioBuffer | null = null;
   let lastStep = 0;
   let lastOwnStep = 0;
@@ -224,21 +220,33 @@ export function createAudio(): GameAudio {
       // a plain element: the clips are short, and a blocked autoplay just stays silent
       void new Audio(`/sounds/${encodeURIComponent(id)}.mp3`).play().catch(() => undefined);
     },
-    setMaskNoise(on, volume) {
+    setMaskNoise(on, volume, bed = "brown") {
       const c = ensure();
       if (!c) return;
-      if (on && !mask) {
+      const start = (): NonNullable<typeof mask> => {
         const src = c.createBufferSource();
-        src.buffer = brownNoiseBuffer(c);
+        src.buffer = bedBuffer(c, bed);
         src.loop = true;
         const gain = c.createGain();
-        gain.gain.value = volume;
+        gain.gain.value = 0;
         src.connect(gain).connect(c.destination);
         src.start();
-        mask = { src, gain };
+        gain.gain.setTargetAtTime(volume, c.currentTime, BED_FADE_S / 3);
+        return { src, gain, bed };
+      };
+      if (on && !mask) {
+        mask = start();
+        mask.gain.gain.cancelScheduledValues(c.currentTime);
+        mask.gain.gain.value = volume;
       } else if (!on && mask) {
         mask.src.stop();
         mask = null;
+      } else if (mask && mask.bed !== bed) {
+        // a changed bed cross-fades: the old one fades out and stops, the new one fades in
+        const old = mask;
+        old.gain.gain.setTargetAtTime(0, c.currentTime, BED_FADE_S / 3);
+        old.src.stop(c.currentTime + BED_FADE_S + 0.1);
+        mask = start();
       } else if (mask) {
         mask.gain.gain.setTargetAtTime(volume, c.currentTime, 0.1);
       }

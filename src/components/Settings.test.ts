@@ -118,6 +118,24 @@ describe("Settings: masking noise", () => {
     expect((slider as HTMLInputElement)?.disabled).toBe(false);
   });
 
+  it("offers Brown, Rain and Café, and reports the one picked", async () => {
+    const onChange = vi.fn();
+    await openAs("deaf", true, onChange);
+    const select = document.querySelector("select") as HTMLSelectElement;
+    expect([...select.options].map((o) => o.textContent)).toEqual(["Brown", "Rain", "Café"]);
+    expect(select.disabled).toBe(false);
+    select.value = "rain";
+    await act(() => {
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(onChange).toHaveBeenCalledWith({ ...settings, maskNoise: "rain" });
+  });
+
+  it("greys the bed picker out with no headphones", async () => {
+    await openAs("deaf", false);
+    expect((document.querySelector("select") as HTMLSelectElement).disabled).toBe(true);
+  });
+
   it("is greyed out with an explanation when their setup has no headphones", async () => {
     await openAs("deaf", false);
     const toggle = document.querySelector('input[type="checkbox"][name="mask-noise"]');
