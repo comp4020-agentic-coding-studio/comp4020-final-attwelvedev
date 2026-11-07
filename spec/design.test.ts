@@ -36,6 +36,19 @@ describe("DESIGN.md", () => {
     expect(design.match(/#[0-9a-fA-F]{6}\b/g) ?? []).toEqual([]);
   });
 
+  it("mentions no flat-shaded world, and names the reserved ring and the decor themes", () => {
+    // ADR 0016's history may be quoted; nothing else calls the world flat-shaded
+    const body = design
+      .split("\n")
+      .filter((l) => !/ADR 0016/.test(l))
+      .join("\n");
+    expect(body).not.toMatch(/flat-shaded|flat shading/i);
+    expect(design).toMatch(/The ring is reserved/);
+    for (const theme of ["pavilion", "conservatory", "watch house", "bank", "backstage", "service"])
+      expect(design.toLowerCase(), theme).toContain(theme);
+    expect(design).not.toMatch(/\*\*planned \(Task N\)|plan: diorama|come with phase 8/);
+  });
+
   it("supersedes the old draft in doc/prompts/DESIGN.md", () => {
     const first = readFileSync("doc/prompts/DESIGN.md", "utf8").split("\n")[0];
     expect(first).toMatch(/superseded/i);

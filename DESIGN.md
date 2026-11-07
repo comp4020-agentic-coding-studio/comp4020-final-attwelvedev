@@ -9,12 +9,13 @@ component that doesn't exist, or holds a hex value.
 A change to the look, a token, a component's job or the copy rules updates this
 file in the same commit (`CLAUDE.md`, "Working method"). Sections about the 3/4
 world are written from `specs/2026-10-19-play-overhaul.md` §4.1 and ADR 0016, and
-each item says **planned (Task N)** until that task builds it; the task then
-removes the marker. Status words: *built* means it is in the app today.
+the diorama look from `specs/2026-11-07-diorama-look.md` and ADR 0026. A piece not
+yet built says so, with its task. Status words: *built* means it is in the app today.
 
 ## 1. The idea
 
-**Daylight and night.** The world is a morning in a pastel island garden over
+**Daylight and night.** Light comes from the north-west everywhere, and information stays flat: the world is lit and
+material, but what you must read (labels, cones, mist, night, marks) is never shaded. The world is a morning in a pastel island garden over
 teal water. Everything that is not the world (HUD, wheel, captions, lobby,
 reveal, menus) is **dusk plum**: a warm dark shell. It matches the world's dusk, which the alarm blends toward, where the old cold navy fought the pastel island. **The reveal is the room at dusk:** the whole room is drawn flat in the dusk set (`Scene.dusk`, drawn at once, no blend), blurred 3 px under `--scrim`, with the card over it. Until the room's first view lands the frame shows the dusk sky, never black. Can't see's reveal stays `--ink`, as does high contrast. The home page has a still north-west glow of `--role-mute` (none in high contrast), and each feed is a window: a `--panel` bezel with `--lift` and the canvas set in.
 
@@ -45,7 +46,7 @@ Names and jobs only. Look the value up in `src/styles/tokens.css`.
 | --- | --- |
 | `--bg` | Page background; the gap behind every panel |
 | `--panel` | Sheets, cards and the lobby's surfaces |
-| `--panel-hi` | The lit end of a panel's north-west gradient (plan: diorama look) |
+| `--panel-hi` | The lit end of a panel's north-west gradient |
 | `--ink` | The Can't-see screen: pure black, so it reads as dark on purpose |
 | `--ui` | Text, icons, outlines of interactables |
 | `--ui-muted` | Secondary text and the hatch |
@@ -217,13 +218,14 @@ in the same 3/4 world, steel and brass, as quiet as a plate; the UV pool is the 
 - **Inspection plate (escape-room phase 14, Task 66):** a cache dial's back tile is a small steel plate set flush in the floor (`drawInspectionPlate`): outlined in `--w-line`, two rivets, a faint worn ring round it where someone has knelt. It is flat (nothing stands up from the floor, unlike the plinth under an ordinary safe's back box), unlabelled, and has no wire to it. It adds no token. Its sound is `hollow`, a low dropping sine with a thin ring above it, played in place of the step (yours) or the footsteps (a teammate's) while someone walks on it, captioned "hollow step" with a direction. Ordinary safes are unchanged, and `hollow` is deliberately left out of Can't see's briefing, which would announce that a cache exists.
 - **Hatch:** a wall with a waist-high sill and a lintel on two posts, open between. **Bell:** brass on a bracket with its rope; it swings ±15° three times in 1.2 s when rung (a static tilt under reduced motion). **Lamp switch:** a steel post with a lever and a small bulb. **Holding hands:** a 2 px arc between the hands, a bead each end, an arrowhead toward the leader; the towed figure's eyes look at the leader.
 
-### 4.9 Decor (built, Tasks 113 to 115)
+### 4.9 Decor (built, Tasks 113 to 116)
 
 Each room has a theme, and its walls carry a little of it: the gallery (05) gilt-framed abstract
 paintings each under a picture light, the music salon (08) violin and lute silhouettes, staves with no
 notes and curtain swags, the strongroom (09) rivet rows, steel cladding with vertical seams and caged
-sconces. The other six themes come with phase 8. Why: a room should feel like a place, without
-anything that could be read as a clue.
+sconces. The rest: the pavilion (01) ivy trails and planters, the conservatory (02) a diagonal trellis and ferns, the watch house (03) swallowtail banners and unlit sconces, the bank (04) a wainscot with one rail, framed certificates and lit sconces, backstage (06) curtain swags and unlit sconces, and service (07) steel kick panels and caged bulbs. Why: a room should feel like a place, without
+anything that could be read as a clue. Decor is also drawn in the home feeds (room 01's, for the sighted
+feeds only). Decided in ADR 0026 (`proposed`).
 
 - **Placement** (`decorFor` in `src/client/render/decor.ts`): seeded from the room id, and read only
   from the layout every sighted seat already has (the tiles and the wires). Fronts of south-open `#`
