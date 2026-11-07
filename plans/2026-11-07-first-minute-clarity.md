@@ -2,7 +2,7 @@
 
 - **Date:** 2026-11-07
 - **Tier:** Slice
-- **Status:** Approved
+- **Status:** Built (Tasks 1–4 ticked, 2026-11-08 overnight fm lane); human review pending, queued in `review/QUEUE-fm.md`
 - **Requirements confirmed by user:** yes, 2026-11-07, in `/brainstorm-feature` (no spec file: a Slice)
 - **Comes from:** `product/2026-11-07-review.md` §3 (first five minutes), RICE rows 1–5; screenshots in `product/2026-11-07-shots/`
 - **Deadline:** Monday 2026-11-09 12:00
