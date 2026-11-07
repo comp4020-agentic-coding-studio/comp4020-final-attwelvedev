@@ -76,7 +76,7 @@ lightness, log it in the Corrections log, and update overview §2.1 FR2.
 
 ## 5. Task breakdown
 
-### Task 98: Plum tokens, surface tokens, radii, and the AA test (FR2, FR4 tokens, NFR-a11y)
+### Task 98 [x]: Plum tokens, surface tokens, radii, and the AA test (FR2, FR4 tokens, NFR-a11y)
 
 - **Description:**
   - Set the FR2 values in `tokens.css` and mirror them in `tokens.ts` `NORMAL`. Add `panelHi` to

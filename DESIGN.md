@@ -45,6 +45,7 @@ Names and jobs only. Look the value up in `src/styles/tokens.css`.
 | --- | --- |
 | `--bg` | Page background; the gap behind every panel |
 | `--panel` | Sheets, cards and the lobby's surfaces |
+| `--panel-hi` | The lit end of a panel's north-west gradient (plan: diorama look) |
 | `--ink` | The Can't-see screen: pure black, so it reads as dark on purpose |
 | `--ui` | Text, icons, outlines of interactables |
 | `--ui-muted` | Secondary text and the hatch |
@@ -64,7 +65,7 @@ Names and jobs only. Look the value up in `src/styles/tokens.css`.
 ### Scale
 
 Type `--t-14`, `--t-18`, `--t-28`, `--t-48` and `--t-code` (the lobby code,
-fluid). Space `--s-1` to `--s-6`. Corner `--r`. Touch targets `--target` (48 px
+fluid). Space `--s-1` to `--s-6`. Corner `--r` (8 px) and `--r-lg` (14 px, frames and sheets). Lighting `--sheen` (a 1 px top highlight) and `--lift` (a soft drop shadow), both `none` in high contrast. Touch targets `--target` (48 px
 minimum). Motion `--ease` (150 ms ease-out; 0 under reduced motion).
 
 ### World (built, Task 18)

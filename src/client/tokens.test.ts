@@ -37,6 +37,7 @@ describe("canvas tokens", () => {
   it.each([
     ["bg", COLOR.bg],
     ["panel", COLOR.panel],
+    ["panel-hi", COLOR.panelHi],
     ["ink", COLOR.ink],
     ["ui", COLOR.ui],
     ["ui-muted", COLOR.uiMuted],

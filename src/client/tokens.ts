@@ -3,6 +3,7 @@ import type { Role } from "../game/types.ts";
 interface ColorTokens {
   bg: string;
   panel: string;
+  panelHi: string;
   ink: string;
   ui: string;
   uiMuted: string;
@@ -16,11 +17,12 @@ interface ColorTokens {
 // colour of its own; setContrast mutates them in place, so render.ts (which
 // reads them fresh every frame) never needs to know contrast mode exists.
 const NORMAL: ColorTokens = {
-  bg: "#0b1220",
-  panel: "#141e36",
+  bg: "#15121f",
+  panel: "#221c30",
+  panelHi: "#261f35",
   ink: "#000000", // the Can't-see viewport
-  ui: "#e8eef9",
-  uiMuted: "#9aa7c2",
+  ui: "#efeaf5",
+  uiMuted: "#aba1c0",
   danger: "#ff3b5c",
   goal: "#5be3a8",
   cameraLight: "#ffd166", // a watched zone, always hatched
@@ -28,6 +30,7 @@ const NORMAL: ColorTokens = {
 const HIGH_CONTRAST: ColorTokens = {
   bg: "#000000",
   panel: "#000000",
+  panelHi: "#000000",
   ink: "#000000",
   ui: "#ffffff",
   uiMuted: "#ffffff",
