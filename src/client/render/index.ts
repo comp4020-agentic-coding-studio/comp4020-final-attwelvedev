@@ -73,10 +73,13 @@ export interface Scene {
   // The room is cleared: nobody walks on, so no figure hops or kicks up dust, whatever stale motion
   // the last view or the client's own input left behind (FR2).
   cleared?: boolean;
-  // How far the world has risen out of the flat reveal, 0 to 1 (FR25). Absent is fully risen. Scales
-  // depth and every height, eases the follow camera in from the whole room, and fades Can't see's
-  // figure in over the first 400 ms of 900.
+  // The start of a room (FR14), each 0 to 1 and absent when over. `rise`: how far the board has
+  // tipped out of the flat plan (depth and every height; walls grow north to south). `swoop`: how
+  // far the follow camera has flown from the whole room to you. `landing`: your own figure's hop,
+  // and Can't see's figure fading in.
   rise?: number;
+  swoop?: number;
+  landing?: number;
   // The camera to draw with, when the caller eases one (the game does). Absent: the scene's own.
   cam?: Camera;
   // The view's `seen`: the tiles in your line of sight. Present for the sighted, who draw everything
@@ -256,7 +259,7 @@ let lastDusk = false; // whether the previous scene drawn asked for the dusk pal
 
 function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
   ctx.clearRect(0, 0, scene.w, scene.h);
-  setRise(scene.rise ?? 1);
+  setRise(scene.rise ?? 1, scene.tiles?.length);
   if ((scene.role === "blind" && !scene.spectator) || !scene.tiles) {
     ctx.fillStyle = COLOR.ink;
     ctx.fillRect(0, 0, scene.w, scene.h);

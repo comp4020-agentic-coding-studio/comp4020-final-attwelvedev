@@ -164,7 +164,7 @@ prediction on a backwards tick.
 
 ## 5. Task breakdown
 
-### Task 109: The staged start on the client (FR14 client, FR16 land ring)
+### Task 109: The staged start on the client (FR14 client, FR16 land ring) — done (review queued)
 
 - **Description:**
   - Write `src/game/intro.ts` (`INTRO_TOTAL`, the four durations) and `src/client/intro.ts`

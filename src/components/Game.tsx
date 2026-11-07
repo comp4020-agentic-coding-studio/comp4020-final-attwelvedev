@@ -19,6 +19,7 @@ import {
   lerpEntities,
 } from "../client/hud.ts";
 import { createInput, inputKey } from "../client/input.ts";
+import { INTRO, INTRO_TOTAL, type IntroFrame, introAt, REDUCED_FADE } from "../client/intro.ts";
 import { ESCAPE_KINDS, LABEL_CAP, type Label, labelsFor } from "../client/labels.ts";
 import { createPredictor, type Predictor } from "../client/predict.ts";
 import { inSight, seenOf } from "../client/render/sight.ts";
@@ -116,9 +117,10 @@ interface Runtime {
   moment: { text: string; until: number } | null; // a cache opening or its stash found, on a chip for CACHE_MOMENT_MS
   fx: { fx: Fx; at: number }[]; // small effects for what just changed, by when they started
   soundOn: boolean;
-  // The world rising out of the reveal (FR25): when it began, and whether it is the 300 ms
-  // cross-fade of reduced motion. Null until the game starts; a page that loads mid-game never rises.
-  rise: { at: number; reduced: boolean } | null;
+  // The start of a room (FR14): when the server's `intro` came, how long it holds (`ms`), and
+  // whether it is reduced motion's cross-fade. Null until the game starts; a page that loads
+  // mid-game has none. `landed`: the land's ring has been shown.
+  intro: { at: number; ms: number; reduced: boolean; landed: boolean } | null;
   cam: { scale: number; ox: number; oy: number } | null; // the last frame's map camera, to turn a tap into a tile
   lampTick: number; // the tick of the last lamp flash shown, and until when it shows, from whom
   lampUntil: number;
@@ -131,8 +133,6 @@ interface Runtime {
   labelRoom: number; // the room index metKinds is current for
 }
 
-const RISE_MS = 900; // the world rises out of the reveal
-const FADE_MS = 300; // reduced motion: a cross-fade instead
 const CAPTION_MS = 5000;
 const seatNames = (crew: readonly { seat: number; nickname: string }[]): string[] =>
   [0, 1, 2].map((i) => crew.find((c) => c.seat === i)?.nickname ?? "");
@@ -255,8 +255,9 @@ function useDraw(
         own: ownMotion(rt, role),
         cleared: view.status === "cleared", // nobody walks on once the room is cleared (FR2)
         bots: crew.map((c) => !!c.bot) as Scene["bots"],
-        layout: "follow", // the game camera on every screen; the rise eases it in from the whole room
-        rise: flat ? 0 : riseNow(rt, now),
+        layout: "follow", // the game camera on every screen; the intro's swoop flies it in from the whole room
+        // the reveal's backdrop is the flat plan, before anyone has landed (Can't see's figure is not yet shown)
+        ...(flat ? { rise: 0, swoop: 0, landing: 0 } : introScene(rt, now)),
         pops,
         fx: rt.fx
           .filter((f) => now - f.at < fxMs(f.fx))
@@ -313,13 +314,35 @@ function useDraw(
 const BLOCKED_SHARE = 0.2;
 const STEP_TILES = 4 / NET.inputHz; // SPEED_TPS in predict.ts, per input
 
-// How far the world has risen, 0 to 1, eased out. Reduced motion has no rise frames: the world is
-// whole at once and the reveal over it cross-fades. Absent (a page loaded mid-game) is whole.
-function riseNow(rt: Runtime, now: number): number {
-  const r = rt.rise;
-  if (!r || r.reduced) return 1;
-  const t = Math.max(0, Math.min(1, (now - r.at) / RISE_MS));
-  return 1 - (1 - t) ** 3;
+// Where the start of the room is (FR14). No intro (a page loaded mid-game) is over.
+function introNow(rt: Runtime, now: number): IntroFrame {
+  const i = rt.intro;
+  return i ? introAt(now - i.at, i.reduced, i.ms) : introAt(0, false, 0);
+}
+const introDone = (rt: Runtime): boolean => introNow(rt, performance.now()).done;
+
+// The scene's part of the intro, and the land's ring at your feet the moment the land begins: one
+// of the two rings FR16 allows, pushed once.
+function introScene(rt: Runtime, now: number): Pick<Scene, "rise" | "swoop" | "landing"> {
+  const f = introNow(rt, now);
+  const i = rt.intro;
+  if (i && !i.landed && !i.reduced && f.land > 0 && rt.shown) {
+    i.landed = true;
+    const ring: Fx = { kind: "ring", pos: rt.shown, tone: "ui", big: false, targetId: "landed" };
+    rt.fx = [...rt.fx, { fx: ring, at: now }].slice(-FX_MAX);
+  }
+  if (f.done) return {};
+  return { rise: f.rise, swoop: f.swoop, landing: f.land };
+}
+
+// The reveal's cover over the start: it fades over the hold and the tilt; reduced motion holds it,
+// then cross-fades. Both stretch with a longer hold, but never shrink below the real timeline: at
+// INTRO_MS=0 the game runs at once and the cover still cross-fades away over it, never a cut.
+function coverTiming(ms: number, reduced: boolean): { delay: number; fade: number } {
+  const k = Math.max(1, ms / INTRO_TOTAL);
+  return reduced
+    ? { delay: INTRO.hold * k, fade: REDUCED_FADE * k }
+    : { delay: 0, fade: (INTRO.hold + INTRO.tilt) * k };
 }
 
 function ownMotion(rt: Runtime, role: Role): Motion {
@@ -414,7 +437,7 @@ export function Game({
     cueHold: new Map(),
     moment: null,
     soundOn: true,
-    rise: null,
+    intro: null,
     cam: null,
     labelsOn: false,
     labelsAll: false,
@@ -428,9 +451,10 @@ export function Game({
   });
   const audio = useRef<GameAudio | null>(null);
   const [playing, setPlaying] = useState(false);
-  // While the game rises under the reveal the reveal stays up, covering it and fading out: "rise",
-  // or "fade" for reduced motion. Null when nothing covers the game.
+  // While the room starts under the reveal the reveal stays up, covering it and fading out: "rise",
+  // or "fade" for reduced motion, with how long it waits and fades. Null when nothing covers the game.
   const [covering, setCovering] = useState<"rise" | "fade" | null>(null);
+  const [coverMs, setCoverMs] = useState({ delay: 0, fade: 0 });
   const [ready, setReady] = useState(false);
   const [readySeats, setReadySeats] = useState<Seat[]>(early.ready); // who the server says is ready, bots included
   const readyBefore = useRef<Seat[]>(early.ready);
@@ -449,31 +473,39 @@ export function Game({
   roomRef.current = reveal.room;
   useEffect(() => {
     audio.current = createAudio();
-    // The game has started: the first view from a later tick. If this page watched the reveal it
-    // rises out of it; one that loads mid-game (a reload) is simply there.
-    const start = (sawReveal: boolean) => {
+    // The game has started. The server's `intro` starts the staged start (FR14) under the reveal,
+    // and again on a restart; a page that loads mid-game (a reload: its first view is from a later
+    // tick, with no intro) is simply there.
+    const start = (intro: number | null) => {
       const r = rt.current;
-      if (r.rise === null) {
+      if (intro !== null) {
         const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-        r.rise = { at: sawReveal ? performance.now() : Number.NEGATIVE_INFINITY, reduced };
-        if (sawReveal) setCovering(reduced ? "fade" : "rise");
-        if (sawReveal) uiSound("all-ready", savedSettings());
+        const first = r.intro === null && r.view?.tick === 0;
+        r.intro = { at: performance.now(), ms: intro, reduced, landed: false };
+        if (first) {
+          setCoverMs(coverTiming(intro, reduced));
+          setCovering(reduced ? "fade" : "rise");
+          uiSound("all-ready", savedSettings());
+        }
+      } else if (r.intro === null) {
+        r.intro = { at: Number.NEGATIVE_INFINITY, ms: 0, reduced: false, landed: true };
       }
       setPlaying(true);
     };
     // the view that came with the reveal, before this listener existed
     if (early.view && early.view.room === roomRef.current && rt.current.view === null) {
       onView(rt.current, early.view, audio.current, seatNames(crewRef.current));
-      if (early.view.tick > 0) start(false);
+      if (early.view.tick > 0) start(null);
     }
     const off = socket.on("view", (m) => {
       if (m.view.room !== roomRef.current) return;
-      const sawReveal = rt.current.view?.tick === 0;
       if (audio.current) onView(rt.current, m.view, audio.current, seatNames(crewRef.current));
-      if (m.view.tick > 0) start(sawReveal);
+      if (m.view.tick > 0) start(null);
     });
+    const offIntro = socket.on("intro", (m) => start(m.ms));
     return () => {
       off();
+      offIntro();
       setHue(undefined); // the home page never inherits a room's hue
       audio.current?.dispose();
       audio.current = null;
@@ -490,9 +522,9 @@ export function Game({
   // the cover goes when its fade is over
   useEffect(() => {
     if (!covering) return;
-    const id = setTimeout(() => setCovering(null), covering === "fade" ? FADE_MS : RISE_MS);
+    const id = setTimeout(() => setCovering(null), coverMs.delay + coverMs.fade);
     return () => clearTimeout(id);
-  }, [covering]);
+  }, [covering, coverMs]);
 
   // The server says who is ready, on every change. A swap clears everyone, so this page's own button
   // follows the server rather than its own memory.
@@ -563,6 +595,11 @@ export function Game({
             .filter(Boolean)
             .join(" ")}
           data-rise={covering ?? undefined}
+          style={
+            covering
+              ? { "--intro-delay": `${coverMs.delay}ms`, "--intro-cover": `${coverMs.fade}ms` }
+              : undefined
+          }
           inert={covering !== null}
           aria-hidden={covering !== null ? "true" : undefined} // decoration while it fades: the HUD speaks
           ref={stage}
@@ -1003,8 +1040,13 @@ function Hud({
     const source = createInput(root.current);
     lastSent.current = null;
     const timer = setInterval(() => {
+      // the start of the room: nothing moves you until you have landed (FR14)
+      const done = introDone(rt);
+      const state = done ? "done" : "playing";
+      if (root.current && root.current.dataset.intro !== state) root.current.dataset.intro = state;
       if (!online || rt.view?.status === "cleared") return;
       const input = source.read();
+      if (!done) return;
       const moving = input.move.x !== 0 || input.move.y !== 0;
       if (moving) rt.facing = input.move;
       else rt.walking = { moving: false, blocked: false };

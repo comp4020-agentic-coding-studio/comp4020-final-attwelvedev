@@ -99,6 +99,8 @@ export type ServerMsg =
       cache?: { motif: Motif; riddle: string; item: ItemId }; // your own seat's cache, if this room has one for it (never sent to the others)
     }
   | { t: "ready"; seats: Seat[] } // the seats that pressed I'm ready (bots count): sent on every change, to players and watchers
+  // all three are ready: the room starts, and its first tick is held `ms` while the start plays (FR14)
+  | { t: "intro"; ms: number }
   | { t: "view"; view: RoleView }
   // `board`: the room's top 5 with this run marked, and its rank alone if it is outside them. Team
   // names are public on the board already (FR32); never log them.

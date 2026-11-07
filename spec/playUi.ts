@@ -13,7 +13,12 @@ export interface Table {
 
 // Host and a third player on desktop, one touch phone in between, all through
 // the real screens: create, join, Start, reveal, Ready.
-export async function playRoom(browser: Browser, baseUrl: string): Promise<Table> {
+// `beforeReady`: anything to do at the reveal, before the three press I'm ready.
+export async function playRoom(
+  browser: Browser,
+  baseUrl: string,
+  beforeReady?: (byRole: Record<Role, Page>) => Promise<void>,
+): Promise<Table> {
   const { page: host, code } = await createLobbyAs(browser, baseUrl, "Ana", DESKTOP);
   const phoneContext = await browser.newContext({
     viewport: PHONE,
@@ -40,10 +45,17 @@ export async function playRoom(browser: Browser, baseUrl: string): Promise<Table
   const start = host.getByRole("button", { name: "Start", exact: true });
   await start.click({ timeout: 5000 });
   const pages = [host, phone, third];
+  // seats rotate by room: room 1 is seat 0 blind, seat 1 deaf, seat 2 mute
+  const byRole = { blind: host, deaf: phone, mute: third };
+  if (beforeReady) {
+    for (const page of pages) await page.locator(".reveal").waitFor();
+    await beforeReady(byRole);
+  }
   for (const page of pages) await page.getByRole("button", { name: "I'm ready" }).click();
   for (const page of pages) await page.locator(".frame canvas").waitFor();
-  // seats rotate by room: room 1 is seat 0 blind, seat 1 deaf, seat 2 mute
-  return { pages, phone, byRole: { blind: host, deaf: phone, mute: third } };
+  // the start of the room has played: from here input moves you (FR14)
+  for (const page of pages) await page.locator('.game[data-intro="done"]').waitFor();
+  return { pages, phone, byRole };
 }
 
 // A player's own device opened on a game sockets started: their cookie and saved nickname, so the

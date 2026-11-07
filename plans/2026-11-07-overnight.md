@@ -120,3 +120,11 @@
 - dl05/107,108: human reviews → built, committed and queued in `review/QUEUE.md`, because the user is asleep.
 - dl05/108: the figure's shadow → keeps `floorRing` and fills it with a radial gradient (no `scale` transform), because standing.test.ts finds the shadow by its ellipse and `render.test.ts` counts `scale` ops for the squash. Reversible by editing `paintFigureShadow`.
 - dl05/108: spectator and high-contrast screenshots were not taken (the helper seats three players only); the unit tests prove HC flatness. Said so in the queue entry.
+
+## dl06
+
+- dl06/109: `introAt`'s signature → `introAt(elapsedMs, reduced, ms = INTRO_TOTAL)` with no `rowStagger` field, because the plan's own "ms = 0 is done at once" test needs the hold length, and the row lag lives in `riseRow` (project.ts) where the walls read it. Reversible by editing `src/client/intro.ts`.
+- dl06/109: the arrow-key spec "against the check app with INTRO_MS=0" cannot see a lock that lasts 0 ms → `spec/layout/intro.test.ts` runs its own app with `INTRO_MS=1500` (as escape-hud does with ROOMS_DIR), presses ArrowRight the moment `data-intro=playing` appears and records every drawn position until done. Reversible by pointing the spec at the shared app.
+- dl06/109: Task 109 needs the server to send `intro` before any client check can go green (the cover starts on it) → the server's `intro` send and hold, `start:check`'s `INTRO_MS=0` and the spec helpers' waits land in Task 109's commit; Task 110 adds its own spec, the CLAUDE.md line and the real-hold full check. Reversible by moving hunks between commits.
+- dl06/109: the reveal's cover timing at INTRO_MS=0 → its fade stretches with a longer hold but never shrinks below the 2.4 s timeline's (fade over hold + tilt, 1200 ms; reduced: 300 ms hold, 300 ms fade), because at 0 it vanished in one frame (a cut, and reveal.test.ts's inert-cover case went red). Reversible by `coverTiming` in Game.tsx.
+- dl06/109: the doors that grow by row → a closed door entity scales `LIVE.block` by its row's share; crates and stations keep the global rise, because the plan names walls, glass, vents, hatches and the closed door only. Reversible in `blocks.ts`.

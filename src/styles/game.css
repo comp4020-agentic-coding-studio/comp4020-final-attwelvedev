@@ -55,12 +55,12 @@ body.playing main {
   pointer-events: none;
 }
 .reveal-frame.covering .reveal-canvas {
-  animation: reveal-clear 900ms ease-out both;
+  animation: reveal-clear var(--intro-cover, 900ms) ease-out var(--intro-delay, 0ms) both;
 }
 .reveal-frame.covering .reveal-scrim,
 .reveal-frame.covering .reveal-stage,
 .reveal-frame.covering .reveal-gone {
-  animation: reveal-out 900ms ease-out both;
+  animation: reveal-out var(--intro-cover, 900ms) ease-out var(--intro-delay, 0ms) both;
 }
 @keyframes reveal-clear {
   to {
@@ -80,7 +80,7 @@ body.playing main {
   .reveal-frame.covering .reveal-scrim,
   .reveal-frame.covering .reveal-stage,
   .reveal-frame.covering .reveal-gone {
-    animation: reveal-out 300ms linear both;
+    animation: reveal-out var(--intro-cover, 300ms) linear var(--intro-delay, 0ms) both;
   }
 }
 .reveal-stage {

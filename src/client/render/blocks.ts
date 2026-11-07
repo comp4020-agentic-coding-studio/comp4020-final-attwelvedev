@@ -17,7 +17,7 @@ import {
   paintWallFront,
   paintWallTop,
 } from "./materials.ts";
-import { type Camera, LIVE, toScreen } from "./project.ts";
+import { type Camera, LIVE, toScreen, wallAt } from "./project.ts";
 import { diamond, hatch } from "./shared.ts";
 
 // An extruded box: a top face and a south-facing front, light from the north-west. x, y, w, d
@@ -81,8 +81,8 @@ export function wall(
 ) {
   const s = cam.scale;
   const d = s * LIVE.depth;
-  const h = LIVE.wall * s;
-  const t = toScreen(cam, x, y, LIVE.wall);
+  const h = wallAt(y) * s;
+  const t = toScreen(cam, x, y, wallAt(y));
   // the top and the front are one tile: the front starts where the top ends, d below
   drawTile(
     ctx,
@@ -104,8 +104,8 @@ export function wall(
 export function glass(ctx: CanvasRenderingContext2D, cam: Camera, x: number, y: number) {
   const s = cam.scale;
   const d = s * LIVE.depth;
-  const h = LIVE.wall * s;
-  const t = toScreen(cam, x, y, LIVE.wall);
+  const h = wallAt(y) * s;
+  const t = toScreen(cam, x, y, wallAt(y));
   drawTile(ctx, s, "glass", t.x, t.y, s + 0.5, d + h + 0.5, (c, ox, oy) =>
     paintGlass(c, s, d, h, ox, oy),
   );
@@ -115,8 +115,8 @@ export function glass(ctx: CanvasRenderingContext2D, cam: Camera, x: number, y: 
 export function vent(ctx: CanvasRenderingContext2D, cam: Camera, x: number, y: number) {
   const s = cam.scale;
   const d = s * LIVE.depth;
-  const h = LIVE.wall * s;
-  const t = toScreen(cam, x, y, LIVE.wall);
+  const h = wallAt(y) * s;
+  const t = toScreen(cam, x, y, wallAt(y));
   drawTile(ctx, s, "vent", t.x, t.y, s + 0.5, d + h + 0.5, (c, ox, oy) =>
     paintVent(c, s, d, h, ox, oy),
   );
@@ -259,9 +259,11 @@ export function drawStanding(
 ) {
   const s = cam.scale;
   if (e.kind === "door") {
-    const box = { x: e.pos.x - 0.5, y: e.pos.y - 0.5, w: 1, d: 1, h: LIVE.block };
+    // a closed door grows with its row's walls as the board tips
+    const h = LIVE.block * (LIVE.rowRise && LIVE.wall > 0 ? wallAt(e.pos.y - 0.5) / LIVE.wall : 1);
+    const box = { x: e.pos.x - 0.5, y: e.pos.y - 0.5, w: 1, d: 1, h };
     const t = toScreen(cam, box.x, box.y, box.h);
-    paintDoor(ctx, s, s * LIVE.depth, LIVE.block * s, t.x, t.y);
+    paintDoor(ctx, s, s * LIVE.depth, h * s, t.x, t.y);
   } else if (e.kind === "crate") {
     const inset = 0.08;
     const box = {

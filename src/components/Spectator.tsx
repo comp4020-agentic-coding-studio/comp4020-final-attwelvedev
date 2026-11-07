@@ -9,6 +9,7 @@ import {
   hearCues,
   heardCues,
 } from "../client/hud.ts";
+import { introAt } from "../client/intro.ts";
 import { draw, type Scene } from "../client/render.ts";
 import type { ConnectionState, GameSocket } from "../client/socket.ts";
 import { setHue } from "../client/tokens.ts";
@@ -73,6 +74,7 @@ export function Spectator({
   const frame = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const view = useRef<RoleView | null>(early.view);
+  const intro = useRef<{ at: number; ms: number; reduced: boolean } | null>(null);
   const roles = useRef<[Role, Role, Role]>(
     crew.reduce(
       (acc, c) => {
@@ -121,6 +123,11 @@ export function Spectator({
     const wake = () => void audio.current?.resume();
     document.addEventListener("pointerdown", wake);
     document.addEventListener("keydown", wake);
+    // the start of a room (FR14): the board tips, then the camera settles on the whole room
+    const offIntro = socket.on("intro", (m) => {
+      const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      intro.current = { at: performance.now(), ms: m.ms, reduced };
+    });
     const off = socket.on("view", (m) => {
       view.current = m.view;
       hearCues(cueHold.current, cueCaptions(m.view.sounds), performance.now());
@@ -134,6 +141,7 @@ export function Spectator({
     }, 100);
     return () => {
       off();
+      offIntro();
       clearInterval(timer);
       document.removeEventListener("pointerdown", wake);
       document.removeEventListener("keydown", wake);
@@ -241,6 +249,12 @@ export function Spectator({
         spectator: true,
         noSelf: v.you.pos === undefined, // the whole room: nobody is followed
       };
+      const i = intro.current;
+      const f = i ? introAt(performance.now() - i.at, i.reduced, i.ms) : null;
+      if (f && !f.done) {
+        scene.rise = f.rise;
+        scene.swoop = f.swoop;
+      }
       draw(ctx, scene);
     };
     raf = requestAnimationFrame(loop);

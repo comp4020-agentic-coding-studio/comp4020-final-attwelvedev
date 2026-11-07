@@ -1281,17 +1281,55 @@ describe("the world rises (FR25)", () => {
     ).toBe(true);
   });
 
-  it("halfway is between: a wall half its height", () => {
+  it("halfway is between: a wall grows by its row, north first (row 2 of 5 is at 0.55)", () => {
     const half = frontOf(room(0.5)).map((o) => o.args[3] as number);
     const cam = camera(room(0.5));
-    expect(half.some((h) => Math.abs(h - (TILT.wall * 0.5 * cam.scale + 0.5)) < 1e-6)).toBe(true);
+    // riseRow(y) = rise × 1.5 − 0.5 × y / rows: 0.75 − 0.2
+    expect(half.some((h) => Math.abs(h - (TILT.wall * 0.55 * cam.scale + 0.5)) < 1e-6)).toBe(true);
   });
 
-  it("fades Can't see's own figure in as the world rises, over the first 400 ms of 900", () => {
-    const body = (rise: number) => {
+  it("during the tilt, a wall in row 0 is taller than one in the last row", () => {
+    const s = scene({
+      layout: "fit",
+      w: 500,
+      h: 400,
+      tiles: grid(8, 6, [
+        [2, 0],
+        [2, 7],
+      ]),
+      entities: [],
+      rise: 0.4,
+    });
+    const fronts = frontOf(s).map((o) => o.args[3] as number);
+    expect(fronts).toHaveLength(2);
+    const [north, south] = fronts as [number, number];
+    expect(north).toBeGreaterThan(south + 1);
+    // and both are full height once risen
+    const risen = frontOf({ ...s, rise: 1 }).map((o) => o.args[3] as number);
+    expect(risen[0]).toBeCloseTo(risen[1] as number, 6);
+  });
+
+  it("at swoop 0 the camera is fit and at swoop 1 follow, whatever the rise", () => {
+    const at = (rise: number, swoop: number) =>
+      camera({ ...scene({ w: 400, h: 300 }), rise, swoop });
+    for (const rise of [0, 0.5, 1]) {
+      const fit = camera({ ...scene({ w: 400, h: 300, layout: "fit" }), rise });
+      const follow = camera({ ...scene({ w: 400, h: 300 }), rise });
+      expect(at(rise, 0), `rise ${rise}, swoop 0`).toEqual(fit);
+      expect(at(rise, 1), `rise ${rise}, swoop 1`).toEqual(follow);
+    }
+    // halfway through the swoop the camera is between the two
+    const mid = at(1, 0.5).scale;
+    const ends = [at(1, 0).scale, at(1, 1).scale].sort((a, b) => a - b) as [number, number];
+    expect(mid).toBeGreaterThan(ends[0]);
+    expect(mid).toBeLessThan(ends[1]);
+  });
+
+  it("fades Can't see's own figure in over the land", () => {
+    const body = (landing: number) => {
       const { ctx, ops } = recorder();
       draw(ctx, {
-        ...scene({ role: "blind", seat: 0, tiles: null, entities: [], self: null, rise }),
+        ...scene({ role: "blind", seat: 0, tiles: null, entities: [], self: null, landing }),
         own: { facing: { x: 1, y: 0 }, moving: false, blocked: false },
       });
       return (
@@ -1300,9 +1338,33 @@ describe("the world rises (FR25)", () => {
       );
     };
     expect(body(0)).toBeLessThan(0.01);
-    expect(body(0.2)).toBeGreaterThan(0.01);
-    expect(body(0.2)).toBeLessThan(0.4);
+    expect(body(0.5)).toBeGreaterThan(0.01);
+    expect(body(0.5)).toBeLessThan(0.4);
     expect(body(1)).toBeCloseTo(0.4, 9);
+  });
+
+  it("hops your own figure up as you land, and not the others", () => {
+    const own = (landing: number | undefined) => {
+      const { ctx, ops } = recorder();
+      const s = scene({
+        layout: "fit",
+        w: 400,
+        h: 400,
+        nowMs: 0,
+        ...(landing === undefined ? {} : { landing }),
+      });
+      draw(ctx, s);
+      const ys = (color: string) =>
+        ops
+          .filter((o) => o.name === "roundRect" && o.fillStyle === color)
+          .map((o) => o.args[1] as number);
+      return { mine: ys(ROLE_COLOR.deaf)[0] as number, theirs: ys(ROLE_COLOR.mute)[0] as number };
+    };
+    const still = own(undefined);
+    const mid = own(0.5);
+    expect(mid.mine).toBeLessThan(still.mine - 1);
+    expect(mid.theirs).toBeCloseTo(still.theirs, 6);
+    expect(own(1).mine).toBeCloseTo(still.mine, 6);
   });
 });
 

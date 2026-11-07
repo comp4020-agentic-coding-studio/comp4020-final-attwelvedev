@@ -2,7 +2,7 @@ import type { EntityView } from "../../net/protocol.ts";
 import { COLOR, WORLD } from "../tokens.ts";
 import { block } from "./blocks.ts";
 import type { Scene } from "./index.ts";
-import { type Camera, LIVE, toScreen } from "./project.ts";
+import { type Camera, LIVE, toScreen, wallAt } from "./project.ts";
 
 // The bell rope, the lamp switch and the hatch (spec §4.1). The bell swings ±15° three times in
 // 1.2 s when rung (a static tilt under reduced motion); the lamp's light is in the HUD, not here.
@@ -14,15 +14,16 @@ const SWING_MS = 1200;
 // bodies and sound do not (the server's rules, ADR 0012).
 export function drawHatch(ctx: CanvasRenderingContext2D, x: number, y: number, cam: Camera) {
   const s = cam.scale;
-  const sill = LIVE.wall * 0.4;
+  const tall = wallAt(y); // the hatch grows with its row's walls as the board tips
+  const sill = tall * 0.4;
   block(ctx, cam, { x, y, w: 1, d: 1, h: sill }, WORLD.wallTop, WORLD.wallFront);
   // the lintel: a beam across the top, standing on two posts
-  const top = toScreen(cam, x, y, LIVE.wall);
+  const top = toScreen(cam, x, y, tall);
   const post = Math.max(3, s * 0.1);
-  const lintel = toScreen(cam, x, y + 1, LIVE.wall);
+  const lintel = toScreen(cam, x, y + 1, tall);
   ctx.fillStyle = WORLD.wallFront;
-  ctx.fillRect(lintel.x, lintel.y, post, (LIVE.wall - sill) * s);
-  ctx.fillRect(lintel.x + s - post, lintel.y, post, (LIVE.wall - sill) * s);
+  ctx.fillRect(lintel.x, lintel.y, post, (tall - sill) * s);
+  ctx.fillRect(lintel.x + s - post, lintel.y, post, (tall - sill) * s);
   ctx.fillStyle = WORLD.wallTop;
   ctx.fillRect(top.x, top.y, s + 0.5, s * LIVE.depth * 0.35);
   ctx.fillStyle = WORLD.wallFront;

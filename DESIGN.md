@@ -108,7 +108,7 @@ by room (never lilac); the room's `hue` meta picks it, defaulting to rose: `setH
 | `--w-card` | Card faces: the safe's dial, the radio's band, gear mats | built |
 | `--w-dye-pink`, `--w-dye-mint`, `--w-dye-sky` | The dye pack's splats | built |
 
-**Materials** (built, Tasks 104 and 105; ADR 0026 `proposed`): light comes from the north-west, and every tone is a world token mixed toward white or black (`mix` in `src/client/tokens.ts`), so no material brings a colour of its own. The painters are in `src/client/render/materials.ts`: stone flags in four tones with a 1.5 px `--w-seam` groove, a lit lip south-east of it and a faint speckle (boards in rooms 04 and 08, `FLOOR_OF`); a soft `--w-wall-shade` shade (at most 16 %) on the floor at a wall's foot; a wall top graded from its lit north-west corner with a bright lip along its south edge; a wall front darker toward the foot with a 1 px bevel along its top. The backdrop adds a sun glow in the top-left corner, three strata across the cliff, a `--w-ripple` foam line with a white crest where the cliff meets the water, and a still reflection of the slab at 12 %. Floor and wall tiles are painted once into a per-tile **atlas** (`src/client/render/atlas.ts`) at the frame's device scale and copied after, except while the world rises or dusk is blending; `pnpm bench:frame --compare` holds the frame time to the committed baseline. **High contrast draws none of it**: today's flat fills only. Mist, night, cones and labels stay flat.
+**Materials** (built, Tasks 104 and 105; ADR 0026 `proposed`): light comes from the north-west, and every tone is a world token mixed toward white or black (`mix` in `src/client/tokens.ts`), so no material brings a colour of its own. The painters are in `src/client/render/materials.ts`: stone flags in four tones with a 1.5 px `--w-seam` groove, a lit lip south-east of it and a faint speckle (boards in rooms 04 and 08, `FLOOR_OF`); a soft `--w-wall-shade` shade (at most 16 %) on the floor at a wall's foot; a wall top graded from its lit north-west corner with a bright lip along its south edge; a wall front darker toward the foot with a 1 px bevel along its top. The backdrop adds a sun glow in the top-left corner, three strata across the cliff, a `--w-ripple` foam line with a white crest where the cliff meets the water, and a still reflection of the slab at 12 %. Floor and wall tiles are painted once into a per-tile **atlas** (`src/client/render/atlas.ts`) at the frame's device scale and copied after, except while the board tips at the start of a room or dusk is blending; `pnpm bench:frame --compare` holds the frame time to the committed baseline. **High contrast draws none of it**: today's flat fills only. Mist, night, cones and labels stay flat.
 
 **The alarm's dusk set** (built, Task 18): `--dusk-sky-hi`, `--dusk-sky-lo`, `--dusk-water`, `--dusk-water-deep`, `--dusk-wall-top`, `--dusk-wall-front`, `--dusk-wall-shade`, `--dusk-floor`, `--dusk-floor-front` and `--dusk-seam` replace the day colours over about 600 ms while the alarm is on (instant under reduced motion or with no clock). Lasers, role colours and Show items do not change. **High contrast** (built): black sky and water, near-black floor, white walls, and the shell's own set; `setContrast` in `src/client/tokens.ts` swaps the canvas's copy, and dusk steps aside while it is on. The mist is half black. A 3 px outline on interactables is still to draw.
 
@@ -166,14 +166,22 @@ a symbol into copy; it would fall back to another font and look wrong.
   A door that opens off screen: a pill in the door's colour with "Door", no role shape, 4 s (ADR 0025).
   Two pills toward nearby places never touch: a later one steps along its edge until 18 px clear of the others (48 px between centres).
 
-### 4.5 The world rises (built, Task 21)
+### 4.5 The start of a room (built, Task 109)
 
-When everyone is ready the game starts underneath the reveal and **rises**: over 900 ms, ease-out, depth goes from a full tile to 0.82 and every wall, block and door grows from no height to its own, while the camera eases from the whole room to the game camera. The reveal stays over it as the same element (its flat backdrop keeps drawing, nothing remounts), and its card, scrim and blur fade away over the same 900 ms. The cover takes no clicks and is `inert`.
+When everyone is ready the server sends `intro` and holds its first tick for 2400 ms (`INTRO_MS`), so the clock, the guards and the bots start when it ends. Meanwhile every page plays the staged start under the reveal (`introAt` in `src/client/intro.ts`):
 
-- **Reduced motion:** no rise frames. The world is whole at once and the reveal cross-fades away over 300 ms.
-- **Can't see** has no world to rise: their screen is black throughout, and their dimmed figure fades in over the first 400 ms.
-- A page that loads mid-game (a reload) does not rise; it is simply there.
-- `Scene.rise` (0 to 1) drives it; `LIVE` in `src/client/render/project.ts` is the projection a frame draws with, and `TILT` is the finished one.
+1. **Hold**, 300 ms: the flat plan, as the reveal showed it.
+2. **Tilt**, 900 ms, ease in-out: depth goes from a full tile to 0.82 and the walls grow from no height **north to south** (row 0 is whole at two thirds of the tilt, the last row at its end; doors, hatches, glass and vents grow with their row).
+3. **Swoop**, 900 ms, ease in-out: the camera flies from the whole room to the game camera on you. It starts only once the board has tipped.
+4. **Land**, 300 ms: your own figure hops once (a quarter of a tile) and one small `--ui` ring opens at your feet (`targetId: "landed"`, one of the two rings FR16 allows).
+
+The reveal stays over it as the same element (its flat backdrop keeps drawing, nothing remounts), and its card, scrim and blur fade away over the hold and the tilt. The cover takes no clicks and is `inert`. Input is locked until the land ends (`.game[data-intro="playing" | "done"]`). A passed room restart replays it from the flat plan.
+
+- **Reduced motion:** no tilt, swoop or hop frames. The 300 ms hold, then the cover cross-fades away over 300 ms; the land's ring is not drawn.
+- **Can't see** has no world to watch: their screen is black throughout, and their dimmed figure fades in over the land.
+- **Spectators** get the tilt; their camera already shows the whole room (or follows on a phone), so the swoop settles there.
+- A page that loads mid-game (a reload) has no start; it is simply there.
+- `Scene.rise`, `Scene.swoop` and `Scene.landing` (each 0 to 1) drive it; `LIVE` in `src/client/render/project.ts` is the projection a frame draws with (`wallAt(y)` the wall height of row y), and `TILT` is the finished one. The timeline scales to the server's `ms`, so `INTRO_MS=0` is done at once.
 
 ### 4.6 Labels (built, Task 22)
 
@@ -278,7 +286,7 @@ pattern and outline), `turnPad` (a floor pad with its arrow), `symbolGlyph` (a v
 | Reveal shape pops | 400 ms; a role swap morphs over 600 ms |
 | Live light | pulses once a second |
 | Alarm | a steady border and banner, a pulse of about 1 Hz |
-| World rises (planned, Task 21) | 900 ms; reduced motion 300 ms cross-fade |
+| Start of a room | 300 ms hold, 900 ms tilt, 900 ms swoop, 300 ms land (2.4 s); reduced motion: the hold, then a 300 ms cross-fade |
 | Dusk palette | 600 ms; instant under reduced motion |
 | Secret door (chamber or vault) | slides into the floor over 600 ms with a dust puff; reduced motion: a 300 ms cross-fade, no slide; the dust only fades |
 | Keepsake taken | the item lifts off its plinth and fades over 1 s with a spark burst and a `--goal` ring; reduced motion: it fades in place |
@@ -294,7 +302,7 @@ pattern and outline), `turnPad` (a floor pad with its arrow), `symbolGlyph` (a v
 | `join` / `leave` | two triangle notes, rising (C5 then G5) for a join, falling for a leave | the joined row's glow (below); a leave has the row going |
 | `reveal` | three rising sines (E4, B4, E5) when your role appears | the reveal card itself |
 | `ready` | one soft high sine (880 Hz), when a teammate (not you) is ready | the crew row's "Ready" mark pulses once |
-| `all-ready` | four rising triangle notes ending on C6, as the game rises | the world rising out of the reveal |
+| `all-ready` | four rising triangle notes ending on C6, as the room starts | the start of the room under the reveal |
 
 **Row glow and ready pulse:** a lobby row that has just joined gets a 2 px `--ui` outline, inset so it never reaches the row below, fading over 1 s; the crew row's state mark scales down from 1.25 over 1 s once. Under reduced motion neither animates: the glow is a still outline for 1 s and the pulse a still outline.
 

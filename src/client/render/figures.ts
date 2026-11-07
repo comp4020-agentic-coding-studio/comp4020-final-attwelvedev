@@ -10,8 +10,7 @@ import { floorRing, shapePath } from "./shared.ts";
 
 const BODY_H = 0.95; // tiles, foot to crown of the pill
 const BODY_W = 0.62;
-const RISE_MS = 900; // the world rising out of the reveal (FR25)
-const BLIND_FADE_MS = 400; // Can't see's figure fades in over the first part of it
+const LAND_HOP = 0.25; // your own figure's hop as you land at the start of a room, in tiles
 const HOP_HZ = 2.5; // a hop is sin(t * 2π * 2.5) * 2 px
 const HOP_PX = 2;
 const DUST_MS = 250; // a puff every quarter second
@@ -79,7 +78,12 @@ function figure(
   const lift = moving
     ? Math.abs(Math.sin((scene.nowMs / 1000) * Math.PI * 2 * HOP_HZ)) * HOP_PX
     : 0;
-  const at = { x: foot.x, y: foot.y - lift };
+  // landing at the start of a room: your own figure hops once (an arc up and back down)
+  const landing = who.isSelf && scene.landing !== undefined && !scene.reducedMotion;
+  const hop = landing
+    ? Math.sin(Math.max(0, Math.min(1, scene.landing ?? 1)) * Math.PI) * LAND_HOP * s
+    : 0;
+  const at = { x: foot.x, y: foot.y - lift - hop };
   const horizontal = Math.abs(pose.facing.x) >= Math.abs(pose.facing.y);
   ctx.save();
   if (animated(scene) && pose.pushing) {
@@ -292,9 +296,9 @@ export function drawPlayer(
 export function drawOwnBlind(ctx: CanvasRenderingContext2D, scene: Scene, own: Motion) {
   const s = MAP.phoneTilePx * 2;
   const foot = { x: scene.w / 2, y: scene.h / 2 + s * BODY_H * 0.5 };
-  // Can't see's screen is black from the start; their figure fades in over the first 400 ms of the
-  // 900 ms rise, so the room they never see rises behind a black veil and not in front of one
-  const arrive = Math.min(1, (scene.rise ?? 1) / (BLIND_FADE_MS / RISE_MS));
+  // Can't see's screen is black from the start; their figure fades in as they land, so the room they
+  // never see tips and swoops behind a black veil and not in front of one
+  const arrive = Math.max(0, Math.min(1, scene.landing ?? 1));
   ctx.save();
   ctx.globalAlpha = 0.4 * arrive;
   figure(

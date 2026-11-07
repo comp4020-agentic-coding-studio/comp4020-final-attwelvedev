@@ -3,6 +3,7 @@ import type { Duplex } from "node:stream";
 import { type RawData, type WebSocket, WebSocketServer } from "ws";
 import { cleanText } from "../game/channels.ts";
 import { cuesIn } from "../game/cues.ts";
+import { INTRO_TOTAL } from "../game/intro.ts";
 import { cacheFor, spectatorView, viewFor } from "../game/perception.ts";
 import type { Room } from "../game/rooms/format.ts";
 import { loadRooms } from "../game/rooms/load.ts";
@@ -106,6 +107,7 @@ interface Running {
   timer: ReturnType<typeof setInterval> | null;
   pauseTimer: ReturnType<typeof setTimeout> | null; // the end of a dropped seat's time
   voteTimer: ReturnType<typeof setTimeout> | null; // the end of an open restart vote's time
+  introTimer: ReturnType<typeof setTimeout> | null; // the end of the start's hold (FR14): then it ticks
   // Banked as each room is cleared, one entry a room (a replayed room replaces its earlier clear),
   // so the heist run saved after the last room is the whole heist's time and loot, not just the
   // last room's, and nothing is counted twice.
@@ -285,13 +287,22 @@ function sendRevealViews(code: string): void {
   }
 }
 
-// Ticks once all three are ready, and again after a restart of a cleared room.
+// Ticks once all three are ready, and again after a restart of a cleared room. First everyone gets
+// `intro` and the first tick waits INTRO_FOR while the start of the room plays (FR14), so the clock,
+// the guards and the bots start when it ends.
 function runIfReady(code: string, running: Running): void {
-  if (running.game.ready.size < 3 || running.timer) return;
+  if (running.game.ready.size < 3 || running.timer || running.introTimer) return;
   if (running.game.world.status !== "playing") return;
   const lobby = registry.lobbies.get(code);
-  if (lobby) markPlayed(running.game, lobby); // from here the crew has played this room
-  running.timer = setInterval(() => tick(code), TICK_MS);
+  if (lobby) {
+    markPlayed(running.game, lobby); // from here the crew has played this room
+    const msg: ServerMsg = { t: "intro", ms: INTRO_FOR };
+    for (const who of [...humansOf(lobby), ...watchersOf(lobby)]) hub.sendTo(who, msg);
+  }
+  running.introTimer = setTimeout(() => {
+    running.introTimer = null;
+    running.timer = setInterval(() => tick(code), TICK_MS);
+  }, INTRO_FOR);
 }
 
 function tick(code: string): void {
@@ -414,6 +425,8 @@ function tick(code: string): void {
 
 function stopGame(running: Running): void {
   if (running.timer) clearInterval(running.timer);
+  if (running.introTimer) clearTimeout(running.introTimer);
+  running.introTimer = null;
   if (running.pauseTimer) clearTimeout(running.pauseTimer);
   if (running.voteTimer) clearTimeout(running.voteTimer);
   running.timer = null;
@@ -473,6 +486,11 @@ function askNextEmpty(code: string): void {
 
 // Read once, so a spec can run against a short vote.
 const VOTE_FOR = Number(process.env.VOTE_MS) > 0 ? Number(process.env.VOTE_MS) : VOTE_MS;
+// INTRO_MS: the same kind of seam for the start's hold (R3). `pnpm start:check` sets it to 0.
+const INTRO_FOR =
+  process.env.INTRO_MS !== undefined && Number(process.env.INTRO_MS) >= 0
+    ? Number(process.env.INTRO_MS)
+    : INTRO_TOTAL;
 
 function voteMsg(game: Game, lobby: LobbyState): ServerMsg | null {
   const vote = game.vote;
@@ -514,10 +532,15 @@ function endVote(code: string, result: "passed" | "declined" | "timeout", by?: s
   if (acted === "room") {
     record("room.start", null, lobby, { room: running.game.world.room.id });
     running.full = new Set([0, 1, 2]);
-    runIfReady(code, running); // a cleared room that was restarted has everyone ready already
+    // the restarted room starts afresh: its start plays again and its first tick waits for it (FR14)
+    if (running.timer) clearInterval(running.timer);
+    running.timer = null;
+    runIfReady(code, running); // a restarted room has everyone ready already
   } else if (acted === "heist") {
     if (running.timer) clearInterval(running.timer);
     running.timer = null;
+    if (running.introTimer) clearTimeout(running.introTimer);
+    running.introTimer = null;
     running.heist = emptyHeist();
     running.full = new Set([0, 1, 2]);
     record("room.start", null, lobby, { room: running.game.world.room.id });
@@ -852,6 +875,7 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
           timer: null,
           pauseTimer: null,
           voteTimer: null,
+          introTimer: null,
           heist: emptyHeist(),
         });
         announceRoom(lobby.code);

@@ -7,7 +7,7 @@
     "dev": "astro dev",
     "build": "astro build",
     "start": "node server.ts",
-    "start:check": "DATABASE_PATH=\"$(mktemp -d)/app.db\" node server.ts",
+    "start:check": "INTRO_MS=0 DATABASE_PATH=\"$(mktemp -d)/app.db\" node server.ts",
     "typecheck": "astro check",
     "lint": "biome check .",
     "format": "biome check --write .",

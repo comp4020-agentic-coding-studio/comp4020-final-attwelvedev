@@ -24,6 +24,7 @@ export interface Fx {
   item?: EntityView["item"];
   keep?: ItemId; // lift: the keepsake that was taken
   door?: true; // ring: an ordinary door opening, drawn wherever it is (ADR 0025 FR5)
+  targetId?: string; // what the effect is for, when it is not a thing in the room ("landed": the intro's land)
 }
 
 // How long an effect lives: the lift is longer than the rest, which last FX_MS.

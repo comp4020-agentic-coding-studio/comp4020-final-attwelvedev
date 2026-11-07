@@ -1,6 +1,7 @@
 // Shared setup for the game specs: three sockets in a started game.
 
 import { expect } from "vitest";
+import { INTRO_TOTAL } from "../src/game/intro.ts";
 import type { RoleView } from "../src/game/perception.ts";
 import type { Role, Seat } from "../src/game/types.ts";
 import { connect, type Socket } from "./ws.ts";
@@ -66,12 +67,13 @@ export const byRole = (players: Player[], role: Role): Player => {
   return found;
 };
 
-export const nextView = async (p: Player, timeoutMs = 2000): Promise<RoleView> =>
+export const nextView = async (p: Player, timeoutMs = INTRO_TOTAL + 2000): Promise<RoleView> =>
   (await p.socket.next<{ t: "view"; view: RoleView }>("view", timeoutMs)).view;
 
 // A reveal is sent a view of the room at tick 0, to draw behind its card. "The game is running" is a
 // view from a later tick, so specs that mean that ask for it by name.
-export async function nextTick(socket: Socket, timeoutMs = 2000): Promise<RoleView> {
+// The default waits out the start of a room (FR14): CI runs the app with the real hold (R3).
+export async function nextTick(socket: Socket, timeoutMs = INTRO_TOTAL + 2000): Promise<RoleView> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     const { view } = await socket.next<{ t: "view"; view: RoleView }>(
