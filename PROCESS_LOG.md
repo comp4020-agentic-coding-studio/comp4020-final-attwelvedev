@@ -1430,3 +1430,40 @@ a scripted break that asserted the text it replaced.
 - **The unlit sconce.** The break check lit the watch-house sconce and two cases went red.
 
 (Nobody corrected anything overnight: no Corrections-log entries.)
+
+## 2026-11-08 — A bell that rang for one tick (auto fixes 2, Task 220)
+
+c11d0a3
+
+A verified review said a rung bell swung for 50 ms: the server sends `state: "on"`
+for the pull tick only, and `drawBell` zeroed the swing whenever the state was not
+"on", which also hid the reduced-motion tilt. The obvious patch was to hold the
+state on the server for longer, which would change the view's contract for every
+role. The bell's own 1.2 s fx already carries the ring to every sighted seat, so
+the fx now drives the motion. A test with no `state` and a live fx went red at
+250 ms first, and a scripted break that put the state gate back turned it red
+again. A bench still shows the bell mid-swing (queued for review).
+
+## 2026-11-08 — A door's opening drawn over everyone south of it (auto fixes 2, Task 221)
+
+72ffe43
+
+Ordinary door openings were drawn after the whole row loop, so ADR 0025 FR5's
+"wherever the door is" had become "over everything". FR5 asks only that the
+opening is not cut by sight or light. The opening now draws in its own row,
+unclipped. An op-order test measured the figure's body (its pill), not its
+shadow, against the last leaf: 687 against 740 before the fix, and the break
+check reproduced exactly those numbers.
+
+## 2026-11-08 — Decor that differed between seats (auto fixes 2, Task 222)
+
+9ab08c6
+
+One seeded stream in reading order meant any masked cell (night for a sighted seat,
+not for a spectator) shifted every later item: room 08's spectator saw extra
+pictures far from the night. Each wall face now rolls its own dice. The plan's own
+pure test could not fail on the old code, because a floor cell far from a wall
+changes no eligibility; it was moved beside a wall, with a 3-tile reach
+(NEAR + APART - 1) instead of the plan's 2, and shown red before it was trusted.
+The running cap became a test over the shipped rooms, and seven salts were
+re-picked against R2.
