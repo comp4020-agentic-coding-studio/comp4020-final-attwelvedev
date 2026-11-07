@@ -1080,6 +1080,7 @@ function Hud({
   // each role appears once in a crew, so the seat that has this page's role is this page's seat
   const me = reveal.crew.find((c) => c.role === role)?.seat ?? 0;
   const label = ROLE_LABEL[role];
+  const roomTitle = `Room ${reveal.index + 1} of ${reveal.rooms}: ${reveal.name}`;
   return (
     <div class="game" ref={root} style={{ "--frame": `var(--role-${role})` }}>
       <h1 class="sr-only">
@@ -1110,6 +1111,15 @@ function Hud({
           ))}
         </ul>
         {role !== "blind" && <LampLight from={lamp} />}
+        <span class="hud-room hud-room-game" aria-hidden="true">
+          <span class="hud-room-long">
+            {reveal.index + 1} · {reveal.name}
+          </span>
+          <span class="hud-room-short">
+            {reveal.index + 1}/{reveal.rooms}
+          </span>
+        </span>
+        <span class="sr-only">{roomTitle}</span>
         <span class="hud-clock" role="timer" aria-label="Time">
           {clock}
         </span>
@@ -1138,6 +1148,7 @@ function Hud({
           )}
         </span>
         <HudMenu
+          title={roomTitle}
           onAsk={ask}
           onLeave={onLeave}
           settings={

@@ -426,6 +426,24 @@ body.playing main {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* the game's room label beside the clock: it shares the watcher's ellipsis but takes only its own
+   width, so the crew keeps the spare room. "4 · The Safe" from 720 px, "4/9" below */
+.hud-room-game {
+  flex: 0 1 auto;
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+}
+.hud-room-long {
+  display: none;
+}
+@media (min-width: 720px) {
+  .hud-room-long {
+    display: inline;
+  }
+  .hud-room-short {
+    display: none;
+  }
+}
 .hud-clock,
 .hud-loot {
   font-variant-numeric: tabular-nums;
@@ -940,6 +958,11 @@ fieldset.settings {
   border-radius: var(--r-lg);
   font-stretch: 100%;
   font-weight: 400;
+}
+.hud-menu-title {
+  margin: 0;
+  color: var(--ui-muted);
+  font-size: var(--t-14);
 }
 .hud-menu-panel > .hud-btn,
 .hud-menu-panel > .hud-btn.danger {

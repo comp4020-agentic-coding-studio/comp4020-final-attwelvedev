@@ -53,3 +53,15 @@ open `http://localhost:8092` (three tabs, or one tab and bots).
 - **My judgement:** folded, the card is the goal, one sentence and the button, then Can't see's
   sounds and I'm ready, and it reads as calm. Open, the table fits at 375 with nothing clipped. Pass,
   pending your sign-off.
+
+### fm2 Task 6: the room in the HUD
+
+- **Look at:** the game's top bar at desktop: "1 · First Steps" in muted 14 px left of the timer. On a
+  phone: "1/9" in the same place. Open the menu (≡): its first line reads "Room 1 of 9: First Steps".
+- **How:** `pnpm build && PORT=8092 pnpm start:check`, open `http://localhost:8092`, start a team, join
+  from a phone (or devtools touch at 375 × 812) and a third tab, Start, everyone presses I'm ready.
+- **Screenshots:** `review/n7-fm-task6-hud-1280.png`, `review/n7-fm-task6-hud-375.png`,
+  `review/n7-fm-task6-hud-menu-375.png`
+- **My judgement:** legible and clear of the timer at both widths. On a phone the bar keeps its two
+  lines (crew, label, clock and loot, then Live and the menu), with nothing clipped. Pass, pending
+  your sign-off.

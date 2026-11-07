@@ -252,7 +252,8 @@ Reuse these before drawing something new. The test checks each name exists.
 - `TalkBar`: Enter to write, V or the mic to talk; roles that can't send say why instead of showing a dead button.
 - `Captions`: what was said and what the room sounds like, with the sender's shape and name and a `DirArrow` where the sound came from. A polite live region.
 - `Connection`: the live light: a shape and words ("Live", "Weak 180 ms", "Offline"), never colour alone.
-- `HudMenu`: the menu: settings, the restart proposals, Leave.
+- `HudMenu`: the menu: its first line names the room in full ("Room 4 of 9: The Safe", muted, 14 px), then settings, the restart proposals, Leave.
+- The game's top bar names the room left of the clock (`.hud-room-game`, muted, 14 px, ellipsis): "4 · The Safe" from 720 px, "4/9" below it; screen readers hear "Room 4 of 9: The Safe".
 - `VotePrompt`: the vote card at the top of the map, not an overlay, so people keep moving; each voter named, the time as a bar and a number.
 - `LeaveGuard`: the glass modal that asks before leaving the lobby; the browser's own prompt covers a tab close.
 - `SpectatorChat`: the watchers' room (text and voice); players never see it.

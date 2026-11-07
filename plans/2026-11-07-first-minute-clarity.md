@@ -112,7 +112,7 @@ Each new or changed promise-guarding assertion is shown red first, with a break 
   - Acceptance: demo 9. "No overflow and no axe violations for each role, host and guest" (line 638) stays green, both folded and open.
   - Depends on: Task 2 (the role line sits under its goal line).
 
-- [ ] **Task 6: The room in the HUD**
+- [x] **Task 6: The room in the HUD**
   - Files: `src/components/Game.tsx`: in `<header class="hud-top">` (line 1015), before `<span class="hud-clock">` (line 1040), add `<span class="hud-room">` with "{reveal.index + 1} · {reveal.name}" in a span shown at 720 px and up, and "{reveal.index + 1}/{reveal.rooms}" in a span shown below it, using `aria-hidden` on the visible text plus an `sr-only` "Room N of M: Name". Pass "Room {reveal.index + 1} of {reveal.rooms}: {reveal.name}" to `HudMenu` as a new optional `title?: string` prop, rendered as the open menu's first line (`src/components/HudMenu.tsx`, props at lines 7–19). `src/styles/game.css`: `.hud-room` beside `.hud-clock` (line 381), `--t-14`, muted, ellipsis on overflow. The class name is unique in the game; `Spectator.tsx` already uses `hud-room` for "Watching {roomName}", so check first whether it shares the style, and reuse it if it does.
   - Tests first, in `spec/layout/hud.test.ts`:
     - (a) at 1280 every role's top bar contains "1 · First Steps"
