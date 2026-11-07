@@ -8,7 +8,12 @@ import {
   type FloorKind,
   floorVariant,
   paintAo,
+  paintCrate,
+  paintCrateShadow,
+  paintDoor,
   paintFloor,
+  paintGlass,
+  paintVent,
   paintWallFront,
   paintWallTop,
 } from "./materials.ts";
@@ -94,45 +99,27 @@ export function wall(
   );
 }
 
-// Glass: a wall you can see through. Translucent top and front with two glints.
+// Glass: a wall you can see through. Graded translucent top and front, a sheen band and two glints,
+// and the outline. A static tile, so from the atlas once the world has settled.
 export function glass(ctx: CanvasRenderingContext2D, cam: Camera, x: number, y: number) {
   const s = cam.scale;
-  const top = toScreen(cam, x, y, LIVE.wall);
-  const frontY = toScreen(cam, x, y + 1, LIVE.wall).y;
-  ctx.save();
-  ctx.globalAlpha = 0.55;
-  ctx.fillStyle = WORLD.glass;
-  ctx.fillRect(top.x, top.y, s + 0.5, s * LIVE.depth + 0.5);
-  ctx.globalAlpha = 0.7;
-  ctx.fillStyle = WORLD.glassFront;
-  ctx.fillRect(top.x, frontY, s + 0.5, LIVE.wall * s + 0.5);
-  ctx.globalAlpha = 0.85;
-  ctx.strokeStyle = COLOR.ui;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  for (const [dx, len] of [
-    [0.28, 0.5],
-    [0.5, 0.25],
-  ] as const) {
-    ctx.moveTo(top.x + s * dx + s * 0.18, frontY + s * 0.15);
-    ctx.lineTo(top.x + s * dx, frontY + s * 0.15 + s * len);
-  }
-  ctx.stroke();
-  // the outline marks it interactive-looking-but-solid: you cannot walk through
-  ctx.globalAlpha = 1;
-  ctx.strokeStyle = WORLD.line;
-  ctx.strokeRect(top.x + 1, frontY, s - 2, LIVE.wall * s);
-  ctx.restore();
+  const d = s * LIVE.depth;
+  const h = LIVE.wall * s;
+  const t = toScreen(cam, x, y, LIVE.wall);
+  drawTile(ctx, s, "glass", t.x, t.y, s + 0.5, d + h + 0.5, (c, ox, oy) =>
+    paintGlass(c, s, d, h, ox, oy),
+  );
 }
 
-// A vent: an opaque slatted wall. Sight stops at it, sound goes through.
+// A vent: an opaque slatted wall of brushed steel. Sight stops at it, sound goes through.
 export function vent(ctx: CanvasRenderingContext2D, cam: Camera, x: number, y: number) {
   const s = cam.scale;
-  block(ctx, cam, { x, y, w: 1, d: 1, h: LIVE.wall }, WORLD.vent, WORLD.ventFront);
-  const f = toScreen(cam, x, y + 1, LIVE.wall);
-  ctx.fillStyle = WORLD.ventSlat;
-  for (let i = 1; i <= 4; i++)
-    ctx.fillRect(f.x + s * 0.15, f.y + (LIVE.wall * s * i) / 5 - 1, s * 0.7, 2);
+  const d = s * LIVE.depth;
+  const h = LIVE.wall * s;
+  const t = toScreen(cam, x, y, LIVE.wall);
+  drawTile(ctx, s, "vent", t.x, t.y, s + 0.5, d + h + 0.5, (c, ox, oy) =>
+    paintVent(c, s, d, h, ox, oy),
+  );
 }
 
 // Flat things lying on the floor: plates, the exit, hide spots, an open door's slot, the sign.
@@ -273,10 +260,8 @@ export function drawStanding(
   const s = cam.scale;
   if (e.kind === "door") {
     const box = { x: e.pos.x - 0.5, y: e.pos.y - 0.5, w: 1, d: 1, h: LIVE.block };
-    block(ctx, cam, box, WORLD.door, WORLD.doorFront);
-    const f = toScreen(cam, box.x, box.y + 1, LIVE.block);
-    ctx.fillStyle = WORLD.doorSeam;
-    ctx.fillRect(f.x + s / 2 - 1, f.y, 2, LIVE.block * s);
+    const t = toScreen(cam, box.x, box.y, box.h);
+    paintDoor(ctx, s, s * LIVE.depth, LIVE.block * s, t.x, t.y);
   } else if (e.kind === "crate") {
     const inset = 0.08;
     const box = {
@@ -286,16 +271,11 @@ export function drawStanding(
       d: 1 - inset * 2,
       h: LIVE.block,
     };
-    block(ctx, cam, box, WORLD.crate, WORLD.crateFront);
-    const f = toScreen(cam, box.x, box.y + box.d, LIVE.block);
-    ctx.strokeStyle = WORLD.crateBrace;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(f.x, f.y);
-    ctx.lineTo(f.x + box.w * s, f.y + LIVE.block * s);
-    ctx.moveTo(f.x + box.w * s, f.y);
-    ctx.lineTo(f.x, f.y + LIVE.block * s);
-    ctx.stroke();
+    // its shadow on the floor under it, before the body
+    const foot = toScreen(cam, box.x + box.w / 2, box.y + box.d / 2);
+    paintCrateShadow(ctx, foot.x, foot.y, (box.w * s) / 2, (box.d * s * LIVE.depth) / 2, s);
+    const t = toScreen(cam, box.x, box.y, box.h);
+    paintCrate(ctx, box.w * s, box.d * s * LIVE.depth, LIVE.block * s, t.x, t.y);
   } else if (e.kind === "loot") {
     const bob =
       scene.reducedMotion || scene.nowMs === undefined ? 0 : Math.sin(scene.nowMs / 300) * 0.06;

@@ -1,4 +1,4 @@
-import { isHighContrast, mix, WORLD } from "../tokens.ts";
+import { COLOR, isHighContrast, mix, WORLD } from "../tokens.ts";
 
 // The world's materials (FR8): every tone is a world token mixed toward white or black, lit from the
 // north-west. Each painter draws one tile's face at (ox, oy) in CSS px, the same whether it paints into
@@ -165,5 +165,197 @@ export function paintWallFront(
   if (southOpen) {
     c.fillStyle = WORLD.wallShade;
     c.fillRect(ox, oy + h - 3, s + 0.5, 3);
+  }
+}
+
+// ---- Objects (phase 4) -------------------------------------------------------------------------
+// Each painter draws one object at its top face's corner (ox, oy), w wide, d deep on the floor's plane
+// and h tall on its front, all in CSS px. Each lays today's flat fills first; in high contrast that is
+// all there is (FR9). Information (an outline, the seam, the slat count, a brace) is kept as it was.
+
+// A door: two inset panels on each leaf, a sheen on its top and the seam down the middle.
+export function paintDoor(
+  c: CanvasRenderingContext2D,
+  w: number,
+  d: number,
+  h: number,
+  ox = 0,
+  oy = 0,
+): void {
+  c.fillStyle = WORLD.door;
+  c.fillRect(ox, oy, w + 0.5, d + 0.5);
+  c.fillStyle = WORLD.doorFront;
+  c.fillRect(ox, oy + d, w + 0.5, h + 0.5);
+  if (!isHighContrast()) {
+    const g = c.createLinearGradient(ox, oy, ox + w, oy + d); // 135°
+    g.addColorStop(0, mix(WORLD.door, WHITE, 0.25));
+    g.addColorStop(1, WORLD.door);
+    c.fillStyle = g;
+    c.fillRect(ox, oy, w + 0.5, d + 0.5);
+    const leaf = w / 2;
+    const pw = leaf - 6;
+    const ph = (h - 8) / 2;
+    for (let side = 0; side < 2; side++) {
+      for (let row = 0; row < 2; row++) {
+        const px = ox + side * leaf + 3;
+        const py = oy + d + 3 + row * (ph + 2);
+        c.fillStyle = mix(WORLD.doorFront, BLACK, 0.12);
+        c.fillRect(px, py, pw, ph);
+        c.fillStyle = mix(WORLD.door, WHITE, 0.3); // the bevel: a lit lip on the north-west
+        c.fillRect(px, py, pw, 1);
+        c.fillRect(px, py, 1, ph);
+      }
+    }
+  }
+  c.fillStyle = WORLD.doorSeam;
+  c.fillRect(ox + w / 2 - 1, oy + d, 2, h);
+}
+
+// A crate's drop shadow on the floor under it: an ellipse of the outline colour at 18 %, 0.08 tile
+// south-east. None in high contrast.
+export function paintCrateShadow(
+  c: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number,
+  tile: number,
+): void {
+  if (isHighContrast()) return;
+  c.save();
+  c.globalAlpha *= 0.18;
+  c.fillStyle = WORLD.line;
+  c.beginPath();
+  c.ellipse(cx + tile * 0.08, cy + tile * 0.08, rx, ry, 0, 0, Math.PI * 2);
+  c.fill();
+  c.restore();
+}
+
+// A crate: a top lit from the north-west, a front with three grain lines and its X brace.
+export function paintCrate(
+  c: CanvasRenderingContext2D,
+  w: number,
+  d: number,
+  h: number,
+  ox = 0,
+  oy = 0,
+): void {
+  c.fillStyle = WORLD.crate;
+  c.fillRect(ox, oy, w + 0.5, d + 0.5);
+  c.fillStyle = WORLD.crateFront;
+  c.fillRect(ox, oy + d, w + 0.5, h + 0.5);
+  if (!isHighContrast()) {
+    const g = c.createLinearGradient(ox, oy, ox + w, oy + d);
+    g.addColorStop(0, mix(WORLD.crate, WHITE, 0.3));
+    g.addColorStop(1, WORLD.crate);
+    c.fillStyle = g;
+    c.fillRect(ox, oy, w + 0.5, d + 0.5);
+    c.fillStyle = mix(WORLD.crateFront, WORLD.crateBrace, 0.4);
+    for (let i = 1; i <= 3; i++) c.fillRect(ox + 2, oy + d + (h * i) / 4 - 0.5, w - 4, 1);
+  }
+  c.strokeStyle = WORLD.crateBrace;
+  c.lineWidth = 2;
+  c.beginPath();
+  c.moveTo(ox, oy + d);
+  c.lineTo(ox + w, oy + d + h);
+  c.moveTo(ox + w, oy + d);
+  c.lineTo(ox, oy + d + h);
+  c.stroke();
+}
+
+// Glass: a translucent top and a front graded from 0.55 to 0.8 alpha downwards, a sheen band at 20°,
+// a bright top edge, two glints, and the outline that marks it solid.
+export function paintGlass(
+  c: CanvasRenderingContext2D,
+  s: number,
+  d: number,
+  h: number,
+  ox = 0,
+  oy = 0,
+): void {
+  const hc = isHighContrast();
+  c.save();
+  c.globalAlpha = 0.55;
+  c.fillStyle = WORLD.glass;
+  c.fillRect(ox, oy, s + 0.5, d + 0.5);
+  const fy = oy + d;
+  c.globalAlpha = hc ? 0.7 : 0.55;
+  c.fillStyle = WORLD.glassFront;
+  c.fillRect(ox, fy, s + 0.5, h + 0.5);
+  if (!hc) {
+    // the grade: the same colour again, thicker towards the foot (0.55 → about 0.8)
+    const g = c.createLinearGradient(0, fy, 0, fy + h);
+    g.addColorStop(0, `${WORLD.glassFront}00`);
+    g.addColorStop(1, WORLD.glassFront);
+    c.globalAlpha = 0.45;
+    c.fillStyle = g;
+    c.fillRect(ox, fy, s + 0.5, h + 0.5);
+    // the sheen band: 0.12 tile wide, leaning 20° from the vertical
+    const lean = Math.tan((20 * Math.PI) / 180) * h;
+    const bx = ox + s * 0.62;
+    c.globalAlpha = 0.18;
+    c.fillStyle = WHITE;
+    c.beginPath();
+    c.moveTo(bx + lean, fy);
+    c.lineTo(bx + lean + s * 0.12, fy);
+    c.lineTo(bx + s * 0.12, fy + h);
+    c.lineTo(bx, fy + h);
+    c.closePath();
+    c.fill();
+    c.globalAlpha = 1;
+    c.fillStyle = mix(WORLD.glass, WHITE, 0.6);
+    c.fillRect(ox, fy, s + 0.5, 1);
+  }
+  c.globalAlpha = 0.85;
+  c.strokeStyle = COLOR.ui;
+  c.lineWidth = 2;
+  c.beginPath();
+  for (const [dx, len] of [
+    [0.28, 0.5],
+    [0.5, 0.25],
+  ] as const) {
+    c.moveTo(ox + s * dx + s * 0.18, fy + s * 0.15);
+    c.lineTo(ox + s * dx, fy + s * 0.15 + s * len);
+  }
+  c.stroke();
+  // the outline marks it interactive-looking-but-solid: you cannot walk through
+  c.globalAlpha = 1;
+  c.strokeStyle = WORLD.line;
+  c.strokeRect(ox + 1, fy, s - 2, h);
+  c.restore();
+}
+
+// A vent: brushed steel with fine horizontal lines, and exactly four slats, each with a lit lip above.
+export function paintVent(
+  c: CanvasRenderingContext2D,
+  s: number,
+  d: number,
+  h: number,
+  ox = 0,
+  oy = 0,
+): void {
+  c.fillStyle = WORLD.vent;
+  c.fillRect(ox, oy, s + 0.5, d + 0.5);
+  const fy = oy + d;
+  c.fillStyle = WORLD.ventFront;
+  c.fillRect(ox, fy, s + 0.5, h + 0.5);
+  const hc = isHighContrast();
+  if (!hc) {
+    c.save();
+    c.globalAlpha = 0.04;
+    for (let y = 0, i = 0; y < h; y += 2, i++) {
+      c.fillStyle = i % 2 ? BLACK : WHITE;
+      c.fillRect(ox, fy + y, s + 0.5, 1);
+    }
+    c.restore();
+  }
+  for (let i = 1; i <= 4; i++) {
+    const y = fy + (h * i) / 5 - 1;
+    c.fillStyle = WORLD.ventSlat;
+    c.fillRect(ox + s * 0.15, y, s * 0.7, 2);
+    if (!hc) {
+      c.fillStyle = mix(WORLD.ventFront, WHITE, 0.4);
+      c.fillRect(ox + s * 0.15, y - 1, s * 0.7, 1);
+    }
   }
 }

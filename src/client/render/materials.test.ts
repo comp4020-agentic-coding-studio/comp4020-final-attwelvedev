@@ -2,7 +2,17 @@ import { afterEach, describe, expect, it } from "vitest";
 import { setContrast, WORLD } from "../tokens.ts";
 import { drawBackdrop } from "./backdrop.ts";
 import { draw, type Scene } from "./index.ts";
-import { paintAo, paintFloor, paintWallFront, paintWallTop } from "./materials.ts";
+import {
+  paintAo,
+  paintCrate,
+  paintCrateShadow,
+  paintDoor,
+  paintFloor,
+  paintGlass,
+  paintVent,
+  paintWallFront,
+  paintWallTop,
+} from "./materials.ts";
 import { setRise } from "./project.ts";
 
 // A small recorder (from render.test.ts): every canvas call with the state it was made in, and every
@@ -190,5 +200,71 @@ describe("the backdrop", () => {
     expect(hc.ops.some((o) => o.name === "fillRect" && isGradient(o) && o.globalAlpha < 1)).toBe(
       false,
     );
+  });
+});
+
+describe("object materials: doors, crates, glass, vents", () => {
+  it("a vent still draws exactly 4 slats, each with a highlight", () => {
+    const { ctx, ops } = recorder();
+    paintVent(ctx, 40, 32, 44);
+    const slats = ops.filter((o) => o.name === "fillRect" && o.fillStyle === WORLD.ventSlat);
+    expect(slats).toHaveLength(4);
+    const lips = ops.filter(
+      (o) => o.name === "fillRect" && o.args[3] === 1 && o.globalAlpha === 1 && !isGradient(o),
+    );
+    expect(lips).toHaveLength(4);
+    // each lip sits 1 px above its slat
+    expect(lips.map((o) => o.args[1])).toEqual(slats.map((o) => (o.args[1] as number) - 1));
+  });
+
+  it("glass keeps its WORLD.line outline and adds a sheen band", () => {
+    const { ctx, ops, gradients } = recorder();
+    paintGlass(ctx, 40, 32, 44);
+    expect(ops.some((o) => o.name === "strokeRect")).toBe(true);
+    expect(gradients).toHaveLength(1);
+    // the sheen: a filled slanted band (a closed path), 18 % white
+    expect(ops.some((o) => o.name === "closePath")).toBe(true);
+    expect(ops.some((o) => o.name === "fill" && o.fillStyle === "#ffffff")).toBe(true);
+  });
+
+  it("a crate draws a drop shadow under it before its body", () => {
+    const { ctx, ops } = recorder();
+    paintCrateShadow(ctx, 50, 50, 14, 12, 40);
+    paintCrate(ctx, 34, 28, 28);
+    const shadow = ops.findIndex((o) => o.name === "ellipse");
+    const body = ops.findIndex((o) => o.name === "fillRect" && o.fillStyle === WORLD.crate);
+    expect(shadow).toBeGreaterThan(-1);
+    expect(shadow).toBeLessThan(body);
+    const fill = ops.find((o) => o.name === "fill");
+    expect(fill?.fillStyle).toBe(WORLD.line);
+    expect(fill?.globalAlpha).toBeCloseTo(0.18);
+    // its brace is kept, and it has three grain lines
+    expect(ops.some((o) => o.name === "stroke")).toBe(true);
+    expect(ops.filter((o) => o.name === "fillRect" && o.args[3] === 1)).toHaveLength(3);
+  });
+
+  it("a door draws two inset panels and keeps its seam", () => {
+    const { ctx, ops } = recorder();
+    paintDoor(ctx, 40, 32, 28);
+    // four insets (two per leaf), each with its bevel
+    const bevels = ops.filter((o) => o.name === "fillRect" && o.args[3] === 1);
+    expect(bevels).toHaveLength(4);
+    const seam = ops.filter((o) => o.fillStyle === WORLD.doorSeam);
+    expect(seam).toHaveLength(1);
+    expect(seam[0]?.args[2]).toBe(2);
+  });
+
+  it("in high contrast, each of the four draws no gradient and no shadow", () => {
+    setContrast(true);
+    const r = recorder();
+    paintDoor(r.ctx, 40, 32, 28);
+    paintCrate(r.ctx, 34, 28, 28);
+    paintCrateShadow(r.ctx, 50, 50, 14, 12, 40);
+    paintGlass(r.ctx, 40, 32, 44);
+    paintVent(r.ctx, 40, 32, 44);
+    expect(r.gradients).toHaveLength(0);
+    expect(r.ops.some((o) => o.name === "ellipse")).toBe(false);
+    expect(r.ops.every((o) => !isGradient(o))).toBe(true);
+    expect(r.ops.some((o) => o.name === "closePath")).toBe(false);
   });
 });
