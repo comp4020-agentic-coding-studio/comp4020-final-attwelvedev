@@ -694,3 +694,9 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
 - **Look at:** the three hats at 1×, 2× and 3×: an arc on the dome, a straight line on the cone, an L on the box, each inside its outline. A pass means the L reads as light on a corner, not clutter.
 - **Start:** `pnpm build && pnpm start`, play a room with all three roles, zoom the figures; or open `review/n7-polish-task2-hats-1280.png` (1×) and `review/n7-polish-task2-hats-375.png` (3× scale), drawn by the real `paintHatSheen` and `shapePath` on a canvas.
 - **Judged:** all three sit clear of the edge; the L is thin and faint (40 % white) and reads as a corner highlight. No fallback to a short top-left stroke was needed.
+
+### polish (playtest polish): Task 3 crew favicon, Human review pending
+
+- **Look at:** the icon at 16 and 32 px on a light and a dark tab bar. A pass means three distinct figures, not a smudge.
+- **Start:** `pnpm build && pnpm start`, open `http://localhost:8080` and look at the tab; or the screenshots `review/n7-polish-task3-favicon-1280.png` (16 px, 32 px PNG, 32 px SVG and 128 px on white and dark) and `review/n7-polish-task3-favicon-375.png` (the same at 3× scale).
+- **Judged:** at 32 px the dome, box and cone hats and the three colours are distinct; at 16 px the three figures are small but still three colours with hat tops visible. Pills were widened once after a first look read thin.

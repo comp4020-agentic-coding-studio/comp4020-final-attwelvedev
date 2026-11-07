@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, inject, it } from "vitest";
 
 const baseUrl = inject("baseUrl");
@@ -33,5 +34,32 @@ describe("the favicon", () => {
     const res = await fetch(new URL("/favicon-32.png", baseUrl));
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("image/png");
+  });
+
+  // the crew as the game draws them: each role a rounded pill body, a face disc and a hat in its shape
+  it("draws each role as a pill with a dome, box or cone hat in its colour", () => {
+    const svg = readFileSync(new URL("../public/favicon.svg", import.meta.url), "utf8");
+    const hats = {
+      blind: ["circle", "#f2a93b"],
+      deaf: ["rect", "#4db3ff"],
+      mute: ["path", "#9b7ee0"],
+    };
+    for (const [role, [tag, colour]] of Object.entries(hats)) {
+      const group = svg.match(new RegExp(`<g data-role="${role}">([\\s\\S]*?)</g>`))?.[1] ?? "";
+      expect(group, role).toMatch(
+        new RegExp(`<rect class="body"[^>]*rx="\\d+[^>]*fill="${colour}"`),
+      );
+      expect(group, role).toMatch(new RegExp(`<${tag} class="hat"[^>]*fill="${colour}"`));
+      expect(group, role).toMatch(/<circle class="face"/);
+    }
+  });
+
+  it("the PNG fallback is 32 by 32", async () => {
+    const bytes = Buffer.from(
+      await (await fetch(new URL("/favicon-32.png", baseUrl))).arrayBuffer(),
+    );
+    expect(bytes.subarray(1, 4).toString()).toBe("PNG");
+    expect(bytes.readUInt32BE(16)).toBe(32); // IHDR width
+    expect(bytes.readUInt32BE(20)).toBe(32); // IHDR height
   });
 });

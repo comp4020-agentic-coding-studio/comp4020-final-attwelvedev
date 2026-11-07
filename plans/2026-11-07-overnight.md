@@ -209,3 +209,9 @@
 - los/check: the first full `pnpm check` after Task 2 failed 11 socket specs with `server-full` in the check server's log (a long-lived server filled by earlier runs); on a fresh server the three files pass, and the full check is green (182 files). Reversible: n/a.
 - los/Task 3: the L7 test went red, but the candidate fix (glass is not a "wall behind" for a station or figure) did not move it (70 points wrong with and without), and L2's fix was not attempted with the budget left → parked whole on `auto/overnight-parked-los-task3` with both red tests, the candidate change and a note on where to look next (a clip in force at the box's draw that is not the box's own region). Reversible: pick up the branch.
 - los/Human review: the plan's Human review (Task 3's screenshots at 1280 and 375) is the user's; left unticked, sign-off pending, and it cannot happen until Task 3 is done.
+
+## polish (playtest polish)
+
+- polish/Task 2-3: the plan's Human review (sign-off on the hats and the favicon) → built, screenshotted and queued in `review/QUEUE.md`, plan's Human review section left unticked, because the user must sign off; sign-off is pending. Reversible by reverting the two task commits.
+- polish/Task 1: the reveal spec's "no old label" check → `getByText(/who hears what/i)` count 0 on the reveal page, because the plan asked for no element with that text; the test titles that say "who hears what" mean sound and stay. Reversible by editing the spec.
+- polish/Task 3: the favicon pills were first drawn 16 px wide and read thin → widened to 18 px, face disc 5, hat 7.5, because 16 px readability is the plan's pass condition. Reversible by `git revert`.
