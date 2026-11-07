@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import roomText from "../../rooms/01-first-steps.room?raw";
 import { faceImage } from "../client/faces.ts";
-import { detectFx, FX_MAX, type Fx, fxMs } from "../client/fx.ts";
+import { capSparks, detectFx, FX_MAX, type Fx, fxMs } from "../client/fx.ts";
 import { captionFor, cueCaptions, type HeldCues, hearCues, heardCues } from "../client/hud.ts";
 import type { DecorItem } from "../client/render/decor.ts";
 import { decorFor } from "../client/render/decor.ts";
@@ -39,6 +39,7 @@ interface Run {
   at: number; // the run's clock (ms, stopped while paused) at `last`
   clearedAt: number | null;
   fx: { fx: Fx; at: number }[][]; // per seat
+  sparks: number[][]; // per seat: when recent sparks started (capSparks)
   pops: { seat: Seat; id: string; at: number }[][];
   cues: HeldCues[];
   lines: Line[][];
@@ -69,6 +70,7 @@ export function fresh(now: number): Run {
     at: now,
     clearedAt: null,
     fx: [[], [], []],
+    sparks: [[], [], []],
     pops: [[], [], []],
     cues: [new Map(), new Map(), new Map()],
     lines: [[], [], []],
@@ -82,7 +84,11 @@ export function advance(run: Run, now: number) {
     const view = tick.views[seat];
     run.fx[seat] = [
       ...run.fx[seat].filter((f) => now - f.at < fxMs(f.fx)),
-      ...detectFx(run.last.views[seat].entities, view.entities).map((fx) => ({ fx, at: now })),
+      ...capSparks(
+        run.sparks[seat] as number[],
+        detectFx(run.last.views[seat].entities, view.entities),
+        now,
+      ).map((fx) => ({ fx, at: now })),
     ].slice(-FX_MAX);
     hearCues(run.cues[seat] as HeldCues, cueCaptions(view.sounds), now);
   }

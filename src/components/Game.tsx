@@ -3,6 +3,7 @@ import { createAudio, type GameAudio } from "../client/audio.ts";
 import { creditRows } from "../client/credits.ts";
 import { faceImage, preloadFaces } from "../client/faces.ts";
 import {
+  capSparks,
   detectFx,
   FX_MAX,
   type Fx,
@@ -126,6 +127,7 @@ interface Runtime {
   cueHold: HeldCues; // cue captions and when to let each go
   moment: { text: string; until: number } | null; // a cache opening or its stash found, on a chip for CACHE_MOMENT_MS
   fx: { fx: Fx; at: number }[]; // small effects for what just changed, by when they started
+  sparks: number[]; // when recent sparks started: at most 3 a second (capSparks)
   caughtUntil: number; // a `caught` came: until when the view that sends the team back is looked for
   soundOn: boolean;
   // The start of a room (FR14): when the server's `intro` came, how long it holds (`ms`), and
@@ -415,7 +417,7 @@ function onView(rt: Runtime, view: RoleView, audio: GameAudio, names: readonly s
   if (moment) rt.moment = { text: moment, until: started + CACHE_MOMENT_MS };
   rt.fx = [
     ...rt.fx.filter((f) => started - f.at < fxMs(f.fx)),
-    ...fresh.map((fx) => ({ fx, at: started })),
+    ...capSparks(rt.sparks, fresh, started).map((fx) => ({ fx, at: started })),
   ].slice(-FX_MAX);
   rt.at = performance.now();
   if (view.full) setHue(view.hue); // the room's wall tints ride with its layout (FR1)
@@ -476,6 +478,7 @@ export function Game({
     walking: { moving: false, blocked: false },
     pops: [],
     fx: [],
+    sparks: [],
     caughtUntil: 0,
     cueHold: new Map(),
     moment: null,

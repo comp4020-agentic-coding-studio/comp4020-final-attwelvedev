@@ -41,6 +41,7 @@ export const DURATION = {
   ripple: 400, // a sign's sequence done: a fill spreads
   tick: FX_MS, // a station solved: its tick plate drops in
   part: 250, // a station's part changed: a short dip
+  snip: 150, // a wire cut: its swatch splits and the halves lift apart, with a spark at the cut
   bell: 1200, // a bell rung: three swings, once
   read: 400, // a braille plate read: its studs lift in reading order
   jam: 440, // a station jammed: a stutter
@@ -148,6 +149,29 @@ export function openedDoors(prev: EntityView[], next: EntityView[]): EntityView[
   });
 }
 
+// The wires cut between two views of a panel whose face was in sight both times: a furniture-only
+// view carries no `cut`, so a cut seen for the first time on walking up is not one just made.
+type StationView = NonNullable<EntityView["station"]>;
+function snipped(old: StationView, now: StationView): number[] {
+  if (now.type !== "wires" || old.furniture || now.furniture) return [];
+  const was = new Set(old.cut ?? []);
+  return (now.cut ?? []).filter((i) => !was.has(i));
+}
+
+// Flashing is at most 3 a second (DESIGN.md §5): of the fresh effects, a spark is dropped when 3
+// have started in the last second. `gate` holds the start times of recent sparks, kept by the caller.
+export const SPARKS_PER_SECOND = 3;
+export function capSparks(gate: number[], fresh: Fx[], now: number): Fx[] {
+  const recent = gate.filter((t) => now - t < 1000);
+  gate.splice(0, gate.length, ...recent);
+  return fresh.filter((f) => {
+    if (f.kind !== "spark") return true;
+    if (gate.length >= SPARKS_PER_SECOND) return false;
+    gate.push(now);
+    return true;
+  });
+}
+
 export function detectFx(prev: EntityView[], next: EntityView[]): Fx[] {
   if (prev.length === 0) return []; // the first view: everything would look new
   const out: Fx[] = [];
@@ -194,7 +218,15 @@ export function detectFx(prev: EntityView[], next: EntityView[]): Fx[] {
         out.push({ kind: "ring", tone: "goal", big: true, pos: at });
         on(e, "tick", "goal");
       } else if (st.jammed && !old.station.jammed) on(e, "jam", "muted");
-      else if (st.shows.join() !== old.station.shows.join()) on(e, "part");
+      else if (snipped(old.station, st).length > 0) {
+        // a wire cut while the panel's face was in sight: the snip, and one spark at each cut wire
+        on(e, "snip");
+        const at = st.parts.find((p) => p.key === "wires")?.at ?? [];
+        for (const i of snipped(old.station, st)) {
+          const t = at[i];
+          if (t) out.push({ kind: "spark", pos: { x: t.x + 0.5, y: t.y + 0.5 }, tone: "ui" });
+        }
+      } else if (st.shows.join() !== old.station.shows.join()) on(e, "part");
     } else if (e.kind === "bell" && old && e.state === "on" && old.state !== "on") {
       on(e, "bell");
     } else if (e.kind === "lever" && old && e.state !== old.state) {

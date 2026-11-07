@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { EntityView } from "../net/protocol.ts";
 import {
   activeFx,
+  capSparks,
   DURATION,
   detectFx,
   FX_MS,
@@ -218,6 +219,60 @@ describe("detectFx: small effects for what just changed between two views", () =
       });
     expect(detectFx([st([3])], [st([4])])).toMatchObject([{ kind: "part", targetId: "Q1" }]);
     expect(detectFx([st([3])], [st([3], true)])).toMatchObject([{ kind: "jam", targetId: "Q1" }]);
+  });
+
+  // G1 (wire cut and station bob, Task 2): a cut you see happen snips; one you walk into does not
+  const wires = (cut?: number[], furniture?: true) =>
+    e({
+      id: "Q2",
+      kind: "station",
+      station: {
+        type: "wires",
+        shows: furniture ? [] : [0, 1, 2],
+        solved: false,
+        parts: [
+          ...parts,
+          {
+            key: "wires" as const,
+            at: [
+              { x: 3, y: 2 },
+              { x: 4, y: 2 },
+              { x: 5, y: 2 },
+            ],
+          },
+        ],
+        ...(cut ? { cut } : {}),
+        ...(furniture ? { furniture } : {}),
+      },
+    });
+
+  it("a new cut starts one snip on the panel and one spark at that wire", () => {
+    const fx = detectFx([wires()], [wires([1])]);
+    expect(fx.filter((f) => f.kind === "snip")).toMatchObject([{ targetId: "Q2" }]);
+    expect(fx.filter((f) => f.kind === "spark")).toMatchObject([
+      { pos: { x: 4.5, y: 2.5 }, tone: "ui" },
+    ]);
+    expect(fx.filter((f) => f.kind === "part")).toEqual([]);
+    expect(DURATION.snip).toBe(150);
+  });
+
+  it("a cut seen again, or walked into, starts no snip and no spark", () => {
+    const quiet = (fx: { kind: string }[]) =>
+      fx.filter((f) => f.kind === "snip" || f.kind === "spark");
+    expect(quiet(detectFx([wires([1])], [wires([1])]))).toEqual([]);
+    const other = e({ id: "P0", kind: "player", seat: 0, pos: { x: 2.5, y: 2.5 } });
+    expect(quiet(detectFx([other], [other, wires([1])]))).toEqual([]);
+    expect(quiet(detectFx([wires(undefined, true)], [wires([1])]))).toEqual([]);
+  });
+
+  it("at most three sparks start in any second", () => {
+    const spark = { kind: "spark" as const, pos: { x: 1, y: 1 }, tone: "ui" as const };
+    const ring = { kind: "ring" as const, pos: { x: 1, y: 1 }, tone: "goal" as const };
+    const gate: number[] = [];
+    expect(capSparks(gate, [spark, spark], 0)).toHaveLength(2);
+    expect(capSparks(gate, [spark, spark, ring], 500)).toEqual([spark, ring]);
+    expect(capSparks(gate, [spark], 999)).toEqual([]);
+    expect(capSparks(gate, [spark], 1001)).toEqual([spark]);
   });
 
   it("makes no ring for a solved station that comes back into sight (Task 46)", () => {

@@ -47,7 +47,7 @@ Each new or changed assertion is shown red first, with a break script that asser
   - Acceptance: demo 5. Checked against the role tables in `src/game/types.ts` (ADR 0007), and the `snap` row in `parity.test.ts` still holds.
   - Depends on: none.
 
-- [ ] **Task 2: The snip and its spark**
+- [x] **Task 2: The snip and its spark**
   - Files: `src/client/fx.ts` (`DURATION.snip: 150`; in `detectFx`, a wires station whose `cut` gained an index starts `snip` on that station and a `spark` at the wire's tile; neither starts when the old view was furniture-only or the station was not in the old view), `DESIGN.md` motion table.
   - Tests first, in `src/client/fx.test.ts`: a new cut starts one `snip` and one `spark`; the same cut seen again starts none; a station arriving with a wire already cut starts none; at most three sparks start in any second (check the existing flashing limit covers `spark`; if not, cap it there). Red against current `detectFx`.
   - Acceptance: demo 1 and 2.

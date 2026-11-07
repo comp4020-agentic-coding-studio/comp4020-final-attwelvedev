@@ -342,6 +342,7 @@ pattern and outline), `turnPad` (a floor pad with its arrow), `symbolGlyph` (a v
 | Sequence right / wrong / done | the sign stamps / one ±4 px shake (300 ms) and a steady danger outline / a fill spreads across it | 200 / 900 / 400 | end state |
 | Station solved | the **ring** (big, at the anchor), and the tick plate drops in | 600 | the ring only fades |
 | Station part set | the station dips once, like a detent | 250 | end state |
+| Wire cut | the swatch snips: its two halves lift apart by up to 3 px and settle, one spark (`ui`) at the cut; only for a cut made while the panel's face is in sight, never for one walked into | 150 | the cut state |
 | Bell rung | three swings, **once**, then still while it stays on (FR17) | 1200 | a static tilt |
 | Braille read | the studs lift in reading order; no ring | 400 | the outline only |
 | Jam | a stutter, then the tape unrolls | 240 + 200 | the tape at once |
@@ -353,7 +354,7 @@ pattern and outline), `turnPad` (a floor pad with its arrow), `symbolGlyph` (a v
 | Caught | a burst of dust where each figure was, then it pops up at the flag | 200 + 250 | a teleport |
 | Inspection plate | never dips when walked on (FR17) | — | — |
 
-Nothing here flashes: a shake is one movement, and no event differs from another only by colour or size.
+Nothing here flashes: a shake is one movement, and no event differs from another only by colour or size. A spark is dropped when 3 have started in the last second (`capSparks`).
 
 **Menu sounds** (client only; not `SoundCue`s, so no parity row): a soft tick or chime for pressing, never for play (the wheel, the touch zones, the canvas, the gear slot and the talk bar's buttons are marked `data-no-ui-sound`; nothing sounds while the audio context is locked; the lobby's join and leave chimes stop once the game is on). Switched by `Settings.menuSounds` (on by default, "Menu sounds" in both settings places), separate from game sound. Each has a picture twin, because a sound alone would tell the hearing something the rest cannot see:
 
