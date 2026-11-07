@@ -359,3 +359,44 @@ export function paintVent(
     }
   }
 }
+
+// ---- Station bodies ---------------------------------------------------------------------------
+// Brushed steel (and brass) like the keepsakes: a lit edge, a dark band, a second light. `vertical` runs
+// the bands across the rect's width, else down its height. A flat fill in high contrast (FR9). Only
+// bodies and rails use it: a swatch, lamp, key, number or outline is never drawn with it.
+export function paintSteel(
+  c: CanvasRenderingContext2D,
+  rect: { x: number; y: number; w: number; h: number },
+  banded: boolean,
+  base: string = WORLD.steel,
+  vertical = false,
+): void {
+  c.fillStyle = base;
+  c.fillRect(rect.x, rect.y, rect.w, rect.h);
+  if (!banded || isHighContrast()) return;
+  const g = vertical
+    ? c.createLinearGradient(rect.x, 0, rect.x + rect.w, 0)
+    : c.createLinearGradient(0, rect.y, 0, rect.y + rect.h);
+  g.addColorStop(0, mix(base, WHITE, 0.28));
+  g.addColorStop(0.35, base);
+  g.addColorStop(0.6, mix(base, BLACK, 0.16));
+  g.addColorStop(0.85, mix(base, WHITE, 0.12));
+  g.addColorStop(1, mix(base, BLACK, 0.1));
+  c.fillStyle = g;
+  c.fillRect(rect.x, rect.y, rect.w, rect.h);
+}
+
+// A fill for a path (a disc): the same bands, or the flat colour in high contrast.
+export function steelStyle(
+  c: CanvasRenderingContext2D,
+  rect: { x: number; y: number; w: number; h: number },
+  base: string = WORLD.steel,
+): string | CanvasGradient {
+  if (isHighContrast()) return base;
+  const g = c.createLinearGradient(rect.x, rect.y, rect.x + rect.w, rect.y + rect.h);
+  g.addColorStop(0, mix(base, WHITE, 0.28));
+  g.addColorStop(0.45, base);
+  g.addColorStop(0.7, mix(base, BLACK, 0.16));
+  g.addColorStop(1, mix(base, WHITE, 0.1));
+  return g;
+}

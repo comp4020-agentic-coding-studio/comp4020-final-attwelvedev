@@ -15,6 +15,8 @@ function recorder() {
         const key = String(name);
         if (key in state) return state[key];
         if (key === "measureText") return () => ({ width: 10 });
+        if (key === "createLinearGradient" || key === "createRadialGradient")
+          return () => ({ addColorStop: () => {} });
         return () =>
           calls.push({
             name: key,

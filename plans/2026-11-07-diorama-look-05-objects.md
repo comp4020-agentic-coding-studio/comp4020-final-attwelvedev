@@ -123,7 +123,7 @@ are drawn live (each is a handful of gradient fills).
 - **Break check:** draw 5 slats (scripted). The vent case goes red.
 - **Depends on:** none in this phase.
 
-### Task 107: Station bodies in brushed steel and brass, information flat (FR8, FR9)
+### Task 107: Station bodies in brushed steel and brass, information flat (FR8, FR9) — done (review queued)
 
 - **Description:** `paintSteel` is used for every steel body and brass rail in `drawStationStanding`.
   Swatches (`codeSwatch`), lamps, keys, numbers, the tick plate, motif badges and outlines are drawn

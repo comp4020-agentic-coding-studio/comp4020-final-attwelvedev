@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { STATION_TYPES } from "../../game/rooms/format.ts";
+import type { EntityView } from "../../net/protocol.ts";
 import { setContrast, WORLD } from "../tokens.ts";
 import { drawBackdrop } from "./backdrop.ts";
 import { draw, type Scene } from "./index.ts";
@@ -9,11 +11,13 @@ import {
   paintDoor,
   paintFloor,
   paintGlass,
+  paintSteel,
   paintVent,
   paintWallFront,
   paintWallTop,
 } from "./materials.ts";
 import { setRise } from "./project.ts";
+import { codeSwatch, drawStationStanding } from "./stations.ts";
 
 // A small recorder (from render.test.ts): every canvas call with the state it was made in, and every
 // gradient with its colour stops.
@@ -266,5 +270,80 @@ describe("object materials: doors, crates, glass, vents", () => {
     expect(r.ops.some((o) => o.name === "ellipse")).toBe(false);
     expect(r.ops.every((o) => !isGradient(o))).toBe(true);
     expect(r.ops.some((o) => o.name === "closePath")).toBe(false);
+  });
+});
+
+describe("station bodies in brushed steel", () => {
+  const cam = { scale: 48, ox: 0, oy: 0 };
+  const scene = { players: [] } as unknown as Scene;
+  const safe: EntityView = {
+    id: "Q1",
+    kind: "station",
+    pos: { x: 4.5, y: 2.5 },
+    station: {
+      type: "dial",
+      shows: [7, 3],
+      solved: false,
+      parts: [{ key: "anchor", at: [{ x: 4, y: 2 }] }],
+    },
+  };
+
+  it("a safe's body is a banded gradient; its number and swatches are flat fills drawn after it", () => {
+    const { ctx, ops, gradients } = recorder();
+    drawStationStanding(ctx, safe, cam, scene, 2);
+    expect(gradients.length).toBeGreaterThanOrEqual(1);
+    const band = gradients[0];
+    expect(band?.stops.length).toBeGreaterThanOrEqual(4); // lit edge, base, dark band, second light
+    const body = ops.findIndex((o) => o.name === "fillRect" && isGradient(o));
+    const number = ops.findIndex((o) => o.name === "fillText");
+    expect(body).toBeGreaterThan(-1);
+    expect(number).toBeGreaterThan(body);
+    expect(ops[number]?.fillStyle).toBe(WORLD.line);
+    expect(isGradient(ops[number] as Op)).toBe(false);
+    // the outline of its dial face is still the plain line colour
+    expect(ops.some((o) => o.name === "stroke")).toBe(true);
+  });
+
+  it("a code swatch is never drawn with a gradient, for every code and every station type", () => {
+    for (let code = 0; code < 6; code++) {
+      const { ctx, ops, gradients } = recorder();
+      codeSwatch(ctx, code, 0, 0, 20, 20);
+      expect(gradients, `code ${code}`).toHaveLength(0);
+      expect(ops.every((o) => !isGradient(o))).toBe(true);
+    }
+    for (const type of STATION_TYPES) {
+      const e: EntityView = {
+        id: "Q9",
+        kind: "station",
+        pos: { x: 4.5, y: 2.5 },
+        station: {
+          type,
+          shows: [1, 2, 3, 4],
+          solved: false,
+          parts: [
+            { key: "anchor", at: [{ x: 4, y: 2 }] },
+            { key: "wires", at: [{ x: 4, y: 2 }] },
+            { key: "bells", at: [{ x: 4, y: 2 }] },
+          ] as never,
+        },
+      };
+      const { ctx, ops } = recorder();
+      drawStationStanding(ctx, e, cam, scene, 2);
+      // a swatch is a rect path filled with a code colour: that fill is a plain colour
+      const codeFills = ops.filter((o) => o.name === "fill" && typeof o.fillStyle === "string");
+      expect(
+        codeFills.every((o) => !isGradient(o)),
+        type,
+      ).toBe(true);
+    }
+  });
+
+  it("in high contrast a station body is a flat fill", () => {
+    setContrast(true);
+    const { ctx, ops, gradients } = recorder();
+    drawStationStanding(ctx, safe, cam, scene, 2);
+    paintSteel(ctx, { x: 0, y: 0, w: 10, h: 10 }, true);
+    expect(gradients).toHaveLength(0);
+    expect(ops.every((o) => !isGradient(o))).toBe(true);
   });
 });

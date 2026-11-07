@@ -6,6 +6,7 @@ import { COLOR, WORLD, type WorldTokens } from "../tokens.ts";
 import { block } from "./blocks.ts";
 import { drawInspectionPlate } from "./chamber.ts";
 import type { Scene } from "./index.ts";
+import { paintSteel, steelStyle } from "./materials.ts";
 import { type Camera, LIVE, TILT, toScreen } from "./project.ts";
 
 // Stations (spec §4.1): gallery furniture in the 3/4 world, and the object is the readout. Nothing
@@ -409,21 +410,32 @@ export function plateAt(st: Station, anchor: Vec): { at: Vec; name: string }[] {
   return [{ at: { x: anchor.x + 0.5, y: anchor.y + 0.5 }, name: NAME[st.type] }];
 }
 
-// A small plinth: brass top, steel front, outlined.
-function plinth(ctx: CanvasRenderingContext2D, cam: Camera, t: Vec, h = 0.45, inset = 0.12) {
-  block(
+// A box of banded steel: its top and its front, banded as the keepsakes are (render/materials.ts).
+function steelBlock(
+  ctx: CanvasRenderingContext2D,
+  cam: Camera,
+  box: { x: number; y: number; w: number; d: number; h: number },
+) {
+  const s = cam.scale;
+  const t = toScreen(cam, box.x, box.y, box.h);
+  paintSteel(ctx, { x: t.x, y: t.y, w: box.w * s + 0.5, h: box.d * s * LIVE.depth + 0.5 }, false);
+  paintSteel(
     ctx,
-    cam,
-    {
-      x: t.x + inset,
-      y: t.y + inset,
-      w: 1 - inset * 2,
-      d: 1 - inset * 2,
-      h: h * (LIVE.block / 0.7),
-    },
-    WORLD.steel,
+    { x: t.x, y: t.y + box.d * s * LIVE.depth, w: box.w * s + 0.5, h: box.h * s + 0.5 },
+    true,
     WORLD.steelFront,
   );
+}
+
+// A small plinth: brass top, steel front, outlined.
+function plinth(ctx: CanvasRenderingContext2D, cam: Camera, t: Vec, h = 0.45, inset = 0.12) {
+  steelBlock(ctx, cam, {
+    x: t.x + inset,
+    y: t.y + inset,
+    w: 1 - inset * 2,
+    d: 1 - inset * 2,
+    h: h * (LIVE.block / 0.7),
+  });
   const top = toScreen(cam, t.x + inset, t.y + inset, h * (LIVE.block / 0.7));
   ctx.strokeStyle = WORLD.line;
   ctx.lineWidth = 2;
@@ -647,19 +659,13 @@ export function drawStationStanding(
   const inRow = (t: Vec) => t.y === row;
   if (st.type === "dial" && inRow(anchor)) {
     // the safe: a squat steel box, its dial face on the front with the number at the top
-    block(
-      ctx,
-      cam,
-      {
-        x: anchor.x + SAFE_BOX.dx,
-        y: anchor.y + SAFE_BOX.dy,
-        w: SAFE_BOX.w,
-        d: SAFE_BOX.d,
-        h: LIVE.block,
-      },
-      WORLD.steel,
-      WORLD.steelFront,
-    );
+    steelBlock(ctx, cam, {
+      x: anchor.x + SAFE_BOX.dx,
+      y: anchor.y + SAFE_BOX.dy,
+      w: SAFE_BOX.w,
+      d: SAFE_BOX.d,
+      h: LIVE.block,
+    });
     const face = toScreen(cam, anchor.x + 0.5, anchor.y + 0.85, LIVE.block / 2);
     ctx.fillStyle = WORLD.card;
     ctx.strokeStyle = WORLD.line;
@@ -695,11 +701,9 @@ export function drawStationStanding(
       if (!inRow(t)) return;
       const top = toScreen(cam, t.x + 0.2, t.y + 0.1, LIVE.wall * 0.85);
       const h = LIVE.wall * 0.6 * s;
-      ctx.fillStyle = WORLD.brass;
-      ctx.fillRect(top.x - s * 0.2, top.y - 3, s, 3);
+      paintSteel(ctx, { x: top.x - s * 0.2, y: top.y - 3, w: s, h: 3 }, true, WORLD.brass);
       if (st.furniture || st.shows[i] === undefined) {
-        ctx.fillStyle = WORLD.steel;
-        ctx.fillRect(top.x, top.y, s * 0.6, h);
+        paintSteel(ctx, { x: top.x, y: top.y, w: s * 0.6, h }, true, WORLD.steel, true);
         ctx.strokeStyle = WORLD.line;
         ctx.lineWidth = 2;
         ctx.strokeRect(top.x, top.y, s * 0.6, h);
@@ -793,7 +797,12 @@ export function drawStationStanding(
   if (st.type === "vault" && inRow(anchor)) {
     // the round vault door on the wall, a brass wheel on it
     const c = toScreen(cam, anchor.x + 0.5, anchor.y + 0.9, LIVE.wall * 0.5);
-    ctx.fillStyle = WORLD.steel;
+    ctx.fillStyle = steelStyle(ctx, {
+      x: c.x - s * 0.42,
+      y: c.y - s * 0.42,
+      w: s * 0.84,
+      h: s * 0.84,
+    });
     ctx.strokeStyle = WORLD.line;
     ctx.lineWidth = 2;
     ctx.beginPath();

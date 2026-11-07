@@ -594,3 +594,12 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
 - **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080` in three tabs, make a lobby, Start, I'm ready. Press Space at the plate in a plate room (room 4 on) as Can't see.
 - **Screenshots:** `review/n7-fixesB-task135-hc-game-{1280,375}.png` (taken mid-fade of the reveal, the rim visible), `review/n7-fixesB-task136-tab-{1280,375}.png`.
 - **Judged:** all four viewed; the rim shows in cyan/purple, the game shows through the fading reveal, the tab is visible at both widths. The card-over-tab case is proven by `spec/layout/braille.test.ts` (it fails with `z-index: 4`).
+
+## Overnight run 2026-11-07
+
+### dl05 Task 107: station bodies in brushed steel and brass (human review, pending)
+
+- **Look at:** room 4's safe, room 5's wires and room 9's vault, as Can't hear and Can't speak at 1280 and 375. A pass: the stations look like metal furniture, and every colour code and number is as easy to read as before.
+- **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080` in three tabs, make a lobby, Start, I'm ready. One room only: `ROOMS_DIR=<a dir holding just rooms/04-the-safe.room> pnpm start`.
+- **Screenshots:** `review/n7-dl05-task107-room{04,05,09}-cantspeak-1280.png`, `-canthear-375.png` (and every seat in `review/diorama/p4-*.png`).
+- **Judged:** room 4's safe and room 5's wire panel viewed at 1280 (banded steel, swatches and dial number flat on top) and room 9 at 375; the colour codes read as before.
