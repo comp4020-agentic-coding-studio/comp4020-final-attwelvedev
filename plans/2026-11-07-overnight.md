@@ -171,3 +171,10 @@
 - dl08/115: the spec runs its own BENCH=1 app (building dist-bench if stale, as `bench-frame.ts` does) and draws via `?still=1`'s `window.__still(withDecor)`, rather than a `?nodecor` flag in Game.tsx, because the plan prefers reusing the bench page. Reversible by deleting the spec and the bench's still mode.
 - dl08/115: screenshots go to the plan's `review/diorama/p7-*` names, with two copied to `review/n7-dl08-task115-decor-{1280,375}.png` for the overnight naming. Reversible: n/a.
 - dl08/115: the human review (walk rooms 5, 8, 9 in three tabs) is queued in `review/QUEUE.md`; the phase is ticked "(review queued)". Room 08 places only two items at its seed; I left FR10's density as it is. Reversible by raising room 08's salt or the density after review.
+
+## dl09
+
+- dl09/116: R2 salts for the new themes: 04 → 1, 06 → 4, 07 → 12 (01, 02, 03 pass at 0). Reversible by editing `SALT`.
+- dl09/116: the plan's `sconce` for 03/06 is "unlit" and for 04 "lit" under one name → two kinds, `sconceDim` (03, 06, no gradient) and `sconce` (04, lit); room 06's `swag` is the salon's existing kind. The break check lights `sconceDim` via `LIT`. Reversible by merging them behind `item.lit`.
+- dl09/116: `spec/layout/decor.test.ts` on nine rooms: (a) the bench page gained rooms 01 to 07; (b) the 1 px edge of a carrying wall's own tile (the atlas's half-pixel overshoot, different atlas entry for a top-only item) is allowed a 2 px ring beside the item's face, interior still strict; (c) the "decor changed some pixel" assertion holds at 1280 only, because room 06's phone follow camera has no decorated wall in view. Not a weakening of the stray-pixel rule: a glow leaving its clip still lands far outside the ring. Reversible by editing the spec.
+- dl09/116: the first full `pnpm check` ran under load 36 (other worktrees) and timed out 17 layout tests (game, hud, lobby-people, reveal) at 30 s; run alone, three files pass and reveal passed 2 of 2 after one failed in the rerun of the four. I count it as load, not flake, and queue a quiet-machine full check. Reversible: n/a.

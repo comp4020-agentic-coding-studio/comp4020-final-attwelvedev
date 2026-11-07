@@ -4,7 +4,15 @@ import { spectatorView, viewFor } from "../../game/perception.ts";
 import { loadRooms } from "../../game/rooms/load.ts";
 import { createWorld } from "../../game/sim/world.ts";
 import type { Role, Vec } from "../../game/types.ts";
-import { type DecorItem, decorAt, decorFor, THEME_KINDS, THEME_OF, type Theme } from "./decor.ts";
+import {
+  type DecorItem,
+  decorAt,
+  decorFor,
+  KIND_FACES,
+  THEME_KINDS,
+  THEME_OF,
+  type Theme,
+} from "./decor.ts";
 
 // A wide room of plain walls: a long north wall over open floor, then inner walls in a grid, so
 // there are plenty of eligible fronts and tops.
@@ -157,6 +165,14 @@ describe("decorFor: placement", () => {
       expect(f).toBeLessThanOrEqual(fronts / 12);
       expect(p).toBeLessThanOrEqual(tops / 16);
     });
+  });
+
+  it("every room's theme has at least one front kind", () => {
+    for (const [room, theme] of Object.entries(THEME_OF))
+      expect(
+        THEME_KINDS[theme].some((k) => KIND_FACES[k].includes("front")),
+        room,
+      ).toBe(true);
   });
 
   it("decorFor never reads anything but its arguments", () => {

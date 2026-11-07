@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { setContrast, WORLD } from "../tokens.ts";
 import { wall } from "./blocks.ts";
 import { drawSlide } from "./chamber.ts";
-import { type DecorItem, type DecorKind, KIND_FACES, THEME_KINDS } from "./decor.ts";
+import { type DecorItem, type DecorKind, KIND_FACES, LIT, THEME_KINDS } from "./decor.ts";
 import { PAINTERS, paintDecor } from "./decor-paint.ts";
 import { type Camera, setRise } from "./project.ts";
 
@@ -69,7 +69,7 @@ const items = (): DecorItem[] =>
         face,
         kind,
         variant,
-        ...(kind === "painting" || kind === "cagedSconce" ? { lit: true as const } : {}),
+        ...(LIT.has(kind) ? { lit: true as const } : {}),
       })),
     ),
   );
@@ -215,6 +215,38 @@ describe("banned shapes", () => {
       const names = paint(item).ops.map((o) => o.name);
       expect(names).not.toContain("ellipse");
       expect(names).not.toContain("arc");
+    }
+  });
+
+  it("an unlit sconce draws no gradient, and a lit one does", () => {
+    for (const v of [0, 1, 2, 3]) {
+      const dim = paint({ x: 0, y: 0, face: "front", kind: "sconceDim", variant: v });
+      expect(dim.grads).toEqual([]);
+      const lit = paint({ x: 0, y: 0, face: "front", kind: "sconce", variant: v, lit: true });
+      expect(lit.grads.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("no painter draws a single leaf wider than 0.2 of the face", () => {
+    for (const item of items().filter((i) => ["ivy", "planter", "fern"].includes(i.kind)))
+      for (const o of paint(item).ops)
+        if (o.name === "ellipse")
+          expect(2 * Math.max(o.args[2] as number, o.args[3] as number), item.kind).toBeLessThan(
+            0.2 * W,
+          );
+  });
+
+  it("the trellis is diagonal only: no horizontal or vertical stroke segment", () => {
+    for (const v of [0, 1]) {
+      const { ops } = paint({ x: 0, y: 0, face: "front", kind: "trellis", variant: v });
+      const moves = ops.filter((o) => o.name === "moveTo" || o.name === "lineTo");
+      expect(moves.length).toBeGreaterThan(0);
+      for (let i = 0; i < moves.length; i += 2) {
+        const [x0, y0] = (moves[i]?.args ?? []) as number[];
+        const [x1, y1] = (moves[i + 1]?.args ?? []) as number[];
+        expect(x0).not.toBe(x1);
+        expect(y0).not.toBe(y1);
+      }
     }
   });
 

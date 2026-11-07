@@ -28,6 +28,12 @@ if (process.env.BENCH !== "1") return new Response(null, { status: 404 });
   <body>
     <canvas id="bench"></canvas>
     <script>
+      import room01 from "../../rooms/01-first-steps.room?raw";
+      import room02 from "../../rooms/02-three-hands.room?raw";
+      import room03 from "../../rooms/03-watchers.room?raw";
+      import room04 from "../../rooms/04-the-safe.room?raw";
+      import room06 from "../../rooms/06-lights-out.room?raw";
+      import room07 from "../../rooms/07-night-shift.room?raw";
       import room05 from "../../rooms/05-the-gallery.room?raw";
       import room08 from "../../rooms/08-music-room.room?raw";
       import room09 from "../../rooms/09-the-vault.room?raw";
@@ -43,10 +49,19 @@ if (process.env.BENCH !== "1") return new Response(null, { status: 404 });
       const FRAMES = 300;
       const WARMUP = 30;
       const ROLES: [Role, Role, Role] = ["blind", "deaf", "mute"];
-      // ?room=05|08|09 (05 by default); ?decor=0 draws the room without its decor (spec/layout/decor.test.ts);
+      // ?room=01..09 (05 by default); ?decor=0 draws the room without its decor (spec/layout/decor.test.ts);
       // ?still=1 draws one settled frame and stops, for a spec to read; ?hc=1 is high contrast
       const q = new URLSearchParams(location.search);
-      const which = { "08": room08, "09": room09 }[q.get("room") ?? ""] ?? room05;
+      const which = {
+        "01": room01,
+        "02": room02,
+        "03": room03,
+        "04": room04,
+        "06": room06,
+        "07": room07,
+        "08": room08,
+        "09": room09,
+      }[q.get("room") ?? ""] ?? room05;
       const room = parseRoom(which);
       setHue(room.meta.hue as string | undefined);
       if (q.get("hc") === "1") setContrast(true);

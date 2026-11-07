@@ -150,9 +150,128 @@ const cagedSconce: Painter = (c, _item, w, h) => {
   for (const dx of [-0.05, 0, 0.05]) c.fillRect(x + w * dx - 0.5, y - h * 0.08, 1, h * 0.18);
 };
 
+// The pavilion: ivy trails small lens-shaped leaves from the top edge (never a single large leaf);
+// a planter is a box with a few small leaves over its rim.
+const LEAF = () => mix(WORLD.wallFront, WORLD.codeGreen, 0.35);
+function lens(c: CanvasRenderingContext2D, x: number, y: number, w: number, a: number) {
+  c.beginPath();
+  c.ellipse(x, y, w * 0.07, w * 0.03, a, 0, Math.PI * 2);
+  c.fill();
+}
+const ivy: Painter = (c, item, w, h) => {
+  c.fillStyle = LEAF();
+  const vines = 2 + (item.variant % 2);
+  for (let v = 0; v < vines; v++) {
+    const x = w * (0.2 + (0.6 * (v + 0.5)) / vines);
+    const n = 3 + ((item.variant + v) % 3);
+    c.fillRect(x - 0.5, 0, 1, h * 0.14 * (n + 1));
+    for (let i = 0; i < n; i++)
+      lens(c, x + (i % 2 ? w * 0.05 : -w * 0.05), h * 0.12 * (i + 1), w, i % 2 ? 0.5 : -0.5);
+  }
+};
+const planter: Painter = (c, item, w, h) => {
+  c.fillStyle = mix(WORLD.wallFront, BLACK, 0.3); // the box
+  c.fillRect(w * 0.18, h * 0.5, w * 0.64, h * 0.4);
+  c.fillStyle = LEAF();
+  const n = 4 + (item.variant % 3);
+  for (let i = 0; i < n; i++)
+    lens(c, w * (0.24 + (0.52 * i) / (n - 1)), h * 0.42, w, i % 2 ? 1 : -1);
+};
+
+// The conservatory: a diagonal lattice (never a grid of rails) and fern fronds on a top.
+const trellis: Painter = (c, item, w, h) => {
+  c.strokeStyle = mix(WORLD.wallFront, BLACK, 0.3);
+  c.lineWidth = 1;
+  const gap = w * (0.25 + 0.05 * (item.variant % 2));
+  c.beginPath();
+  for (let x = -h; x < w + h; x += gap) {
+    c.moveTo(x, 0);
+    c.lineTo(x + h, h);
+    c.moveTo(x + h, 0);
+    c.lineTo(x, h);
+  }
+  c.stroke();
+};
+const fern: Painter = (c, item, w, h) => {
+  c.fillStyle = LEAF();
+  const n = 5 + (item.variant % 3);
+  for (let i = 0; i < n; i++)
+    lens(c, w * (0.15 + (0.7 * i) / (n - 1)), h * (0.4 + 0.15 * (i % 2)), w, (i - n / 2) * 0.35);
+};
+
+// The watch house: a swallowtail banner in wall tones, and an unlit sconce (no glow).
+const banner: Painter = (c, _item, w, h) => {
+  c.fillStyle = mix(WORLD.wallFront, BLACK, 0.25);
+  c.beginPath();
+  c.moveTo(w * 0.3, h * 0.08);
+  c.lineTo(w * 0.7, h * 0.08);
+  c.lineTo(w * 0.7, h * 0.82);
+  c.lineTo(w * 0.5, h * 0.66);
+  c.lineTo(w * 0.3, h * 0.82);
+  c.closePath();
+  c.fill();
+};
+function sconceBody(c: CanvasRenderingContext2D, w: number, h: number) {
+  c.fillStyle = mix(WORLD.wallFront, BLACK, 0.35); // plate and cup
+  c.fillRect(w / 2 - w * 0.06, h * 0.5, w * 0.12, h * 0.05);
+  c.fillRect(w / 2 - w * 0.04, h * 0.34, w * 0.08, h * 0.16);
+}
+const sconceDim: Painter = (c, _item, w, h) => {
+  sconceBody(c, w, h);
+  c.fillStyle = mix(WORLD.sconce, WORLD.wallFront, 0.8); // a cold bulb
+  c.beginPath();
+  c.arc(w / 2, h * 0.31, w * 0.04, 0, Math.PI * 2);
+  c.fill();
+};
+
+// The bank: a lower panel with one rail, a framed card, a lit sconce.
+const wainscot: Painter = (c, _item, w, h) => {
+  c.fillStyle = mix(WORLD.wallFront, BLACK, 0.18);
+  c.fillRect(0, h * 0.58, w, h * 0.42);
+  c.fillStyle = mix(WORLD.brass, WORLD.wallFront, 0.3); // the one rail
+  c.fillRect(0, h * 0.58, w, 1.5);
+};
+const certificate: Painter = (c, _item, w, h) => {
+  c.fillStyle = mix(WORLD.brass, WORLD.wallFront, 0.25);
+  c.fillRect(w * 0.26, h * 0.22, w * 0.48, h * 0.5);
+  c.fillStyle = mix(WORLD.wallTop, WORLD.wallFront, 0.4); // the card
+  c.fillRect(w * 0.3, h * 0.27, w * 0.4, h * 0.4);
+};
+const sconce: Painter = (c, _item, w, h) => {
+  glow(c, w / 2, h * 0.31, w * 0.5);
+  sconceBody(c, w, h);
+  bulb(c, w / 2, h * 0.31, w);
+};
+
+// Service: a steel kick panel with vertical seams, and a caged bulb that glows.
+const kickPanel: Painter = (c, item, w, h) => {
+  c.fillStyle = mix(WORLD.steel, WORLD.wallFront, 0.45);
+  c.fillRect(0, h * 0.5, w, h * 0.5);
+  c.fillStyle = mix(WORLD.steelFront, WORLD.wallFront, 0.3);
+  const seams = 2 + (item.variant % 2);
+  for (let i = 1; i <= seams; i++) c.fillRect((w * i) / (seams + 1) - 0.5, h * 0.5, 1, h * 0.5);
+};
+const cagedBulb: Painter = (c, _item, w, h) => {
+  glow(c, w / 2, h * 0.36, w * 0.5);
+  bulb(c, w / 2, h * 0.36, w);
+  c.fillStyle = mix(WORLD.steelFront, BLACK, 0.3);
+  for (const dx of [-0.06, 0.06]) c.fillRect(w / 2 + w * dx - 0.5, h * 0.26, 1, h * 0.2);
+};
+
 // How many looks each kind has: the rest of an item's variant is ignored, so the atlas keeps one tile
 // per look, not per variant.
 export const LOOKS: Record<DecorKind, number> = {
+  ivy: 6,
+  planter: 3,
+  trellis: 2,
+  fern: 3,
+  banner: 1,
+  sconceDim: 1,
+  wainscot: 1,
+  certificate: 1,
+  sconce: 1,
+  kickPanel: 2,
+  cagedBulb: 1,
   painting: 4,
   violin: 1,
   lute: 1,
@@ -167,6 +286,17 @@ export const decorTile = (item: DecorItem): string =>
   `${item.face}:${item.kind}:${item.variant % LOOKS[item.kind]}`;
 
 export const PAINTERS: Record<DecorKind, Painter> = {
+  ivy,
+  planter,
+  trellis,
+  fern,
+  banner,
+  sconceDim,
+  wainscot,
+  certificate,
+  sconce,
+  kickPanel,
+  cagedBulb,
   painting,
   violin,
   lute,

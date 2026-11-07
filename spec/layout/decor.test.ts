@@ -59,7 +59,7 @@ const VIEWPORTS = [
 ] as const;
 
 describe("decor stays on its wall's face", () => {
-  for (const room of ["05", "08", "09"])
+  for (const room of ["01", "02", "03", "04", "05", "06", "07", "08", "09"])
     for (const vp of VIEWPORTS)
       it(`room ${room} at ${vp.width}: every pixel decor changes is on a wall face`, async () => {
         const page = await browser.newPage({ viewport: vp, deviceScaleFactor: 2 });
@@ -96,6 +96,22 @@ describe("decor stays on its wall's face", () => {
                 y1: (y0 + h + 0.5) * dpr + 2,
               };
             });
+            const ring = items.map((it) => {
+              const x0 = ((ox as number) + it.x * s) * dpr;
+              const y0 = ((oy as number) + it.y * s * depth - wall * s) * dpr;
+              return {
+                x0,
+                x1: x0 + (s + 0.5) * dpr,
+                y0,
+                y1: y0 + (s * depth + wall * s + 0.5) * dpr,
+              };
+            });
+            const inside = (
+              f: { x0: number; x1: number; y0: number; y1: number },
+              px: number,
+              py: number,
+              m: number,
+            ) => px >= f.x0 - m && px <= f.x1 + m && py >= f.y0 - m && py <= f.y1 + m;
             let changed = 0;
             const stray: string[] = [];
             for (let i = 0; i < a.length; i += 4) {
@@ -104,6 +120,10 @@ describe("decor stays on its wall's face", () => {
               const px = (i / 4) % c.width;
               const py = Math.floor(i / 4 / c.width);
               if (faces.some((f) => px >= f.x0 && px <= f.x1 && py >= f.y0 && py <= f.y1)) continue;
+              // the edge of a carrying wall's own tile: the atlas blits a tile onto whole device pixels
+              // with a half-pixel overshoot, and a tile with a top-only item is another atlas entry
+              // than the bare wall, so its outermost 2 px can round differently
+              if (ring.some((f) => inside(f, px, py, 2) && !inside(f, px, py, -2))) continue;
               if (stray.length < 3) {
                 // the floor tile under that pixel (a wall's faces stand above their own tile)
                 const tx = Math.floor((px / dpr - (ox as number)) / s);
@@ -117,7 +137,9 @@ describe("decor stays on its wall's face", () => {
         );
         await page.close();
         expect(out.items, "the room has decor").toBeGreaterThan(0);
-        expect(out.changed, "decor changed some pixel in view").toBeGreaterThan(0);
+        // the phone's follow camera shows a small window, which may hold no decorated wall (room 06)
+        if (vp.width >= 1280)
+          expect(out.changed, "decor changed some pixel in view").toBeGreaterThan(0);
         expect(out.stray, "pixels decor changed off its face").toEqual([]);
       }, 60_000);
 });

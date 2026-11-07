@@ -15,8 +15,19 @@ export type Theme =
   | "salon"
   | "strongroom";
 
-// A closed union: each theme's kinds. Phase 8 adds the other six themes' kinds.
+// A closed union: each theme's kinds.
 export type DecorKind =
+  | "ivy" // pavilion: trailing small leaves from the top edge of a front
+  | "planter" // pavilion: a box with foliage, on a wall's top
+  | "trellis" // conservatory: a diagonal lattice only
+  | "fern" // conservatory: fronds on a wall's top
+  | "banner" // watch: a swallowtail in wall tones
+  | "sconceDim" // watch, backstage: an unlit sconce, no glow
+  | "wainscot" // bank: a lower panel with one rail
+  | "certificate" // bank: a framed card
+  | "sconce" // bank: a lit sconce
+  | "kickPanel" // service: steel with vertical seams
+  | "cagedBulb" // service: a lit bulb in a cage
   | "painting" // gallery: a gilt frame round an abstract field, with a picture light
   | "violin" // salon: silhouettes in a darker wall tone
   | "lute"
@@ -39,19 +50,30 @@ export const THEME_OF: Record<string, Theme> = {
 };
 
 export const THEME_KINDS: Record<Theme, readonly DecorKind[]> = {
-  pavilion: [],
-  conservatory: [],
-  watch: [],
-  bank: [],
+  pavilion: ["ivy", "planter"],
+  conservatory: ["trellis", "fern"],
+  watch: ["banner", "sconceDim"],
+  bank: ["wainscot", "certificate", "sconce"],
   gallery: ["painting"],
-  backstage: [],
-  service: [],
+  backstage: ["swag", "sconceDim"],
+  service: ["kickPanel", "cagedBulb"],
   salon: ["violin", "lute", "staff", "swag"],
   strongroom: ["rivets", "cladding", "cagedSconce"],
 };
 
 // Which faces a kind can go on. Only a row of rivets also reads on a wall's top.
 export const KIND_FACES: Record<DecorKind, readonly ("front" | "top")[]> = {
+  ivy: ["front"],
+  planter: ["top"],
+  trellis: ["front"],
+  fern: ["top"],
+  banner: ["front"],
+  sconceDim: ["front"],
+  wainscot: ["front"],
+  certificate: ["front"],
+  sconce: ["front"],
+  kickPanel: ["front"],
+  cagedBulb: ["front"],
   painting: ["front"],
   violin: ["front"],
   lute: ["front"],
@@ -63,7 +85,12 @@ export const KIND_FACES: Record<DecorKind, readonly ("front" | "top")[]> = {
 };
 
 // Kinds that carry a --w-sconce glow, clipped to their own face.
-const LIT: ReadonlySet<DecorKind> = new Set(["painting", "cagedSconce"]);
+export const LIT: ReadonlySet<DecorKind> = new Set([
+  "painting",
+  "cagedSconce",
+  "sconce",
+  "cagedBulb",
+]);
 
 export interface DecorItem {
   x: number; // the wall tile
@@ -76,7 +103,13 @@ export interface DecorItem {
 
 // A room's nudge to its seed (R2): raised when the anchor test finds an item beside a station part.
 // 05 and 09 are nudged so that no item stands beside a station part or plaque (decor.test.ts, R2).
-export const SALT: Record<string, number> = { "05-the-gallery": 36, "09-the-vault": 2995 };
+export const SALT: Record<string, number> = {
+  "05-the-gallery": 36,
+  "09-the-vault": 2995,
+  "04-the-safe": 1,
+  "06-lights-out": 4,
+  "07-night-shift": 12,
+};
 
 // 32-bit FNV-1a, then mulberry32
 function fnv1a(s: string): number {
