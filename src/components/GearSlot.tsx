@@ -20,6 +20,7 @@ export function GearSlot({
         type="button"
         class="gear-slot gear-btn"
         data-gear
+        data-no-ui-sound
         disabled={disabled || !gear}
         aria-label={gear ? `${name}: give, swap or drop` : "Gear: none"}
         onContextMenu={(e) => e.preventDefault()}
@@ -33,7 +34,7 @@ export function GearSlot({
     );
   }
   return (
-    <section class="gear-slot" aria-label={`Gear: ${name}`}>
+    <section class="gear-slot" aria-label={`Gear: ${name}`} data-no-ui-sound>
       <span class="gear-name">
         {gear ? <GearGlyph item={gear} /> : <span class="gear-empty" aria-hidden="true" />}
         {name}

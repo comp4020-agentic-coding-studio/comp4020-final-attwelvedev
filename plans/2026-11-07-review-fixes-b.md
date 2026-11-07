@@ -77,7 +77,7 @@ important: one can hang a room, the other restores a check CLAUDE.md says must s
 - **Break check:** restore `z-index: 4`; the test goes red.
 - **Depends on:** Task 135 (same file, same rules nearby).
 
-### Task 137: Menu sounds play only when they can, and never during play (FR6)
+### Task 137 (done): Menu sounds play only when they can, and never during play (FR6)
 
 - **Description:** `src/client/uiSound.ts`:
   - `uiSound` schedules a note while the context is suspended, where the clock stays at 0, so every join,

@@ -105,8 +105,12 @@ export function uiSound(
     (globalThis as { __uiSounds?: string[] }).__uiSounds?.push(kind);
     const use = c ?? getContext();
     if (!use) return;
-    // a press is a gesture, so this is when a suspended context may wake; before it, nothing plays
-    if (use.state === "suspended") void use.resume().catch(() => undefined);
+    // A press is a gesture, so this is when a suspended context may wake. A suspended context's clock
+    // stays at 0, so a note scheduled now would sound the moment it wakes: this one is dropped.
+    if (use.state !== "running") {
+      if (use.state === "suspended") void use.resume().catch(() => undefined);
+      return;
+    }
     playPlan(use, UI_PLANS[kind]);
   } catch {
     // a sound that does not play is not worth an error
@@ -117,22 +121,27 @@ export function uiSound(
 const SILENT = ".wheel, .touch-zone, canvas, [data-no-ui-sound]";
 
 let installed = false;
+let settingsNow: () => Pick<Settings, "menuSounds"> = () => ({ menuSounds: true });
 
 // One delegated listener pair on `document`, called from each island's mount: a `button` click ticks,
-// a checkbox change ticks up (on) or down (off). Installed once however many islands ask.
+// a checkbox change ticks up (on) or down (off). The listeners go on once, however many islands ask;
+// the latest caller's `getSettings` is the one read (the game passes its live settings, which a
+// blocked `localStorage` could never give back).
 export function installUiSounds(getSettings: () => Pick<Settings, "menuSounds">): void {
-  if (installed || typeof document === "undefined") return;
+  if (typeof document === "undefined") return;
+  settingsNow = getSettings;
+  if (installed) return;
   installed = true;
   document.addEventListener("click", (e) => {
     const el = e.target instanceof Element ? e.target : null;
     const button = el?.closest("button");
     if (!button || button.disabled || button.closest(SILENT)) return;
-    uiSound("press", getSettings());
+    uiSound("press", settingsNow());
   });
   document.addEventListener("change", (e) => {
     const el = e.target;
     if (!(el instanceof HTMLInputElement) || el.type !== "checkbox" || el.closest(SILENT)) return;
-    uiSound(el.checked ? "toggle-on" : "toggle-off", getSettings());
+    uiSound(el.checked ? "toggle-on" : "toggle-off", settingsNow());
   });
 }
 
@@ -145,6 +154,18 @@ export function diffPeople(
     joined: after.filter((w) => !before.includes(w)),
     left: before.filter((w) => !after.includes(w)),
   };
+}
+
+// The chime for a change of people, if there is one: only while the lobby is open. Once the game is on
+// the lobby page still hears the people list change, and a teammate leaving mid-heist is not a lobby leave.
+export function peopleSound(
+  before: readonly string[],
+  after: readonly string[],
+  phase: "open" | "playing" | "done",
+): "join" | "leave" | null {
+  if (phase !== "open") return null;
+  const { joined, left } = diffPeople(before, after);
+  return joined.length > 0 ? "join" : left.length > 0 ? "leave" : null;
 }
 
 // The settings as saved in this browser: every island saves on change, so a press reads the latest.

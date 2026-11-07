@@ -22,6 +22,7 @@ const fakeContext = () => {
   };
   const c = {
     currentTime: 0,
+    state: "running",
     destination: {},
     createOscillator: node,
     createGain: node,
@@ -34,6 +35,17 @@ describe("uiSound", () => {
     const { c, counts } = fakeContext();
     uiSound("press", { menuSounds: false }, c);
     expect(counts.started).toBe(0);
+  });
+
+  it("schedules nothing while the context is suspended (its clock is stuck at 0)", () => {
+    const { c, counts } = fakeContext();
+    (c as unknown as { state: string }).state = "suspended";
+    (c as unknown as { resume: () => Promise<void> }).resume = () => Promise.resolve();
+    uiSound("join", { menuSounds: true }, c);
+    expect(counts.started).toBe(0);
+    (c as unknown as { state: string }).state = "running";
+    uiSound("join", { menuSounds: true }, c);
+    expect(counts.started).toBe(UI_PLANS.join.length);
   });
 
   it("plays a node per note when menuSounds is on", () => {
@@ -76,5 +88,16 @@ describe("diffPeople", () => {
     expect(diffPeople(["a", "b"], ["a", "b", "c"])).toEqual({ joined: ["c"], left: [] });
     expect(diffPeople(["a", "b", "c"], ["a", "c"])).toEqual({ joined: [], left: ["b"] });
     expect(diffPeople(["a", "b", "c"], ["c", "a", "b"])).toEqual({ joined: [], left: [] });
+  });
+});
+
+describe("peopleSound", () => {
+  it("is a join or a leave while the lobby is open, and silent once the game is on", async () => {
+    const { peopleSound } = await import("./uiSound.ts");
+    expect(peopleSound(["a", "b"], ["a", "b", "c"], "open")).toBe("join");
+    expect(peopleSound(["a", "b", "c"], ["a", "c"], "open")).toBe("leave");
+    expect(peopleSound(["a", "b", "c"], ["a", "c"], "playing")).toBeNull();
+    expect(peopleSound(["a", "b"], ["a", "b", "c"], "playing")).toBeNull();
+    expect(peopleSound(["a", "b"], ["b", "a"], "open")).toBeNull();
   });
 });

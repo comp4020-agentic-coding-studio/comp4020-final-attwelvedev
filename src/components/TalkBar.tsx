@@ -70,6 +70,7 @@ export function TalkBar({
           <button
             type="button"
             class="btn talk-comms"
+            data-no-ui-sound
             aria-keyshortcuts="Q"
             aria-label="Comms, key Q"
             onClick={onComms}
@@ -81,6 +82,7 @@ export function TalkBar({
           <button
             type="button"
             class="btn talk-write"
+            data-no-ui-sound
             aria-label="Write a message"
             aria-keyshortcuts="Enter"
             onClick={onWrite}
@@ -92,6 +94,7 @@ export function TalkBar({
           <button
             type="button"
             class={voice.talking ? "btn talk-mic is-talking" : "btn talk-mic"}
+            data-no-ui-sound
             aria-pressed={voice.talking}
             aria-keyshortcuts="V"
             onPointerDown={(e) => {

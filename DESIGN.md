@@ -284,7 +284,7 @@ pattern and outline), `turnPad` (a floor pad with its arrow), `symbolGlyph` (a v
 | Keepsake taken | the item lifts off its plinth and fades over 1 s with a spark burst and a `--goal` ring; reduced motion: it fades in place |
 | Taken side-job chip | one 600 ms pulse; none under reduced motion (the vault chip does not pulse) |
 
-**Menu sounds** (client only; not `SoundCue`s, so no parity row): a soft tick or chime for pressing, never for play. Switched by `Settings.menuSounds` (on by default, "Menu sounds" in both settings places), separate from game sound. Each has a picture twin, because a sound alone would tell the hearing something the rest cannot see:
+**Menu sounds** (client only; not `SoundCue`s, so no parity row): a soft tick or chime for pressing, never for play (the wheel, the touch zones, the canvas, the gear slot and the talk bar's buttons are marked `data-no-ui-sound`; nothing sounds while the audio context is locked; the lobby's join and leave chimes stop once the game is on). Switched by `Settings.menuSounds` (on by default, "Menu sounds" in both settings places), separate from game sound. Each has a picture twin, because a sound alone would tell the hearing something the rest cannot see:
 
 | Kind | Sound (`UI_PLANS` in `src/client/uiSound.ts`) | Picture twin |
 | --- | --- | --- |

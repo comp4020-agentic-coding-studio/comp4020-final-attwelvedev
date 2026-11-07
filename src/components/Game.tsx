@@ -480,10 +480,9 @@ export function Game({
     };
   }, [socket, early]);
 
-  // a sting when the reveal shows (not for a page loaded mid-game, which has no reveal), and the
-  // press sounds; the page's own islands share one listener
+  // a sting when the reveal shows (not for a page loaded mid-game, which has no reveal); the press
+  // sounds' listener is the lobby's, and the HUD hands it the live settings
   useEffect(() => {
-    installUiSounds(savedSettings);
     if (early.view && early.view.room === reveal.room && early.view.tick > 0) return;
     uiSound("reveal", savedSettings());
   }, [reveal.room, early]);
@@ -727,6 +726,8 @@ function Hud({
   const live = useRef({ settings, lineId: 0, forceCaptions });
   live.current.settings = settings;
   live.current.forceCaptions = forceCaptions;
+  // the Menu sounds switch is read from the live settings: saved ones are unreadable with storage blocked
+  useEffect(() => installUiSounds(() => live.current.settings), []);
   rt.labelsOn = settings.labels;
   rt.labelsAll = reveal.index === 0;
   if (rt.labelRoom !== reveal.index) {

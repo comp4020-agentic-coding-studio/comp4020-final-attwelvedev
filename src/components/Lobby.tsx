@@ -4,7 +4,13 @@ import { loadSetup, saveSetup } from "../client/preferences.ts";
 import { qrSvg } from "../client/qr.ts";
 import { revealOf } from "../client/reveal.ts";
 import { forecast, nextRoomFor } from "../client/rotation.ts";
-import { diffPeople, installUiSounds, savedSettings, uiSound } from "../client/uiSound.ts";
+import {
+  diffPeople,
+  installUiSounds,
+  peopleSound,
+  savedSettings,
+  uiSound,
+} from "../client/uiSound.ts";
 import { MAX_PEOPLE } from "../game/crew.ts";
 import { sharesRoom } from "../game/setup.ts";
 import type { Seat } from "../game/types.ts";
@@ -82,13 +88,13 @@ export function Lobby({ code }: { code: string }) {
         }
         const now = m.lobby.people.map((p) => p.who);
         if (knownPeople.current) {
-          const { joined, left } = diffPeople(knownPeople.current, now);
-          const settings = savedSettings();
+          const { joined } = diffPeople(knownPeople.current, now);
+          const chime = peopleSound(knownPeople.current, now, m.lobby.phase);
+          if (chime) uiSound(chime, savedSettings());
           if (joined.length > 0) {
-            uiSound("join", settings);
             setGlowing((old) => [...old, ...joined]);
             setTimeout(() => setGlowing((old) => old.filter((w) => !joined.includes(w))), 1000);
-          } else if (left.length > 0) uiSound("leave", settings);
+          }
         }
         knownPeople.current = now;
         setLobby(m.lobby);
