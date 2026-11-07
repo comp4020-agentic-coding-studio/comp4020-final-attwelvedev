@@ -182,3 +182,59 @@ export function lightPolygon(
   rays.sort((a, b) => a.angle - b.angle);
   return rays.map((r) => ({ x: r.x, y: r.y }));
 }
+
+// The light polygon cut to a box (Sutherland-Hodgman against each side).
+export function cutToBox(
+  light: readonly Vec[],
+  b: { x0: number; x1: number; y0: number; y1: number },
+): Vec[] {
+  let poly = [...light];
+  const sides: ((p: Vec) => number)[] = [
+    (p) => p.x - b.x0,
+    (p) => b.x1 - p.x,
+    (p) => p.y - b.y0,
+    (p) => b.y1 - p.y,
+  ];
+  for (const inside of sides) {
+    const next: Vec[] = [];
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i] as Vec;
+      const c = poly[(i + 1) % poly.length] as Vec;
+      const da = inside(a);
+      const dc = inside(c);
+      if (da >= 0) next.push(a);
+      if (da >= 0 !== dc >= 0) {
+        const t = da / (da - dc);
+        next.push({ x: a.x + (c.x - a.x) * t, y: a.y + (c.y - a.y) * t });
+      }
+    }
+    poly = next;
+    if (poly.length === 0) break;
+  }
+  return poly;
+}
+
+// Whether the light covers some of a thing's footprint: the square `half` each way round `at` (a figure's
+// shadow disc, a box's tile). A corner the edge only grazes (less than TOUCH_AREA of it lit) does not count.
+// The server sends a standing thing by this rule and the client draws it by the same one, so the two agree
+// (the user, playtest L1, L3, L5: a figure, the flag and the goggles vanished while part of each was lit).
+const TOUCH_AREA = 1e-4; // square tiles
+export function footLit(light: readonly Vec[], at: Vec, half: number): boolean {
+  const lit = cutToBox(light, {
+    x0: at.x - half,
+    x1: at.x + half,
+    y0: at.y - half,
+    y1: at.y + half,
+  });
+  let area = 0;
+  for (let i = 0; i < lit.length; i++) {
+    const a = lit[i] as Vec;
+    const b = lit[(i + 1) % lit.length] as Vec;
+    area += (a.x * b.y - b.x * a.y) / 2;
+  }
+  return Math.abs(area) > TOUCH_AREA;
+}
+
+// The ground a standing thing covers, tiles each way from its centre: a figure's shadow disc (figures.ts draws
+// it at 0.36), anything else half its tile.
+export const footHalf = (kind: string): number => (kind === "player" ? 0.36 : 0.5);

@@ -1,4 +1,4 @@
-import { inLight, lightPolygon, tileTouched } from "../../game/light.ts";
+import { footHalf, footLit, inLight, lightPolygon, tileTouched } from "../../game/light.ts";
 import type { Vec } from "../../game/types.ts";
 import type { EntityView } from "../../net/protocol.ts";
 import { MIST, WORLD } from "../tokens.ts";
@@ -61,21 +61,23 @@ export function cutToSight(entities: EntityView[], seen: Seen | null): EntityVie
   return out;
 }
 
-// What stands is drawn only where the light touches its footprint (its own tile). The server sends a
-// thing when its tile is touched by a ray, but a tile the cone grazes at a corner is sent too, and the
-// swept clip that keeps a figure's head and a crate's top from being cut also reaches up over the unlit
-// tile behind a wall, which is how a camera on veiled floor was drawn at full strength. A thing in a
-// tile the light does not touch is dropped; one in a touched tile is drawn whole, and the clip then cuts
-// it at the cone's edge. Never dropped: your own figure, a mark (a teammate's message, shown faintly
-// through the haze by design), a cone of sight, and the floor's own layout (plates, doors, exits...),
-// which the veil is meant to leave readable. A watcher has no light and keeps everything.
+// What stands is drawn only where the light touches its footprint: the ground its drawing stands on (a
+// figure's shadow disc, here its square; anything else its tile's half each way). The server sends a thing
+// when the light touches its tile, and the swept clip that keeps a figure's head and a crate's top from
+// being cut also reaches up over the unlit tile behind a wall, which is how a camera on veiled floor was
+// drawn at full strength. A thing whose footprint the light misses entirely is dropped; one whose
+// footprint it touches anywhere is kept, drawn whole, and the clip then cuts it at the cone's edge (the
+// user, playtest L1, L3, L5: a figure at a corner, the flag and the goggles vanished while part of each
+// was in the light). Never dropped: your own figure, a mark (a teammate's message, shown faintly through
+// the haze by design), a cone of sight, and the floor's own layout (plates, doors, exits...), which the
+// veil is meant to leave readable. A watcher has no light and keeps everything.
 export function litEntities(
   entities: EntityView[],
   light: readonly Vec[] | null,
   mySeat: number,
 ): EntityView[] {
   if (light === null) return entities;
-  const touched = (e: EntityView) => tileTouched(light, Math.floor(e.pos.x), Math.floor(e.pos.y));
+  const touched = (e: EntityView) => footLit(light, e.pos, footHalf(e.kind));
   return entities.filter((e) => {
     if (e.kind === "player") return e.seat === mySeat || touched(e);
     return !STANDS.has(e.kind) || touched(e);

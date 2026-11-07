@@ -10,7 +10,7 @@ import { camera, draw, type Scene } from "../render.ts";
 import { WORLD } from "../tokens.ts";
 import { rememberOrigin } from "./column.ts";
 import { fromScreen, LIVE, toScreen } from "./project.ts";
-import { drawMist } from "./sight.ts";
+import { drawMist, litEntities } from "./sight.ts";
 
 // The user's rule for what stands (a safe, a box, a figure): it is cut by the exact light, and the cut
 // goes straight up. A point on the thing is drawn only if the ground directly under it is lit, with no
@@ -1820,5 +1820,120 @@ describe("a lit figure has no box around it", () => {
   it("draws no figure at all when the light does not touch its ground", () => {
     const { ops } = opsWith({ x: 3.5, y: 2.7 }); // behind the pillar at (4, 2), far from (8.5, 1.5)
     expect(ops.some((o) => o.name === "ellipse" && o.fillStyle === WORLD.line)).toBe(false);
+  });
+});
+
+// The playtest of 2026-11-08 (L1 to L7, screenshots 122 to 130, review/los-repro-2026-11-08.md), in the rooms with glass.
+const roomOf = (id: string) =>
+  loadRooms().find((r) => r.id === id) as ReturnType<typeof loadRooms>[0];
+function viewAt(room: ReturnType<typeof loadRooms>[0], v: P, other?: P) {
+  const world = worldAt(room, Math.floor(v.x), Math.floor(v.y));
+  world.players[1].pos = v;
+  world.players[0].pos = other ?? { x: 1.5, y: 1.5 };
+  const view = viewFor(world, 1, "deaf", false);
+  const tiles = viewFor(world, 1, "deaf", true).tiles as string[];
+  const sc: Scene = {
+    layout: "follow",
+    w: 892,
+    h: 457,
+    role: "deaf",
+    seat: 1,
+    roles: ["blind", "deaf", "mute"],
+    tiles,
+    seen: view.seen,
+    entities: view.entities,
+    self: v,
+  };
+  // the light as the client builds it (lightOf): closed doors stop it
+  const closed = new Set(
+    view.entities
+      .filter((e) => e.kind === "door" && e.state === "closed")
+      .map((e) => `${Math.floor(e.pos.x)},${Math.floor(e.pos.y)}`),
+  );
+  const light = lightPolygon(v, tiles, (tx, ty) => closed.has(`${tx},${ty}`));
+  return { world, view, tiles, sc, light };
+}
+// Points of what a thing stands on: a figure's shadow disc (radius 0.36), its centre and its rim; a tile, the same
+// at `half`. A corner of the square round the disc is not ground the figure stands on.
+const footOf = (c: P, half = 0.36): P[] => [
+  c,
+  ...Array.from({ length: 16 }, (_, k) => ({
+    x: c.x + half * Math.cos((k * Math.PI) / 8),
+    y: c.y + half * Math.sin((k * Math.PI) / 8),
+  })),
+];
+
+describe("what stands is dropped only when the light touches none of its footprint (L1, L3, L5)", () => {
+  it("draws a figure whose feet are partly lit, from every spot of room 6 and room 8 (L1, screenshots 122 and 123)", () => {
+    vi.stubGlobal("Path2D", class {});
+    const lost: string[] = [];
+    let checked = 0;
+    for (const id of ["06-lights-out", "08-music-room"]) {
+      const room = roomOf(id);
+      for (let vy = 1; vy < room.height; vy += 2)
+        for (let vx = 1; vx < room.width; vx += 2) {
+          if (room.grid[vy]?.[vx] !== ".") continue;
+          const v = { x: vx + 0.3, y: vy + 0.6 };
+          for (let fy = vy - 4; fy <= vy + 4; fy++)
+            for (let fx = vx - 6; fx <= vx + 6; fx++) {
+              if (room.grid[fy]?.[fx] !== "." || (fx === vx && fy === vy)) continue;
+              const f = { x: fx + 0.5, y: fy + 0.5 };
+              const { view, light, tiles } = viewAt(room, v, f);
+              // a figure in a dark zone is never sent (FR19): its tiles are masked out of the map
+              if (tiles[fy]?.[fx] !== "." || tiles[vy]?.[vx] !== ".") continue;
+              if (!footOf(f).some((p) => inLight(light, p))) continue;
+              checked++;
+              const kept = litEntities(view.entities, light, 1).some(
+                (e) => e.kind === "player" && e.seat === 0,
+              );
+              if (!kept) lost.push(`${id} viewer ${v.x},${v.y} figure ${f.x},${f.y}`);
+            }
+        }
+    }
+    expect(checked, "figures partly lit").toBeGreaterThan(1000);
+    expect(lost.slice(0, 5), `${lost.length} figures lost`).toEqual([]);
+  });
+
+  it("keeps the checkpoint while any of its tile is lit, room 6 (L3, screenshot 125)", () => {
+    vi.stubGlobal("Path2D", class {});
+    const room = roomOf("06-lights-out");
+    const k = room.objects.find((o) => o.kind === "checkpoint")?.tiles[0] as P;
+    const lost: string[] = [];
+    let checked = 0;
+    for (let vy = 1.3; vy < room.height; vy += 0.5)
+      for (let vx = 1.3; vx < room.width; vx += 0.5) {
+        if (room.grid[Math.floor(vy)]?.[Math.floor(vx)] !== ".") continue;
+        const v = { x: vx, y: vy };
+        const { view, light } = viewAt(room, v);
+        if (!footOf({ x: k.x + 0.5, y: k.y + 0.5 }, 0.45).some((p) => inLight(light, p))) continue;
+        checked++;
+        if (!litEntities(view.entities, light, 1).some((e) => e.kind === "checkpoint"))
+          lost.push(`viewer ${v.x},${v.y}`);
+      }
+    expect(checked, "spots with the flag's tile partly lit").toBeGreaterThan(50);
+    expect(lost.slice(0, 5), `${lost.length} spots lose the flag`).toEqual([]);
+  });
+
+  it("keeps gear on the floor while any of it is lit, room 8 (L5, screenshots 127 and 128)", () => {
+    vi.stubGlobal("Path2D", class {});
+    const room = roomOf("08-music-room");
+    const lost: string[] = [];
+    let checked = 0;
+    for (let vy = 1.2; vy < room.height; vy += 0.5)
+      for (let vx = 1.2; vx < 12; vx += 0.5) {
+        if (room.grid[Math.floor(vy)]?.[Math.floor(vx)] !== ".") continue;
+        const v = { x: vx, y: vy };
+        const { world, view, light } = viewAt(room, v);
+        for (const g of world.gear) {
+          if (!g.at) continue;
+          if (!footOf({ x: g.at.x + 0.5, y: g.at.y + 0.5 }, 0.3).some((p) => inLight(light, p)))
+            continue;
+          checked++;
+          if (!litEntities(view.entities, light, 1).some((e) => e.id === g.id))
+            lost.push(`viewer ${vx.toFixed(1)},${vy.toFixed(1)} ${g.item}`);
+        }
+      }
+    expect(checked, "gear partly lit").toBeGreaterThan(100);
+    expect(lost.slice(0, 5), `${lost.length} gear lost`).toEqual([]);
   });
 });

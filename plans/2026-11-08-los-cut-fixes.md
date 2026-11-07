@@ -43,13 +43,13 @@ Default taken, to veto: R3's diagonal applies in front of glass only. What stand
 
 Each new or changed assertion is shown red first with a break script (CLAUDE.md), and the commit says what was broken. A render bug that will not reproduce from the model is reproduced by drawing the real scene on a real canvas and looking, before any fix. `pnpm check` green against `PORT=8092 pnpm start:check`.
 
-- [ ] **Task 1: Reproduce all seven, find the causes**
+- [x] **Task 1: Reproduce all seven, find the causes** (finding: `review/los-repro-2026-11-08.md`; L4 and L6 fit none of (a) to (c))
   - Files: `src/client/render/sight.test.ts` and `src/client/render/standing.test.ts` (one failing test per symptom, from a scene captured from its screenshot: the room is identified from the picture; the rooms with glass are `rooms/03-watchers.room`, `06-lights-out.room` and `08-music-room.room`), a throwaway worktree on `auto/escape-room` to run the same checks there, and `review/los-repro-2026-11-08.md` (new: per symptom, the failing test, the cause, new or old).
   - The three causes the code points at, to be confirmed or refuted here: (a) `litEntities` in `src/client/render/sight.ts` drops a `STANDS` thing, or another player, whose own tile the light does not touch, though its sprite reaches up into the cone (L1, L3, L5); (b) the vertical cut that DESIGN.md §4.4 gives glass, and gives a station over a wall's front (L2, L7); (c) `cutToSight` and the view's `furniture` split in `src/game/perception.ts` (the `shown` and `furniture` branches), which draw a station's number from its display tile while its body needs a part tile in `seen` (L4, L6).
   - Acceptance: seven failing tests, one finding file. If a symptom fits none of (a) to (c), stop and ask the user.
   - Depends on: none.
 
-- [ ] **Task 2: Drop a thing only when its footprint is fully dark** (if the finding says (a))
+- [x] **Task 2: Drop a thing only when its footprint is fully dark** (if the finding says (a)) (also on the server: see the overnight decisions file)
   - Files: `src/client/render/sight.ts` (`litEntities`: keep a `STANDS` thing or player when any tile of its drawn footprint is touched, using `tileTouched` over the sprite's tile extent; the exact-light clip still cuts what is dark), `src/client/render/sight.test.ts`.
   - Tests first: the Task 1 tests for L1, L3 and L5 go green; a thing wholly in the dark is still dropped (it must stay red if `litEntities` keeps everything). Break: restore the own-tile test.
   - Depends on: Task 1.

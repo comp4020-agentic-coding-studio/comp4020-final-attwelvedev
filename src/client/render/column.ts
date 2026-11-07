@@ -1,4 +1,4 @@
-import { inLight } from "../../game/light.ts";
+import { cutToBox, inLight } from "../../game/light.ts";
 import type { Vec } from "../../game/types.ts";
 import { type Camera, LIVE, toScreen } from "./project.ts";
 
@@ -19,33 +19,7 @@ export interface Foot {
 
 type S = { x: number; y: number };
 
-// The light polygon cut to a box (Sutherland-Hodgman against each side).
-export function cutToBox(light: readonly Vec[], b: Foot): Vec[] {
-  let poly = [...light];
-  const sides: ((p: Vec) => number)[] = [
-    (p) => p.x - b.x0,
-    (p) => b.x1 - p.x,
-    (p) => p.y - b.y0,
-    (p) => b.y1 - p.y,
-  ];
-  for (const inside of sides) {
-    const next: Vec[] = [];
-    for (let i = 0; i < poly.length; i++) {
-      const a = poly[i] as Vec;
-      const c = poly[(i + 1) % poly.length] as Vec;
-      const da = inside(a);
-      const dc = inside(c);
-      if (da >= 0) next.push(a);
-      if (da >= 0 !== dc >= 0) {
-        const t = da / (da - dc);
-        next.push({ x: a.x + (c.x - a.x) * t, y: a.y + (c.y - a.y) * t });
-      }
-    }
-    poly = next;
-    if (poly.length === 0) break;
-  }
-  return poly;
-}
+export { cutToBox };
 
 // Where the light was cast from, so an edge's near end (the wall corner the shadow starts at) and its far end
 // (where it lands) can be told apart. Set by whoever builds the polygon.

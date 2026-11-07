@@ -1,7 +1,7 @@
 import type { Stamp } from "./channels.ts";
 import { intersectLight, subtractRects } from "./clip.ts";
 import { visiblePolygon } from "./cone.ts";
-import { lightPolygon, lightTouches } from "./light.ts";
+import { footHalf, footLit, lightPolygon, lightTouches } from "./light.ts";
 import { linkOf } from "./links.ts";
 import {
   cacheOf,
@@ -938,6 +938,20 @@ function farSights(
 // What a sighted role may be told of: itself, marks (they show wherever they land, even in
 // the dark), the lit tiles a hazard in the dark covers, and anything else only if its
 // tile is in line of sight. A laser keeps just the part of its beam that is seen.
+// What stands on open floor and is sent when the exact light covers some of it, as the client draws it. Not a
+// guard or a camera: what they see is sent apart (`farSights`), and where they are stays the tile set's.
+const ON_FLOOR = new Set<EntityView["kind"]>([
+  "player",
+  "crate",
+  "checkpoint",
+  "loot",
+  "gear",
+  "bell",
+  "lamp",
+  "lever",
+  "keepsake",
+  "card",
+]);
 function inSight(
   world: World,
   entities: EntityView[],
@@ -945,6 +959,7 @@ function inSight(
   seen: Visible,
   zones: Zone[],
   touches: (t: Vec) => boolean,
+  light: () => Vec[],
 ): EntityView[] {
   const out: EntityView[] = [];
   // a tile is in view when the tile set has it or the exact light the client draws touches any of it:
@@ -989,6 +1004,15 @@ function inSight(
       }
     } else if (seen.has(Math.floor(e.pos.x), Math.floor(e.pos.y))) {
       out.push(e);
+    } else if (
+      ON_FLOOR.has(e.kind) &&
+      lit({ x: Math.floor(e.pos.x), y: Math.floor(e.pos.y) }) &&
+      footLit(light(), e.pos, footHalf(e.kind))
+    ) {
+      // a thing on the floor whose tile the tile set missed but whose footprint the exact light covers in
+      // part: the client draws that light, and the thing in it (the user, playtest L1, L3, L5: a figure, the
+      // flag and the goggles vanished while part of each was lit). By the client's own rule (litEntities).
+      out.push(e);
     } else if (e.kind === "door" && !e.secret) {
       // a door is part of the map every sighted player holds, so it is sent whether or not its tile is
       // in the light (its outline used to pop in and out as you moved by a hair); its true state goes
@@ -1014,6 +1038,7 @@ interface Place {
   seen: Visible;
   encoded: string[];
   touch: (t: Vec) => boolean;
+  light: () => Vec[]; // the exact light the client draws, built on first use
 }
 const TOUCH_PLACES = 24; // places kept per world: three seats and a few recent steps
 const places = new WeakMap<World, Map<string, Place>>();
@@ -1027,7 +1052,13 @@ function placeOf(world: World, me: Vec): Place {
   const seen = visibleFrom(world, me);
   const memo = new Map<string, boolean>();
   let grid: string[] | null = null;
+  let light: Vec[] | null = null;
   const place: Place = {
+    light: () => {
+      grid ??= maskCache(world, world.room.grid);
+      light ??= lightPolygon(me, grid, closedAt(world));
+      return light;
+    },
     seen,
     encoded: encodeSeen(seen.tiles),
     touch: (t) => {
@@ -1204,7 +1235,7 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
     const zones = carried(world, seat)?.item === "goggles" ? [] : dark;
     view.dark = inAny(dark, me);
     view.alarm = alarm;
-    const { seen, encoded, touch: touches } = placeOf(world, me);
+    const { seen, encoded, touch: touches, light } = placeOf(world, me);
     view.seen = [...encoded]; // a copy: a view is the caller's to change
     const told = inSight(
       world,
@@ -1213,6 +1244,7 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
       seen,
       zones,
       touches,
+      light,
     );
     view.entities = [
       ...told,
