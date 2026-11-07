@@ -192,6 +192,21 @@ body.playing main {
   font-size: var(--t-18);
   font-weight: 700;
 }
+.reveal-role-line {
+  margin: 0;
+}
+/* "Who hears what": a disclosure, folded the first time; the arrow says which way it is */
+.reveal-more::before {
+  content: "▸" / "";
+  margin-right: var(--s-2);
+}
+.reveal-more[aria-expanded="true"]::before {
+  content: "▾" / "";
+}
+.reveal-more-body:not([hidden]) {
+  display: grid;
+  gap: var(--s-4);
+}
 .reveal-facts {
   margin: 0;
   display: grid;

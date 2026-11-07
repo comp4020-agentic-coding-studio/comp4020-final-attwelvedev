@@ -96,7 +96,7 @@ Each new or changed promise-guarding assertion is shown red first, with a break 
   - Acceptance: demo step 8. "No overflow and no axe violations on the HUD at phone and desktop widths" (`game.test.ts:94`) stays green.
   - Depends on: none.
 
-- [ ] **Task 5: A calmer reveal: one sentence, and "Who hears what" folded**
+- [x] **Task 5: A calmer reveal: one sentence, and "Who hears what" folded**
   - Files: `src/components/RoleReveal.tsx`:
     - add a `ROLE_LINE: Record<Role, string>` beside `YOU` (line 22) with the three sentences in demo 9, rendered as `<p class="reveal-role-line">` right after Task 2's `.reveal-goal`
     - wrap `<dl class="reveal-facts">` (line 112) and `<ul class="reveal-lines">` (line 134) in a disclosure: a `<button type="button" class="btn reveal-more" aria-expanded={open} aria-controls="reveal-more">Who hears what</button>` and a `<div id="reveal-more" hidden={!open}>`, with `open` initialised from `loadRevealOpen()` and every press calling `saveRevealOpen(next)`. These are two new never-throwing helpers in a new `src/client/revealPrefs.ts`, under their own `localStorage` key `heist.reveal` (`{"open": boolean}`; missing, unreadable or blocked means `false`). They take an optional store argument like `loadSettings`/`saveSettings` in `src/client/settings.ts`. They are deliberately **not** a field of `heist.settings`: `Game.tsx` holds a copy of `Settings` loaded at mount (line 750) and writes the whole object back on any in-game change (line 796), which would overwrite a reveal toggled after mount

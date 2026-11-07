@@ -11,3 +11,9 @@
 - fm/Task 3: the full check had one red, `spec/layout/door-pill.test.ts` "pill … at 375" (Can't hear's pill not drawn in time), green when run alone, while every other spec through the changed lobby heading passed → judged a load flake (two lanes on one machine), committed. Reversible by `pnpm check:flaky` on door-pill.test.ts in the morning.
 - fm/Task 4: "never mentions WASD or Space" first matched the page's screen-reader-only keyboard note ("…Enter and Space press.") → scoped the assertion to the visible `.keys` hints (exactly one, the touch line), which is the promise the plan names. Reversible by widening the locator.
 - fm/close: the plan's Human review section (Tasks 2 and 3 sign-off) is left unticked: sign-off is pending, queued in `review/QUEUE-fm.md`.
+
+## fm2 (first-minute clarity Tasks 5 to 7, plans/2026-11-07-first-minute-clarity.md)
+
+- fm2/Human review: the plan's Human review section (Tasks 5, 6 and 7 sign-off) → built, screenshotted, committed with "Human review: pending (overnight run)" and queued in `review/QUEUE-fm.md`. The section is left unticked, so sign-off is pending, because the user is asleep. Reversible by rejecting in the morning.
+- fm2/Task 5: the disclosure's look → a `.btn` with a ▸/▾ arrow in CSS `content` that has empty alt text (`"▸" / ""`), so the accessible name stays "Who hears what" and the state is carried by `aria-expanded`. The open body is a grid with the card's `--s-4` gap. Reversible by editing `.reveal-more` in game.css.
+- fm2/Task 5: the persistence test → one browser context with Ana's cookie opens the room-1 reveal, then the sockets clear room 1 and the same context opens the room-2 reveal and reloads it. That covers "open carries to the next room" and "folded survives a reload". The plan's separate room-3 step is covered by the reload, which reads the same stored state. Reversible by playing a second room in the test.

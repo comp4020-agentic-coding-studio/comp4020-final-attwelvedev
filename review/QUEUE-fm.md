@@ -39,3 +39,17 @@ open `http://localhost:8092` (three tabs, or one tab and bots).
 - **Screenshots:** `review/n7-fm-task4-phone-375.png`, `review/n7-fm-task4-desktop-1280.png`
 - **My judgement:** the hint fits under the 150 px touch zone inside 812 px without pushing the
   frame; nothing reads as an error. Pass.
+
+### fm2 Task 5: a calmer reveal, one sentence and "Who hears what" folded
+
+- **Look at:** each role's reveal. Under "Get all three onto the exit." comes one sentence for the
+  role, then a folded "▸ Who hears what" button. Press it: "You can send / You get" and the
+  per-method receiver lines open below it. Press again: they fold. Open it, reach the next room (or
+  reload): it starts open. Fold it, and the next reveal starts folded.
+- **How:** `pnpm build && PORT=8092 pnpm start:check`, open `http://localhost:8092`, start a team,
+  join two more tabs with the code, press Start.
+- **Screenshots:** `review/n7-fm-task5-reveal-folded-{1280,375}.png` (Can't see, folded),
+  `review/n7-fm-task5-reveal-open-{1280,375}.png` (Can't hear, open)
+- **My judgement:** folded, the card is the goal, one sentence and the button, then Can't see's
+  sounds and I'm ready, and it reads as calm. Open, the table fits at 375 with nothing clipped. Pass,
+  pending your sign-off.

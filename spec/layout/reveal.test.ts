@@ -55,6 +55,7 @@ describe("each role's reveal card", () => {
         await goal.waitFor({ timeout: 5000 });
         const box = await goal.boundingBox();
         const head = await page.locator("#reveal-title").boundingBox();
+        await page.getByRole("button", { name: "Who hears what" }).click();
         const facts = await page.locator(".reveal-facts").boundingBox();
         if (!box || !head || !facts) throw new Error("goal, title or facts not drawn");
         expect(box.y).toBeGreaterThanOrEqual(head.y + head.height);
@@ -64,9 +65,40 @@ describe("each role's reveal card", () => {
     }
   });
 
+  it("says one sentence for each role under the goal, and keeps who hears what folded until pressed", async () => {
+    const LINES = [
+      "Your teammates guide you. Talk to them; listen for the room.",
+      "You see the map but hear nothing. Watch for faces and marks.",
+      "You see and hear everything. Send clips, faces and marks.",
+    ];
+    const { pages } = await revealed(["Ana", "Bo", "Cy"]);
+    for (const [i, page] of pages.entries()) {
+      const line = page.locator(".reveal").getByText(LINES[i] as string, { exact: true });
+      await line.waitFor({ timeout: 5000 });
+      const box = await line.boundingBox();
+      const goal = await page.locator(".reveal-goal").boundingBox();
+      if (!box || !goal) throw new Error("role line or goal not drawn");
+      expect(box.y).toBeGreaterThanOrEqual(goal.y + goal.height);
+      // folded at first: the receiver names are not on screen
+      const more = page.getByRole("button", { name: "Who hears what" });
+      expect(await more.getAttribute("aria-expanded")).toBe("false");
+      expect(await page.locator(".reveal-lines").isVisible()).toBe(false);
+      expect(await page.getByText("You can send").isVisible()).toBe(false);
+      await more.click();
+      expect(await more.getAttribute("aria-expanded")).toBe("true");
+      await page.locator(".reveal-lines").waitFor({ state: "visible" });
+      expect(await page.getByText("You can send").isVisible()).toBe(true);
+      await more.press("Enter"); // by keyboard too
+      expect(await more.getAttribute("aria-expanded")).toBe("false");
+      await page.locator(".reveal-lines").waitFor({ state: "hidden" });
+    }
+    await closeAll(pages);
+  });
+
   it("names who hears what they send, by name, and never says Say, Sound or Show", async () => {
     const { pages } = await revealed(["Ana", "Bo", "Cy"]);
     const [blind, deaf, mute] = pages as [Page, Page, Page];
+    for (const page of pages) await page.getByRole("button", { name: "Who hears what" }).click();
     expect(await title(blind)).toBe("You can't see");
     expect(await title(deaf)).toBe("You can't hear");
     expect(await title(mute)).toBe("You can't speak");
@@ -389,6 +421,50 @@ describe("the crew column after a room", () => {
   );
 });
 
+describe("who hears what is remembered", () => {
+  // three sockets play room 1; Ana's own device opens each reveal in one browser context, so its
+  // storage carries from one reveal to the next as it would for a person
+  it("starts as the person last left it: open carries to the next room, folded survives a reload", async () => {
+    const { players, code } = await startedGame(baseUrl);
+    const cookie = players[0]?.cookie ?? "";
+    const eq = cookie.indexOf("=");
+    const context = await browser.newContext({ viewport: DESKTOP });
+    await context.addCookies([
+      { name: cookie.slice(0, eq), value: cookie.slice(eq + 1), url: baseUrl },
+    ]);
+    await context.addInitScript(() => localStorage.setItem("heist.nickname", "Ana"));
+    const url = new URL(`/lobby/${code}`, baseUrl).href;
+    const more = (page: Page) => page.getByRole("button", { name: "Who hears what" });
+    const expanded = (page: Page) => more(page).getAttribute("aria-expanded");
+
+    let page = await context.newPage();
+    await page.goto(url);
+    await page.locator(".reveal").waitFor();
+    expect(await expanded(page)).toBe("false"); // a fresh browser starts folded
+    await more(page).click();
+    expect(await expanded(page)).toBe("true");
+    await page.close(); // the sockets play the room, not this page
+
+    ready(players);
+    await clearRoomOne(players);
+    players[0]?.socket.send({ t: "next" });
+    await players[0]?.socket.next("reveal", 5000);
+
+    page = await context.newPage();
+    await page.goto(url);
+    await page.getByText(/^Room 2 of \d+:/).waitFor();
+    expect(await expanded(page)).toBe("true"); // left open in room 1
+    expect(await page.locator(".reveal-lines").isVisible()).toBe(true);
+    await more(page).click(); // fold it again
+    await page.reload();
+    await page.locator(".reveal").waitFor();
+    expect(await expanded(page)).toBe("false");
+    expect(await page.locator(".reveal-lines").isVisible()).toBe(false);
+    await context.close();
+    await closeSockets(players);
+  }, 120_000);
+});
+
 describe("host swaps", () => {
   it("swap two people: both cards change role and every Ready resets", async () => {
     const { pages } = await revealed(["Ana", "Bo", "Cy"]);
@@ -658,6 +734,11 @@ describe.each([
     const { pages } = await revealed(["Ana", "Bo", "Cy"], viewport);
     for (const page of pages) {
       await page.locator(".reveal-canvas canvas").waitFor({ state: "attached" });
+      // folded, then open
+      expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
+      expect(await axeViolations(page)).toEqual([]);
+      await page.getByRole("button", { name: "Who hears what" }).click();
+      await page.locator(".reveal-lines").waitFor({ state: "visible" });
       expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
       expect(await axeViolations(page)).toEqual([]);
     }

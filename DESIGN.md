@@ -245,7 +245,7 @@ Reuse these before drawing something new. The test checks each name exists.
   is in view at 1280 × 800 without scrolling; then the team name and the rotation. Right: "{n} here ·
   3 play each room", "Up to 6 take turns; the rest watch.", the people.
 - `PreferencesSheet`: the preferences without leaving the lobby; every change is saved and sent as it is made.
-- `RoleReveal`: the reveal screen: what you send and get, in the wheel's words, with the crew's ready states. The room behind it is drawn in dusk (see section 1); its card and crew are lit panels.
+- `RoleReveal`: the reveal screen, in this order: the goal, one sentence for your role (`.reveal-role-line`), your side job if any, a folded "Who hears what" button (`.reveal-more`, `aria-expanded`) over what you send and get in the wheel's words and who gets each, then Can't see's dark-screen line, the real-life rules, the sounds and I'm ready; the crew's ready states beside it. "Who hears what" is folded the first time and then starts as the person last left it (`heist.reveal` in this browser; folded if storage is blocked). The room behind it is drawn in dusk (see section 1); its card and crew are lit panels.
 - `Feeds`: the home page's three live windows, one per role: a `--panel` bezel with `--lift`, the canvas recessed, captions over it.
 - `SoundBriefing`: Can't see's "Learn the sounds": one play per cue, and Play all.
 - `CommsWheel`: the marking menu, mark placement and cooldown numbers. Decisions live in `src/client/wheel.ts`.
@@ -339,7 +339,10 @@ are instant or fade. **Flashing is at most 3 per second**, always.
 - Say what is true now and what to do: "Dark on purpose. Listen."; "Tap where, in sight".
 - A refusal says why: "You can't send clips. Ana and Cy can."
 - Every reveal says the goal, the same words for every role and room: "Get all three onto the exit."
-  (`.reveal-goal`), a 18 px bold sentence directly under the role line and above "You can send".
+  (`.reveal-goal`), a 18 px bold sentence directly under the role line and above the role sentence.
+- Under it, one sentence for the role: Can't see "Your teammates guide you. Talk to them; listen for
+  the room."; Can't hear "You see the map but hear nothing. Watch for faces and marks."; Can't speak
+  "You see and hear everything. Send clips, faces and marks."
 - Three play each room. More than three **take turns**: whoever sits out a room **watches** it and
   plays a later one ("Up to six can join and take turns."). A watcher is someone sitting out, not a
   lesser seat.

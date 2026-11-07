@@ -8,6 +8,7 @@ import {
   sendsOf,
   swapPrompt,
 } from "../client/reveal.ts";
+import { loadRevealOpen, saveRevealOpen } from "../client/revealPrefs.ts";
 import { PAGE_LABEL, PAGE_METHOD, type Page } from "../client/wheel.ts";
 import type { BriefingCue } from "../game/cues.ts";
 import type { RoleView } from "../game/perception.ts";
@@ -22,6 +23,13 @@ const YOU: Record<Role, string> = {
   blind: "You can't see",
   deaf: "You can't hear",
   mute: "You can't speak",
+};
+
+// One sentence for the role, in people's words, under the goal line.
+const ROLE_LINE: Record<Role, string> = {
+  blind: "Your teammates guide you. Talk to them; listen for the room.",
+  deaf: "You see the map but hear nothing. Watch for faces and marks.",
+  mute: "You see and hear everything. Send clips, faces and marks.",
 };
 
 // The pages as the reveal says them: what you send, and what you get, in the wheel's words.
@@ -85,6 +93,13 @@ export function RoleReveal({
       old.includes(who) ? old.filter((n) => n !== who) : [...old, who].slice(-2),
     );
   const [a, b] = picked;
+  // "Who hears what": folded the first time, then as this person last left it
+  const [open, setOpen] = useState(loadRevealOpen);
+  const flip = () => {
+    const next = !open;
+    setOpen(next);
+    saveRevealOpen(next);
+  };
 
   return (
     <div class="reveal-stage">
@@ -112,16 +127,7 @@ export function RoleReveal({
         </div>
         <p class="reveal-goal">Get all three onto the exit.</p>
 
-        <dl class="reveal-facts">
-          <div>
-            <dt>You can send</dt>
-            <dd>{pagesText(sends)}</dd>
-          </div>
-          <div>
-            <dt>You get</dt>
-            <dd>{pagesText(gets)}</dd>
-          </div>
-        </dl>
+        <p class="reveal-role-line">{ROLE_LINE[role]}</p>
 
         {cache && (
           <div class="reveal-cache">
@@ -134,15 +140,37 @@ export function RoleReveal({
           </div>
         )}
 
-        <ul class="reveal-lines" aria-label="Who gets what you send">
-          {sends.map((page) => (
-            <li key={page}>
-              <span class="page">{PAGE_LABEL[page]}</span>
-              <ReceiverLine method={PAGE_METHOD[page]} crew={crew} me={me} />
-              <span class="sr-only">{receiverNames(page, crew, me).hear.join(", ")}</span>
-            </li>
-          ))}
-        </ul>
+        <button
+          type="button"
+          class="btn reveal-more"
+          aria-expanded={open}
+          aria-controls="reveal-more"
+          onClick={flip}
+        >
+          Who hears what
+        </button>
+        <div id="reveal-more" class="reveal-more-body" hidden={!open}>
+          <dl class="reveal-facts">
+            <div>
+              <dt>You can send</dt>
+              <dd>{pagesText(sends)}</dd>
+            </div>
+            <div>
+              <dt>You get</dt>
+              <dd>{pagesText(gets)}</dd>
+            </div>
+          </dl>
+
+          <ul class="reveal-lines" aria-label="Who gets what you send">
+            {sends.map((page) => (
+              <li key={page}>
+                <span class="page">{PAGE_LABEL[page]}</span>
+                <ReceiverLine method={PAGE_METHOD[page]} crew={crew} me={me} />
+                <span class="sr-only">{receiverNames(page, crew, me).hear.join(", ")}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
 
         {role === "blind" && <p class="reveal-dark">Your screen goes dark. That's on purpose.</p>}
         {real.lines.length > 0 && (
