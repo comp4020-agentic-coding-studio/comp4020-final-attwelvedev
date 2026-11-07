@@ -89,7 +89,7 @@ Run on a local build (`pnpm build && pnpm start`), with sound on.
 
 ## Tasks
 
-### Task 92: Settings fields and a menu-sound player (R1, R2, R4)
+### Task 92: Settings fields and a menu-sound player (R1, R2, R4) ✅
 
 - **Behaviour:**
   - `Settings` gains `menuSounds` (default true) and `maskNoise` (default "brown"), and `loadSettings`

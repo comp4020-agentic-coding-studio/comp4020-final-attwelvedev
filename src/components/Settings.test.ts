@@ -2,6 +2,7 @@
 import { h, render } from "preact";
 import { act } from "preact/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Settings as SettingsState } from "../client/settings.ts";
 import { Settings } from "./Settings.tsx";
 
 afterEach(() => {
@@ -9,7 +10,7 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-const settings = {
+const settings: SettingsState = {
   captions: true,
   sound: true,
   speech: true,
@@ -19,6 +20,8 @@ const settings = {
   maskNoiseOn: true,
   volume: 0.5,
   labels: true,
+  menuSounds: true,
+  maskNoise: "brown",
 };
 
 async function open() {

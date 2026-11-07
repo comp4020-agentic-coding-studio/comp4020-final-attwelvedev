@@ -69,6 +69,8 @@ describe("loadSettings and saveSettings", () => {
         maskNoiseOn: true,
         volume: 0.5,
         labels: true,
+        menuSounds: true,
+        maskNoise: "brown",
       },
       s,
     );
@@ -147,5 +149,28 @@ describe("loadSettings and saveSettings", () => {
     };
     expect(loadSettings("mute", broken)).toEqual(defaultsFor("mute"));
     expect(() => saveSettings(defaultsFor("mute"), broken)).not.toThrow();
+  });
+});
+
+describe("menu sounds and masking bed", () => {
+  it("old saved settings load with menuSounds true and maskNoise brown", () => {
+    const s = store({ "heist.settings": JSON.stringify({ captions: false, volume: 0.2 }) });
+    expect(loadSettings("deaf", s)).toMatchObject({
+      captions: false,
+      volume: 0.2,
+      menuSounds: true,
+      maskNoise: "brown",
+    });
+  });
+
+  it("an unknown maskNoise falls back to brown", () => {
+    const s = store({ "heist.settings": JSON.stringify({ maskNoise: "surf" }) });
+    expect(loadSettings("deaf", s).maskNoise).toBe("brown");
+  });
+
+  it("a chosen bed and a switched-off menu sound persist", () => {
+    const s = store();
+    saveSettings({ ...defaultsFor("deaf"), menuSounds: false, maskNoise: "cafe" }, s);
+    expect(loadSettings("deaf", s)).toMatchObject({ menuSounds: false, maskNoise: "cafe" });
   });
 });
