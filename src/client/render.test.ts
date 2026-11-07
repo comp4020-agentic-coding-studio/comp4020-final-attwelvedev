@@ -436,6 +436,69 @@ describe("the 3/4 world", () => {
     expect(figure).toBeLessThan(front(6));
   });
 
+  // FR15: an effect is drawn in its object's own painter row, so a wall in front of it covers it
+  it("draws a dust fx behind a wall in row 3 before row 4's wall front", () => {
+    const s = scene({
+      layout: "fit",
+      w: 400,
+      h: 400,
+      tiles: grid(7, 5, [
+        [4, 3],
+        [2, 4],
+      ]),
+      entities: [],
+      self: null,
+      fx: [{ kind: "dust", pos: { x: 2.5, y: 3.5 }, tone: "muted", age: 0.2 }],
+    });
+    const { ctx, ops } = recorder();
+    draw(ctx, s);
+    const cam = camera(s);
+    const front = (x: number, row: number) =>
+      ops.findIndex(
+        (o) =>
+          o.name === "fillRect" &&
+          o.fillStyle === WORLD.wallFront &&
+          Math.abs((o.args[0] as number) - toScreen(cam, x, row + 1, TILT.wall).x) < 1e-6 &&
+          Math.abs((o.args[1] as number) - toScreen(cam, x, row + 1, TILT.wall).y) < 1e-6,
+      );
+    const dust = ops.findIndex((o) => o.name === "fill" && o.fillStyle === COLOR.uiMuted);
+    expect(front(4, 3)).toBeGreaterThanOrEqual(0);
+    expect(front(2, 4)).toBeGreaterThanOrEqual(0);
+    expect(dust, "the dust is drawn").toBeGreaterThanOrEqual(0);
+    expect(dust, "after its own row's walls").toBeGreaterThan(front(4, 3));
+    expect(dust, "before the wall in front of it").toBeLessThan(front(2, 4));
+  });
+
+  it("draws a fx inside the light's clip, as its row's things are", () => {
+    const s = scene({
+      layout: "fit",
+      w: 400,
+      h: 400,
+      tiles: grid(7, 5),
+      entities: [player(1, 2.5, 5.5)],
+      self: { x: 2.5, y: 5.5 },
+      seen: Array.from({ length: 7 }, (_, y) => `${y}:0-4`),
+      fx: [{ kind: "dust", pos: { x: 2.5, y: 3.5 }, tone: "muted", age: 0.2 }],
+    });
+    const { ctx, ops } = recorder();
+    draw(ctx, s);
+    const dust = ops.findIndex((o) => o.name === "fill" && o.fillStyle === COLOR.uiMuted);
+    expect(dust, "the dust is drawn").toBeGreaterThanOrEqual(0);
+    // walk back from the dust: a clip set at its save depth or above, not yet restored
+    let depth = 0;
+    let clipped = false;
+    for (let i = dust - 1; i >= 0; i--) {
+      const o = ops[i] as Op;
+      if (o.name === "restore") depth++;
+      else if (o.name === "save") depth = Math.max(0, depth - 1);
+      else if (o.name === "clip" && depth === 0) {
+        clipped = true;
+        break;
+      }
+    }
+    expect(clipped, "the dust is drawn inside a clip").toBe(true);
+  });
+
   it("fades the wall in front of a standing keepsake too, so an item on the bottom row can be seen", () => {
     const base = {
       layout: "fit" as const,

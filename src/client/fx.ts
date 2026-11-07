@@ -13,10 +13,22 @@ export const LIFT_MS = 1000; // a take: the item lifting off its plinth to the o
 export const FX_MAX = 24; // however busy the room, never more than this at once
 
 export type FxTone = "goal" | "danger" | "ui" | "muted";
+// How long each kind of effect lives (ms): spec §4.2, mapped in the motion plan's §4.2.
+export const DURATION = {
+  ring: FX_MS,
+  dust: FX_MS,
+  spark: FX_MS,
+  swing: FX_MS,
+  arc: FX_MS,
+  cloud: FX_MS,
+  slide: FX_MS,
+  lift: LIFT_MS,
+} as const satisfies Record<string, number>;
+export type FxKind = keyof typeof DURATION;
 export interface Fx {
   // swing: a bell rung; arc: gear handed from `pos` to `to`; cloud: the dye pack's paint puff;
   // slide: a cache's secret door slides into the floor; lift: the keepsake rises off its plinth
-  kind: "ring" | "dust" | "spark" | "swing" | "arc" | "cloud" | "slide" | "lift";
+  kind: FxKind;
   pos: Vec;
   tone: FxTone;
   big?: boolean;
@@ -27,8 +39,22 @@ export interface Fx {
   targetId?: string; // what the effect is for, when it is not a thing in the room ("landed": the intro's land)
 }
 
-// How long an effect lives: the lift is longer than the rest, which last FX_MS.
-export const fxMs = (f: Fx): number => (f.kind === "lift" ? LIFT_MS : FX_MS);
+// How long an effect lives, by its kind (DURATION).
+export const fxMs = (f: Fx): number => DURATION[f.kind];
+
+// The live effect on one thing in the room (its `targetId`), the newest if it has several: what its
+// own drawer reads to move it (FR15). Undefined once its life is over.
+export function activeFx(
+  fx: readonly (Fx & { age: number })[] | undefined,
+  id: string,
+): (Fx & { age: number }) | undefined {
+  if (!fx) return undefined;
+  for (let i = fx.length - 1; i >= 0; i--) {
+    const f = fx[i] as Fx & { age: number };
+    if (f.targetId === id && f.age >= 0 && f.age < 1) return f;
+  }
+  return undefined;
+}
 
 // A cache's door opening or its keepsake taken, from the one team-wide signal the server sends for
 // it (RoleView.cacheEvent). Not worked out from entities: a door or the keepsake coming into or

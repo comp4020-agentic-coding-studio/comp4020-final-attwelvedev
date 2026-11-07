@@ -373,6 +373,22 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
       linksByRow.set(linkRow(path), [...(linksByRow.get(linkRow(path)) ?? []), { e, path }]);
   }
 
+  // each effect is drawn in the row of the place it happened (FR15), but for a door's ring (below)
+  const fxByRow = new Map<number, NonNullable<Scene["fx"]>>();
+  const doorFx: NonNullable<Scene["fx"]> = [];
+  // An effect at a place you cannot see is not drawn at all (a secret door sliding behind a wall
+  // would tell you where it is); a watcher has no `seen` and sees them all.
+  const fxSeen = scene.seen ? seenOf(scene.seen) : null;
+  for (const f of scene.fx ?? []) {
+    if (f.door) {
+      doorFx.push(f);
+      continue;
+    }
+    if (!inSight(fxSeen, f.pos)) continue;
+    const r = Math.min(win.y1, Math.max(win.y0, Math.floor(f.pos.y)));
+    fxByRow.set(r, [...(fxByRow.get(r) ?? []), f]);
+  }
+
   const seenNow = scene.seen ? seenOf(scene.seen) : null;
   // north to south: blocks of the row, then what stands in it
   for (let y = win.y0; y <= win.y1; y++) {
@@ -399,6 +415,7 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
     // clip to the lit part of its own footprint, swept up by its own height (a figure's outline behind a
     // wall, a mark and the layout are drawn apart). A row with nothing in it makes no clip.
     const hasStanding =
+      (fxByRow.get(y)?.length ?? 0) > 0 ||
       (linksByRow.get(y)?.length ?? 0) > 0 ||
       (stationsByRow.get(y)?.length ?? 0) > 0 ||
       (byRow.get(y) ?? []).some((e) => STANDING.includes(e.kind) && e.kind !== "door");
@@ -472,7 +489,18 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
         );
       }
     }
+    // the row's effects, last in it and cut by the light like what stands in it: a wall in front of
+    // one, in a row further south, covers it as it would its object (FR15)
+    const rowFx = fxByRow.get(y);
+    if (rowFx) {
+      ctx.save();
+      clipToLight(ctx, cam, light);
+      drawFx(ctx, scene, cam, rowFx);
+      ctx.restore();
+    }
   }
+  // an ordinary door's ring is drawn wherever the door is, out of the light too (ADR 0025 FR5)
+  drawFx(ctx, scene, cam, doorFx);
   // a mark in a place you can't see shows faintly through the haze: only a teammate's message,
   // never room state
   for (const e of scene.entities) {
@@ -497,7 +525,6 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
     if (f.heldBy !== undefined && leader) drawHold(ctx, cam, f.pos, leader.pos, f.pulling === true);
   }
   void block;
-  drawFx(ctx, scene, cam);
   drawLabels(ctx, scene, cam);
   drawPops(ctx, scene, cam);
   drawEdgePills(ctx, scene, cam);
@@ -514,12 +541,17 @@ const fxColor = (tone: "goal" | "danger" | "ui" | "muted") =>
 // Each effect is one shape that fades over its short life. It grows as it fades,
 // unless the player asked for reduced motion, in which case it only fades. Rings lie on the
 // floor, so the tilt squashes them.
-function drawFx(ctx: CanvasRenderingContext2D, scene: Scene, cam: Camera) {
+function drawFx(
+  ctx: CanvasRenderingContext2D,
+  scene: Scene,
+  cam: Camera,
+  list: NonNullable<Scene["fx"]>,
+) {
   // an effect at a place you cannot see is not drawn (a secret door sliding behind a wall would tell you
   // where it is): the sighted see only what is in their light; a watcher has no `seen` and sees them
   // all. An ordinary door's ring is the exception: every sighted seat is told it opened (ADR 0025 FR5).
   const seen = scene.seen ? seenOf(scene.seen) : null;
-  for (const f of scene.fx ?? []) {
+  for (const f of list) {
     if (!f.door && !inSight(seen, f.pos)) continue;
     const at = toScreen(cam, f.pos.x, f.pos.y);
     const { x, y } = at;

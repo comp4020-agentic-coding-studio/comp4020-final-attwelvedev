@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EntityView } from "../net/protocol.ts";
-import { detectFx, FX_MS, fxMs, fxOfCacheEvent, openedDoors } from "./fx.ts";
+import { activeFx, DURATION, detectFx, FX_MS, fxMs, fxOfCacheEvent, openedDoors } from "./fx.ts";
 
 const e = (over: Partial<EntityView> & Pick<EntityView, "id" | "kind">): EntityView => ({
   pos: { x: 5.5, y: 2.5 },
@@ -188,5 +188,29 @@ describe("detectFx: small effects for what just changed between two views", () =
       });
       expect(detectFx([other, tile], [other, tile, station])).toEqual([]);
     });
+  });
+});
+
+describe("activeFx: the live effect on one thing (FR15)", () => {
+  const at = { x: 1.5, y: 1.5 };
+  it("finds the newest live effect for its target, and none once its life is over", () => {
+    const old = {
+      kind: "dust" as const,
+      pos: at,
+      tone: "muted" as const,
+      targetId: "C1",
+      age: 0.9,
+    };
+    const young = { ...old, age: 0.1 };
+    const other = { ...old, targetId: "C2", age: 0.2 };
+    expect(activeFx([old, other, young], "C1")).toBe(young);
+    expect(activeFx([{ ...old, age: 1 }], "C1")).toBeUndefined();
+    expect(activeFx([other], "C1")).toBeUndefined();
+    expect(activeFx(undefined, "C1")).toBeUndefined();
+  });
+
+  it("reads each kind's life from the DURATION table", () => {
+    for (const kind of Object.keys(DURATION) as (keyof typeof DURATION)[])
+      expect(fxMs({ kind, pos: at, tone: "ui" }), kind).toBe(DURATION[kind]);
   });
 });
