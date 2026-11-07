@@ -1154,6 +1154,28 @@ describe("mist, night and marks out of sight (FR5, FR7, FR8)", () => {
     expect(ops.length, "a secret door's slide out of sight draws nothing").toBe(bare.ops.length);
   });
 
+  // FR2 (auto fixes 2): the opening is drawn in its door's row, so a figure standing one row south
+  // paints over the sinking leaves, as it would over the door itself
+  it("draws a door's opening in its own row, before a figure standing south of it", () => {
+    const at = { x: 4.5, y: 2.5 };
+    const { ctx, ops } = recorder();
+    draw(
+      ctx,
+      whole({
+        entities: [player(0, 4.5, 3.5)],
+        fx: [{ kind: "door", pos: at, tone: "ui", door: true, targetId: "D1", age: 0.1 }],
+      }),
+    );
+    const leaves = ops.flatMap((o, i) =>
+      o.name === "fillRect" && o.fillStyle === WORLD.doorFront ? [i] : [],
+    );
+    // the figure's body: its pill, in its role colour (not its shadow)
+    const body = ops.findIndex((o) => o.name === "roundRect" && o.fillStyle === ROLE_COLOR.blind);
+    expect(leaves.length, "the door's leaves").toBeGreaterThan(0);
+    expect(body, "the figure's body").toBeGreaterThan(-1);
+    expect(body, "the body is drawn after the last leaf").toBeGreaterThan(Math.max(...leaves));
+  });
+
   it("draws a mark in an unseen tile at 35%, and one in sight at full strength", () => {
     const mark = {
       id: "S1",

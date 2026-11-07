@@ -379,18 +379,14 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
       linksByRow.set(linkRow(path), [...(linksByRow.get(linkRow(path)) ?? []), { e, path }]);
   }
 
-  // each effect is drawn in the row of the place it happened (FR15), but for a door's ring (below)
+  // each effect is drawn in the row of the place it happened (FR15), an ordinary door's opening too
   const fxByRow = new Map<number, NonNullable<Scene["fx"]>>();
-  const doorFx: NonNullable<Scene["fx"]> = [];
   // An effect at a place you cannot see is not drawn at all (a secret door sliding behind a wall
-  // would tell you where it is); a watcher has no `seen` and sees them all.
+  // would tell you where it is); a watcher has no `seen` and sees them all. An ordinary door's
+  // opening is drawn wherever the door is (ADR 0025 FR5).
   const fxSeen = scene.seen ? seenOf(scene.seen) : null;
   for (const f of scene.fx ?? []) {
-    if (f.door) {
-      doorFx.push(f);
-      continue;
-    }
-    if (!inSight(fxSeen, f.pos)) continue;
+    if (!f.door && !inSight(fxSeen, f.pos)) continue;
     const r = Math.min(win.y1, Math.max(win.y0, Math.floor(f.pos.y)));
     fxByRow.set(r, [...(fxByRow.get(r) ?? []), f]);
   }
@@ -502,17 +498,19 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
       }
     }
     // the row's effects, last in it and cut by the light like what stands in it: a wall in front of
-    // one, in a row further south, covers it as it would its object (FR15)
-    const rowFx = fxByRow.get(y);
-    if (rowFx) {
+    // one, in a row further south, covers it as it would its object (FR15). An ordinary door's
+    // opening is not cut: it is drawn out of the light too (ADR 0025 FR5), still in its row's order.
+    const rowFx = fxByRow.get(y) ?? [];
+    const doorFx = rowFx.filter((f) => f.door);
+    const litFx = rowFx.filter((f) => !f.door);
+    if (doorFx.length) drawFx(ctx, scene, cam, doorFx);
+    if (litFx.length) {
       ctx.save();
       clipToLight(ctx, cam, light);
-      drawFx(ctx, scene, cam, rowFx);
+      drawFx(ctx, scene, cam, litFx);
       ctx.restore();
     }
   }
-  // an ordinary door's ring is drawn wherever the door is, out of the light too (ADR 0025 FR5)
-  drawFx(ctx, scene, cam, doorFx);
   // a mark in a place you can't see shows faintly through the haze: only a teammate's message,
   // never room state
   for (const e of scene.entities) {

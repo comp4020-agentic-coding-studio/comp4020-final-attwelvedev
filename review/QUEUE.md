@@ -661,3 +661,10 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
 - **Start it:** `BENCH=1 pnpm build && BENCH=1 PORT=8181 node server.ts`, open `http://localhost:8181/bench?room=01&still=1`, then in the console `__still(true, { entities: [...__scene.entities, { id: "b9", kind: "bell", pos: { x: 3.5, y: 1.5 } }], fx: [{ kind: "bell", targetId: "b9", pos: { x: 3.5, y: 1.5 }, tone: "ui", age: 0.2 }] })` (vary `age` from 0 to 1 to step through the swing).
 - **Screenshots:** `review/n7-autofix2-task220-bell-1280.png`, `review/n7-autofix2-task220-bell-375.png`.
 - **Judged:** the bell hangs visibly tilted on its bracket at both widths; nothing broken. Live, it now swings for 1.2 s (before: one 50 ms tick).
+
+### autofix2 / Task 221: a door's opening is drawn in its own row
+
+- **Look at:** room 01's first door (x 12) opening, with Can't see's figure standing one row south of it. The figure must stand in front of the sinking leaves, not under them. (The figure at the door's tile is an extra copy added for the shot.)
+- **Start it:** `BENCH=1 pnpm build && BENCH=1 PORT=8181 node server.ts`, open `http://localhost:8181/bench?room=01&still=1`, then in the console `__still(true, { self: { x: 11.5, y: 3.5 }, entities: [...__scene.entities.map((e) => e.kind === "door" && Math.floor(e.pos.x) === 12 ? { ...e, state: "open" } : e), { id: "P9", kind: "player", seat: 0, pos: { x: 12.5, y: 2.5 } }], fx: [{ kind: "door", door: true, targetId: "D1", pos: { x: 12.5, y: 1.5 }, tone: "ui", age: 0.25 }] })`.
+- **Screenshots:** `review/n7-autofix2-task221-door-1280.png`, `review/n7-autofix2-task221-door-375.png`.
+- **Judged:** the figure is drawn over the door's tile and its leaves; nothing broken. Live play in three tabs (a door opening behind a wall still showing its leaves) is queued for morning.

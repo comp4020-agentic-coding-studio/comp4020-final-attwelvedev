@@ -105,7 +105,9 @@ if (process.env.BENCH !== "1") return new Response(null, { status: 404 });
         // extra: scene fields laid over the settled frame (a fx mid-flight, an added figure) for a
         // screenshot script; the scene itself is on window.__scene
         const still = (withDecor: boolean, extra: Partial<Scene> = {}) => {
-          const s: Scene = { ...base, cam, nowMs: 0, decor: withDecor ? base.decor : [], ...extra };
+          // a moved `self` moves the camera with it
+          const at = extra.self ? camera({ ...base, ...extra }) : cam;
+          const s: Scene = { ...base, nowMs: 0, decor: withDecor ? base.decor : [], ...extra, cam: at };
           draw(ctx, s);
           draw(ctx, s);
         };

@@ -186,3 +186,4 @@
 
 - autofix2/220: the bench page has no bell and no way to draw a fx, so its `__still` gained an optional `extra: Partial<Scene>` laid over the settled frame (and `window.__scene`), and the screenshot injects a bell into room 01 → chosen over adding a bell to a room, because rooms are linted and bot-cleared and the bench is bench-only (BENCH=1). Reversible by reverting the `bench.astro` hunk.
 - autofix2/220: kept `motionT` imported in signals.ts (the lever still uses it); the bell uses `activeFx` directly as the plan says.
+- autofix2/221: the bench `__still` recomputes the camera when `extra.self` moves the drawing seat, so a shot can frame a door. Reversible by reverting that `bench.astro` hunk.
