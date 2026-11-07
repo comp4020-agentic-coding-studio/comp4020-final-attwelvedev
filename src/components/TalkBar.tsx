@@ -3,7 +3,7 @@ import { canSend, type Role } from "../game/types.ts";
 import type { Voice } from "./useVoice.ts";
 
 const VOICE_NOTE: Partial<Record<Voice["status"], string>> = {
-  blocked: "Microphone blocked: voice is off. Callouts and text still work.",
+  blocked: "Voice off (optional). Callouts and text still work.",
   "no-encoder":
     "This browser can't do voice (it has no audio encoder): voice is off. Callouts and text still work.",
   insecure:

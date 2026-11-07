@@ -96,6 +96,46 @@ describe("the top bar", () => {
     await closeAll(table.pages);
   });
 
+  it("names the room: its number and name on desktop, the number of the total on a phone, in full in the menu", async () => {
+    const table = await playRoom(browser, baseUrl);
+    const room = (page: Page) => page.locator(".hud-top .hud-room");
+    for (const page of table.pages.filter((p) => p !== table.phone))
+      expect(await room(page).innerText()).toBe("1 · First Steps");
+    // the phone seat: the short form in the same bar, nothing in the bar overflowing or clipped
+    expect(await room(table.phone).innerText()).toBe("1/9");
+    const fits = await table.phone.evaluate(() => {
+      const bar = document.querySelector(".hud-top") as HTMLElement;
+      const r = bar.getBoundingClientRect();
+      const out = [...bar.children]
+        .filter((el) => (el as HTMLElement).offsetParent !== null)
+        .filter((el) => {
+          const b = el.getBoundingClientRect();
+          return b.left < r.left - 0.5 || b.right > r.right + 0.5 || b.top < r.top - 0.5;
+        })
+        .map((el) => el.className);
+      const label = bar.querySelector(".hud-room") as HTMLElement;
+      return {
+        bar: bar.scrollWidth <= bar.clientWidth,
+        out,
+        clipped: label.scrollWidth > label.clientWidth + 1,
+      };
+    });
+    expect(fits).toEqual({ bar: true, out: [], clipped: false });
+    // the menu names it in full, on the phone and on desktop
+    for (const page of [table.phone, table.byRole.mute]) {
+      await page.getByRole("button", { name: "Menu" }).click();
+      await page
+        .locator("#hud-menu")
+        .getByText("Room 1 of 9: First Steps", { exact: true })
+        .waitFor();
+      await page.keyboard.press("Escape");
+    }
+    // the phone's seat at desktop width shows the long form too, so every role is covered at 1280
+    await table.phone.setViewportSize(DESKTOP);
+    await expect.poll(() => room(table.phone).innerText()).toBe("1 · First Steps");
+    await closeAll(table.pages);
+  });
+
   it("keeps the menu a 48 px target on a phone, and opens settings from it", async () => {
     const table = await playRoom(browser, baseUrl);
     const box = await table.phone.getByRole("button", { name: "Menu" }).boundingBox();

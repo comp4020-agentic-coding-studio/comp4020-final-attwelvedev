@@ -436,6 +436,33 @@ export function Lobby({ code }: { code: string }) {
             dangerouslySetInnerHTML={{ __html: qr }}
           />
         )}
+        {!watching && (
+          <div class="start">
+            {host ? (
+              <>
+                <button type="button" class="btn primary" onClick={start}>
+                  {bots === 0
+                    ? "Start"
+                    : `Start (${bots} ${bots === 1 ? "bot fills" : "bots fill"})`}
+                </button>
+                <p class="muted" role="status">
+                  {bots === 0
+                    ? `${here} ${here === 1 ? "person is" : "people are"} here.`
+                    : `${here} of 3 here. ${bots === 1 ? "A bot takes" : "Bots take"} the rest.`}
+                </p>
+              </>
+            ) : (
+              <p class="muted" role="status">
+                Waiting for the host to start.
+              </p>
+            )}
+            {message && lobby.phase === "open" && (
+              <p class="error" role="alert">
+                {message}
+              </p>
+            )}
+          </div>
+        )}
         {lobby.private && (
           <p class="muted private-note">
             Hidden from open lobbies. Only people with the code can join.
@@ -504,10 +531,11 @@ export function Lobby({ code }: { code: string }) {
       <div class="lobby-side">
         <div class="section-head">
           <h2 id="players-title">
-            {watching ? "You are watching" : `Players ${here} of ${MAX_PEOPLE}`}
+            {watching ? "You are watching" : `${here} here · 3 play each room`}
           </h2>
           <Connection state={state} rttMs={rttMs} />
         </div>
+        {!watching && <p class="muted">Up to {MAX_PEOPLE} take turns; the rest watch.</p>}
         {host && (
           <button
             type="button"
@@ -523,8 +551,11 @@ export function Lobby({ code }: { code: string }) {
         {host && here > 1 && (
           <p class="muted">Drag, or use the arrows, to set the starting order.</p>
         )}
-        {here === 1 && !watching && (
-          <p class="muted">Share the code to fill seats; bots fill the rest.</p>
+        {here < 4 && !watching && (
+          <p class="muted">
+            Bots fill empty seats. With more than three, you take turns: whoever sits out watches
+            and plays a later room.
+          </p>
         )}
         <ol class="players" aria-labelledby="players-title">
           {lobby.people.map((person, i) => (
@@ -560,34 +591,6 @@ export function Lobby({ code }: { code: string }) {
               Preferences
             </button>
           </>
-        )}
-
-        {!watching && (
-          <div class="start">
-            {host ? (
-              <>
-                <button type="button" class="btn primary" onClick={start}>
-                  {bots === 0
-                    ? "Start"
-                    : `Start (${bots} ${bots === 1 ? "bot fills" : "bots fill"})`}
-                </button>
-                <p class="muted" role="status">
-                  {bots === 0
-                    ? `${here} ${here === 1 ? "person is" : "people are"} here.`
-                    : `${here} of 3 players here. Start now and ${bots === 1 ? "a bot takes" : "bots take"} the rest.`}
-                </p>
-              </>
-            ) : (
-              <p class="muted" role="status">
-                Waiting for the host to start.
-              </p>
-            )}
-            {message && lobby.phase === "open" && (
-              <p class="error" role="alert">
-                {message}
-              </p>
-            )}
-          </div>
         )}
 
         <div class="actions">

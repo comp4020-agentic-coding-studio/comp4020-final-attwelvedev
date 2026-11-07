@@ -60,6 +60,74 @@ describe.each([
   });
 });
 
+const HINT = "Bots fill empty seats. With more than three, you take turns";
+
+// Start lies wholly inside the 1280 × 800 viewport without any scrolling, and is a full target
+async function startInView(page: import("playwright").Page): Promise<void> {
+  const start = page.getByRole("button", { name: /^Start/ });
+  await start.waitFor();
+  const box = await start.boundingBox();
+  if (!box) throw new Error("Start not drawn");
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.y + box.height).toBeLessThanOrEqual(DESKTOP.height);
+  expect(box.x + box.width).toBeLessThanOrEqual(DESKTOP.width);
+  expect(box.height).toBeGreaterThanOrEqual(48);
+}
+
+describe("the lobby's first screen at 1280 × 800", () => {
+  it("shows the host's Start under the code without scrolling, with one person and with six", async () => {
+    const { page: host, code } = await createLobbyAs(browser, baseUrl, "Ana", DESKTOP);
+    await host.getByRole("heading", { name: "1 here · 3 play each room" }).waitFor();
+    await startInView(host);
+    await host.getByText("1 of 3 here. Bots take the rest.").waitFor();
+    // Start comes right after the code's actions, before the team name
+    const order = await host.locator(".lobby-code").evaluate((col) => {
+      const kids = [...col.children];
+      return [".actions", ".start", ".field, .team-name"].map((sel) =>
+        kids.findIndex((k) => k.matches(sel)),
+      );
+    });
+    expect(order[0]).toBeGreaterThanOrEqual(0);
+    expect(order[1]).toBeGreaterThan(order[0] as number);
+    expect(order[2]).toBeGreaterThan(order[1] as number);
+    const crew = [];
+    for (const name of ["Bo", "Cy", "Di", "Ed", "Flo"]) {
+      crew.push(await joinWithCode(browser, baseUrl, code, name, PHONE));
+    }
+    await host.getByRole("heading", { name: "6 here · 3 play each room" }).waitFor();
+    await startInView(host);
+    for (const p of [host, ...crew]) await leaveAndClose(p);
+  });
+
+  it("says three play each room, and shows the bots hint only while fewer than four are here", async () => {
+    const { page: host, code } = await createLobbyAs(browser, baseUrl, "Ana", DESKTOP);
+    await host.getByText("Up to 6 take turns; the rest watch.").waitFor();
+    const hint = host.getByText(HINT);
+    await hint.waitFor();
+    const crew = [];
+    for (const [i, name] of ["Bo", "Cy", "Di"].entries()) {
+      crew.push(await joinWithCode(browser, baseUrl, code, name, PHONE));
+      await host.getByRole("heading", { name: `${i + 2} here · 3 play each room` }).waitFor();
+      if (i === 0) await host.getByText("2 of 3 here. A bot takes the rest.").waitFor();
+      if (i < 2) expect(await hint.count()).toBe(1);
+    }
+    await hint.waitFor({ state: "detached", timeout: 2000 });
+    expect(await host.getByText("4 people are here.").count()).toBe(1);
+    for (const p of [host, ...crew]) await leaveAndClose(p);
+  });
+
+  it("tells a guest the host starts, where the host's Start is, and gives them no Start", async () => {
+    const { page: host, code } = await createLobbyAs(browser, baseUrl, "Ana", DESKTOP);
+    const guest = await joinWithCode(browser, baseUrl, code, "Bo", DESKTOP);
+    const waiting = guest.locator(".lobby-code .start").getByText("Waiting for the host to start.");
+    await waiting.waitFor();
+    expect(await guest.getByRole("button", { name: /^Start/ }).count()).toBe(0);
+    await leaveAndClose(guest);
+    await leaveAndClose(host);
+  });
+});
+
 describe("typing another lobby's code into the address bar", () => {
   it("says there is no such lobby, and that counts as leaving the one you were in", async () => {
     const { page, code } = await createLobbyAs(browser, baseUrl, "Ana", DESKTOP);

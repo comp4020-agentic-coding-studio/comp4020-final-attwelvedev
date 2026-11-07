@@ -10,12 +10,14 @@ export function HudMenu({
   onLeave,
   leaveLabel = "Leave game",
   restarts = true,
+  title,
 }: {
   settings?: ComponentChildren; // the Settings control, which owns its own panel; a watcher has none
   onAsk?: (kind: "room" | "heist") => void;
   onLeave: () => void;
   leaveLabel?: string;
   restarts?: boolean; // a watcher proposes nothing
+  title?: string; // the open menu's first line: which room this is, in full
 }) {
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
@@ -53,6 +55,7 @@ export function HudMenu({
       </button>
       {open && (
         <div class="hud-menu-panel" id="hud-menu" ref={panel}>
+          {title && <p class="hud-menu-title">{title}</p>}
           {settings}
           {restarts && onAsk && (
             <>

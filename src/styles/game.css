@@ -186,6 +186,27 @@ body.playing main {
     opacity: 0;
   }
 }
+/* the room's goal: a sentence between the role line and the facts, not a heading */
+.reveal-goal {
+  margin: 0;
+  font-size: var(--t-18);
+  font-weight: 700;
+}
+.reveal-role-line {
+  margin: 0;
+}
+/* "Who hears what": a disclosure, folded the first time; the arrow says which way it is */
+.reveal-more::before {
+  content: "▸" / "";
+  margin-right: var(--s-2);
+}
+.reveal-more[aria-expanded="true"]::before {
+  content: "▾" / "";
+}
+.reveal-more-body:not([hidden]) {
+  display: grid;
+  gap: var(--s-4);
+}
 .reveal-facts {
   margin: 0;
   display: grid;
@@ -404,6 +425,24 @@ body.playing main {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* the game's room label beside the clock: it shares the watcher's ellipsis but takes only its own
+   width, so the crew keeps the spare room. "4 · The Safe" from 720 px, "4/9" below */
+.hud-room-game {
+  flex: 0 1 auto;
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+}
+.hud-room-long {
+  display: none;
+}
+@media (min-width: 720px) {
+  .hud-room-long {
+    display: inline;
+  }
+  .hud-room-short {
+    display: none;
+  }
 }
 .hud-clock,
 .hud-loot {
@@ -919,6 +958,11 @@ fieldset.settings {
   border-radius: var(--r-lg);
   font-stretch: 100%;
   font-weight: 400;
+}
+.hud-menu-title {
+  margin: 0;
+  color: var(--ui-muted);
+  font-size: var(--t-14);
 }
 .hud-menu-panel > .hud-btn,
 .hud-menu-panel > .hud-btn.danger {

@@ -163,6 +163,14 @@ describe("the home page's hero", () => {
 });
 
 describe("the home page's join panel", () => {
+  it("says up to six can join a team and take turns", async () => {
+    const page = await openPage(browser, baseUrl, DESKTOP);
+    await page
+      .locator(".desk-new", { hasText: "Up to six can join and take turns." })
+      .waitFor({ timeout: 5000 });
+    await leaveAndClose(page);
+  });
+
   it("takes only code letters, and asks for all 4 before joining", async () => {
     const page = await openPage(browser, baseUrl, DESKTOP);
     await page.getByLabel("Nickname").fill("Ana");

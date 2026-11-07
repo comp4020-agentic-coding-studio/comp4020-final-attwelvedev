@@ -268,7 +268,7 @@ export function Spectator({
     voice.status === "ready" || voice.status === "starting"
       ? null
       : voice.status === "blocked"
-        ? "Microphone blocked: voice is off. Chat still works."
+        ? "Voice off (optional). Chat still works."
         : "This browser can't do voice: voice is off. Chat still works.";
   const players = (
     <div class="spectator-players">

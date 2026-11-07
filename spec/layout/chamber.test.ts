@@ -53,7 +53,7 @@ async function threePlayers(viewport: Viewport): Promise<Page[]> {
   const pages = [host.page];
   for (const name of ["Bo", "Cy"])
     pages.push(await joinWithCode(browser, url, host.code, name, viewport));
-  await host.page.getByRole("heading", { name: /^Players 3 of 6/ }).waitFor();
+  await host.page.getByRole("heading", { name: /^3 here · 3 play each room/ }).waitFor();
   await host.page.getByRole("button", { name: /^Start/ }).click();
   for (const page of pages) await page.locator(".reveal").waitFor();
   for (const page of pages) await page.getByRole("button", { name: "I'm ready" }).click();

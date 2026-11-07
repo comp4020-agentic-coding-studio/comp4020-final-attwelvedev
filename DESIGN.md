@@ -232,6 +232,8 @@ no tab, since a watcher plays no role. The Can't-see viewport is
 
 Reuse these before drawing something new. The test checks each name exists.
 
+The favicon (`public/favicon.svg`, with `public/favicon-32.png` for browsers without SVG icons) is the crew: three overlapping heads in `--role-blind`, `--role-deaf` and `--role-mute` on a rounded `--bg` tile, each body bearing its role shape in a darker tint, legible from 32 px; at 16 px it reads as three coloured people.
+
 - `RoleShape`: a role's shape in its colour, drawn so all three are the same visual size. `mono` takes the surrounding text colour. `outline` draws it hollow, stroked in the role's own colour (stroke 2.5 in the 28 box): a role held before, not now. In the crew row a filled shape means now and a hollow one means history, each in its role's colour: the coloured shape is the role this room, and the hollow 14 px shapes after the muted word "Played" are the roles played earlier this heist, labelled "Already played: …" for screen readers. Nothing played, no Played group. Use it anywhere a role is named.
 - `BrailleCell`: one braille cell as an SVG, positions 1 2 3 down the left and 4 5 6 down the right. A raised dot is a filled `--ui` disc (`size` px across: 12 on the card, 7 in the key); a flat position is a 4 px hollow `--ui` ring. Raised and flat differ by shape, never colour, so high contrast keeps them apart.
 - `BrailleCard`: Can't see's open plate, "felt, not lit": a thin `--ui` outline (corner `--r`) straight on black with no fill, top-centre just under the side-job chip (never over it), no Close button. Title "Plate under your hand"; in room 4 the teaching line "Raised dots, read left to right. Match each to the key."; the plate's cells, then the fixed key of 1 to 9, 0 and # as `BrailleCell`s with a label under each. `role="group"` named "Braille plate"; a polite status "Plate: N cells"; hidden text gives dot numbers only ("Cell 1: dots 3 4 5 6."), never the number. Cells appear left to right 60 ms apart; with reduced motion all at once. It closes the moment Can't see steps off. On a phone it lets touches through and the key wraps under the cells. A spectator following Can't see sees it too.
@@ -240,15 +242,20 @@ Reuse these before drawing something new. The test checks each name exists.
 - `ConfirmButton`: asks first; the second press within 3 s acts. For anything that wipes a room or ends a session.
 - `PlayerRow`: a person in the lobby: name, setup chips, plays N.
 - `YourSetup`: a person's own real-life answers; the lobby and `/preferences` both use it.
+- `Lobby`: two columns. Left: the code, Copy / Show QR, then the host's **Start** with its status
+  line ("1 of 3 here. Bots take the rest.") or a guest's "Waiting for the host to start.", so Start
+  is in view at 1280 × 800 without scrolling; then the team name and the rotation. Right: "{n} here ·
+  3 play each room", "Up to 6 take turns; the rest watch.", the people.
 - `PreferencesSheet`: the preferences without leaving the lobby; every change is saved and sent as it is made.
-- `RoleReveal`: the reveal screen: what you send and get, in the wheel's words, with the crew's ready states. The room behind it is drawn in dusk (see section 1); its card and crew are lit panels.
+- `RoleReveal`: the reveal screen, in this order: the goal, one sentence for your role (`.reveal-role-line`), your side job if any, a folded "Who hears what" button (`.reveal-more`, `aria-expanded`) over what you send and get in the wheel's words and who gets each, then Can't see's dark-screen line, the real-life rules, the sounds and I'm ready; the crew's ready states beside it. "Who hears what" is folded the first time and then starts as the person last left it (`heist.reveal` in this browser; folded if storage is blocked). The room behind it is drawn in dusk (see section 1); its card and crew are lit panels.
 - `Feeds`: the home page's three live windows, one per role: a `--panel` bezel with `--lift`, the canvas recessed, captions over it.
 - `SoundBriefing`: Can't see's "Learn the sounds": one play per cue, and Play all.
 - `CommsWheel`: the marking menu, mark placement and cooldown numbers. Decisions live in `src/client/wheel.ts`.
 - `TalkBar`: Enter to write, V or the mic to talk; roles that can't send say why instead of showing a dead button.
 - `Captions`: what was said and what the room sounds like, with the sender's shape and name and a `DirArrow` where the sound came from. A polite live region.
 - `Connection`: the live light: a shape and words ("Live", "Weak 180 ms", "Offline"), never colour alone.
-- `HudMenu`: the menu: settings, the restart proposals, Leave.
+- `HudMenu`: the menu: its first line names the room in full ("Room 4 of 9: The Safe", muted, 14 px), then settings, the restart proposals, Leave.
+- The game's top bar names the room left of the clock (`.hud-room-game`, muted, 14 px, ellipsis): "4 · The Safe" from 720 px, "4/9" below it; screen readers hear "Room 4 of 9: The Safe".
 - `VotePrompt`: the vote card at the top of the map, not an overlay, so people keep moving; each voter named, the time as a bar and a number.
 - `LeaveGuard`: the glass modal that asks before leaving the lobby; the browser's own prompt covers a tab close.
 - `SpectatorChat`: the watchers' room (text and voice); players never see it.
@@ -362,6 +369,16 @@ draws its end state; state changes are instant or fade (at most 150 ms). **Flash
 - Sentence case. No exclamation marks. "Room cleared". The canvas banner says "Alarm".
 - Say what is true now and what to do: "Dark on purpose. Listen."; "Tap where, in sight".
 - A refusal says why: "You can't send clips. Ana and Cy can."
+- Every reveal says the goal, the same words for every role and room: "Get all three onto the exit."
+  (`.reveal-goal`), a 18 px bold sentence directly under the role line and above the role sentence.
+- Under it, one sentence for the role: Can't see "Your teammates guide you. Talk to them; listen for
+  the room."; Can't hear "You see the map but hear nothing. Watch for faces and marks."; Can't speak
+  "You see and hear everything. Send clips, faces and marks."
+- Three play each room. More than three **take turns**: whoever sits out a room **watches** it and
+  plays a later one ("Up to six can join and take turns."). A watcher is someone sitting out, not a
+  lesser seat.
+- Something optional that is off reads as optional, not broken: "Voice off (optional). Callouts and
+  text still work."
 - A vote says how it ended: "Restarting the room.", "Not restarted: Bo kept playing."
 - A wire plaque from room 4 on is a riddle, not an instruction: an image or a count that the wires in
   front of you answer (`One sky among them: sever it.`). It names no colour or position the plain rule
