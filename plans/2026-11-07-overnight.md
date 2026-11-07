@@ -46,3 +46,9 @@
 - sounds/94: the human review (three tabs) → built, committed and queued; the `ready`/`reveal`/`all-ready` kinds were seen by script, not asserted in a spec.
 - sounds/95: the full check showed `spec/layout/door-pill.test.ts` failing once (the pill not drawn within 3.5 s on the first case) while it passed in the Task 92 full check and in two of three solo runs afterwards → I treated it as an existing flake of the doors unit (it times a 4 s pill against a 150 ms keypress and does not touch menu sounds) and did not touch it, because it is outside this unit's scope. It needs a look in the morning: `pnpm check:flaky` on that file. Reversible by nothing (no change made).
 
+
+## dl01
+
+- dl01/97: the spec reads a pixel via `data-camera` in `spec/layout/game.test.ts` → a new `spec/layout/hue.test.ts` with its own app on fixture `spec/fixtures/rooms-teal` (room 02 can't be reached cheaply from the shared app), counting exact `HUE_WALLS.teal.wallFront` pixels and asserting zero rose. Reversible by moving the case into game.test.ts.
+- dl01/97: the alarm-dusk screenshot of room 03 → not taken (needs a live alarm); the dusk blend is asserted in `tokens.test.ts`. Reversible by taking it by hand.
+- dl01/97: the full check showed `spec/layout/door-pill.test.ts` red once (the pill's box); solo it passed 2 of 3 runs with this unit's changes → the same existing flake logged under sounds/95, not touched (outside scope). Needs `pnpm check:flaky` on that file in the morning. Reversible by nothing.

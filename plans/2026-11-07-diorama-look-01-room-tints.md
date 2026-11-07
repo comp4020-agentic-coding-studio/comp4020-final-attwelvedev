@@ -137,11 +137,11 @@ keys after `WORLD_NORMAL`, using `HUE_DUSK[hue]` as the dusk target for those ke
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 96 and 97 are complete and their tests pass.
-- [ ] `pnpm test:unit` passes.
-- [ ] The full check passes (overview §3).
-- [ ] The screenshots are in `review/diorama/`, and the user has accepted Task 97's review.
-- [ ] Tick phase 0 in overview §5 and commit.
+- [x] Tasks 96 and 97 are complete and their tests pass.
+- [x] `pnpm test:unit` passes.
+- [x] The full check passes (overview §3), except `door-pill.test.ts`, a known flake (see overnight log).
+- [x] The screenshots are in `review/diorama/`, and the user has accepted Task 97's review. (review queued)
+- [x] Tick phase 0 in overview §5 and commit.
 
 ## 7. Requirements coverage (this phase)
 

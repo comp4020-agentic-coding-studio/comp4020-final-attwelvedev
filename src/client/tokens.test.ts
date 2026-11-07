@@ -1,6 +1,19 @@
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
-import { COLOR, DUSK, MIST, ROLE_COLOR, setContrast, setDusk, WORLD } from "./tokens.ts";
+import {
+  COLOR,
+  currentHue,
+  DUSK,
+  HUE_DUSK,
+  HUE_WALLS,
+  HUES,
+  MIST,
+  ROLE_COLOR,
+  setContrast,
+  setDusk,
+  setHue,
+  WORLD,
+} from "./tokens.ts";
 
 // Canvas code can't read CSS variables cheaply every frame, so tokens.ts
 // mirrors the ones it draws with. This keeps the two from drifting apart.
@@ -15,6 +28,7 @@ const cssToken = (name: string): string | undefined => cssTokens(name)[0];
 const kebab = (key: string) => key.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
 
 afterEach(() => {
+  setHue(undefined);
   setContrast(false);
   setDusk(false, 0, true);
 });
@@ -159,5 +173,60 @@ describe("setDusk", () => {
     const high = { ...WORLD };
     setDusk(true, 0, true);
     expect(WORLD).toEqual(high);
+  });
+});
+
+describe("room hues", () => {
+  const keys = [
+    ["wallTop", "top"],
+    ["wallFront", "front"],
+    ["wallShade", "shade"],
+  ] as const;
+
+  it("every hue's wall set has --w-wall-*-<hue> with the same base and HC value", () => {
+    for (const hue of HUES)
+      for (const [key, part] of keys) {
+        const name = `w-wall-${part}-${hue}`;
+        expect(cssTokens(name)[0], name).toBe(HUE_WALLS[hue][key]);
+        expect(cssTokens(name)[1], name).toBe(cssTokens(`w-wall-${part}`)[1]);
+        const dusk = `dusk-wall-${part}-${hue}`;
+        expect(cssToken(dusk), dusk).toBe(HUE_DUSK[hue][key]);
+      }
+  });
+
+  it("setHue('teal') paints WORLD's walls teal, and setHue(undefined) is rose", () => {
+    setHue("teal");
+    expect(currentHue()).toBe("teal");
+    expect(WORLD.wallFront).toBe(HUE_WALLS.teal.wallFront);
+    setHue(undefined);
+    expect(currentHue()).toBe("rose");
+    expect(WORLD.wallFront).toBe("#dc8fa6");
+    setHue("lilac");
+    expect(currentHue()).toBe("rose");
+  });
+
+  it("dusk blends the hue's walls toward its own dusk set", () => {
+    setHue("amber");
+    setDusk(true, 0, true);
+    expect(WORLD.wallFront).toBe(HUE_DUSK.amber.wallFront);
+    setDusk(false, 0, true);
+    expect(WORLD.wallFront).toBe(HUE_WALLS.amber.wallFront);
+  });
+
+  it("high contrast ignores the hue", () => {
+    setContrast(true);
+    setHue("violet");
+    expect(WORLD.wallFront).toBe("#bdbdbd");
+    expect(WORLD.wallTop).toBe("#ffffff");
+  });
+
+  it("each hue's wall front stands 1.3:1 off the floor, day and dusk", () => {
+    for (const hue of HUES) {
+      setHue(hue);
+      expect(ratio(WORLD.wallFront, WORLD.floor), `${hue} day`).toBeGreaterThanOrEqual(1.3);
+      setDusk(true, 0, true);
+      expect(ratio(WORLD.wallFront, WORLD.floor), `${hue} dusk`).toBeGreaterThanOrEqual(1.3);
+      setDusk(false, 0, true);
+    }
   });
 });

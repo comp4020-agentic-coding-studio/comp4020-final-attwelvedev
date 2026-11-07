@@ -71,7 +71,8 @@ minimum). Motion `--ease` (150 ms ease-out; 0 under reduced motion).
 
 Light from the north-west: a block's top is the base colour, its front is about
 18 % darker and shifted toward rose, with a 12 % contact shadow. Wall hue varies
-by room (never lilac); the room's `hue` meta picks it, defaulting to rose.
+by room (never lilac); the room's `hue` meta picks it, defaulting to rose: `setHue` in
+`src/client/tokens.ts` takes it from the reveal and every full view, and `HUE_WALLS`/`HUE_DUSK` hold the five sets.
 
 | Token | Job | Status |
 | --- | --- | --- |
@@ -80,6 +81,7 @@ by room (never lilac); the room's `hue` meta picks it, defaulting to rose.
 | `--w-floor`, `--w-floor-front`, `--w-seam` | Floor top, island slab front, tile seams | built |
 | `--w-cliff-hi`, `--w-cliff-lo` | The 2-tile cliff into the water | built |
 | `--w-wall-top`, `--w-wall-front`, `--w-wall-shade` | Wall top, front and shade | built |
+| `--w-wall-top-<hue>`, `--w-wall-front-<hue>`, `--w-wall-shade-<hue>` (and `--dusk-wall-*-<hue>`), hue ∈ rose, teal, amber, violet, indigo | Each room's wall set; the unsuffixed three are rose; high contrast is one look for every hue | built |
 | `--w-crate`, `--w-crate-front`, `--w-crate-brace` | Crates | built |
 | `--w-door`, `--w-door-front`, `--w-door-seam` | Doors, which slide into the floor | built |
 | `--w-plate`, `--w-plate-pressed` | Plates; pressed ones sink 3 px. A crate-only plate (`crateOnly`) is a near full-tile square in a `--w-crate-brace` frame with a crate's X brace and no number | built |

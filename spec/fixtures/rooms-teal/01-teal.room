@@ -1,0 +1,32 @@
+{"id":"01-teal","name":"First Job","version":1,"hue":"teal",
+ "beats":[
+  {"name":"The crate","x":[0,13],"intent":{"blind":"leans on the crate and feels it move","deaf":"sees the plate and calls which way to push","mute":"taps out push-on, stop"}},
+  {"name":"Glass","x":[14,29],"intent":{"blind":"listens for the camera whir and waits for the call","deaf":"watches the camera through the glass and says when the hall is clear","mute":"sees the camera and signals the dash"}},
+  {"name":"Vent and three hands","x":[30,39],"intent":{"blind":"hears the guard through the vent and holds a plate","deaf":"sees which plate is free","mute":"signals the moment to step in"}}
+ ],
+ "objects":{
+  "C1":{"facingDeg":90,"fovDeg":90,"range":6,"periodS":8,"watchingS":2.5,"offsetS":0},
+  "G1":{"patrol":[[31,8],[37,8]],"speedTps":1.2,"sightTiles":4,"fovDeg":60,"turnDegPerS":180},
+  "D1":{"opensWhen":["p1"]},
+  "D2":{"opensWhen":["p2","p3","p4"]}},
+ "hints":{"jobs":[
+  {"beat":1,"push":"B1","to":[9,4],"prefer":"blind"},
+  {"beat":1,"goTo":[11,5],"all":true},
+  {"beat":2,"goTo":"K1","all":true},
+  {"beat":2,"goTo":[28,5],"all":true},
+  {"beat":3,"goTo":"p2","prefer":"mute"},
+  {"beat":3,"goTo":"p3","prefer":"deaf"},
+  {"beat":3,"goTo":"p4","prefer":"blind"},
+  {"beat":3,"goTo":"E","all":true}]}}
+---
+########################################
+##################....C....#############
+##################.........#############
+##################=========#############
+#1..B....p..D.................p..D..EE.#
+#2..........D.K...............p..D..EE.#
+#3..........D.................p..D..EE$#
+###############################%%%%%####
+###############################G......##
+###############################.......##
+########################################

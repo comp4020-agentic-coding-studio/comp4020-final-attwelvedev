@@ -95,6 +95,7 @@ export type ServerMsg =
       played: Record<string, Role[]>; // by nickname: the roles each person has played so far
       real: RealLife; // what this person's setup means for them in this room
       cues: BriefingCue[]; // Can't see only: the sounds of this room to learn; empty for the others
+      hue?: string; // the room's wall hue (room meta `hue`), for the wall tints (FR1)
       cache?: { motif: Motif; riddle: string; item: ItemId }; // your own seat's cache, if this room has one for it (never sent to the others)
     }
   | { t: "ready"; seats: Seat[] } // the seats that pressed I'm ready (bots count): sent on every change, to players and watchers

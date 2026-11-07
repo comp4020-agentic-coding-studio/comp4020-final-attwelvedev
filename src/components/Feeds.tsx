@@ -4,6 +4,7 @@ import { faceImage } from "../client/faces.ts";
 import { detectFx, FX_MAX, type Fx, fxMs } from "../client/fx.ts";
 import { captionFor, cueCaptions, type HeldCues, hearCues, heardCues } from "../client/hud.ts";
 import { draw, type FacePop, type Motion, type Scene } from "../client/render.ts";
+import { setHue } from "../client/tokens.ts";
 import { type AttractTick, createAttract } from "../game/bots/attract.ts";
 import { FACE_POP_MS } from "../game/channels.ts";
 import { parseRoom } from "../game/rooms/format.ts";
@@ -41,6 +42,7 @@ interface Run {
 }
 
 const room = parseRoom(roomText);
+setHue(room.meta.hue as string | undefined); // room 01: rose
 let lineId = 0;
 
 let runs = 0; // each loop is a new seed, so no two heists play the same

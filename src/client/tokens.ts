@@ -215,6 +215,28 @@ export const DUSK: Partial<WorldTokens> = {
 
 export const WORLD: WorldTokens = { ...WORLD_NORMAL };
 
+// Each room's wall set, picked by its `hue` meta (setHue). Rose is the original set. High contrast is
+// one look, so it ignores the hue. tokens.test.ts keeps these equal to --w-wall-*-<hue>.
+export type Hue = "rose" | "teal" | "amber" | "violet" | "indigo";
+export const HUES: readonly Hue[] = ["rose", "teal", "amber", "violet", "indigo"];
+type Walls = Pick<WorldTokens, "wallTop" | "wallFront" | "wallShade">;
+export const HUE_WALLS: Record<Hue, Walls> = {
+  rose: { wallTop: "#f4b9c3", wallFront: "#dc8fa6", wallShade: "#b9708f" },
+  teal: { wallTop: "#a9ddd3", wallFront: "#7fbfb6", wallShade: "#5f9c98" },
+  amber: { wallTop: "#f2cf9a", wallFront: "#d9a96e", wallShade: "#b78653" },
+  violet: { wallTop: "#cdb9ec", wallFront: "#a991d4", wallShade: "#8670b3" },
+  indigo: { wallTop: "#b3bde8", wallFront: "#8a97cf", wallShade: "#6b77ae" },
+};
+export const HUE_DUSK: Record<Hue, Walls> = {
+  rose: { wallTop: "#4a5068", wallFront: "#353a4f", wallShade: "#2a2e40" },
+  teal: { wallTop: "#3f5560", wallFront: "#2f4049", wallShade: "#243239" },
+  amber: { wallTop: "#56505a", wallFront: "#403b45", wallShade: "#312d36" },
+  violet: { wallTop: "#4b4568", wallFront: "#37324f", wallShade: "#2a2640" },
+  indigo: { wallTop: "#3f4870", wallFront: "#2f3656", wallShade: "#242a44" },
+};
+let hue: Hue = "rose";
+export const currentHue = (): Hue => hue;
+
 // How much of the veil shows over tiles out of sight: 60 % mist, or half black under high contrast.
 export const MIST = { alpha: 0.6 };
 // How the UV pool and the goggles are drawn: a wash and a tint, or (high contrast) a 3 px dashed
@@ -245,10 +267,21 @@ function paintWorld() {
   if (t === shown) return;
   shown = t;
   if (high) return void Object.assign(WORLD, WORLD_HIGH);
-  Object.assign(WORLD, WORLD_NORMAL);
+  Object.assign(WORLD, WORLD_NORMAL, HUE_WALLS[hue]);
   if (t === 0) return;
-  for (const [key, to] of Object.entries(DUSK) as [keyof WorldTokens, string][])
-    WORLD[key] = t === 1 ? to : mix(WORLD_NORMAL[key], to, t);
+  const day: WorldTokens = { ...WORLD_NORMAL, ...HUE_WALLS[hue] };
+  for (const [key, to] of Object.entries({ ...DUSK, ...HUE_DUSK[hue] }) as [
+    keyof WorldTokens,
+    string,
+  ][])
+    WORLD[key] = t === 1 ? to : mix(day[key], to, t);
+}
+
+// Picks the room's wall set (an unknown or absent hue is rose) and repaints, as setContrast does.
+export function setHue(next: string | undefined): void {
+  hue = HUES.find((h) => h === next) ?? "rose";
+  shown = -1;
+  paintWorld();
 }
 
 // Called every frame by the renderer. Eases the world toward the dusk set (or back) over 600 ms;

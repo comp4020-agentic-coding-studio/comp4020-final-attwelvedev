@@ -26,6 +26,17 @@ const GRID = [
 const world = () => worldFrom(GRID, ["p1"]);
 
 describe("viewFor: what each role is told", () => {
+  it("a full view carries the room's hue; a delta view does not", () => {
+    const w = world();
+    w.room.meta.hue = "teal";
+    for (const role of ["blind", "deaf", "mute"] as const) {
+      expect(viewFor(w, 1, role, true).hue, role).toBe("teal");
+      expect(viewFor(w, 1, role, false).hue, role).toBeUndefined();
+    }
+    expect(spectatorView(w, null, ["blind", "deaf", "mute"], true).hue).toBe("teal");
+    expect(spectatorView(w, null, ["blind", "deaf", "mute"], false).hue).toBeUndefined();
+  });
+
   it("blind: no tiles, no entities, no own position, even on a full view", () => {
     const view = viewFor(world(), 0, "blind", true);
     expect(view.tiles).toBeUndefined();

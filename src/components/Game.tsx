@@ -36,7 +36,7 @@ import { afterRestart } from "../client/restart.ts";
 import { loadSettings, type Settings as SettingsState, saveSettings } from "../client/settings.ts";
 import type { ConnectionState, GameSocket } from "../client/socket.ts";
 import { browserSpeech } from "../client/speech.ts";
-import { NET, setContrast } from "../client/tokens.ts";
+import { NET, setContrast, setHue } from "../client/tokens.ts";
 import { installUiSounds, savedSettings, uiSound } from "../client/uiSound.ts";
 import { quickSlot } from "../client/wheel.ts";
 import { FACE_POP_MS, type Stamp } from "../game/channels.ts";
@@ -353,6 +353,7 @@ function onView(rt: Runtime, view: RoleView, audio: GameAudio, names: readonly s
     ...fresh.map((fx) => ({ fx, at: started })),
   ].slice(-FX_MAX);
   rt.at = performance.now();
+  if (view.full) setHue(view.hue); // the room's wall tints ride with its layout (FR1)
   if (view.tiles) {
     rt.tiles = view.tiles;
     rt.predictor?.setTiles(view.tiles); // the map is re-sent when a secret door opens: walk the new one
@@ -471,6 +472,7 @@ export function Game({
     });
     return () => {
       off();
+      setHue(undefined); // the home page never inherits a room's hue
       audio.current?.dispose();
       audio.current = null;
     };

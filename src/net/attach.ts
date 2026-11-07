@@ -197,6 +197,7 @@ function revealFor(
     played: playedBy(lobby, game),
     real: realFor(lobby, running, who, role),
     cues: role === "blind" ? cuesIn(game.world.room) : [],
+    ...(typeof game.world.room.meta.hue === "string" ? { hue: game.world.room.meta.hue } : {}),
     ...(cache ? { cache: { motif: cache.motif, riddle: cache.riddle, item: cache.item } } : {}),
   };
 }

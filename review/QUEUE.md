@@ -527,3 +527,12 @@ plate is part of the station it serves, so the pacing test does not count it), m
 - **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080` in three tabs; make a lobby in one, join with the code in the others, Start, press I'm ready.
 - **Screenshots:** `review/n7-sounds-task94-lobby-glow-1280.png`, `-375.png` (the players list, Cy's row glowing), `review/n7-sounds-task94-reveal-pulse-1280.png`, `-375.png` (the reveal just after Bo pressed ready).
 - **Judged:** not listened to. The levels are 0.05 to 0.09 on sine and triangle notes of 50 ms to 0.5 s; if they are too loud or too long, the numbers are `UI_PLANS` in `src/client/uiSound.ts`. `spec/layout/lobby-people.test.ts` proves the glow, the reduced-motion outline and that `menuSounds: false` silences a join and a press. The `ready`, `reveal` and `all-ready` kinds were seen in `__uiSounds` by script, not asserted in a spec.
+
+## Overnight run 2026-11-07
+
+### dl01 Task 97: walls drawn in their room's hue (human review, pending)
+
+- **Look at:** each room's walls read as a different, calm pastel, none lilac; room 01 looks exactly as it did.
+- **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080` in three tabs, make a lobby, Start. Rooms 02 (teal) and 06 (violet) via a cleared heist or `ROOMS_DIR` holding one room file.
+- **Screenshots:** `review/diorama/p0-room{01,02,03,06,07}-{1280,375}.png` (copies as `review/n7-dl01-task97-room<NN>-<width>.png`).
+- **Judged:** teal and violet looked right (viewed 02 at 1280 and 06 at 375); the others were not individually inspected. The dusk look (room 03 alarm) is covered by unit tests only, no screenshot.

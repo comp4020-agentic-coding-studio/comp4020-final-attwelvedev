@@ -11,6 +11,7 @@ import {
 } from "../client/hud.ts";
 import { draw, type Scene } from "../client/render.ts";
 import type { ConnectionState, GameSocket } from "../client/socket.ts";
+import { setHue } from "../client/tokens.ts";
 import { ROLE_LABEL, type Role, type Seat } from "../game/types.ts";
 import type { LobbyState, RoleView } from "../net/protocol.ts";
 import { BrailleCard } from "./BrailleCard.tsx";
@@ -222,6 +223,7 @@ export function Spectator({
       raf = requestAnimationFrame(loop);
       const v = view.current;
       if (!v) return;
+      if (v.full) setHue(v.hue);
       const scene: Scene = {
         ...size,
         role: v.role,

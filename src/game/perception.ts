@@ -224,6 +224,7 @@ export interface RoleView {
     hand?: Seat;
   };
   tiles?: string[];
+  hue?: string; // the room's wall hue (room meta), only on a full view, with `tiles`: room layout, no perception
   // The tiles in your line of sight, one string per row ("y:x0-x1,x2-x3"), for the sighted
   // only: the client draws mist outside them. Absent for Can't see.
   seen?: string[];
@@ -1191,6 +1192,10 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
   const braille = brailleFor(world, seat, role);
   if (braille) view.braille = braille; // own seat only, and only Can't see
   const alarm = world.tick < world.alarmUntil;
+  if (full) {
+    const hue = world.room.meta.hue;
+    if (typeof hue === "string") view.hue = hue;
+  }
   if (role !== "blind") {
     const me = world.players[seat].pos;
     view.you.pos = rounded(me);
@@ -1264,6 +1269,7 @@ export function spectatorView(
     gear: follow === null ? null : (carried(world, seat)?.item ?? null),
   };
   if (full) view.tiles = maskCache(world, world.room.grid); // a watcher sees the room, masked like the sighted
+  if (full && typeof world.room.meta.hue === "string") view.hue = world.room.meta.hue;
   const braille = follow === null ? undefined : brailleFor(world, seat, role);
   if (braille) view.braille = braille; // a watcher of Can't see reads over their shoulder
   const moment = cacheEventOf(world);
