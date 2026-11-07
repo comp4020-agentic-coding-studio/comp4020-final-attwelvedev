@@ -668,3 +668,10 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
 - **Start it:** `BENCH=1 pnpm build && BENCH=1 PORT=8181 node server.ts`, open `http://localhost:8181/bench?room=01&still=1`, then in the console `__still(true, { self: { x: 11.5, y: 3.5 }, entities: [...__scene.entities.map((e) => e.kind === "door" && Math.floor(e.pos.x) === 12 ? { ...e, state: "open" } : e), { id: "P9", kind: "player", seat: 0, pos: { x: 12.5, y: 2.5 } }], fx: [{ kind: "door", door: true, targetId: "D1", pos: { x: 12.5, y: 1.5 }, tone: "ui", age: 0.25 }] })`.
 - **Screenshots:** `review/n7-autofix2-task221-door-1280.png`, `review/n7-autofix2-task221-door-375.png`.
 - **Judged:** the figure is drawn over the door's tile and its leaves; nothing broken. Live play in three tabs (a door opening behind a wall still showing its leaves) is queued for morning.
+
+### autofix2 / Task 222: decor is the same for every seat in a room
+
+- **Look at:** rooms 01, 05 and 08's settled frames. Every placement has moved, because each wall cell now rolls its own dice and seven rooms' salts were re-picked. A pass: decor stays on wall faces, nothing sits beside a station or plaque, and the density still feels right.
+- **Start it:** `BENCH=1 pnpm build && BENCH=1 PORT=8181 node server.ts`, open `http://localhost:8181/bench?room=NN&still=1` (NN = 01, 05, 08; any room 01 to 09 works).
+- **Screenshots:** `review/diorama/fixes2-room01-{1280,375}.png`, `review/diorama/fixes2-room05-{1280,375}.png`, `review/diorama/fixes2-room08-{1280,375}.png`.
+- **Judged:** nothing broken. Room 08 now places three items instead of two. Room 05 has two pictures on its lower wall. Room 09 had to go to salt 12365 to find a placement with no item beside a station part. Worth a live 3-tab look: a goggled player and a spectator in room 08 should now see the same walls away from the dark nook.

@@ -224,6 +224,95 @@ describe("R2: no decor beside a station, plaque, camera, bell, lamp, lever or in
   }
 });
 
+// FR3 (auto fixes 2): each cell rolls on its own, so a view that differs near the night or a cache's
+// chamber gets the same decor everywhere else. A cell's eligibility moves within 1 tile of a change
+// (NEAR), and spacing reaches APART - 1 = 2 tiles further, so only items within 3 tiles may differ.
+describe("decor is the same on every screen in a room", () => {
+  const ROLES: [Role, Role, Role] = ["blind", "deaf", "mute"];
+  const SPREAD = 3;
+  const key = (i: DecorItem) => JSON.stringify(i);
+  const awayFrom = (items: DecorItem[], near: (i: DecorItem) => boolean) =>
+    items
+      .filter((i) => !near(i))
+      .map(key)
+      .sort();
+
+  it("a floor cell beside a wall turned to night moves only the decor within 3 tiles of it", () => {
+    let tried = 0;
+    for (const room of loadRooms("./rooms")) {
+      const tiles = room.grid;
+      const base = decorFor(room.id, tiles);
+      // every floor cell just south of a wall front, one at a time
+      for (let y = 1; y < tiles.length; y++)
+        for (let x = 0; x < (tiles[y] as string).length; x++) {
+          if (tiles[y]?.[x] !== "." || tiles[y - 1]?.[x] !== "#") continue;
+          const t = [...tiles];
+          t[y] = `${(t[y] as string).slice(0, x)} ${(t[y] as string).slice(x + 1)}`;
+          const near = (i: DecorItem) => cheb(i, { x, y }) <= SPREAD;
+          tried++;
+          expect(awayFrom(decorFor(room.id, t), near), `${room.id} night at ${x},${y}`).toEqual(
+            awayFrom(base, near),
+          );
+        }
+    }
+    expect(tried).toBeGreaterThan(0);
+  });
+
+  // the per-cell rolls keep no running count, so "at most 1 per 6 (8) eligible" is shown here for
+  // every shipped room rather than enforced by a cap
+  it("no shipped room places more than 1 per 6 eligible fronts or 1 per 8 tops", () => {
+    for (const room of loadRooms("./rooms")) {
+      const t = room.grid;
+      const clear = (x: number, y: number) => {
+        for (let dy = -1; dy <= 1; dy++)
+          for (let dx = -1; dx <= 1; dx++)
+            if ("DH=% ".includes(t[y + dy]?.[x + dx] ?? "#")) return false;
+        return true;
+      };
+      let fronts = 0;
+      let tops = 0;
+      t.forEach((row, y) => {
+        for (let x = 0; x < row.length; x++) {
+          if (row[x] !== "#" || !clear(x, y)) continue;
+          tops++;
+          const s = t[y + 1]?.[x];
+          if (s !== undefined && !isBlock(s) && s !== "D") fronts++;
+        }
+      });
+      const half = room.id.startsWith("01-") ? 0.5 : 1;
+      const items = decorFor(room.id, t);
+      const f = items.filter((i) => i.face === "front").length;
+      const p = items.filter((i) => i.face === "top").length;
+      expect(f, `${room.id} fronts`).toBeLessThanOrEqual(Math.floor((fronts * half) / 6));
+      expect(p, `${room.id} tops`).toBeLessThanOrEqual(Math.floor((tops * half) / 8));
+    }
+  });
+
+  it("room 08: a sighted player and a spectator see the same decor away from the night and chamber", () => {
+    const room = loadRooms("./rooms").find((r) => r.id === "08-music-room");
+    if (!room) throw new Error("room 08 missing");
+    const world = createWorld(room, 1, ROLES);
+    const player = viewFor(world, 1, "deaf", true).tiles ?? room.grid;
+    const watcher = spectatorView(world, null, ROLES, true).tiles ?? room.grid;
+    const rects = [
+      [12, 1, 16, 3], // the dark zone
+      [2, 8, 10, 10], // the cache's chamber, its door at 4,7 and its vault
+      [4, 7, 4, 7],
+    ];
+    const near = (i: DecorItem) =>
+      rects.some(
+        ([x0, y0, x1, y1]) =>
+          i.x >= (x0 as number) - SPREAD &&
+          i.x <= (x1 as number) + SPREAD &&
+          i.y >= (y0 as number) - SPREAD &&
+          i.y <= (y1 as number) + SPREAD,
+      );
+    const a = decorFor(room.id, player);
+    expect(a.filter((i) => !near(i)).length, "some decor to compare").toBeGreaterThan(0);
+    expect(awayFrom(decorFor(room.id, watcher), near)).toEqual(awayFrom(a, near));
+  });
+});
+
 describe("the banned list", () => {
   it("no theme kind is named as a banned thing", () => {
     const banned =

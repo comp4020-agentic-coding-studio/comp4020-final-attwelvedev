@@ -102,13 +102,16 @@ export interface DecorItem {
 }
 
 // A room's nudge to its seed (R2): raised when the anchor test finds an item beside a station part.
-// 05 and 09 are nudged so that no item stands beside a station part or plaque (decor.test.ts, R2).
+// Re-picked for the per-cell rolls (auto fixes 2): the first salt with no item beside a station part
+// or plaque and at least two items (09: the first with any).
 export const SALT: Record<string, number> = {
-  "05-the-gallery": 36,
-  "09-the-vault": 2995,
-  "04-the-safe": 1,
-  "06-lights-out": 4,
-  "07-night-shift": 12,
+  "03-watchers": 1,
+  "04-the-safe": 2,
+  "05-the-gallery": 56,
+  "06-lights-out": 5,
+  "07-night-shift": 198,
+  "08-music-room": 4,
+  "09-the-vault": 12365,
 };
 
 // 32-bit FNV-1a, then mulberry32
@@ -163,8 +166,12 @@ function excluded(tiles: readonly string[], wires: readonly Vec[][]): Set<string
   return out;
 }
 
-// The room's decor: fronts then tops, each walked in reading order with its own density, at least
-// APART tiles from the last item on that kind of face. Room 01 is at half density.
+// The room's decor: fronts then tops, each with its own density. Every wall cell rolls its own dice
+// for each face, seeded by the room and the cell alone, so a view that differs somewhere (the night
+// masked, a cache's chamber opened) moves no item more than APART - 1 tiles from the change (FR3,
+// auto fixes 2). A cell gets an item when its roll is under p, it is clear of NEAR and wires, and no
+// cell of that face earlier in reading order within APART rolled under p (eligible or not), so items
+// stay APART. Room 01 is at half density.
 export function decorFor(
   roomId: string,
   tiles: readonly string[],
@@ -173,14 +180,15 @@ export function decorFor(
   const theme = THEME_OF[roomId];
   const kinds = theme ? THEME_KINDS[theme] : [];
   if (kinds.length === 0) return [];
-  const rng = mulberry32(fnv1a(`${roomId}:${SALT[roomId] ?? 0}`));
+  const salt = SALT[roomId] ?? 0;
   const half = roomId.startsWith("01-") ? 0.5 : 1;
   const near = excluded(tiles, wires);
+  // every cell that has the face, in reading order: a front needs open floor (not a door) south of it
   const fronts: Vec[] = [];
   const tops: Vec[] = [];
   tiles.forEach((row, y) => {
     for (let x = 0; x < row.length; x++) {
-      if (row[x] !== "#" || near.has(`${x},${y}`)) continue;
+      if (row[x] !== "#") continue;
       tops.push({ x, y });
       const south = tiles[y + 1]?.[x];
       if (y < tiles.length - 1 && south !== undefined && !BLOCKS.includes(south) && south !== "D")
@@ -191,17 +199,16 @@ export function decorFor(
   const place = (cells: Vec[], face: "front" | "top", p: number) => {
     const choices = kinds.filter((k) => KIND_FACES[k].includes(face));
     if (choices.length === 0) return;
-    const cap = Math.floor(cells.length * p); // at most 1 per 1/p eligible, whatever the dice say
-    let last: Vec | null = null;
-    let placed = 0;
+    const hits: Vec[] = []; // the cells so far that rolled under p
     for (const at of cells) {
-      const roll = rng();
-      if (placed >= cap || roll >= p || (last && cheb(last, at) < APART)) continue;
+      const rng = mulberry32(fnv1a(`${roomId}:${salt}:${at.x},${at.y}:${face}`));
+      if (rng() >= p) continue;
+      const crowded = hits.some((h) => cheb(h, at) < APART);
+      hits.push(at);
+      if (crowded || near.has(`${at.x},${at.y}`)) continue;
       const kind = choices[Math.floor(rng() * choices.length)] as DecorKind;
       const variant = Math.floor(rng() * 4);
       out.push({ x: at.x, y: at.y, face, kind, variant, ...(LIT.has(kind) ? { lit: true } : {}) });
-      last = at;
-      placed++;
     }
   };
   place(fronts, "front", FRONT_P * half);

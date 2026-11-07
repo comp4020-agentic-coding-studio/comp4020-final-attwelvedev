@@ -227,7 +227,9 @@ sconces. The rest: the pavilion (01) ivy trails and planters, the conservatory (
 anything that could be read as a clue. Decor is also drawn in the home feeds (room 01's, for the sighted
 feeds only). Decided in ADR 0026 (`proposed`).
 
-- **Placement** (`decorFor` in `src/client/render/decor.ts`): seeded from the room id, and read only
+- **Placement** (`decorFor` in `src/client/render/decor.ts`): each wall cell's face rolls its own
+  dice, seeded from the room id and that cell alone, so two seats whose views differ only by the night
+  or a cache's chamber see the same decor more than 3 tiles from it. It reads only
   from the layout every sighted seat already has (the tiles and the wires). Fronts of south-open `#`
   walls (at most 1 in 6, 3 tiles apart) and `#` tops (at most 1 in 8); nothing within a tile of a
   door, hatch, glass, vent, night or wire; room 01 at half. A room's `SALT` is nudged until no item
