@@ -148,6 +148,23 @@ describe("a Can't-see bot", () => {
     }
   });
 
+  // review fixes A FR7: with its cache's vault open and empty hands, a Can't-see bot towed over floor
+  // gear hears "Take the earpiece": that is gear, not its keepsake, and it does not pick it up
+  it("takes its own keepsake from an open vault, and not gear lying on the floor", () => {
+    const cache = {
+      id: "Q4",
+      motif: "moon",
+      riddle: "r",
+      item: "watch",
+      state: "vault",
+    } as const satisfies RoleView["cache"];
+    const press = (act: string) =>
+      think(room("01-first-job"), { ...blindView(5), cache, act }, [], createBotMemory(0), 250)
+        .input.act;
+    expect(press("Take the earpiece"), "floor gear").toBe(false);
+    expect(press("Take the gold watch"), "its keepsake").toBe(true);
+  });
+
   it("walks the way a callout says until it hears stop", () => {
     const m = createBotMemory(0);
     expect(think(r, blindView(1), [callout("left")], m, 50).input.move).toEqual({ x: -1, y: 0 });

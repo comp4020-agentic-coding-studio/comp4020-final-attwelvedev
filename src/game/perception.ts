@@ -1314,7 +1314,8 @@ function uvLight(world: World, role: Role, seen: Visible, zones: Zone[]): Entity
   return out;
 }
 
-const ITEM_WORDS: Record<ItemId, string> = {
+// What a keepsake is called (the take hint; a bot owner matches it: bots/brain.ts thinkBlind)
+export const ITEM_WORDS: Record<ItemId, string> = {
   watch: "gold watch",
   ledger: "ledger",
   ring: "signet ring",

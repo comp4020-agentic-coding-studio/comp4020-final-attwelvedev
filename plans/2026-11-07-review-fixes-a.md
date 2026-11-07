@@ -99,7 +99,7 @@ important: one can hang a room, the other restores a check CLAUDE.md says must s
 - **Break check:** restore the unconditional skip; the ring test goes red.
 - **Depends on:** the door-pill spec fix being on the branch.
 
-### Task 138: Two bot slips (FR7)
+### Task 138: Two bot slips (FR7) — [x] done
 
 - **Description:** both start by reproducing, in a unit test, before any change; if one will not reproduce,
   it is not fixed and goes to `specs/backlog.md` as a dated line instead.

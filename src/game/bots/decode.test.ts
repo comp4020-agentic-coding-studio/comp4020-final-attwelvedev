@@ -1180,6 +1180,20 @@ describe("a plate-held keypad key and wire (Task 77)", () => {
     expect(b.answer).toEqual([1, 6, 4]);
   });
 
+  it("takes the plate's digit from where it came, when the tune's keys were texted before it", () => {
+    // review fixes A FR7, room 8: Can't see texts the tune (2, 5) before reading the plate (7). The
+    // presser saw a hand go on the plate after the two tune digits: the next digit is the plate's.
+    const reading = {
+      ...view,
+      entities: [{ id: "o1", kind: "braille", pos: { x: 2.5, y: 2.5 }, state: "on" }],
+    } as unknown as RoleView;
+    const b = { ...emptyBelief(), numbers: [2, 5] };
+    DECODERS.keypad?.(reading, [], b, o("Q1"), 0, 1);
+    b.numbers.push(7);
+    DECODERS.keypad?.(view, [], b, o("Q1"), 1, 1);
+    expect(b.answer).toEqual([1, 6, 4]);
+  });
+
   it("the wires answer takes cut = n - 1 from a text, for a wire a plate names", () => {
     const b = { ...emptyBelief(), numbers: [3] };
     DECODERS.wires?.(view, [], b, o("Q2"), 0, 0);

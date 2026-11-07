@@ -34,6 +34,7 @@ export interface StationBelief {
   symbols: Partial<Record<string, number>>; // a vault: each solved wing's symbol, by its motif
   order: string[] | null; // a vault's order clue, read: the wings' motifs in socket order
   plate: number | null; // the number a braille plate carries for it, as Can't see texted it
+  plateFrom: number | null; // an earpiece keypad: how many digits it had been sent when it saw the plate read
 }
 
 export type Decoder = (
@@ -52,6 +53,7 @@ export const emptyBelief = (): StationBelief => ({
   shows: [],
   marked: [],
   numbers: [],
+  plateFrom: null,
   changedAt: Number.NEGATIVE_INFINITY,
   rule: null,
   wire: null,
@@ -245,11 +247,21 @@ const keypad: Decoder = (view, _inbox, b, o, now, plated) => {
     const len = KEYPAD_LENGTH(o);
     // a plate carries one key: its text comes first (the room reads the plate before the earpiece
     // is handed over), then the tune's other keys, so the plate's digit is spliced in at its part
+    // — unless the tune's keys were texted first (a person may): a hand seen going on the plate (a
+    // room has one, and this keypad is the one it serves) marks the next digit sent as the plate's
     if (plated !== undefined) {
+      const reading = view.entities?.some((e) => e.kind === "braille" && e.state === "on");
+      if (reading && b.plateFrom === null) b.plateFrom = b.numbers.length;
       if (b.numbers.length >= len) {
-        const told = b.numbers.slice(-len).map((d) => d - 1);
-        const [plate, ...tune] = told;
-        b.answer = [...tune.slice(0, plated), plate as number, ...tune.slice(plated)];
+        const from = b.plateFrom !== null && b.plateFrom < b.numbers.length ? b.plateFrom : null;
+        const told = b.numbers.map((d) => d - 1);
+        const plate = from !== null ? told[from] : told.at(-len);
+        const tune =
+          from !== null
+            ? told.filter((_, i) => i !== from).slice(-(len - 1))
+            : told.slice(-(len - 1));
+        if (plate !== undefined && tune.length === len - 1)
+          b.answer = [...tune.slice(0, plated), plate, ...tune.slice(plated)];
       }
       return;
     }

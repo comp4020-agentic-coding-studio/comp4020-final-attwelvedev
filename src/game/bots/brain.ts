@@ -5,7 +5,7 @@ import {
   type Outgoing,
   STAMP_LIFE_MS,
 } from "../channels.ts";
-import type { EntityView, RoleView, SoundCue } from "../perception.ts";
+import { type EntityView, ITEM_WORDS, type RoleView, type SoundCue } from "../perception.ts";
 import { cacheOf, type Room, secretDoors } from "../rooms/format.ts";
 import { platePart } from "../sim/braille.ts";
 import { blockedAt } from "../sim/collide.ts";
@@ -309,7 +309,9 @@ function thinkBlind(view: RoleView, inbox: ChannelMessage[], m: BotMemory, now: 
   m.toTell.push(...earStep(view, m.ear));
   // a braille plate under its hand: Act once to read it, then text its number a digit a turn
   // (or its own cache's keepsake, once the vault is open and the hint says it can be taken: ADR 0024)
-  const take = view.cache?.state === "vault" && view.act?.startsWith("Take the") === true;
+  // (its keepsake's own hint only: towed over floor gear it hears "Take the <gear>", and leaves it)
+  const take =
+    view.cache?.state === "vault" && view.act === `Take the ${ITEM_WORDS[view.cache.item]}`;
   const want = (view.act === "Read the plate" && !view.braille) || take;
   const read = want && !m.actWas;
   m.actWas = read;
@@ -1132,7 +1134,10 @@ function thinkSighted(
         if (b.solved) continue;
         // an earpiece's keypad: the digits told were the old code (a radio's digit is kept)
         const clue = room.objects.find((o) => o.id === id)?.params?.clue;
-        if (String(clue ?? "").startsWith("g")) b.numbers = [];
+        if (String(clue ?? "").startsWith("g")) {
+          b.numbers = [];
+          b.plateFrom = null;
+        }
         b.told = new Set();
         b.answer = [];
         b.heard = [];
