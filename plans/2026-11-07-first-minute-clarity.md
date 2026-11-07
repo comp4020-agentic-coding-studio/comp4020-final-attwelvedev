@@ -55,7 +55,7 @@ Each new or changed promise-guarding assertion is shown red first, with a break 
   - Tests to update first (red, then green): `spec/layout/voice.test.ts:151` (the player's mic line), `src/components/SpectatorChat.test.ts:117–119` (it matches `/Microphone blocked/`; it becomes `/Voice off \(optional\)/`), `spec/layout/braille.test.ts:66` (waits on `.hud-hint` "No map. Listen."; match the new line). Add to `spec/layout/home.test.ts` an assertion that the join panel says "Up to six can join and take turns".
   - Acceptance: demo steps 1 and 7 pass. `grep -r "Microphone blocked" src spec` is empty.
 
-- [ ] **Task 2: The goal line on every role's reveal**
+- [x] **Task 2: The goal line on every role's reveal**
   - Files: `src/components/RoleReveal.tsx`: a `<p class="reveal-goal">Get all three onto the exit.</p>` after the `<h1 id="reveal-title">` block and before `<dl class="reveal-facts">`. The same for every role and room. Style it in the reveal's existing CSS using existing tokens only (it's a sentence, not a heading). Add a DESIGN.md §7 bullet: the goal line, its words and where it sits.
   - Test first: in `spec/layout/reveal.test.ts` under "each role's reveal card", a new `it` checks that for each of the three roles the card contains "Get all three onto the exit.", and that its box lies below `#reveal-title` and above `.reveal-facts`, at 1280 and 375. Red by removing the line through the break script.
   - Acceptance: demo step 6. The existing "no overflow and no axe violations for each role" test (`reveal.test.ts:638`) stays green.

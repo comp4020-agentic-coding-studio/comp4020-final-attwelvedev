@@ -45,6 +45,25 @@ const crewRow = (page: Page, name: string) =>
   page.locator(".reveal-crew li").filter({ has: page.getByText(name, { exact: false }) });
 
 describe("each role's reveal card", () => {
+  it("says the goal under the role heading and above the facts, for every role, at 1280 and 375", async () => {
+    for (const viewport of [DESKTOP, PHONE]) {
+      const { pages } = await revealed(["Ana", "Bo", "Cy"], viewport);
+      for (const page of pages) {
+        const goal = page
+          .locator(".reveal")
+          .getByText("Get all three onto the exit.", { exact: true });
+        await goal.waitFor({ timeout: 5000 });
+        const box = await goal.boundingBox();
+        const head = await page.locator("#reveal-title").boundingBox();
+        const facts = await page.locator(".reveal-facts").boundingBox();
+        if (!box || !head || !facts) throw new Error("goal, title or facts not drawn");
+        expect(box.y).toBeGreaterThanOrEqual(head.y + head.height);
+        expect(box.y + box.height).toBeLessThanOrEqual(facts.y);
+      }
+      await closeAll(pages);
+    }
+  });
+
   it("names who hears what they send, by name, and never says Say, Sound or Show", async () => {
     const { pages } = await revealed(["Ana", "Bo", "Cy"]);
     const [blind, deaf, mute] = pages as [Page, Page, Page];

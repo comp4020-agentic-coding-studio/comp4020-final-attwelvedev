@@ -186,6 +186,12 @@ body.playing main {
     opacity: 0;
   }
 }
+/* the room's goal: a sentence between the role line and the facts, not a heading */
+.reveal-goal {
+  margin: 0;
+  font-size: var(--t-18);
+  font-weight: 700;
+}
 .reveal-facts {
   margin: 0;
   display: grid;

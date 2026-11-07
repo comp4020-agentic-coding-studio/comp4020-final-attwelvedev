@@ -110,6 +110,7 @@ export function RoleReveal({
             {YOU[role]}
           </h1>
         </div>
+        <p class="reveal-goal">Get all three onto the exit.</p>
 
         <dl class="reveal-facts">
           <div>

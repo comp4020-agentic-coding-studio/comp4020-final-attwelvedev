@@ -1,0 +1,8 @@
+# Overnight run 2026-11-07, fm lane: decisions
+
+## fm (first-minute clarity, plans/2026-11-07-first-minute-clarity.md)
+
+- fm/Human review: the plan's Human review needs the user's sign-off on Tasks 2 and 3 → built, screenshotted, committed with "Human review: pending (overnight run)" and queued in `review/QUEUE-fm.md`; the plan's Human review section is left unticked, so sign-off is pending, because the user is asleep and the run rules defer all review to the morning. Reversible by rejecting in the morning and amending the copy or layout.
+- fm/Task 1: SpectatorChat's unit test passes its own `micNote` prop, so it cannot go red from the Spectator.tsx copy change → updated it as the plan says and relied on voice.test.ts (red first) for the player line; the watcher's string is a one-line literal in Spectator.tsx. Reversible by adding a watcher mic layout test.
+- fm/Task 2: the goal line's style → `--t-18`, weight 700, no colour change: a sentence between the 28 px role line and the 16 px facts, using existing tokens only. Reversible by editing `.reveal-goal` in game.css.
+- fm/Task 2: the full check went red on three unit tests outside this task (`src/game/perf.test.ts` 2 ms tick budget, `src/game/bots/brain.test.ts` caught-and-sent-back, `src/client/render/standing.test.ts`), all green in Task 1's full run and all green run alone once → treated as load flakes from two lanes sharing the machine, committed. Reversible by running `pnpm check:flaky` on those files in the morning; if any fails every run it is a bug.
