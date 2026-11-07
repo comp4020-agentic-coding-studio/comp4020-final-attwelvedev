@@ -512,11 +512,12 @@ const fxColor = (tone: "goal" | "danger" | "ui" | "muted") =>
 // unless the player asked for reduced motion, in which case it only fades. Rings lie on the
 // floor, so the tilt squashes them.
 function drawFx(ctx: CanvasRenderingContext2D, scene: Scene, cam: Camera) {
-  // an effect at a place you cannot see is not drawn (a door sliding behind a wall would tell you where
-  // it is): the sighted see only what is in their light; a watcher has no `seen` and sees them all
+  // an effect at a place you cannot see is not drawn (a secret door sliding behind a wall would tell you
+  // where it is): the sighted see only what is in their light; a watcher has no `seen` and sees them
+  // all. An ordinary door's ring is the exception: every sighted seat is told it opened (ADR 0025 FR5).
   const seen = scene.seen ? seenOf(scene.seen) : null;
   for (const f of scene.fx ?? []) {
-    if (!inSight(seen, f.pos)) continue;
+    if (!f.door && !inSight(seen, f.pos)) continue;
     const at = toScreen(cam, f.pos.x, f.pos.y);
     const { x, y } = at;
     const grow = scene.reducedMotion ? 1 : 0.3 + 0.7 * f.age;

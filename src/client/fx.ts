@@ -23,6 +23,7 @@ export interface Fx {
   to?: Vec;
   item?: EntityView["item"];
   keep?: ItemId; // lift: the keepsake that was taken
+  door?: true; // ring: an ordinary door opening, drawn wherever it is (ADR 0025 FR5)
 }
 
 // How long an effect lives: the lift is longer than the rest, which last FX_MS.
@@ -76,7 +77,13 @@ export function detectFx(prev: EntityView[], next: EntityView[]): Fx[] {
     if (e.kind === "plate" && before && before.state !== e.state) {
       out.push({ kind: "ring", pos: e.pos, tone: e.state === "pressed" ? "goal" : "muted" });
     } else if (e.kind === "door" && before?.state === "closed" && e.state === "open") {
-      out.push({ kind: "ring", pos: e.pos, tone: "ui" });
+      // a secret door never gets here: it is no entity until it opens, and its slide is a cacheEvent
+      out.push({
+        kind: "ring",
+        pos: e.pos,
+        tone: "ui",
+        ...(e.secret ? {} : { door: true as const }),
+      });
     } else if (e.kind === "braille" && e.flash === "ok") {
       // Can't see read the plate: a ring where it lies, the picture of its tap (parity row `tap`)
       out.push({ kind: "ring", pos: e.pos, tone: "ui" });

@@ -83,7 +83,7 @@ important: one can hang a room, the other restores a check CLAUDE.md says must s
 - **Break check:** both, with scripts that assert the text they replace.
 - **Depends on:** none.
 
-### Task 134: The door ring off sight, and a door pill clear of a mark pill (FR3)
+### Task 134: The door ring off sight, and a door pill clear of a mark pill (FR3) — [x] done
 
 - **Description:** `src/client/render/index.ts` `drawFx` skips every effect whose tile is not in sight
   (`if (!inSight(seen, f.pos)) continue;`), so the ring `detectFx` now emits for every door is dropped for a

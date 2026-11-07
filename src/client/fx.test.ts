@@ -25,8 +25,11 @@ describe("detectFx: small effects for what just changed between two views", () =
   it("a door that opens out of sight rings", () => {
     const closed = e({ id: "D1", kind: "door", state: "closed", pos: { x: 5.5, y: 2.5 } });
     expect(detectFx([closed], [{ ...closed, state: "open" }])).toMatchObject([
-      { kind: "ring", tone: "ui", pos: closed.pos },
+      { kind: "ring", tone: "ui", pos: closed.pos, door: true },
     ]);
+    // a secret door (a cache's) seen opening is not marked: its ring keeps to the light
+    const secret = { ...closed, secret: true as const };
+    expect(detectFx([secret], [{ ...secret, state: "open" }])[0]?.door).toBeUndefined();
   });
 
   it("a door of three tiles is one opening, not three", () => {

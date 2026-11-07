@@ -1066,6 +1066,28 @@ describe("mist, night and marks out of sight (FR5, FR7, FR8)", () => {
     expect(ops.some((o) => o.name === "fillRect" && o.fillStyle === WORLD.nightRim)).toBe(true);
   });
 
+  // ADR 0025 FR5: every ordinary door's opening reaches every sighted seat, so its ring is drawn where
+  // the door is even behind a wall; any other effect out of sight is not (a cache's secret door
+  // sliding would tell you where it is).
+  it("draws an ordinary door's ring at an unseen tile, and no other effect there", () => {
+    const at = { x: 8.5, y: 3.5 }; // row 3 is not in `seen`
+    const ellipses = (fx: Scene["fx"]) => {
+      const { ctx, ops } = recorder();
+      draw(ctx, whole({ seen: ["0:0-9"], fx }));
+      return ops.filter((o) => o.name === "ellipse" && o.strokeStyle === COLOR.ui);
+    };
+    const door = ellipses([{ kind: "ring", pos: at, tone: "ui", door: true, age: 0 }]);
+    expect(door.length, "the door's ring").toBeGreaterThan(0);
+    expect(ellipses([{ kind: "ring", pos: at, tone: "ui", age: 0 }]), "a plain ring").toHaveLength(
+      0,
+    );
+    const { ctx, ops } = recorder();
+    draw(ctx, whole({ seen: ["0:0-9"], fx: [{ kind: "slide", pos: at, tone: "ui", age: 0 }] }));
+    const bare = recorder();
+    draw(bare.ctx, whole({ seen: ["0:0-9"], fx: [] }));
+    expect(ops.length, "a secret door's slide out of sight draws nothing").toBe(bare.ops.length);
+  });
+
   it("draws a mark in an unseen tile at 35%, and one in sight at full strength", () => {
     const mark = {
       id: "S1",
@@ -1115,6 +1137,33 @@ describe("mist, night and marks out of sight (FR5, FR7, FR8)", () => {
         base({ pops: [{ seat: 2, img, fade: 1, from: { x: 0.5, y: 3.5 }, name: "Cy" }] }),
       );
       expect(left[0]?.args[1] as number).toBeLessThan(200);
+    });
+
+    it("a door's pill and a mark's pill toward the same edge never touch: 48 px between centres or more", () => {
+      // plan 2026-11-07-team-wide-doors: a mark stamped beside a door that opens off screen
+      const { ctx, ops } = recorder();
+      draw(
+        ctx,
+        base({
+          pops: [
+            { seat: null, fade: 1, from: { x: 39.5, y: 2.5 }, name: "Door", mark: "door" },
+            { seat: 2, fade: 1, from: { x: 39.5, y: 3.5 }, name: "Cy", mark: "key" },
+          ],
+          layout: "follow", // both places far off screen to the east
+        }),
+      );
+      const pills = ops.filter(
+        (o) =>
+          o.name === "roundRect" && (o.args[3] as number) === 30 && (o.args[4] as number) === 15,
+      );
+      expect(pills).toHaveLength(2);
+      const [a, b] = pills.map((o) => o.args as number[]) as [number[], number[]];
+      const apart =
+        (a[1] as number) + 30 + 18 <= (b[1] as number) ||
+        (b[1] as number) + 30 + 18 <= (a[1] as number) ||
+        (a[0] as number) + (a[2] as number) + 18 <= (b[0] as number) ||
+        (b[0] as number) + (b[2] as number) + 18 <= (a[0] as number);
+      expect(apart, JSON.stringify([a, b])).toBe(true);
     });
 
     it("shows the sender's role shape on it, and a face only while the face lasts", () => {
