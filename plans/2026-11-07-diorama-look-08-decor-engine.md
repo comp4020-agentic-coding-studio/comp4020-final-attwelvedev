@@ -131,7 +131,7 @@ them through `atlasTile` when settled, and directly otherwise.
 
 ## 5. Task breakdown
 
-### Task 113: `decorFor` placement, the R2 anchor test, and the banned-kind test (FR10, FR12 banned)
+### [x] Task 113: `decorFor` placement, the R2 anchor test, and the banned-kind test (FR10, FR12 banned)
 
 - **Description:** write `src/client/render/decor.ts` (pure, no DOM): the RNG, eligibility, density,
   `THEME_OF` (all nine rooms mapped, even though only 05, 08 and 09 have kinds yet; the others map to
