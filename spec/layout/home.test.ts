@@ -97,6 +97,21 @@ describe("the home page's hero", () => {
     await leaveAndClose(page);
   });
 
+  it("a sighted home feed draws room 1's decor, and Can't see's draws none", async () => {
+    const page = await openPage(browser, baseUrl, DESKTOP);
+    await page.locator(".feed canvas").first().waitFor();
+    await page.waitForTimeout(500);
+    // Feeds.tsx tells the count it drew: the picture alone cannot be asked
+    const counts = await page.$$eval(".feed canvas", (cs) =>
+      cs.map((c) => Number((c as HTMLCanvasElement).dataset.decor ?? "-1")),
+    );
+    expect(counts).toHaveLength(3);
+    expect(counts[0]).toBe(0);
+    expect(counts[1]).toBeGreaterThan(0);
+    expect(counts[2]).toBeGreaterThan(0);
+    await leaveAndClose(page);
+  });
+
   it("the Can't see feed draws its figure, not the ring", async () => {
     const page = await openPage(browser, baseUrl, DESKTOP);
     const blind = page.locator(".feed canvas").first();

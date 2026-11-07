@@ -3,6 +3,8 @@ import roomText from "../../rooms/01-first-steps.room?raw";
 import { faceImage } from "../client/faces.ts";
 import { detectFx, FX_MAX, type Fx, fxMs } from "../client/fx.ts";
 import { captionFor, cueCaptions, type HeldCues, hearCues, heardCues } from "../client/hud.ts";
+import type { DecorItem } from "../client/render/decor.ts";
+import { decorFor } from "../client/render/decor.ts";
 import { draw, type FacePop, type Motion, type Scene } from "../client/render.ts";
 import { setHue } from "../client/tokens.ts";
 import { type AttractTick, createAttract } from "../game/bots/attract.ts";
@@ -31,6 +33,7 @@ interface Line {
 interface Run {
   attract: ReturnType<typeof createAttract>;
   tiles: string[]; // the map, as the first tick sent it to the sighted
+  decor: DecorItem[]; // room 1's decor, worked out once for the run
   prev: AttractTick | null;
   last: AttractTick;
   at: number; // the run's clock (ms, stopped while paused) at `last`
@@ -50,9 +53,17 @@ let runs = 0; // each loop is a new seed, so no two heists play the same
 export function fresh(now: number): Run {
   const attract = createAttract(room, FEED_ROLES, ++runs);
   const last = attract.next();
+  const tiles = last.views[1].tiles ?? room.grid;
   return {
     attract,
-    tiles: last.views[1].tiles ?? room.grid,
+    tiles,
+    decor: decorFor(
+      room.id,
+      tiles,
+      (last.views[1].entities ?? []).flatMap((e) =>
+        e.kind === "wire" && e.route ? [e.route] : [],
+      ),
+    ),
     prev: null,
     last,
     at: now,
@@ -149,6 +160,7 @@ function paint(canvas: HTMLCanvasElement, run: Run, seat: Seat, now: number, cal
     roles: [...FEED_ROLES] as [Role, Role, Role],
     roomId: room.id,
     tiles: blind ? null : run.tiles,
+    decor: blind ? [] : run.decor, // Can't see is sent no map, so no picture of it
     entities,
     self: blind ? null : self,
     layout: "fit",
@@ -170,6 +182,7 @@ function paint(canvas: HTMLCanvasElement, run: Run, seat: Seat, now: number, cal
       : {}),
     cleared: run.clearedAt !== null, // the cleared room holds still: nobody walks on
   };
+  canvas.dataset.decor = String(scene.decor?.length ?? 0); // for spec/layout/home.test.ts
   draw(ctx, scene);
 }
 

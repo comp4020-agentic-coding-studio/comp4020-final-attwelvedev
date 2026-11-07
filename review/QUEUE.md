@@ -640,3 +640,10 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
 - **Start locally:** for one room alone, `mkdir -p /tmp/r5 && cp rooms/05-the-gallery.room /tmp/r5/ && pnpm build && ROOMS_DIR=/tmp/r5 PORT=8095 DATABASE_PATH=$(mktemp -d)/app.db node server.ts`, open `http://localhost:8095` in three tabs, make a lobby, Start, I'm ready in each (the same with `08-music-room` and `09-the-vault`). A still of each without players: `BENCH=1 pnpm build && BENCH=1 PORT=8291 node server.ts`, then `http://localhost:8291/bench?room=08&still=1` (`&decor=0` without decor, `&hc=1` high contrast).
 - **Screenshots:** `review/diorama/p7-room{05,08,09}-{canthear,cantspeak,spectator}-{1280,375}.png` and `p7-room{05,08,09}-canthear-hc-{1280,375}.png` (no decor); `review/n7-dl08-task115-decor-{1280,375}.png` are copies of two of them.
 - **Judged:** nothing broken. The decor is quiet: the paintings and rivets read as wall texture at a glance, and room 08 places only two fronts at its seed (its walls are short runs between doors and glass), so the salon theme is thin there. Room 08's density is the likeliest thing to want more of; raising it is a change to FR10's 1-in-6, not done here. `spec/layout/decor.test.ts` proves no decor pixel leaves its face (it went red, naming floor pixels, with the clip removed).
+
+### dl09 / Task 117: decor in the home feeds
+
+- **Look at:** the home page's three feeds at 1280 and 375. A pass is: room 1's ivy and planters show and the feeds still read as three roles' views.
+- **Start it:** `pnpm install && pnpm build && pnpm start`, open `http://localhost:8080/`.
+- **Screenshots:** `review/n7-dl09-task117-home-feeds-1280.png`, `review/n7-dl09-task117-home-1280.png`, `review/n7-dl09-task117-home-375.png`, `review/n7-dl09-task117-home-feeds-375.png`.
+- **Judged:** room 1 is at half density and a feed shows the whole room, so only two planters on the south wall's top and one ivy trail are placed; they are small but visible. Raise room 01's density if you want more. Can't see's feed draws none (it is sent no map).
