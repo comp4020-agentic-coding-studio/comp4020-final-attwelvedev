@@ -1384,3 +1384,25 @@ How I knew it was right: `spec/layout/lobby-people.test.ts` shows the glow is on
 the row above, is gone after 1.5 s and is a still outline under reduced motion; `__uiSounds` shows the kinds played, and
 none when Menu sounds is off. The seam test for the beds goes red when the loop crossfade is removed.
 
+
+## 2026-11-08 — Auto fixes 1: four review findings, each reproduced red before it was fixed
+
+b812f71, 2d4c882, 491b36a, be92118, f1e2574
+
+An overnight unit (agent, not a correction of mine) worked through the findings a verifier had
+marked CONFIRMED. Each began by reproducing the finding as a failing test, and each was shown red by
+a scripted break that asserted the text it replaced.
+
+- **The restart gap the hold opened** (b812f71). Task 110's 2.4 s hold meant a restarted room sent
+  only `intro`, so the start played over the old room's last frame. The spec takes the first view
+  whose tick falls (what the client itself treats as a restart) and requires it to be tick 0 at spawn.
+- **The bench bundle that bypassed ADR 0007** (2d4c882). A request-time 404 does not stop Astro
+  bundling a page's script, so every production build served room 09 in full. The obvious fix (a
+  better runtime gate) cannot work; the page is now not in the build at all without `BENCH=1`, and a
+  spec reads every file in `dist/client` for a room row.
+- **The bench compare** (491b36a, be92118). Making the bench pan vertically turned the existing
+  baseline red on every row, so the 1.11× the review measured was real, not noise; the glow fix
+  brought it back under on a quiet machine. The baseline was not re-recorded: it is the line.
+- **The test that could not fail** (f1e2574). It filtered to string fills and then asserted none was
+  a gradient. The replacement names each station type's swatches; under a gradient break the old
+  half stayed green and the new one went red.
