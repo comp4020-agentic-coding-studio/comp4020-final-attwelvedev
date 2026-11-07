@@ -2,7 +2,7 @@
 
 - **Date:** 2026-11-08
 - **Tier:** Slice
-- **Status:** Approved
+- **Status:** Done (Tasks 1 to 4, 2026-11-08; Task 3 Human review pending)
 - **Requirements confirmed by user:** yes, 2026-11-08, in conversation (G1: "snip and fade" combined with a spark; G3 as reported)
 - **Comes from:** `overnight/playtest-2026-11-08-findings.md` (G1, G3)
 - **Runs after:** the overnight lane (dl09 and its fixes). It edits `fx.ts`, `stations.ts` and `perception.ts`, which dl07 and dl08 touched. Refer to code by name.
