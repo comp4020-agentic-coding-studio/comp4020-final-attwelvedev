@@ -10,6 +10,7 @@ import type { Scene } from "./index.ts";
 import { paintSteel, steelStyle } from "./materials.ts";
 import { ease, hop, shake, unfurl } from "./motion.ts";
 import { type Camera, LIVE, TILT, toScreen } from "./project.ts";
+import { hatch } from "./shared.ts";
 
 // Stations (spec §4.1): gallery furniture in the 3/4 world, and the object is the readout. Nothing
 // about a station shows anywhere else. Brass and steel, a plum outline on the parts you work, a
@@ -667,6 +668,26 @@ export function drawStationFloor(
 // The safe's steel box on its tile (offsets and size in tiles).
 export const SAFE_BOX = { dx: 0.1, dy: 0.15, w: 0.8, d: 0.7 } as const;
 
+// A cut wire (G1): its swatch in two pieces with a 3 px gap, hatched across the cut, so the cut
+// never rests on colour alone. Just cut (`t`, 150 ms): the halves lift apart by up to 3 px more and
+// settle. `t` absent (at rest, or reduced motion): the settled cut.
+export const CUT_GAP_PX = 3;
+function cutSwatch(
+  ctx: CanvasRenderingContext2D,
+  code: number,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  t?: number,
+) {
+  const lift = t === undefined ? 0 : hop(t, CUT_GAP_PX);
+  const half = (h - CUT_GAP_PX) / 2;
+  codeSwatch(ctx, code, x, y - lift, w, half);
+  codeSwatch(ctx, code, x, y + half + CUT_GAP_PX + lift, w, half);
+  hatch(ctx, x - 2, y + half - lift, w + 4, CUT_GAP_PX + 2 * lift, WORLD.line);
+}
+
 // A part just set (a dial turned, a key pressed, a wire cut, a switch thrown; 250 ms): the station
 // gives one short dip, like a detent, and settles. Reduced motion: none.
 export function drawStationStanding(
@@ -736,6 +757,7 @@ function stationStanding(
   }
   if (st.type === "wires") {
     // the panel on the wall: one patterned swatch per wire, a brass rail across the top
+    const snipT = motionT(scene, e.id, "snip");
     partsOf(st, "wires").forEach((t, i) => {
       if (!inRow(t)) return;
       const top = toScreen(cam, t.x + 0.2, t.y + 0.1, LIVE.wall * 0.85);
@@ -746,7 +768,9 @@ function stationStanding(
         ctx.strokeStyle = WORLD.line;
         ctx.lineWidth = 2;
         ctx.strokeRect(top.x, top.y, s * 0.6, h);
-      } else codeSwatch(ctx, st.shows[i] as number, top.x + s * 0.15, top.y, s * 0.3, h);
+      } else if (st.cut?.includes(i))
+        cutSwatch(ctx, st.shows[i] as number, top.x + s * 0.15, top.y, s * 0.3, h, snipT);
+      else codeSwatch(ctx, st.shows[i] as number, top.x + s * 0.15, top.y, s * 0.3, h);
       if (standingOn(scene, t)) {
         ctx.strokeStyle = COLOR.ui;
         ctx.lineWidth = WORK_PX + 1;

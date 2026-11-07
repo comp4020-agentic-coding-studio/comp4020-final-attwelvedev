@@ -53,7 +53,7 @@ Each new or changed assertion is shown red first, with a break script that asser
   - Acceptance: demo 1 and 2.
   - Depends on: Task 1.
 
-- [ ] **Task 3: Draw a cut wire**
+- [x] **Task 3: Draw a cut wire**
   - Files: `src/client/render/stations.ts` (the wires panel's swatch loop: for a cut index draw the swatch in two halves with a 3 px gap and `hatch()` from `shared.ts`; during `snip` the halves lift apart by up to 3 px and settle; reduced motion draws the end state), `src/client/render/standing.test.ts` or a new `src/client/render/wires.test.ts`.
   - Test first: a recording-context test that a cut swatch draws two pieces and a hatch, an uncut one draws one piece, and reduced motion draws the same pieces as the settled frame. Red by drawing every swatch whole.
   - Acceptance: demo 1, 2 and 4, with a screenshot at 1280 and 375.

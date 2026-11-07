@@ -651,7 +651,8 @@ function drawFx(
         drawSpark(ctx, cam, to, (f.age - 0.7) / 0.3, 1);
       }
     } else if (f.kind === "spark") {
-      drawSpark(ctx, cam, f.pos, f.age, grow);
+      // a flash of rays: none under reduced motion, where the thing it marks shows its end state
+      if (!still) drawSpark(ctx, cam, f.pos, f.age, grow);
     } else if (f.kind === "crate") {
       ctx.restore();
       if (!still) drawPuff(ctx, cam, f.pos, f.age, "trail", f.tone);

@@ -203,7 +203,7 @@ The object is the readout: nothing about a station shows anywhere else. They are
 in the same 3/4 world, steel and brass, as quiet as a plate; the UV pool is the one bold effect.
 
 - **One colour = one name = one pattern**: red plain, blue a stripe, yellow bands, green dots, white hatch, black chevrons. Every swatch is outlined in `--w-line`, so a pale fill on the cream floor (or a black one under high contrast) still has a 3:1 edge (`tokens.test.ts` checks it).
-- **Parts:** floor pads with an arrow (`turnPad`); numbered floor keys with 1 to 3 pitch bars; numbered buttons; wall wires as patterned swatches under a brass rail; bells in brass with a code band and a number, tilting when struck; lamps lit with rays or hollow, numbered; vault sockets with a drawn symbol (`symbolGlyph`), never a letter. The part you stand on is outlined in `--ui` and sinks 3 px.
+- **Parts:** floor pads with an arrow (`turnPad`); numbered floor keys with 1 to 3 pitch bars; numbered buttons; wall wires as patterned swatches under a brass rail (a cut wire: its swatch in two pieces with a 3 px gap hatched in `--w-line`, so the cut never rests on colour); bells in brass with a code band and a number, tilting when struck; lamps lit with rays or hollow, numbered; vault sockets with a drawn symbol (`symbolGlyph`), never a letter. The part you stand on is outlined in `--ui` and sinks 3 px.
 - **Where it shows:** a station's furniture is drawn wherever any of its parts is in sight; its state only where it shows it (the switches' lamps from the lamp room, never from the buttons).
 - **Solved:** a brass tick plate over the anchor, which stays, and a goal ring. **Wrong:** the dye pack: a pastel cloud puffs from the station, every figure gets three blotches until the reset (`splat`), and the banner reads "Wrong wire. Back to the flag." ("Wrong code.", "Wrong note."). Failure is a toy, not the alarm.
 - **Gear:** on the floor a card mat with a contact shadow and no bob, so it never reads as loot; on a hatch sill it sits at sill height. Carried, on the figure (goggles over the eyes, stethoscope round the neck, earpiece curl, torch at the hip), plus a shoulder badge at phone scale. A hand-over flies the glyph between the two over 250 ms (none under reduced motion).
@@ -342,7 +342,7 @@ pattern and outline), `turnPad` (a floor pad with its arrow), `symbolGlyph` (a v
 | Sequence right / wrong / done | the sign stamps / one ±4 px shake (300 ms) and a steady danger outline / a fill spreads across it | 200 / 900 / 400 | end state |
 | Station solved | the **ring** (big, at the anchor), and the tick plate drops in | 600 | the ring only fades |
 | Station part set | the station dips once, like a detent; never for a station coming into or leaving line of sight | 250 | end state |
-| Wire cut | the swatch snips: its two halves lift apart by up to 3 px and settle, one spark (`ui`) at the cut; only for a cut made while the panel's face is in sight, never for one walked into | 150 | the cut state |
+| Wire cut | the swatch snips: its two halves lift apart by up to 3 px and settle, one spark (`ui`) at the cut; only for a cut made while the panel's face is in sight, never for one walked into | 150 | the cut state, no spark |
 | Bell rung | three swings, **once**, then still while it stays on (FR17) | 1200 | a static tilt |
 | Braille read | the studs lift in reading order; no ring | 400 | the outline only |
 | Jam | a stutter, then the tape unrolls | 240 + 200 | the tape at once |
