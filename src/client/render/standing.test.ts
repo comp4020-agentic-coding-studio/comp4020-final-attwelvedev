@@ -2063,5 +2063,75 @@ describe("what stands in front of glass is cut by the cone's diagonal, not the g
         }
     expect(met.lit, "points where the diagonal and the glass's line disagree").toBeGreaterThan(20);
     expect(wrong.slice(0, 6), `${wrong.length} points of a box wrong`).toEqual([]);
+
+describe("a bell is drawn only from its own light (L4 and L6, screenshots 126 and 129)", () => {
+  // every part of a station is drawn under one clip, the union of each part's piece; a piece is the part's tile
+  // swept up by the whole station's height (3 tiles for bells) and 0.3 each side, so the music box's lit piece
+  // reaches up over bell 3's number, and a lit bell's piece over its neighbours' sides
+  const bellsIn = (room: ReturnType<typeof loadRooms>[0], id: string): P[] =>
+    (room.objects.find((o) => o.id === id)?.params?.bells as [number, number][]).map(([x, y]) => ({
+      x,
+      y,
+    }));
+  function check(
+    id: string,
+    station: string,
+    area: { x0: number; x1: number; y0: number; y1: number },
+  ) {
+    vi.stubGlobal("Path2D", class {});
+    const room = roomOf(id);
+    const bells = bellsIn(room, station);
+    const wrong: string[] = [];
+    let dark = 0;
+    for (let vy = area.y0; vy < area.y1; vy += 0.3)
+      for (let vx = area.x0; vx < area.x1; vx += 0.3) {
+        if (room.grid[Math.floor(vy)]?.[Math.floor(vx)] !== ".") continue;
+        const v = { x: vx, y: vy };
+        const { sc, light, view } = viewAt(room, v);
+        if (!view.entities.some((e) => e.id === station)) continue;
+        const { ctx, ops } = recorder();
+        draw(ctx, sc);
+        const cam = camera(sc);
+        bells.forEach((b, i) => {
+          const ground = [0.05, 0.3, 0.5, 0.7, 0.95].flatMap((fx) =>
+            [0.05, 0.5, 0.95].map((fy) => ({ x: b.x + fx, y: b.y + fy })),
+          );
+          if (ground.some((p) => inLight(light, p) || distToEdge(light, p) < 0.1)) return;
+          dark++;
+          const num = toScreen(cam, b.x + 0.5, b.y + 0.9);
+          const n = ops.findIndex(
+            (o) =>
+              o.name === "fillText" &&
+              o.args[0] === String(i + 1) &&
+              Math.abs((o.args[1] as number) - num.x) < 1 &&
+              Math.abs((o.args[2] as number) - num.y) < 1,
+          );
+          if (n >= 0 && drawnAt(ops, n, num))
+            wrong.push(`viewer ${vx.toFixed(1)},${vy.toFixed(1)} bell ${i + 1}: number drawn`);
+          const c = toScreen(cam, b.x + 0.5, b.y + 0.5, LIVE.block * 0.8);
+          const body = ops.findIndex(
+            (o) =>
+              o.name === "translate" &&
+              Math.abs((o.args[0] as number) - c.x) < 1 &&
+              Math.abs((o.args[1] as number) - c.y) < 1,
+          );
+          for (const dx of [-0.2, 0, 0.2])
+            if (body >= 0 && drawnAt(ops, body, { x: c.x + dx * cam.scale, y: c.y }))
+              wrong.push(
+                `viewer ${vx.toFixed(1)},${vy.toFixed(1)} bell ${i + 1}: body drawn at ${dx}`,
+              );
+        });
+      }
+    return { wrong, dark };
+  }
+  it("draws no number of a bell whose own ground is dark, room 8's music hall (L4)", () => {
+    const { wrong, dark } = check("08-music-room", "Q3", { x0: 19.2, x1: 31, y0: 4.2, y1: 7 });
+    expect(dark, "bells in the dark, station in sight").toBeGreaterThan(50);
+    expect(wrong.slice(0, 6), `${wrong.length} wrong`).toEqual([]);
+  });
+  it("draws no part of a bell whose own ground is dark, room 8's chamber (L6)", () => {
+    const { wrong, dark } = check("08-music-room", "Q4", { x0: 1.2, x1: 11, y0: 5.2, y1: 11 });
+    expect(dark, "bells in the dark, station in sight").toBeGreaterThan(20);
+    expect(wrong.slice(0, 6), `${wrong.length} wrong`).toEqual([]);
   });
 });
