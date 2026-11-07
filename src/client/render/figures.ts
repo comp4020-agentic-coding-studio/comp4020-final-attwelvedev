@@ -4,6 +4,7 @@ import { COLOR, MAP, ROLE_COLOR, ROLE_SHAPE, WORLD } from "../tokens.ts";
 import { drawBlotches } from "./dye.ts";
 import { drawCarried } from "./gear.ts";
 import type { Motion, Scene } from "./index.ts";
+import { paintFigureBody, paintFigureShadow, paintHatSheen } from "./materials.ts";
 import { type Camera, LIVE, toScreen } from "./project.ts";
 import { floorRing, shapePath } from "./shared.ts";
 
@@ -109,6 +110,7 @@ function figure(
   ctx.lineWidth = 2;
   pill(ctx, at, s);
   ctx.fill();
+  paintFigureBody(ctx, at.y - s * BODY_H, s * BODY_H, color); // the soft gradient over the flat role colour
   ctx.stroke();
   // the face: a pale disc whose eyes lean toward the facing
   const faceY = at.y - s * BODY_H * 0.62;
@@ -129,6 +131,7 @@ function figure(
   hat(ctx, at, s, ROLE_SHAPE[who.role]);
   ctx.fill();
   ctx.stroke();
+  paintHatSheen(ctx, at.x, at.y - s * BODY_H - s * 0.2 * 0.6, s * 0.2);
   if (extra.dyed) drawBlotches(ctx, at, s, extra.seat ?? 0);
   if (extra.item) drawCarried(ctx, extra.item, at, s, faceY, s < PHONE_TILE_PX);
   if (who.bot) {
@@ -232,12 +235,7 @@ export function drawPlayer(
   const color = ROLE_COLOR[role];
 
   // the shadow, and for you the ring
-  ctx.save();
-  ctx.fillStyle = WORLD.line;
-  ctx.globalAlpha = 0.25;
-  floorRing(ctx, foot.x, foot.y, s * 0.36, LIVE.depth);
-  ctx.fill();
-  ctx.restore();
+  paintFigureShadow(ctx, foot.x, foot.y, s * 0.36, LIVE.depth);
   if (isSelf && e.state !== "hidden" && e.state !== "dim") {
     ctx.save();
     ctx.lineWidth = MAP.selfRingPx;

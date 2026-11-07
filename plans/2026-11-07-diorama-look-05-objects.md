@@ -145,7 +145,7 @@ are drawn live (each is a handful of gradient fills).
   colour code and number is as easy to read as before.
 - **Depends on:** Task 106.
 
-### Task 108: Figures with a soft gradient and a radial shadow; goggles' grain at 6 fps (FR8, FR9, FR17)
+### Task 108: Figures with a soft gradient and a radial shadow; goggles' grain at 6 fps (FR8, FR9, FR17) — done (review queued)
 
 - **Description:** `paintFigureBody` is used in `drawPlayer`, `drawHidden` (its outline path is
   unchanged) and `drawOwnBlind`. `GRAIN_FPS` goes to 6. DESIGN.md §4.2 Figures (gradient, hat sheen,

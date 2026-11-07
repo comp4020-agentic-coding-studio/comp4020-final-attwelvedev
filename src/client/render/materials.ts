@@ -1,4 +1,5 @@
 import { COLOR, isHighContrast, mix, WORLD } from "../tokens.ts";
+import { floorRing } from "./shared.ts";
 
 // The world's materials (FR8): every tone is a world token mixed toward white or black, lit from the
 // north-west. Each painter draws one tile's face at (ox, oy) in CSS px, the same whether it paints into
@@ -399,4 +400,66 @@ export function steelStyle(
   g.addColorStop(0.7, mix(base, BLACK, 0.16));
   g.addColorStop(1, mix(base, WHITE, 0.1));
   return g;
+}
+
+// ---- Figures ----------------------------------------------------------------------------------
+// A figure's body: a soft vertical gradient over the flat role colour already filled into the current
+// path (a lighter crown, the role colour, a darker foot). Nothing in high contrast, where the flat
+// colour is all there is.
+export function paintFigureBody(
+  c: CanvasRenderingContext2D,
+  top: number,
+  h: number,
+  color: string,
+): void {
+  if (isHighContrast()) return;
+  const g = c.createLinearGradient(0, top, 0, top + h);
+  g.addColorStop(0, mix(color, WHITE, 0.18));
+  g.addColorStop(0.5, color);
+  g.addColorStop(1, mix(color, BLACK, 0.12));
+  c.fillStyle = g;
+  c.fill();
+}
+
+// A sheen arc on the hat's upper-left, drawn after the hat's own outline. None in high contrast.
+export function paintHatSheen(
+  c: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  r: number,
+): void {
+  if (isHighContrast()) return;
+  c.save();
+  c.globalAlpha *= 0.4;
+  c.strokeStyle = WHITE;
+  c.lineWidth = 1.5;
+  c.beginPath();
+  c.arc(cx, cy, r * 0.55, Math.PI * 1.05, Math.PI * 1.55);
+  c.stroke();
+  c.restore();
+}
+
+// The figure's floor shadow: radial, the outline colour at 22 % fading to nothing (a flat 25 % ellipse
+// in high contrast, as before).
+export function paintFigureShadow(
+  c: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  r: number,
+  depth: number,
+): void {
+  c.save();
+  if (isHighContrast()) {
+    c.globalAlpha = 0.25;
+    c.fillStyle = WORLD.line;
+  } else {
+    const g = c.createRadialGradient(cx, cy, 0, cx, cy, r);
+    g.addColorStop(0, WORLD.line);
+    g.addColorStop(1, `${WORLD.line}00`);
+    c.globalAlpha = 0.22;
+    c.fillStyle = g;
+  }
+  floorRing(c, cx, cy, r, depth); // the ellipse the ground shadow always was
+  c.fill();
+  c.restore();
 }

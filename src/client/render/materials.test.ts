@@ -3,6 +3,7 @@ import { STATION_TYPES } from "../../game/rooms/format.ts";
 import type { EntityView } from "../../net/protocol.ts";
 import { setContrast, WORLD } from "../tokens.ts";
 import { drawBackdrop } from "./backdrop.ts";
+import { drawGoggles } from "./gear.ts";
 import { draw, type Scene } from "./index.ts";
 import {
   paintAo,
@@ -25,6 +26,7 @@ interface Op {
   name: string;
   args: unknown[];
   fillStyle: unknown;
+  strokeStyle: unknown;
   globalAlpha: number;
 }
 function recorder() {
@@ -56,6 +58,7 @@ function recorder() {
             name: String(name),
             args,
             fillStyle: state.fillStyle,
+            strokeStyle: state.strokeStyle,
             globalAlpha: state.globalAlpha,
           });
         };
@@ -345,5 +348,82 @@ describe("station bodies in brushed steel", () => {
     paintSteel(ctx, { x: 0, y: 0, w: 10, h: 10 }, true);
     expect(gradients).toHaveLength(0);
     expect(ops.every((o) => !isGradient(o))).toBe(true);
+  });
+});
+
+describe("figures in material, and the goggles' grain", () => {
+  const me: EntityView = {
+    id: "P1",
+    kind: "player",
+    pos: { x: 2.5, y: 3.5 },
+    seat: 1,
+    facing: { x: 0, y: 1 },
+  } as EntityView;
+  const frame = () => {
+    const scene: Scene = {
+      w: 300,
+      h: 300,
+      role: "deaf",
+      seat: 1,
+      roles: ["blind", "deaf", "mute"],
+      tiles: ["....", "....", "....", "....", "...."],
+      entities: [me],
+      self: { x: 2.5, y: 3.5 },
+      layout: "fit",
+    };
+    const r = recorder();
+    draw(r.ctx, scene);
+    return r;
+  };
+
+  it("a figure keeps its 2 px WORLD.line outline and its hat shape, and its shadow is a radial gradient", () => {
+    const { ops, gradients } = frame();
+    const radials = gradients.filter(
+      (g) => g.kind === "createRadialGradient" && g.stops[0]?.[1] === WORLD.line,
+    );
+    expect(radials).toHaveLength(1);
+    expect(radials[0]?.stops[1]?.[1]).toBe(`${WORLD.line}00`);
+    // the shadow: a floor ellipse filled with it at 22 %
+    const shadow = ops.find((o) => o.name === "fill" && isGradient(o) && o.globalAlpha === 0.22);
+    expect(shadow).toBeDefined();
+    // the body: a pill in the role colour, then the soft gradient over it, then the outline
+    const pill = ops.findIndex((o) => o.name === "roundRect" && o.args.length === 5);
+    expect(pill).toBeGreaterThan(-1);
+    const body = ops.findIndex((o, i) => i > pill && o.name === "fill" && isGradient(o));
+    expect(body).toBeGreaterThan(pill);
+    expect(ops.slice(pill).some((o) => o.name === "stroke")).toBe(true);
+    // the hat keeps its fill and outline, and gets a sheen arc: a stroke in white after it
+    const sheen = ops.findIndex(
+      (o) => o.name === "stroke" && o.strokeStyle === "#ffffff" && o.globalAlpha < 1,
+    );
+    expect(sheen).toBeGreaterThan(body);
+  });
+
+  it("in high contrast a figure is flat", () => {
+    setContrast(true);
+    const { ops, gradients } = frame();
+    expect(gradients.filter((g) => g.stops[0]?.[1] === WORLD.line)).toHaveLength(0);
+    expect(ops.some((o) => o.name === "fill" && isGradient(o))).toBe(false);
+  });
+
+  it("the goggles' grain changes at most 6 times a second", () => {
+    const grain = (nowMs: number) => {
+      const { ctx, ops } = recorder();
+      drawGoggles(ctx, {
+        w: 120,
+        h: 120,
+        nowMs,
+        role: "blind",
+        seat: 0,
+        roles: ["blind", "deaf", "mute"],
+        tiles: [],
+        entities: [],
+        self: null,
+        layout: "fit",
+      } as Scene);
+      return JSON.stringify(ops.filter((o) => o.name === "fillRect").map((o) => o.args));
+    };
+    expect(grain(0)).toBe(grain(100));
+    expect(grain(0)).not.toBe(grain(170));
   });
 });

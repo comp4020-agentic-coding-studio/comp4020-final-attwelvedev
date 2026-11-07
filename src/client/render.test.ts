@@ -2787,7 +2787,8 @@ describe("the sweep of the clip to the light covers everything that stands", () 
         get: (_t, n) => {
           if (String(n) in state) return state[String(n)];
           if (n === "measureText") return () => ({ width: 10 });
-          if (n === "createLinearGradient") return () => ({ addColorStop() {} });
+          if (n === "createLinearGradient" || n === "createRadialGradient")
+            return () => ({ addColorStop() {} });
           return (...a: unknown[]) => {
             const k = String(n);
             if (k === "arc" || k === "ellipse") note((a[1] as number) - (a[2] as number));

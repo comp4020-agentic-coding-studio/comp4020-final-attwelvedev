@@ -11,7 +11,7 @@ import { type Camera, LIVE, toScreen } from "./project.ts";
 
 const POOL_ALPHA = 0.3;
 const GRAIN = 0.08; // goggles grain: 8 %
-const GRAIN_FPS = 12;
+export const GRAIN_FPS = 6; // the goggles' grain changes six times a second (FR17)
 
 // One gear item's glyph, drawn at (cx, cy) about `r` across: goggles two linked rings, a
 // stethoscope a looped tube and bell, an earpiece a curl, a torch a barrel with its lens.

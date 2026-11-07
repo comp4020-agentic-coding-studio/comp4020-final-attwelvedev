@@ -603,3 +603,11 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
 - **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080` in three tabs, make a lobby, Start, I'm ready. One room only: `ROOMS_DIR=<a dir holding just rooms/04-the-safe.room> pnpm start`.
 - **Screenshots:** `review/n7-dl05-task107-room{04,05,09}-cantspeak-1280.png`, `-canthear-375.png` (and every seat in `review/diorama/p4-*.png`).
 - **Judged:** room 4's safe and room 5's wire panel viewed at 1280 (banded steel, swatches and dial number flat on top) and room 9 at 375; the colour codes read as before.
+
+### dl05 Task 108: figures with a soft gradient and a radial shadow; goggles' grain at 6 fps (human review, pending)
+
+- **Look at:** three tabs in room 2 at 1280 and 375. A pass: the figures look soft and lit but are still told apart instantly by hat and colour, and the goggles' grain no longer buzzes (pick up the goggles in room 6 or any room that has them).
+- **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080` in three tabs, make a lobby, Start, I'm ready. Also see the doors, crates, glass and vents (Task 106, no review line) in rooms 2, 3 and 4.
+- **Screenshots:** `review/n7-dl05-task108-room{02,04,05,06,09}-cantspeak-1280.png`, `-canthear-375.png`; every seat (and so both sighted roles and Can't see's own screen) in `review/diorama/p4-*.png`. No spectator or high-contrast shot was taken; HC flatness is proven by `materials.test.ts`.
+- **Bench:** `pnpm bench:frame --compare` passes twice after Tasks 107 and 108: 375×667@3 p95 69.8 / 78.7 ms (rooms 05 / 09) against baselines 87.5 / 93.8; 1280×800@2 p95 149.8 / 172.4 against 168.2 / 182.4.
+- **Judged:** room 2 at 1280 and 375 viewed: the figure gradient and shadow read as soft and lit, the hats and colours still separate at a glance; crates show grain and a floor shadow. The goggles' grain was proven by a unit test (changes at 170 ms, not at 100 ms), not by eye.
