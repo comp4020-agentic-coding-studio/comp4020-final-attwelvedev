@@ -5,8 +5,9 @@ import { cacheOf } from "../src/game/rooms/format.ts";
 import { loadRooms } from "../src/game/rooms/load.ts";
 
 // ADR 0024: bots help work a cache once a person has uncovered it. Three bots plus the harness, which
-// makes the same world change a person's Act on the motif tile makes on the first tick any seat stands
-// in the beat the chamber hangs off, must solve the cache and have its owner take the keepsake, and
+// makes the same world change a person's Act on the motif tile makes on the first tick any seat reaches
+// a column per room (where a person would find the motif tile: decisions caches/85 and caches/86), must
+// solve the cache and have its owner take the keepsake, and
 // still clear the room within budget with no catches. Bots never uncover one (src/game/bots/brain.test.ts,
 // spec/caches.test.ts).
 const ROOMS = loadRooms("./rooms");

@@ -4,11 +4,12 @@ import { type RoleView, viewFor } from "../perception.ts";
 import { type CacheSpec, cacheOf } from "../rooms/format.ts";
 import { loadRooms } from "../rooms/load.ts";
 import { syncCacheDoors } from "../sim/cache.ts";
+import { forceUncover } from "../sim/stations.ts";
 import { step } from "../sim/step.ts";
 import { roomWith } from "../sim/testing.ts";
 import { createWorld, TICK_MS } from "../sim/world.ts";
 import type { Role, Seat } from "../types.ts";
-import { createBotMemory, think } from "./brain.ts";
+import { CACHE_GIVE_UP_TICKS, createBotMemory, think } from "./brain.ts";
 import { type BotSeat, botsAct } from "./crew.ts";
 import { claimJobs, hintsOf } from "./jobs.ts";
 import { solveRoom } from "./solve.ts";
@@ -1500,6 +1501,85 @@ describe("cache jobs (ADR 0024)", () => {
     );
     for (const s of [0, 1, 2] as const)
       expect(others[s].some((j) => j.target.kind === "keepsake")).toBe(false);
+  });
+
+  // FR1 (review fixes A): a cache needs every seat's part, and a person may never do theirs. Room 4,
+  // seat 2 a person who plays the beat but never turns the cache's dial: the listener must not stay
+  // parked at the cache's back, nor Q2's turner deaf to "stop", for good.
+  it("a person who never does their cache part does not hang the room: the bots give the cache up", () => {
+    const safe = room("04-the-safe");
+    const c = cacheOf(safe.objects.find((o) => o.id === "Q3") as never) as CacheSpec;
+    for (const rotation of [0, 1, 2] as const) {
+      const roles = ([0, 1, 2] as const).map((s) => ROLES3[(s + rotation) % 3]) as [
+        Role,
+        Role,
+        Role,
+      ];
+      const turner = roles.indexOf("mute") as Seat; // the cache's Q3 is the turner's
+      const world = createWorld(safe, 1, roles);
+      const bots: Partial<Record<Seat, BotSeat>> = {};
+      for (const s of [0, 1, 2] as const)
+        bots[s] = { memory: createBotMemory(s, new Set(), roles), inbox: [] };
+      const cd = { until: {} };
+      let parted = false;
+      while (world.tick < 240 * 20 && world.status !== "cleared") {
+        const full = world.tick === 0 ? new Set<Seat>([0, 1, 2]) : new Set<Seat>();
+        const out = botsAct(safe, world, roles, bots, cd, world.tick * TICK_MS, () => "Bot", full);
+        // the person's seat: the beat as the bots planned it, but none of the cache's jobs
+        const q = bots[turner]?.memory.queues;
+        if (q && !parted) {
+          q[turner] = q[turner].filter((j) => j.cache === undefined);
+          parted = true;
+        }
+        step(world, out.inputs, TICK_MS);
+        const x = (s: Seat) => Math.floor(world.players[s].pos.x);
+        if (
+          !world.cacheUncovered.includes("Q3") &&
+          [0, 1, 2].some((s) => x(s as Seat) >= c.chamber.rect[0])
+        )
+          forceUncover(world, "Q3", turner);
+      }
+      expect(world.cacheUncovered, roles.join("/")).toContain("Q3");
+      expect(world.cacheBy.Q3, roles.join("/")).toBeUndefined();
+      expect(world.status, `${roles.join("/")}: not cleared after ${world.tick / 20} s`).toBe(
+        "cleared",
+      );
+    }
+  });
+
+  it("a stop callout reaches the room's own dial once its open, unsolved cache is given up", () => {
+    const safe = room("04-the-safe");
+    const world = createWorld(safe, 1, ROLES3);
+    world.players[2].pos = { x: 20.5, y: 2.5 }; // Can't speak, at Q2, the dial in sight
+    const m = createBotMemory(2, new Set(), ROLES3);
+    const stop: ChannelMessage = {
+      method: "callout",
+      callout: "stop",
+      from: { seat: 0, role: "blind", nickname: "Bot" },
+      sentAt: 0,
+    } as ChannelMessage;
+    const at = (tick: number, inbox: ChannelMessage[] = []) => {
+      world.tick = tick;
+      think(safe, viewFor(world, 2, "mute", tick === 0), inbox, m, tick * TICK_MS);
+      world.events = [];
+    };
+    at(0);
+    // it is at Q2 in beat 3 (the safe), where the cache's jobs are in play: its queue says so too
+    const q = m.queues?.[2] ?? [];
+    m.ptr[2] = q.findIndex((j) => j.cache === undefined && j.beat === 3);
+    expect(m.ptr[2]).toBeGreaterThanOrEqual(0);
+    forceUncover(world, "Q3", 0);
+    at(1);
+    expect(m.known?.cachesOpen?.Q3).toBe(true);
+    // while the cache is fresh, its listener's stop is about the cache's safe
+    at(2, [stop]);
+    expect(m.known?.stations.Q2?.answer[0] ?? null).toBeNull();
+    // nobody has worked it for a long while: the room's own dial takes the word again
+    at(1 + CACHE_GIVE_UP_TICKS);
+    at(2 + CACHE_GIVE_UP_TICKS, [stop]);
+    const shown = m.known?.stations.Q2?.shows ?? [];
+    expect(shown.length, "the dial is in sight").toBeGreaterThan(0);
+    expect(m.known?.stations.Q2?.answer[shown.length - 1]).toBe(shown[shown.length - 1]);
   });
 
   it("a bot never Acts on a motif tile (FR1): three bots in room 4 open no cache", () => {

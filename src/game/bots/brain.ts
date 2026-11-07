@@ -75,6 +75,8 @@ export interface BotMemory {
   known: Known | null;
   ptr: [number, number, number]; // how far along each seat's job queue
   cacheDone: Set<string>; // cache jobs finished (`seat:index`): a job done by standing somewhere stays done
+  cacheSince: Record<string, number>; // tick each open, unsolved cache was first perceived open and in play
+  cacheGaveUp: Set<string>; // caches whose jobs this bot has given up: nobody finished them in time
   queues: Record<Seat, Job[]> | null;
   exec: Exec | null;
   nav: Nav;
@@ -145,6 +147,10 @@ const WORK_KINDS = new Set<Job["target"]["kind"]>([
   "tow",
 ]);
 
+// A cache needs every seat's part (ADR 0024): a person may never do theirs, so a bot gives a cache's
+// jobs up once it has been open this long without being solved, and goes back to its beat (FR1 of
+// review fixes A: an uncovered cache never blocks a room for good)
+export const CACHE_GIVE_UP_TICKS = 1200;
 const PERCEIVED_TICKS = 40; // a hazard seen or heard in the last 2 s is planned around (A3)
 
 // The hazards this bot has seen or heard lately: all it may plan around, since a role that
@@ -221,6 +227,8 @@ export function createBotMemory(
     model: null,
     lastPos: null,
     cacheDone: new Set(),
+    cacheSince: {},
+    cacheGaveUp: new Set(),
     bodies: {},
     actWas: false,
     gearWas: false,
@@ -374,7 +382,9 @@ function readStations(
     // back of that one): the room's own dial does not take it as its number (ADR 0024)
     const aside =
       !cacheOf(o) &&
-      Object.keys(known.cachesOpen ?? {}).some((id) => known.stations[id]?.solved !== true);
+      Object.keys(known.cachesOpen ?? {}).some(
+        (id) => known.stations[id]?.solved !== true && !m.cacheGaveUp.has(id),
+      );
     const heard = aside
       ? inbox.filter((m) => !(m.method === "callout" && m.callout === "stop"))
       : inbox;
@@ -499,6 +509,7 @@ function observe(room: Room, view: RoleView, inbox: ChannelMessage[], m: BotMemo
     }
   }
   perceiveCaches(room, view, known);
+  giveUpCaches(room, view, known, m);
   // an alarm speeds the guards up and holds the cameras on: the forecast needs its windows
   if (view.alarm && m.alarmFrom === null) m.alarmFrom = view.tick;
   if (!view.alarm && m.alarmFrom !== null) {
@@ -555,10 +566,31 @@ function perceiveCaches(room: Room, view: RoleView, known: Known): void {
   }
 }
 
+// An open cache left unsolved for CACHE_GIVE_UP_TICKS once it is in play is given up: its jobs end for
+// this bot and the room's own stations take every callout again. In play: the seat's beat has reached
+// the last beat any of the cache's jobs waits for (`currentJob`), since before that nobody is meant to
+// be working it. It reads only the bot's own view and the static job plan (ADR 0018).
+function giveUpCaches(room: Room, view: RoleView, known: Known, m: BotMemory): void {
+  const queues = queuesOf(room, m, view.role);
+  const beat =
+    queues[m.seat].slice(m.ptr[m.seat]).find((j) => j.cache === undefined)?.beat ?? Infinity;
+  for (const id of Object.keys(known.cachesOpen ?? {})) {
+    if (known.stations[id]?.solved === true || m.cacheGaveUp.has(id)) continue;
+    const jobs = [0, 1, 2].flatMap((s) => queues[s as Seat].filter((j) => j.cache === id));
+    const last = Math.max(0, ...jobs.map((j) => j.beat));
+    if (beat < last) continue;
+    const since = m.cacheSince[id] ?? view.tick;
+    m.cacheSince[id] = since;
+    if (view.tick - since >= CACHE_GIVE_UP_TICKS) m.cacheGaveUp.add(id);
+  }
+}
+
 // A send-back shuts every chamber again: what was perceived of them is forgotten, and re-learned
 // from the door (if seen) or the owner's view.
 function forgetCaches(room: Room, view: RoleView, known: Known, m: BotMemory): void {
   m.cacheDone.clear();
+  m.cacheSince = {};
+  m.cacheGaveUp.clear();
   known.cachesOpen = {};
   known.cachesTaken = {};
   for (const d of secretDoors(room)) {
@@ -586,6 +618,7 @@ function currentJob(
   const active = queue.find((j) => {
     if (j.cache === undefined || m.cacheDone.has(`${seat}:${j.index}`) || j.beat > beat)
       return false;
+    if (m.cacheGaveUp.has(j.cache)) return false;
     if (known.cachesOpen?.[j.cache] !== true || known.cachesTaken?.[j.cache] === true) return false;
     if (j.target.kind === "keepsake" && known.stations[j.cache]?.solved !== true) return false;
     if (!isDone(room, j, known, at, seat)) return true;

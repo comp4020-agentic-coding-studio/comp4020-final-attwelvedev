@@ -43,7 +43,7 @@ important: one can hang a room, the other restores a check CLAUDE.md says must s
 
 ## 3. Tasks
 
-### Task 132: An uncovered cache cannot block a room (FR1)
+### Task 132: An uncovered cache cannot block a room (FR1) — [x] done
 
 - **Description:** `src/game/bots/brain.ts` `currentJob`: an active cache job ends only when `isDone` is
   true, so a human who does not do their part leaves the bot parked on it, and while any cache is open and
