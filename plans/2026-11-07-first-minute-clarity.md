@@ -2,7 +2,7 @@
 
 - **Date:** 2026-11-07
 - **Tier:** Slice
-- **Status:** Tasks 1–4 built (overnight fm lane, 2026-11-08), human review pending in `review/QUEUE-fm.md`; Tasks 5–7 approved, queued for the fm2 unit
+- **Status:** Tasks 1–7 built (overnight fm and fm2 units, 2026-11-08); human review pending in `review/QUEUE-fm.md`
 - **Requirements confirmed by user:** yes, 2026-11-07, in `/brainstorm-feature` (no spec file: a Slice). Tasks 5–7 added 2026-11-08 at the user's request (RICE rows 12, plus a room label and a favicon), with the reveal table folded at first and then remembered as each person leaves it (revised 2026-11-08, see Corrections log), and the three-heads favicon chosen by the user
 - **Comes from:** `product/2026-11-07-review.md` §3 (first five minutes), RICE rows 1–5; screenshots in `product/2026-11-07-shots/`
 - **Deadline:** Monday 2026-11-09 12:00
@@ -122,7 +122,7 @@ Each new or changed promise-guarding assertion is shown red first, with a break 
   - Acceptance: demo 10. `game.test.ts:94` (no overflow or axe on the HUD at both widths) stays green.
   - Depends on: none.
 
-- [ ] **Task 7: The favicon: three crew heads**
+- [x] **Task 7: The favicon: three crew heads**
   - Files (new): `public/favicon.svg`, hand-written. Three overlapping circles in a row (`#f2a93b`, `#4db3ff`, `#9b7ee0`, the `--role-*` values in `src/styles/tokens.css:33–35`) on a rounded `#0b1220` (`--bg`) tile. Bodies under them carry ● ■ ▲ in a darker tint, drawn so they read from 32 px and fall to a blur under the heads at 16 px. Also `public/favicon-32.png`, rendered from the SVG once with the repo's Playwright (`page.setContent` + `screenshot` at 32×32; a throwaway script kept outside the repo, not a new dependency). `src/layouts/Base.astro`: after the `<title>` (line 21), add `<link rel="icon" href="/favicon.svg" type="image/svg+xml" />` and `<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />`. DESIGN.md: one line under Tokens or Components naming the favicon and its colours. `CREDITS.md`: none needed (own work).
   - Test first: a `spec/favicon.test.ts` (HTTP only, no browser): `GET /` contains both `<link rel="icon"`; `GET /favicon.svg` is 200 with an SVG body containing the three role colours; `GET /favicon-32.png` is 200 `image/png`. Red by removing the links from `Base.astro` (break script).
   - Acceptance: demo 11, at 16 px in a real tab and at 32 px.

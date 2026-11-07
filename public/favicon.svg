@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img">
+  <title>Sensory heist: the crew</title>
+  <!-- the crew: Can't see (circle), Can't hear (square), Can't speak (triangle) on --bg -->
+  <rect width="64" height="64" rx="14" fill="#15121f"/>
+  <g stroke="#15121f" stroke-width="2.5">
+    <rect x="5" y="35" width="22" height="25" rx="7" fill="#f2a93b"/>
+    <rect x="37" y="35" width="22" height="25" rx="7" fill="#9b7ee0"/>
+    <circle cx="16" cy="24" r="10" fill="#f2a93b"/>
+    <circle cx="48" cy="24" r="10" fill="#9b7ee0"/>
+    <rect x="21" y="37" width="22" height="25" rx="7" fill="#4db3ff"/>
+    <circle cx="32" cy="26" r="10.5" fill="#4db3ff"/>
+  </g>
+  <circle cx="12" cy="49" r="4" fill="#8f5e17"/>
+  <rect x="28" y="46" width="8" height="8" fill="#1f6699"/>
+  <path d="M52 44.5 L56.5 52.5 L47.5 52.5 Z" fill="#5a4396"/>
+</svg>

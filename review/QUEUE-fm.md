@@ -65,3 +65,16 @@ open `http://localhost:8092` (three tabs, or one tab and bots).
 - **My judgement:** legible and clear of the timer at both widths. On a phone the bar keeps its two
   lines (crew, label, clock and loot, then Live and the menu), with nothing clipped. Pass, pending
   your sign-off.
+
+### fm2 Task 7: the favicon
+
+- **Look at:** the browser tab on any page: a dark tile with three overlapping heads in orange, blue
+  and purple. Open `/favicon.svg` large: each body bears its role shape (● ■ ▲).
+- **How:** `pnpm build && PORT=8092 pnpm start:check`, open `http://localhost:8092` and
+  `http://localhost:8092/favicon.svg`.
+- **Screenshots:** `review/n7-fm-task7-favicon-16-32.png` (16 and 32 px, zoomed and actual size),
+  `review/n7-fm-task7-favicon-large.png` (256 px)
+- **My judgement:** at 32 px the three heads and the shapes read; at 16 px the shapes blur into the
+  bodies, as planned, and it reads as three coloured people. I could not look at a real tab strip
+  (unattended run): please check it there (queued for morning). The tile uses today's `--bg`
+  (dusk plum), not the plan's older navy.
