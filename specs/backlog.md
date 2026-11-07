@@ -12,6 +12,7 @@ first.
 ## Parked
 
 - 2026-11-08 (autofix1): a page that opens its lobby after the room's tick-0 view was sent (a reload during the reveal or the intro) shows a black canvas until tick 1, because nothing re-sends the tick-0 view to a rejoining seat before the first tick. Seen while taking Task 213's screenshots; not checked whether a reload mid-intro hits it.
+- 2026-11-08 (dl07): the rest of motion §4.2 left out of Task 112: a part motion of its own per station type (detent, piano tip, dull tip, wire ends curl, needle slide, switch throw), the guard's heavy hop and torch sway, the music-box bell's nod, and the vault's keepsake rising on its plinth. Each type now gets one shared dip.
 <!-- - YYYY-MM-DD — one line: the idea, and what prompted it -->
 
 - 2026-11-07 — the decoy band's parity (bp04, review fixes A §5): a hearing seat hears static turn to a steady tone the moment the knob lands on a decoy, while a sighted seat sees nothing until the next pip, up to 2 s later. Spec-level: a new `detectFx` effect with a sound row, or accept the delay.

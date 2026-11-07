@@ -2,11 +2,13 @@ import type { Motif } from "../../game/rooms/format.ts";
 import type { StationPartKey } from "../../game/sim/stations.ts";
 import type { Vec } from "../../game/types.ts";
 import type { EntityView } from "../../net/protocol.ts";
+import { motionT } from "../fx.ts";
 import { COLOR, WORLD, type WorldTokens } from "../tokens.ts";
 import { block } from "./blocks.ts";
 import { drawInspectionPlate } from "./chamber.ts";
 import type { Scene } from "./index.ts";
 import { paintSteel, steelStyle } from "./materials.ts";
+import { ease, hop, shake, unfurl } from "./motion.ts";
 import { type Camera, LIVE, TILT, toScreen } from "./project.ts";
 
 // Stations (spec §4.1): gallery furniture in the 3/4 world, and the object is the readout. Nothing
@@ -489,9 +491,16 @@ function floorKey(
 // The solved plate: a drawn tick on brass, raised over the station, and a goal ring on the floor.
 // A teaching station or cache jammed by a wrong answer (FR13): its face greyed under a mist wash and a
 // small bar hatched in diagonal stripes over it, like a barrier tape, for the 3 s it ignores input.
-function jammedBar(ctx: CanvasRenderingContext2D, cam: Camera, at: Vec) {
+// Just jammed (440 ms): the station stutters (240 ms) and then the tape unrolls across it (200 ms).
+// `t` absent: at rest, the tape across (reduced motion: the tape at once).
+const JAM_STUTTER = 240 / 440;
+function jammedBar(ctx: CanvasRenderingContext2D, cam: Camera, at: Vec, t?: number) {
   const s = cam.scale;
-  const f = toScreen(cam, at.x, at.y, LIVE.block / 2);
+  const jolt = t !== undefined && t < JAM_STUTTER ? shake(t / JAM_STUTTER, 2) : 0;
+  const rolled =
+    t === undefined ? 1 : t < JAM_STUTTER ? 0 : unfurl((t - JAM_STUTTER) / (1 - JAM_STUTTER));
+  const c = toScreen(cam, at.x, at.y, LIVE.block / 2);
+  const f = { x: c.x + jolt, y: c.y };
   ctx.save();
   ctx.globalAlpha = 0.6;
   ctx.fillStyle = WORLD.mist;
@@ -499,7 +508,11 @@ function jammedBar(ctx: CanvasRenderingContext2D, cam: Camera, at: Vec) {
   ctx.roundRect(f.x - s * 0.42, f.y - s * 0.4, s * 0.84, s * 0.8, s * 0.08);
   ctx.fill();
   ctx.globalAlpha = 1;
-  const w = s * 0.7;
+  if (rolled <= 0) {
+    ctx.restore();
+    return;
+  }
+  const w = s * 0.7 * rolled;
   const h = Math.max(6, s * 0.18);
   const x = f.x - w / 2;
   const y = f.y - h / 2;
@@ -524,11 +537,20 @@ function jammedBar(ctx: CanvasRenderingContext2D, cam: Camera, at: Vec) {
   ctx.restore();
 }
 
-function solvedPlate(ctx: CanvasRenderingContext2D, cam: Camera, at: Vec, below = false) {
+// Just solved (600 ms, with the ring): the tick plate drops in from above and bounces to rest.
+function solvedPlate(
+  ctx: CanvasRenderingContext2D,
+  cam: Camera,
+  at: Vec,
+  below = false,
+  t?: number,
+) {
   const s = cam.scale;
   // a station that shows a symbol plate over itself keeps its tick lower, on its face, so the symbol
   // plate never covers it
-  const c = toScreen(cam, at.x, at.y + (below ? 0.35 : 0), below ? 0.25 : 0.9);
+  const drop = t === undefined ? 0 : (1 - ease.outBounce(t)) * s * 0.5;
+  const rest = toScreen(cam, at.x, at.y + (below ? 0.35 : 0), below ? 0.25 : 0.9);
+  const c = { x: rest.x, y: rest.y - drop };
   ctx.fillStyle = WORLD.brass;
   ctx.strokeStyle = WORLD.line;
   ctx.lineWidth = 2;
@@ -645,7 +667,24 @@ export function drawStationFloor(
 // The safe's steel box on its tile (offsets and size in tiles).
 export const SAFE_BOX = { dx: 0.1, dy: 0.15, w: 0.8, d: 0.7 } as const;
 
+// A part just set (a dial turned, a key pressed, a wire cut, a switch thrown; 250 ms): the station
+// gives one short dip, like a detent, and settles. Reduced motion: none.
 export function drawStationStanding(
+  ctx: CanvasRenderingContext2D,
+  e: EntityView,
+  cam: Camera,
+  scene: Scene,
+  row: number,
+) {
+  const t = motionT(scene, e.id, "part");
+  if (t === undefined) return stationStanding(ctx, e, cam, scene, row);
+  ctx.save();
+  ctx.translate(0, hop(t, 2));
+  stationStanding(ctx, e, cam, scene, row);
+  ctx.restore();
+}
+
+function stationStanding(
   ctx: CanvasRenderingContext2D,
   e: EntityView,
   cam: Camera,
@@ -820,8 +859,9 @@ export function drawStationStanding(
     }
     ctx.stroke();
   }
-  if (st.solved && inRow(anchor)) solvedPlate(ctx, cam, centre(anchor), st.reveal !== undefined);
-  if (st.jammed && inRow(anchor)) jammedBar(ctx, cam, centre(anchor));
+  if (st.solved && inRow(anchor))
+    solvedPlate(ctx, cam, centre(anchor), st.reveal !== undefined, motionT(scene, e.id, "tick"));
+  if (st.jammed && inRow(anchor)) jammedBar(ctx, cam, centre(anchor), motionT(scene, e.id, "jam"));
   if (inRow(anchor) && st.motif) {
     // the link's motif, on a disc at the anchor's front corner (the other end carries the same)
     const m = toScreen(cam, anchor.x + 0.85, anchor.y + 0.9, LIVE.block * 0.5);
@@ -855,9 +895,17 @@ export function stationRows(e: EntityView): number[] {
 // A braille plate on the floor, for the sighted: a brass plaque flush with the floor, studded with a
 // fixed 2 by 3 pattern (the same on every plate: the dots it really carries are Can't see's alone,
 // and the sighted are never sent them). While a hand is on it (`state: "on"`) it is outlined in
-// `--ui`; the read itself pulses as a ring (fx.ts). DESIGN.md: the plate's drawing.
-export function drawBraillePlate(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera) {
+// `--ui`; the read lifts its studs (below). DESIGN.md: the plate's drawing.
+// Read (400 ms): its studs lift one by one in reading order (down the left column, then the right),
+// and settle. No ring (FR16). Reduced motion: the outline only.
+export function drawBraillePlate(
+  ctx: CanvasRenderingContext2D,
+  e: EntityView,
+  cam: Camera,
+  scene?: Scene,
+) {
   const s = cam.scale;
+  const read = scene ? motionT(scene, e.id, "read") : undefined;
   const c = toScreen(cam, e.pos.x, e.pos.y);
   const w = s * 0.62;
   const h = s * LIVE.depth * 0.62;
@@ -877,10 +925,12 @@ export function drawBraillePlate(ctx: CanvasRenderingContext2D, e: EntityView, c
     [0, 2],
     [1, 2],
   ] as const) {
+    const order = col * 3 + row; // reading order: 1 2 3 down the left, 4 5 6 down the right
+    const lift = read === undefined ? 0 : hop(Math.min(1, Math.max(0, read * 2 - order * 0.2)), 3);
     ctx.beginPath();
     ctx.ellipse(
       c.x + (col - 0.5) * s * 0.16,
-      c.y + (row - 1) * s * LIVE.depth * 0.14,
+      c.y + (row - 1) * s * LIVE.depth * 0.14 - lift,
       s * 0.035,
       s * 0.035 * LIVE.depth,
       0,

@@ -2,7 +2,16 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { createAudio, type GameAudio } from "../client/audio.ts";
 import { creditRows } from "../client/credits.ts";
 import { faceImage, preloadFaces } from "../client/faces.ts";
-import { detectFx, FX_MAX, type Fx, fxMs, fxOfCacheEvent, openedDoors } from "../client/fx.ts";
+import {
+  detectFx,
+  FX_MAX,
+  type Fx,
+  fxMs,
+  fxOfCacheEvent,
+  fxOfCaught,
+  fxOfCleared,
+  openedDoors,
+} from "../client/fx.ts";
 import {
   CALLOUT_WORD,
   type CueCaption,
@@ -116,6 +125,7 @@ interface Runtime {
   cueHold: HeldCues; // cue captions and when to let each go
   moment: { text: string; until: number } | null; // a cache opening or its stash found, on a chip for CACHE_MOMENT_MS
   fx: { fx: Fx; at: number }[]; // small effects for what just changed, by when they started
+  caughtUntil: number; // a `caught` came: until when the view that sends the team back is looked for
   soundOn: boolean;
   // The start of a room (FR14): when the server's `intro` came, how long it holds (`ms`), and
   // whether it is reduced motion's cross-fade. Null until the game starts; a page that loads
@@ -328,6 +338,7 @@ function introScene(rt: Runtime, now: number): Pick<Scene, "rise" | "swoop" | "l
   const i = rt.intro;
   if (i && !i.landed && !i.reduced && f.land > 0 && rt.shown) {
     i.landed = true;
+    // ring: reserved (FR16)
     const ring: Fx = { kind: "ring", pos: rt.shown, tone: "ui", big: false, targetId: "landed" };
     rt.fx = [...rt.fx, { fx: ring, at: now }].slice(-FX_MAX);
   }
@@ -343,6 +354,20 @@ function coverTiming(ms: number, reduced: boolean): { delay: number; fade: numbe
   return reduced
     ? { delay: INTRO.hold * k, fade: REDUCED_FADE * k }
     : { delay: 0, fade: (INTRO.hold + INTRO.tilt) * k };
+}
+
+// A `caught` came. The view that sends the team back may be here already or still on its way: look
+// at the last two views now, and at each new one for the next 2 s (onView), for figures that jumped.
+const CAUGHT_LOOK_MS = 2000;
+function caughtFx(rt: Runtime): void {
+  const now = performance.now();
+  const back = rt.view ? fxOfCaught(rt.prevEntities, rt.view.entities) : [];
+  if (back.length === 0) {
+    rt.caughtUntil = now + CAUGHT_LOOK_MS;
+    return;
+  }
+  rt.caughtUntil = 0;
+  rt.fx = [...rt.fx, ...back.map((fx) => ({ fx, at: now }))].slice(-FX_MAX);
 }
 
 function ownMotion(rt: Runtime, role: Role): Motion {
@@ -362,6 +387,7 @@ function onView(rt: Runtime, view: RoleView, audio: GameAudio, names: readonly s
   // the input loop stops once cleared, so it never resets this itself: the room is over, nobody walks
   if (view.status === "cleared") rt.walking = { moving: false, blocked: false };
   rt.prevEntities = rt.view?.entities ?? [];
+  const wasCleared = rt.view?.status === "cleared";
   rt.view = view;
   const started = performance.now();
   hearCues(rt.cueHold, cueCaptions(view.sounds, names), started); // every view, so a one-tick sound is not missed
@@ -372,6 +398,17 @@ function onView(rt: Runtime, view: RoleView, audio: GameAudio, names: readonly s
   // a secret door opening or the keepsake taken: the one team-wide signal (see fxOfCacheEvent)
   const moment = cacheMoment(view.cacheEvent, names);
   if (view.cacheEvent) fresh.push(...fxOfCacheEvent(view.cacheEvent));
+  // the room cleared: every figure in view hops twice (FR17)
+  if (view.status === "cleared" && !wasCleared && rt.prevEntities.length > 0)
+    fresh.push(...fxOfCleared(view.entities));
+  // caught: the figures sent back to the flag squash into a burst and pop up there (FR17)
+  if (started < rt.caughtUntil) {
+    const back = fxOfCaught(rt.prevEntities, view.entities);
+    if (back.length > 0) {
+      fresh.push(...back);
+      rt.caughtUntil = 0;
+    }
+  }
   if (moment) rt.moment = { text: moment, until: started + CACHE_MOMENT_MS };
   rt.fx = [
     ...rt.fx.filter((f) => started - f.at < fxMs(f.fx)),
@@ -434,6 +471,7 @@ export function Game({
     walking: { moving: false, blocked: false },
     pops: [],
     fx: [],
+    caughtUntil: 0,
     cueHold: new Map(),
     moment: null,
     soundOn: true,
@@ -955,6 +993,7 @@ function Hud({
       );
       setCaught(text);
       speech.say(text);
+      caughtFx(rt);
       clearTimeout(timer);
       timer = setTimeout(() => setCaught(null), 7000);
     });

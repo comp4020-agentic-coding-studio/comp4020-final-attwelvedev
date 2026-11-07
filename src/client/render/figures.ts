@@ -1,10 +1,12 @@
 import type { Vec } from "../../game/types.ts";
 import type { EntityView } from "../../net/protocol.ts";
+import { motionT } from "../fx.ts";
 import { COLOR, MAP, ROLE_COLOR, ROLE_SHAPE, WORLD } from "../tokens.ts";
 import { drawBlotches } from "./dye.ts";
 import { drawCarried } from "./gear.ts";
 import type { Motion, Scene } from "./index.ts";
 import { paintFigureBody, paintFigureShadow, paintHatSheen } from "./materials.ts";
+import { hop as hopOf, pop, squash } from "./motion.ts";
 import { type Camera, LIVE, toScreen } from "./project.ts";
 import { floorRing, shapePath } from "./shared.ts";
 
@@ -71,9 +73,28 @@ function figure(
   who: { role: "blind" | "deaf" | "mute"; isSelf: boolean; bot: boolean },
   pose: Pose,
   outlineOnly = false,
-  extra: { item?: EntityView["item"]; dyed?: boolean; seat?: number; look?: Vec } = {},
+  extra: {
+    item?: EntityView["item"];
+    dyed?: boolean;
+    seat?: number;
+    look?: Vec;
+    id?: string; // the entity, for its own motion (FR15)
+  } = {},
 ) {
   const color = ROLE_COLOR[who.role];
+  const id = extra.id;
+  const fxOf = (kind: Parameters<typeof motionT>[2]) =>
+    id === undefined ? undefined : motionT(scene, id, kind);
+  // the room cleared: every figure hops twice in 600 ms (FR17); gear picked up: one small hop
+  const cleared = fxOf("hop");
+  const took = fxOf("take");
+  const cheer =
+    (cleared === undefined ? 0 : hopOf((cleared * 2) % 1, 0.3) * s) +
+    (took === undefined ? 0 : hopOf(took, 0.15) * s);
+  // caught: squashed flat in a burst where they were (the fx's first 200 ms), then they pop up here
+  const caught = fxOf("caught");
+  const popped = caught === undefined ? 1 : Math.max(0, (caught * 450 - 200) / 250);
+  const scaleUp = caught === undefined ? 1 : popped <= 0 ? 0 : pop(popped);
   const moving = animated(scene) && !scene.cleared && pose.moving;
   const lift = moving
     ? Math.abs(Math.sin((scene.nowMs / 1000) * Math.PI * 2 * HOP_HZ)) * HOP_PX
@@ -83,9 +104,18 @@ function figure(
   const hop = landing
     ? Math.sin(Math.max(0, Math.min(1, scene.landing ?? 1)) * Math.PI) * LAND_HOP * s
     : 0;
-  const at = { x: foot.x, y: foot.y - lift - hop };
+  const at = { x: foot.x, y: foot.y - lift - hop - cheer };
   const horizontal = Math.abs(pose.facing.x) >= Math.abs(pose.facing.y);
   ctx.save();
+  if (scaleUp !== 1) {
+    if (scaleUp <= 0) {
+      ctx.restore();
+      return;
+    }
+    ctx.translate(foot.x, foot.y);
+    ctx.scale(scaleUp, scaleUp);
+    ctx.translate(-foot.x, -foot.y);
+  }
   if (animated(scene) && pose.pushing) {
     ctx.translate(foot.x, foot.y);
     ctx.rotate(((horizontal ? Math.sign(pose.facing.x) : 0) * LEAN_DEG * Math.PI) / 180);
@@ -136,7 +166,11 @@ function figure(
   ctx.fill();
   ctx.stroke();
   paintHatSheen(ctx, at.x, at.y - s * BODY_H - s * 0.2 * 0.6, s * 0.2);
-  if (extra.dyed) drawBlotches(ctx, at, s, extra.seat ?? 0);
+  if (extra.dyed) {
+    // just splattered: the blotches splat in one by one, 80 ms apart (reduced motion: at once)
+    const dye = fxOf("dye");
+    drawBlotches(ctx, at, s, extra.seat ?? 0, dye === undefined ? 3 : Math.floor((dye * 600) / 80));
+  }
   if (extra.item) drawCarried(ctx, extra.item, at, s, faceY, s < PHONE_TILE_PX);
   if (who.bot) {
     // a bot's antenna: a stalk and a bead on the crown
@@ -250,8 +284,16 @@ export function drawPlayer(
   }
 
   if (e.state === "hidden") {
-    // on a hide spot: faint, with a dashed outline, so you can see you are hidden
+    // on a hide spot: faint, with a dashed outline, so you can see you are hidden. Just hidden
+    // (250 ms): squashed down into the box from full height
     ctx.save();
+    const into = motionT(scene, e.id, "hide");
+    if (into !== undefined) {
+      const q = squash(into);
+      ctx.translate(foot.x, foot.y);
+      ctx.scale(q.sx, q.sy);
+      ctx.translate(-foot.x, -foot.y);
+    }
     ctx.globalAlpha = 0.45;
     ctx.fillStyle = color;
     pill(ctx, foot, s);
@@ -288,6 +330,7 @@ export function drawPlayer(
     dyed: e.dyed,
     seat: e.seat,
     look,
+    id: e.id,
   });
 }
 

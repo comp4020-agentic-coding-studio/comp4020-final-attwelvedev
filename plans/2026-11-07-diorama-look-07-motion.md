@@ -153,7 +153,7 @@ Hands join and part are picture only (no sound is added). A tug is a steady ±1 
 
 ## 5. Task breakdown
 
-### Task 111: Motion primitives, `activeFx`, and fx drawn in their object's row (FR15 mechanism)
+### [x] Task 111: Motion primitives, `activeFx`, and fx drawn in their object's row (FR15 mechanism)
 
 - **Description:**
   - Write `src/client/render/motion.ts` (overview §4.5, exact).
@@ -177,7 +177,7 @@ Hands join and part are picture only (no sound is added). A tug is a steady ±1 
 - **Break check:** draw dust after the loop again (scripted). The row-order case goes red.
 - **Depends on:** none in this phase.
 
-### Task 112: Every event's own motion, the reserved ring, and the audit's rulings (FR15, FR16, FR17)
+### [x] Task 112: Every event's own motion, the reserved ring, and the audit's rulings (FR15, FR16, FR17)
 
 - **Description:**
   - Implement each row of this file's §4.2: the detection in `detectFx`/`fxOfCacheEvent` (with
@@ -220,6 +220,9 @@ Hands join and part are picture only (no sound is added). A tug is a steady ±1 
     release, a solve, a bell, a catch, and the cleared hop, at 1280 and 375.
 - **Break check:** restore the plate's ring (scripted). `ring.test.ts` goes red with the line named.
   Restore the bell loop. The bell case goes red.
+- **Built smaller (overnight run, see `plans/2026-11-07-overnight.md` dl07):** one shared 250 ms
+  dip for every station type's part change; no guard walk cycle or music-box nod; the vault keeps
+  its slide; screenshots are a contact sheet, not gifs. The rest went to `specs/backlog.md`.
 - **Human review:** on a local build, three tabs through rooms 1, 3 and 5, then reduced motion on. A
   pass is:
   - each event's motion is about its object and is told apart without colour (watch with Can't hear's

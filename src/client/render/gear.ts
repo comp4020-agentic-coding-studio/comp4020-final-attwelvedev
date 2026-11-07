@@ -1,8 +1,10 @@
 import type { GearItem } from "../../game/sim/world.ts";
 import type { Vec } from "../../game/types.ts";
 import type { EntityView } from "../../net/protocol.ts";
+import { motionT } from "../fx.ts";
 import { COLOR, OVERLAY, WORLD } from "../tokens.ts";
 import type { Scene } from "./index.ts";
+import { ease } from "./motion.ts";
 import { type Camera, LIVE, toScreen } from "./project.ts";
 
 // Gear (spec §4.1): on the floor a small mat with a contact shadow and no bob, so it never reads as
@@ -70,15 +72,19 @@ export function gearGlyph(
 }
 
 // Gear lying on the floor or on a hatch sill: a card mat with a contact shadow, the glyph on it.
+// Just put down (250 ms), it drops a little and bounces to rest.
 export function drawGear(
   ctx: CanvasRenderingContext2D,
   e: EntityView,
   cam: Camera,
   onSill: boolean,
+  scene?: Scene,
 ) {
   if (!e.item) return;
   const s = cam.scale;
-  const z = onSill ? LIVE.wall * 0.45 : 0;
+  const drop = scene ? motionT(scene, e.id, "drop") : undefined;
+  const fall = drop === undefined ? 0 : (1 - ease.outBounce(drop)) * 0.3;
+  const z = (onSill ? LIVE.wall * 0.45 : 0) + fall;
   const c = toScreen(cam, e.pos.x, e.pos.y, z);
   ctx.save();
   ctx.globalAlpha = 0.25;
@@ -129,16 +135,28 @@ export function drawCarried(
 
 // Holding hands: a 2 px arc between the two hands with a bead at each end and an arrowhead
 // toward the leader.
+// `join`: how far through the hands joining (0 to 1, 150 ms): the two beads travel from each figure to
+// meet. `nowMs`: a tug's steady ±1 px tremor at 2 Hz (absent: still, as under reduced motion).
 export function drawHold(
   ctx: CanvasRenderingContext2D,
   cam: Camera,
   towed: Vec,
   leader: Vec,
   pulling = false,
+  motion: { join?: number; nowMs?: number } = {},
 ) {
   const s = cam.scale;
-  const a = toScreen(cam, towed.x, towed.y, 0.45);
-  const b = toScreen(cam, leader.x, leader.y, 0.45);
+  const tremor =
+    pulling && motion.nowMs !== undefined ? Math.sin((motion.nowMs / 1000) * Math.PI * 4) : 0;
+  const a0 = toScreen(cam, towed.x, towed.y, 0.45);
+  const b0 = toScreen(cam, leader.x, leader.y, 0.45);
+  if (motion.join !== undefined) {
+    // joining: each bead is partway from its own figure to the middle; the arc once they meet
+    drawBeads(ctx, s, a0, b0, ease.out(motion.join));
+    return;
+  }
+  const a = { x: a0.x, y: a0.y + tremor };
+  const b = { x: b0.x, y: b0.y + tremor };
   if (pulling) {
     // a tug of war (ADR 0019): the slack arc pulled straight and thicker, with short strain ticks
     // across it, so it is never told by colour alone
@@ -192,6 +210,48 @@ export function drawHold(
   ctx.lineTo(at.x + Math.cos(ang - 2.5) * s * 0.1, at.y + Math.sin(ang - 2.5) * s * 0.1);
   ctx.closePath();
   ctx.fill();
+  ctx.restore();
+}
+
+// Two beads, one from each figure, `k` of the way to meeting in the middle (0: at the figures).
+function drawBeads(
+  ctx: CanvasRenderingContext2D,
+  s: number,
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  k: number,
+) {
+  const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  ctx.save();
+  ctx.fillStyle = COLOR.ui;
+  ctx.strokeStyle = COLOR.ui;
+  ctx.lineWidth = 2;
+  for (const p of [a, b]) {
+    const q = { x: p.x + (m.x - p.x) * k, y: p.y + (m.y - p.y) * k };
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(q.x, q.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(q.x, q.y, s * 0.06, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// Hands let go (150 ms): the beads draw back from the middle to their own figures and are gone.
+export function drawLetGo(
+  ctx: CanvasRenderingContext2D,
+  cam: Camera,
+  towed: Vec,
+  leader: Vec,
+  t: number,
+) {
+  const a = toScreen(cam, towed.x, towed.y, 0.45);
+  const b = toScreen(cam, leader.x, leader.y, 0.45);
+  ctx.save();
+  ctx.globalAlpha = 1 - t;
+  drawBeads(ctx, cam.scale, a, b, 1 - ease.out(t));
   ctx.restore();
 }
 

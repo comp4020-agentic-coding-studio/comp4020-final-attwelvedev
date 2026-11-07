@@ -1,14 +1,16 @@
 import type { EntityView } from "../../net/protocol.ts";
+import { motionT } from "../fx.ts";
 import { COLOR, WORLD } from "../tokens.ts";
 import { block } from "./blocks.ts";
 import type { Scene } from "./index.ts";
+import { ease, swing } from "./motion.ts";
 import { type Camera, LIVE, toScreen, wallAt } from "./project.ts";
 
 // The bell rope, the lamp switch and the hatch (spec §4.1). The bell swings ±15° three times in
-// 1.2 s when rung (a static tilt under reduced motion); the lamp's light is in the HUD, not here.
+// 1.2 s when rung, once (FR17): then it hangs still while it stays on (a static tilt under reduced
+// motion); the lamp's light is in the HUD, not here.
 
 const SWING_DEG = 15;
-const SWING_MS = 1200;
 
 // A hatch: a wall tile with a waist-high sill and a lintel, open between. Sight passes the gap;
 // bodies and sound do not (the server's rules, ADR 0012).
@@ -42,9 +44,15 @@ export function drawBell(ctx: CanvasRenderingContext2D, e: EntityView, cam: Came
   const s = cam.scale;
   const hang = toScreen(cam, e.pos.x, e.pos.y, LIVE.wall * 0.95);
   const rung = e.state === "on";
-  const still = scene.reducedMotion || scene.nowMs === undefined;
-  const t = ((scene.nowMs ?? 0) % SWING_MS) / SWING_MS;
-  const deg = !rung ? 0 : still ? SWING_DEG : SWING_DEG * Math.sin(t * Math.PI * 2 * 3) * (1 - t);
+  const t = motionT(scene, e.id, "bell");
+  // rung: three swings within its fx's 1.2 s, then still; reduced motion: a static tilt while on
+  const deg = !rung
+    ? 0
+    : scene.reducedMotion
+      ? SWING_DEG
+      : t === undefined
+        ? 0
+        : swing(t, SWING_DEG, 3);
   // the bracket
   ctx.strokeStyle = WORLD.line;
   ctx.lineWidth = 2;
@@ -108,9 +116,19 @@ export function drawLampSwitch(ctx: CanvasRenderingContext2D, e: EntityView, cam
 // The practice lever (Task 38): a wide steel plate on the floor with a long handle thrown to the
 // left (off) or the right (on) and left there, so it never reads as the lamp switch's short post.
 // Its word sits on the plate, so the state is never told by the handle's side alone.
-export function drawLever(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera) {
+// Thrown (280 ms): the handle sweeps across from the other side, and the plate thuds 1 px as it lands.
+export function drawLever(
+  ctx: CanvasRenderingContext2D,
+  e: EntityView,
+  cam: Camera,
+  scene?: Scene,
+) {
   const s = cam.scale;
   const on = e.state === "on";
+  const t = scene ? motionT(scene, e.id, "lever") : undefined;
+  const throwT = t === undefined ? 1 : ease.outBack(Math.min(1, t / 0.8));
+  const reach = (on ? 1 : -1) * (2 * throwT - 1) * s * 0.32; // from the other side across to its own
+  const thud = t !== undefined && t > 0.8 ? 1 : 0;
   block(
     ctx,
     cam,
@@ -118,17 +136,18 @@ export function drawLever(ctx: CanvasRenderingContext2D, e: EntityView, cam: Cam
     WORLD.steel,
     WORLD.steelFront,
   );
-  const pivot = toScreen(cam, e.pos.x, e.pos.y, LIVE.block * 0.25);
+  const hinge = toScreen(cam, e.pos.x, e.pos.y, LIVE.block * 0.25);
+  const pivot = { x: hinge.x, y: hinge.y + thud };
   ctx.strokeStyle = WORLD.line;
   ctx.lineWidth = Math.max(3, s * 0.08);
   ctx.beginPath();
   ctx.moveTo(pivot.x, pivot.y);
-  ctx.lineTo(pivot.x + (on ? s * 0.32 : -s * 0.32), pivot.y - s * 0.3);
+  ctx.lineTo(pivot.x + reach, pivot.y - s * 0.3);
   ctx.stroke();
   ctx.fillStyle = on ? WORLD.lamp : COLOR.ui;
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.arc(pivot.x + (on ? s * 0.32 : -s * 0.32), pivot.y - s * 0.3, s * 0.07, 0, Math.PI * 2);
+  ctx.arc(pivot.x + reach, pivot.y - s * 0.3, s * 0.07, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = WORLD.line;

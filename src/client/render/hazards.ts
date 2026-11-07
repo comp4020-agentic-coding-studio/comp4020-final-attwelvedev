@@ -1,7 +1,9 @@
 import { visiblePolygon } from "../../game/cone.ts";
 import type { EntityView } from "../../net/protocol.ts";
+import { motionT } from "../fx.ts";
 import { COLOR, WORLD } from "../tokens.ts";
 import type { Scene } from "./index.ts";
+import { ease } from "./motion.ts";
 import { type Camera, LIVE, toScreen } from "./project.ts";
 import { diamond, floorRing, hatch } from "./shared.ts";
 
@@ -238,10 +240,14 @@ function drawCamera(
 
 // A beam is a steady line at 0.6 of a tile up while on (with a shadow on the floor) and a faint
 // dotted one while off: it never flickers, so nothing here can flash.
-function drawBeam(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera) {
+// Switched on (150 ms), the beam draws out from the emitter to its end.
+function drawBeam(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera, scene: Scene) {
   const beam = e.beam ?? [];
-  const last = beam[beam.length - 1];
-  if (!last) return;
+  const end = beam[beam.length - 1];
+  if (!end) return;
+  const grow = motionT(scene, e.id, "laser");
+  const k = grow === undefined ? 1 : ease.out(grow);
+  const last = { x: e.pos.x + (end.x - e.pos.x) * k, y: e.pos.y + (end.y - e.pos.y) * k };
   const lift = 0.6;
   const from = toScreen(cam, e.pos.x, e.pos.y, lift);
   const to = toScreen(cam, last.x, last.y, lift);
@@ -284,7 +290,7 @@ export function drawHazardFloor(
   scene: Scene,
 ) {
   if (e.kind === "camera") drawCone(ctx, e, cam, scene, WORLD.watch, e.state === "watching");
-  else if (e.kind === "laser") drawBeam(ctx, e, cam);
+  else if (e.kind === "laser") drawBeam(ctx, e, cam, scene);
   else if (e.kind === "guard") drawCone(ctx, e, cam, scene, WORLD.laser, true);
 }
 
@@ -298,7 +304,11 @@ export function drawHazard(
 ) {
   const s = cam.scale;
   if (e.kind === "camera") {
-    drawCamera(ctx, e, toScreen(cam, e.pos.x, e.pos.y, 0.7), s * 1.25);
+    // waking (250 ms): it nods down and back up as its lens opens
+    const wake = motionT(scene, e.id, "camera");
+    const nod = wake === undefined ? 0 : Math.sin(wake * Math.PI) * s * 0.12;
+    const at = toScreen(cam, e.pos.x, e.pos.y, 0.7);
+    drawCamera(ctx, e, { x: at.x, y: at.y + nod }, s * 1.25);
   } else if (e.kind === "laser") {
     // the emitter: a small post with a lit lens
     const foot = toScreen(cam, e.pos.x, e.pos.y);

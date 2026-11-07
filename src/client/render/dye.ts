@@ -29,7 +29,14 @@ export function splat(
 }
 
 // Blotches on a dyed figure: three, in the three dye colours, over the body and hat.
-export function drawBlotches(ctx: CanvasRenderingContext2D, foot: Vec, s: number, seat: number) {
+// `count`: how many of the three have landed so far (they splat in one by one).
+export function drawBlotches(
+  ctx: CanvasRenderingContext2D,
+  foot: Vec,
+  s: number,
+  seat: number,
+  count = 3,
+) {
   const spots: [number, number, number][] = [
     [-0.14, -0.35, 0.12],
     [0.12, -0.6, 0.1],
@@ -37,6 +44,7 @@ export function drawBlotches(ctx: CanvasRenderingContext2D, foot: Vec, s: number
   ];
   const dyes = DYES();
   spots.forEach(([dx, dy, r], i) => {
+    if (i >= count) return;
     ctx.fillStyle = dyes[(i + seat) % dyes.length] as string;
     splat(ctx, foot.x + dx * s, foot.y + dy * s, r * s, seat * 5 + i);
     ctx.fill();

@@ -1,12 +1,13 @@
 import type { Stamp } from "../../game/channels.ts";
 import type { Role, Seat, Vec } from "../../game/types.ts";
 import type { EntityView } from "../../net/protocol.ts";
-import type { Fx } from "../fx.ts";
+import { DURATION, type Fx, motionT } from "../fx.ts";
 import { COLOR, MAP, ROLE_COLOR, setDusk, WORLD } from "../tokens.ts";
 import { drawAlarm } from "./alarm.ts";
 import { drawBackdrop } from "./backdrop.ts";
 import {
   block,
+  drawDoorOpening,
   drawFlat,
   drawStanding,
   type FloorAt,
@@ -19,14 +20,16 @@ import { drawKeepsake, drawMotifTile, drawSlide } from "./chamber.ts";
 import { drawCut, groundSlice, HEIGHT, type Part, rememberOrigin, tileFoot } from "./column.ts";
 import { drawCloud } from "./dye.ts";
 import { drawHidden, drawOwnBlind, drawPlayer } from "./figures.ts";
-import { drawGear, drawGoggles, drawHold, drawUv, gearGlyph } from "./gear.ts";
+import { drawGear, drawGoggles, drawHold, drawLetGo, drawUv, gearGlyph } from "./gear.ts";
 import { drawHazard, drawHazardFloor, drawSight } from "./hazards.ts";
 import { drawItem } from "./items.ts";
 import { drawLabels } from "./labels.ts";
 import { floorOf } from "./materials.ts";
+import { arc, type PuffShape, puff } from "./motion.ts";
 import { figureCover, wallAlpha } from "./occlusion.ts";
 import { drawEdgePills, drawPops } from "./pops.ts";
 import { type Camera, camera, LIVE, setRise, tileWindow, toScreen } from "./project.ts";
+import { diamond } from "./shared.ts";
 import { drawMist, inSight, lightPolygon, litEntities, nightTile, seenOf } from "./sight.ts";
 import { drawBell, drawHatch, drawLampSwitch, drawLever } from "./signals.ts";
 import {
@@ -343,7 +346,7 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
       e.kind === "motiftile"
         ? drawMotifTile(ctx, e, cam)
         : e.kind === "braille"
-          ? drawBraillePlate(ctx, e, cam)
+          ? drawBraillePlate(ctx, e, cam, scene)
           : drawFlat(ctx, e, cam, scene);
   // a station's floor parts (pads, keys, sockets) are part of the station: a veiled one is invisible too
   for (const e of scene.entities) if (e.kind === "station") drawStationFloor(ctx, e, cam, scene);
@@ -477,10 +480,16 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
               drawHazard(c, e, cam, scene);
             else if (kind === "player") drawPlayer(c, e, cam, scene);
             else if (kind === "gear")
-              drawGear(c, e, cam, hatches.has(`${Math.floor(e.pos.x)},${Math.floor(e.pos.y)}`));
+              drawGear(
+                c,
+                e,
+                cam,
+                hatches.has(`${Math.floor(e.pos.x)},${Math.floor(e.pos.y)}`),
+                scene,
+              );
             else if (kind === "bell") drawBell(c, e, cam, scene);
             else if (kind === "lamp") drawLampSwitch(c, e, cam);
-            else if (kind === "lever") drawLever(c, e, cam);
+            else if (kind === "lever") drawLever(c, e, cam, scene);
             else if (kind === "keepsake") drawKeepsake(c, e, cam);
             else if (kind === "card") drawTargetCard(c, e, cam);
             else if (kind === "order") drawOrder(c, e, cam);
@@ -522,7 +531,13 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
   // held hands: an arc from each towed figure to its leader
   for (const f of figures) {
     const leader = figures.find((g) => g.seat === f.heldBy);
-    if (f.heldBy !== undefined && leader) drawHold(ctx, cam, f.pos, leader.pos, f.pulling === true);
+    if (f.heldBy === undefined || !leader) continue;
+    const join = motionT(scene, f.id, "join");
+    const nowMs = scene.reducedMotion ? undefined : scene.nowMs;
+    drawHold(ctx, cam, f.pos, leader.pos, f.pulling === true, {
+      ...(join !== undefined ? { join } : {}),
+      ...(nowMs !== undefined ? { nowMs } : {}),
+    });
   }
   void block;
   drawLabels(ctx, scene, cam);
@@ -538,123 +553,144 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
 const fxColor = (tone: "goal" | "danger" | "ui" | "muted") =>
   ({ goal: COLOR.goal, danger: COLOR.danger, ui: COLOR.ui, muted: COLOR.uiMuted })[tone];
 
-// Each effect is one shape that fades over its short life. It grows as it fades,
-// unless the player asked for reduced motion, in which case it only fades. Rings lie on the
-// floor, so the tilt squashes them.
+// Dust puffs (motion.ts `puff`) around a floor point, in the effect's tone.
+function drawPuff(
+  ctx: CanvasRenderingContext2D,
+  cam: Camera,
+  at: Vec,
+  t: number,
+  shape: PuffShape,
+  tone: Fx["tone"],
+) {
+  const c = toScreen(cam, at.x, at.y);
+  ctx.save();
+  ctx.fillStyle = fxColor(tone);
+  for (const p of puff(t, shape)) {
+    ctx.globalAlpha = p.a;
+    ctx.beginPath();
+    ctx.arc(
+      c.x + p.dx * cam.scale,
+      c.y + p.dy * cam.scale * LIVE.depth,
+      p.r * cam.scale,
+      0,
+      Math.PI * 2,
+    );
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// What an effect draws apart from its object: the ring (a station solved, your landing), dust and
+// puffs, the spark, gear or loot in flight, the dye cloud, the keepsake's lift and a secret door's
+// slide. Each object's own motion (a plate sinking, a bell swinging) is its drawer's, read through
+// `activeFx`. Drawn in the effect's own row, inside the row's clip to the light (FR15). With reduced
+// motion nothing grows or flies: what is drawn only fades, or is not drawn at all.
 function drawFx(
   ctx: CanvasRenderingContext2D,
   scene: Scene,
   cam: Camera,
   list: NonNullable<Scene["fx"]>,
 ) {
-  // an effect at a place you cannot see is not drawn (a secret door sliding behind a wall would tell you
-  // where it is): the sighted see only what is in their light; a watcher has no `seen` and sees them
-  // all. An ordinary door's ring is the exception: every sighted seat is told it opened (ADR 0025 FR5).
-  const seen = scene.seen ? seenOf(scene.seen) : null;
+  const still = !!scene.reducedMotion;
   for (const f of list) {
-    if (!f.door && !inSight(seen, f.pos)) continue;
-    const at = toScreen(cam, f.pos.x, f.pos.y);
-    const { x, y } = at;
-    const grow = scene.reducedMotion ? 1 : 0.3 + 0.7 * f.age;
+    const { x, y } = toScreen(cam, f.pos.x, f.pos.y);
+    const grow = still ? 1 : 0.3 + 0.7 * f.age;
     ctx.save();
     ctx.globalAlpha = 0.85 * (1 - f.age);
     ctx.strokeStyle = fxColor(f.tone);
     ctx.fillStyle = fxColor(f.tone);
     ctx.lineWidth = 3;
-    if (f.kind === "slide") {
-      ctx.restore(); // the slide draws the door itself, over the floor the wall left
-      drawSlide(ctx, f.pos, cam, f.age, !!scene.reducedMotion);
-      continue;
-    }
-    if (f.kind === "lift") {
-      // the item rises off the plinth towards its owner and fades (reduced motion: it only fades)
-      const rise = scene.reducedMotion ? 0 : f.age * cam.scale * 0.9;
-      const c = toScreen(cam, f.pos.x, f.pos.y);
-      ctx.globalAlpha = 1 - f.age;
-      if (f.keep) drawItem(ctx, f.keep, c.x, c.y - cam.scale * 0.5 - rise, cam.scale * 0.7);
-      ctx.restore();
-      continue;
-    }
-    if (f.kind === "cloud") {
-      ctx.restore(); // the cloud fades itself
-      drawCloud(ctx, toScreen(cam, f.pos.x, f.pos.y, 0.5), cam.scale, f.age, !!scene.reducedMotion);
-      continue;
-    }
-    if (f.kind === "arc" && f.to && f.item) {
-      // the gear's glyph flies from the giver to the taker over its life (reduced motion: it is
-      // simply there, so nothing is drawn in flight)
-      if (!scene.reducedMotion) {
-        const t = Math.min(1, f.age / 0.4); // 250 ms of the 600 ms life
-        const a = toScreen(cam, f.pos.x, f.pos.y, 0.8);
-        const b = toScreen(cam, f.to.x, f.to.y, 0.8);
-        const lift = Math.sin(t * Math.PI) * cam.scale * 0.5;
-        ctx.globalAlpha = t < 1 ? 1 : 0;
-        gearGlyph(
-          ctx,
-          f.item,
-          a.x + (b.x - a.x) * t,
-          a.y + (b.y - a.y) * t - lift,
-          cam.scale * 0.18,
-        );
-      }
-      ctx.restore();
-      continue;
-    }
-    if (f.kind === "swing") {
-      // sound lines either side of the bell: the swing itself is the bell's own drawing
-      const c = toScreen(cam, f.pos.x, f.pos.y, LIVE.wall);
-      for (const side of [-1, 1]) {
-        ctx.beginPath();
-        ctx.arc(
-          c.x,
-          c.y,
-          cam.scale * 0.45 * grow,
-          side < 0 ? Math.PI * 0.8 : -Math.PI * 0.2,
-          side < 0 ? Math.PI * 1.2 : Math.PI * 0.2,
-        );
-        ctx.stroke();
-      }
-      ctx.restore();
-      continue;
-    }
     if (f.kind === "ring") {
       ctx.beginPath();
       const r = cam.scale * (f.big ? 1.6 : 0.9) * grow;
       ctx.ellipse(x, y, r, r * LIVE.depth, 0, 0, Math.PI * 2);
       ctx.stroke();
-    } else if (f.kind === "dust") {
-      for (const [dx, dy] of [
-        [-1, -0.6],
-        [1, -0.6],
-        [-0.7, 0.8],
-        [0.7, 0.8],
-      ] as const) {
-        ctx.beginPath();
-        ctx.arc(
-          x + dx * cam.scale * 0.35 * grow,
-          y + dy * cam.scale * 0.35 * grow,
-          cam.scale * 0.07,
-          0,
-          Math.PI * 2,
-        );
+    } else if (f.kind === "slide") {
+      ctx.restore(); // the slide draws the door itself, over the floor the wall left
+      drawSlide(ctx, f.pos, cam, f.age, still);
+      continue;
+    } else if (f.kind === "lift") {
+      // the item rises off the plinth and fades (reduced motion: it only fades, in place)
+      const rise = still ? 0 : f.age * cam.scale * 0.9;
+      ctx.globalAlpha = 1 - f.age;
+      if (f.keep) drawItem(ctx, f.keep, x, y - cam.scale * 0.5 - rise, cam.scale * 0.7);
+    } else if (f.kind === "cloud") {
+      ctx.restore(); // the cloud fades itself
+      drawCloud(ctx, toScreen(cam, f.pos.x, f.pos.y, 0.5), cam.scale, f.age, still);
+      continue;
+    } else if (f.kind === "arc" && f.to && f.item) {
+      // the gear's glyph flies from the giver to the taker in its first 250 ms (reduced motion: it is
+      // simply there, so nothing is drawn in flight)
+      const t = f.age / 0.4;
+      if (!still && t < 1) {
+        ctx.globalAlpha = 1;
+        const p = arc(t, f.pos, f.to, 0.5);
+        const c = toScreen(cam, p.x, p.y, 0.8);
+        gearGlyph(ctx, f.item, c.x, c.y, cam.scale * 0.18);
+      }
+    } else if (f.kind === "loot") {
+      // the loot hops and arcs to the nearest figure, then sparks there (reduced motion: it fades in
+      // place over 150 ms)
+      if (still) {
+        ctx.globalAlpha = Math.max(0, 1 - (f.age * DURATION.loot) / 150);
+        diamond(ctx, x, y - cam.scale * 0.5, cam.scale * 0.3);
         ctx.fill();
+      } else if (f.age < 0.7) {
+        const t = f.age / 0.7;
+        const p = arc(t, f.pos, f.to ?? f.pos, 0.8);
+        const c = toScreen(cam, p.x, p.y, 0.5);
+        ctx.globalAlpha = 1;
+        diamond(ctx, c.x, c.y, cam.scale * 0.3 * (1 - 0.5 * t));
+        ctx.fill();
+      } else {
+        const to = f.to ?? f.pos;
+        drawSpark(ctx, cam, to, (f.age - 0.7) / 0.3, 1);
       }
-    } else {
-      const c = toScreen(cam, f.pos.x, f.pos.y, 0.5);
-      ctx.beginPath();
-      for (let i = 0; i < 8; i++) {
-        const a = (i * Math.PI) / 4;
-        ctx.moveTo(
-          c.x + Math.cos(a) * cam.scale * 0.25 * grow,
-          c.y + Math.sin(a) * cam.scale * 0.25 * grow,
-        );
-        ctx.lineTo(
-          c.x + Math.cos(a) * cam.scale * 0.5 * grow,
-          c.y + Math.sin(a) * cam.scale * 0.5 * grow,
-        );
-      }
-      ctx.stroke();
+    } else if (f.kind === "spark") {
+      drawSpark(ctx, cam, f.pos, f.age, grow);
+    } else if (f.kind === "crate") {
+      ctx.restore();
+      if (!still) drawPuff(ctx, cam, f.pos, f.age, "trail", f.tone);
+      continue;
+    } else if (f.kind === "curtain" || f.kind === "dust") {
+      ctx.restore();
+      if (!still) drawPuff(ctx, cam, f.pos, f.age, f.kind === "dust" ? "side" : "curtain", f.tone);
+      continue;
+    } else if (f.kind === "door") {
+      ctx.restore(); // the door's own leaves part and sink (blocks.ts)
+      if (!still) drawDoorOpening(ctx, cam, f.pos, f.age);
+      continue;
+    } else if (f.kind === "caught") {
+      // a burst where the figure was, in its first 200 ms; it pops up at the flag (figures.ts)
+      ctx.restore();
+      const t = (f.age * DURATION.caught) / 200;
+      if (!still && t < 1) drawPuff(ctx, cam, f.pos, t, "burst", f.tone);
+      continue;
+    } else if (f.kind === "unjoin" && f.to) {
+      // hands let go: the two beads draw back to their own figures (the join is drawHold's)
+      ctx.restore();
+      if (!still) drawLetGo(ctx, cam, f.pos, f.to, f.age);
+      continue;
     }
     ctx.restore();
   }
+}
+
+// A spark: eight short rays out of a point, `t` 0 to 1 through its life.
+function drawSpark(ctx: CanvasRenderingContext2D, cam: Camera, at: Vec, t: number, grow: number) {
+  const c = toScreen(cam, at.x, at.y, 0.5);
+  ctx.globalAlpha = 0.85 * (1 - t);
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = (i * Math.PI) / 4;
+    ctx.moveTo(
+      c.x + Math.cos(a) * cam.scale * 0.25 * grow,
+      c.y + Math.sin(a) * cam.scale * 0.25 * grow,
+    );
+    ctx.lineTo(
+      c.x + Math.cos(a) * cam.scale * 0.5 * grow,
+      c.y + Math.sin(a) * cam.scale * 0.5 * grow,
+    );
+  }
+  ctx.stroke();
 }

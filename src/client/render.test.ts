@@ -1129,21 +1129,24 @@ describe("mist, night and marks out of sight (FR5, FR7, FR8)", () => {
     expect(ops.some((o) => o.name === "fillRect" && o.fillStyle === WORLD.nightRim)).toBe(true);
   });
 
-  // ADR 0025 FR5: every ordinary door's opening reaches every sighted seat, so its ring is drawn where
-  // the door is even behind a wall; any other effect out of sight is not (a cache's secret door
-  // sliding would tell you where it is).
-  it("draws an ordinary door's ring at an unseen tile, and no other effect there", () => {
+  // ADR 0025 FR5: every ordinary door's opening reaches every sighted seat, so its motion (the leaves
+  // parting and sinking, R1: never a ring) is drawn where the door is even behind a wall; any other
+  // effect out of sight is not (a cache's secret door sliding would tell you where it is).
+  it("draws an ordinary door opening at an unseen tile, and no other effect there", () => {
     const at = { x: 8.5, y: 3.5 }; // row 3 is not in `seen`
-    const ellipses = (fx: Scene["fx"]) => {
+    const leaves = (fx: Scene["fx"]) => {
       const { ctx, ops } = recorder();
       draw(ctx, whole({ seen: ["0:0-9"], fx }));
-      return ops.filter((o) => o.name === "ellipse" && o.strokeStyle === COLOR.ui);
+      return ops.filter((o) => o.name === "fillRect" && o.fillStyle === WORLD.doorFront);
     };
-    const door = ellipses([{ kind: "ring", pos: at, tone: "ui", door: true, age: 0 }]);
-    expect(door.length, "the door's ring").toBeGreaterThan(0);
-    expect(ellipses([{ kind: "ring", pos: at, tone: "ui", age: 0 }]), "a plain ring").toHaveLength(
-      0,
-    );
+    const door = leaves([
+      { kind: "door", pos: at, tone: "ui", door: true, targetId: "D1", age: 0.3 },
+    ]);
+    expect(door.length, "the door's leaves").toBeGreaterThan(0);
+    expect(
+      leaves([{ kind: "door", pos: at, tone: "ui", targetId: "D1", age: 0.3 }]),
+      "a secret door's motion out of sight",
+    ).toHaveLength(0);
     const { ctx, ops } = recorder();
     draw(ctx, whole({ seen: ["0:0-9"], fx: [{ kind: "slide", pos: at, tone: "ui", age: 0 }] }));
     const bare = recorder();

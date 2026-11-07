@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { EntityView } from "../net/protocol.ts";
-import { activeFx, DURATION, detectFx, FX_MS, fxMs, fxOfCacheEvent, openedDoors } from "./fx.ts";
+import {
+  activeFx,
+  DURATION,
+  detectFx,
+  FX_MS,
+  fxMs,
+  fxOfCacheEvent,
+  fxOfCaught,
+  fxOfCleared,
+  openedDoors,
+} from "./fx.ts";
 
 const e = (over: Partial<EntityView> & Pick<EntityView, "id" | "kind">): EntityView => ({
   pos: { x: 5.5, y: 2.5 },
@@ -14,20 +24,29 @@ describe("detectFx: small effects for what just changed between two views", () =
     expect(detectFx([plate], [plate])).toEqual([]);
   });
 
-  it("rings a plate pressed (goal) and released (muted)", () => {
+  it("plate press emits a press fx targeting the plate, release a release fx", () => {
     const up = e({ id: "p1", kind: "plate", state: "up" });
     const down = { ...up, state: "pressed" as const };
-    expect(detectFx([up], [down])).toMatchObject([{ kind: "ring", tone: "goal", pos: up.pos }]);
-    expect(detectFx([down], [up])).toMatchObject([{ kind: "ring", tone: "muted" }]);
+    expect(detectFx([up], [down])).toMatchObject([{ kind: "press", targetId: "p1", pos: up.pos }]);
+    expect(detectFx([down], [up])).toMatchObject([{ kind: "release", targetId: "p1" }]);
   });
 
-  // ADR 0025: every ordinary door's true state is sent, so a door opening out of sight rings as well.
-  it("a door that opens out of sight rings", () => {
+  // Can't hear: two events never differ only by colour or size
+  it("plate press and release emit different kinds of motion, not one in two colours", () => {
+    const up = e({ id: "p1", kind: "plate", state: "up" });
+    const down = { ...up, state: "pressed" as const };
+    const [press] = detectFx([up], [down]);
+    const [release] = detectFx([down], [up]);
+    expect(press?.kind).not.toBe(release?.kind);
+  });
+
+  // ADR 0025: every ordinary door's true state is sent, so a door opening out of sight moves as well
+  it("door opening emits a door fx targeting the door, marked to draw out of sight", () => {
     const closed = e({ id: "D1", kind: "door", state: "closed", pos: { x: 5.5, y: 2.5 } });
     expect(detectFx([closed], [{ ...closed, state: "open" }])).toMatchObject([
-      { kind: "ring", tone: "ui", pos: closed.pos, door: true },
+      { kind: "door", targetId: "D1", pos: closed.pos, door: true },
     ]);
-    // a secret door (a cache's) seen opening is not marked: its ring keeps to the light
+    // a secret door (a cache's) seen opening is not marked: its motion keeps to the light
     const secret = { ...closed, secret: true as const };
     expect(detectFx([secret], [{ ...secret, state: "open" }])[0]?.door).toBeUndefined();
   });
@@ -46,44 +65,135 @@ describe("detectFx: small effects for what just changed between two views", () =
     const before = [door("D1", 5.5, "closed"), door("D2", 9.5, "closed"), door("D3", 12.5, "open")];
     const after = [door("D1", 5.5, "open"), door("D2", 9.5, "open"), door("D3", 12.5, "open")];
     expect(detectFx(before, after)).toHaveLength(2);
+    // a door of three tiles moves once
+    const tile = (y: number, state: "closed" | "open") =>
+      e({ id: "D9", kind: "door", state, pos: { x: 1.5, y } });
+    expect(
+      detectFx([tile(1.5, "closed"), tile(2.5, "closed")], [tile(1.5, "open"), tile(2.5, "open")]),
+    ).toHaveLength(1);
     expect(openedDoors(before, after).map((d) => d.id)).toEqual(["D1", "D2"]);
   });
 
-  it("rings a door the moment it opens", () => {
-    const closed = e({ id: "D1", kind: "door", state: "closed" });
-    expect(detectFx([closed], [{ ...closed, state: "open" }])).toMatchObject([
-      { kind: "ring", tone: "ui" },
-    ]);
-  });
-
-  it("puffs dust where a crate was when it moves a tile", () => {
+  it("crate moved emits a crate fx targeting the crate, from where it was", () => {
     const crate = e({ id: "B1", kind: "crate" });
     const moved = { ...crate, pos: { x: 6.5, y: 2.5 } };
-    expect(detectFx([crate], [moved])).toMatchObject([{ kind: "dust", pos: crate.pos }]);
-  });
-
-  it("sparks where loot was when it is taken", () => {
-    const loot = e({ id: "$1", kind: "loot" });
-    expect(detectFx([loot], [])).toMatchObject([{ kind: "spark", tone: "goal", pos: loot.pos }]);
-  });
-
-  it("makes a big ring when a checkpoint is set", () => {
-    const flag = e({ id: "K1", kind: "checkpoint", state: "up", present: 3 });
-    expect(detectFx([flag], [{ ...flag, state: "reached" }])).toMatchObject([
-      { kind: "ring", tone: "goal", big: true },
+    expect(detectFx([crate], [moved])).toMatchObject([
+      { kind: "crate", targetId: "B1", pos: crate.pos, to: moved.pos },
     ]);
   });
 
-  it("rings a sign green for a right plate and red for a reset", () => {
-    const sign = e({ id: "S1", kind: "sign", progress: 1 });
-    expect(detectFx([sign], [{ ...sign, progress: 2 }])).toMatchObject([{ tone: "goal" }]);
-    expect(detectFx([sign], [{ ...sign, progress: 0 }])).toMatchObject([{ tone: "danger" }]);
+  it("loot taken emits a loot fx that flies to the nearest figure", () => {
+    const loot = e({ id: "$1", kind: "loot" });
+    const p = e({ id: "P0", kind: "player", seat: 0, pos: { x: 6.5, y: 2.5 } });
+    expect(detectFx([loot, p], [p])).toMatchObject([
+      { kind: "loot", tone: "goal", pos: loot.pos, to: p.pos },
+    ]);
   });
 
-  it("rings a finished sign green too: finishing is a success", () => {
-    const sign = e({ id: "S1", kind: "sign", progress: 2 });
-    const done = detectFx([sign], [{ ...sign, progress: 3 }]);
-    expect(done).toMatchObject([{ tone: "goal" }]);
+  it("checkpoint set emits an unfurl fx targeting the flag, and a figure arriving a pip fx", () => {
+    const flag = e({ id: "K1", kind: "checkpoint", state: "up", present: 2 });
+    expect(detectFx([flag], [{ ...flag, state: "reached", present: 3 }])).toMatchObject([
+      { kind: "unfurl", targetId: "K1" },
+    ]);
+    expect(detectFx([flag], [{ ...flag, present: 3 }])).toMatchObject([
+      { kind: "pip", targetId: "K1" },
+    ]);
+  });
+
+  it("exit occupied emits a march fx targeting the exit", () => {
+    const exit = e({ id: "X1", kind: "exit", state: "idle" });
+    expect(detectFx([exit], [{ ...exit, state: "occupied" }])).toMatchObject([
+      { kind: "march", targetId: "X1" },
+    ]);
+  });
+
+  it("braille read emits a read fx targeting the plate", () => {
+    const plate = e({ id: "o1", kind: "braille" });
+    expect(detectFx([plate], [{ ...plate, flash: "ok" }])).toMatchObject([
+      { kind: "read", targetId: "o1" },
+    ]);
+  });
+
+  it("lever thrown emits a lever fx, a camera waking a camera fx, a laser on a laser fx", () => {
+    const lever = e({ id: "L1", kind: "lever", state: "off" });
+    expect(detectFx([lever], [{ ...lever, state: "on" }])).toMatchObject([
+      { kind: "lever", targetId: "L1" },
+    ]);
+    const camera = e({ id: "C1", kind: "camera", state: "idle" });
+    expect(detectFx([camera], [{ ...camera, state: "watching" }])).toMatchObject([
+      { kind: "camera", targetId: "C1" },
+    ]);
+    const laser = e({ id: "Z1", kind: "laser", state: "off" });
+    expect(detectFx([laser], [{ ...laser, state: "on" }])).toMatchObject([
+      { kind: "laser", targetId: "Z1" },
+    ]);
+  });
+
+  it("hide, hands joining and letting go, and dye each emit their own fx on the figure", () => {
+    const a = e({ id: "P0", kind: "player", seat: 0, pos: { x: 2.5, y: 2.5 } });
+    const b = e({ id: "P1", kind: "player", seat: 1, pos: { x: 3.5, y: 2.5 } });
+    expect(detectFx([a, b], [{ ...a, state: "hidden" }, b])).toMatchObject([
+      { kind: "hide", targetId: "P0" },
+    ]);
+    expect(detectFx([a, b], [{ ...a, heldBy: 1 }, b])).toMatchObject([
+      { kind: "join", targetId: "P0", to: b.pos },
+    ]);
+    expect(detectFx([{ ...a, heldBy: 1 }, b], [a, b])).toMatchObject([
+      { kind: "unjoin", targetId: "P0", to: b.pos },
+    ]);
+    expect(detectFx([a, b], [{ ...a, dyed: true }, b])[0]).toMatchObject({
+      kind: "dye",
+      targetId: "P0",
+    });
+  });
+
+  it("gear picked up emits a take fx on the figure, and put down a drop fx on the gear", () => {
+    const a = e({ id: "P0", kind: "player", seat: 0, pos: { x: 2.5, y: 2.5 } });
+    const gear = e({ id: "g1", kind: "gear", item: "uv", pos: { x: 2.5, y: 2.5 } });
+    expect(detectFx([a, gear], [{ ...a, item: "uv" }])).toMatchObject([
+      { kind: "take", targetId: "P0" },
+    ]);
+    expect(detectFx([{ ...a, item: "uv" }], [a, gear])).toMatchObject([
+      { kind: "drop", targetId: "g1" },
+    ]);
+  });
+
+  it("room cleared emits a hop fx on every figure in view", () => {
+    const a = e({ id: "P0", kind: "player", seat: 0 });
+    const b = e({ id: "P1", kind: "player", seat: 1 });
+    expect(fxOfCleared([a, b, e({ id: "K1", kind: "checkpoint" })])).toMatchObject([
+      { kind: "hop", targetId: "P0" },
+      { kind: "hop", targetId: "P1" },
+    ]);
+  });
+
+  it("caught emits a caught fx on each figure that jumped 2 tiles or more, from where it was", () => {
+    const a = e({ id: "P0", kind: "player", seat: 0, pos: { x: 9.5, y: 2.5 } });
+    const b = e({ id: "P1", kind: "player", seat: 1, pos: { x: 3.5, y: 2.5 } });
+    const back = { ...a, pos: { x: 2.5, y: 2.5 } };
+    expect(fxOfCaught([a, b], [back, { ...b, pos: { x: 4.5, y: 2.5 } }])).toEqual([
+      { kind: "caught", pos: a.pos, to: back.pos, tone: "danger", targetId: "P0" },
+    ]);
+  });
+
+  it("seq ok emits a stamp fx on the sign, wrong a shake, the sequence done a ripple", () => {
+    const sign = e({ id: "S1", kind: "sign", progress: 1, shows: ["p1", "p2", "p3"] });
+    expect(detectFx([sign], [{ ...sign, progress: 2 }])).toMatchObject([
+      { kind: "stamp", targetId: "S1" },
+    ]);
+    expect(detectFx([sign], [{ ...sign, progress: 0 }])).toMatchObject([
+      { kind: "shake", targetId: "S1" },
+    ]);
+    expect(detectFx([sign], [{ ...sign, progress: 3 }])).toMatchObject([
+      { kind: "ripple", targetId: "S1" },
+    ]);
+  });
+
+  it("seq ok and wrong differ in kind", () => {
+    const sign = e({ id: "S1", kind: "sign", progress: 1, shows: ["p1", "p2", "p3"] });
+    const [ok] = detectFx([sign], [{ ...sign, progress: 2 }]);
+    const [wrong] = detectFx([sign], [{ ...sign, progress: 0 }]);
+    expect(ok?.kind).not.toBe(wrong?.kind);
   });
 
   // escape-room objects (phase 02 Task 8)
@@ -94,8 +204,20 @@ describe("detectFx: small effects for what just changed between two views", () =
   it("rings a station goal the moment it is solved, and not again", () => {
     expect(detectFx([safe(false)], [safe(true)])).toMatchObject([
       { kind: "ring", tone: "goal", big: true, pos: { x: 5.5, y: 2.5 } },
+      { kind: "tick", targetId: "Q1" },
     ]);
     expect(detectFx([safe(true)], [safe(true)])).toEqual([]);
+  });
+
+  it("station part changed emits a part fx, and jammed a jam fx, on the station", () => {
+    const st = (shows: number[], jammed?: true) =>
+      e({
+        id: "Q1",
+        kind: "station",
+        station: { type: "dial", shows, solved: false, parts, ...(jammed ? { jammed } : {}) },
+      });
+    expect(detectFx([st([3])], [st([4])])).toMatchObject([{ kind: "part", targetId: "Q1" }]);
+    expect(detectFx([st([3])], [st([3], true)])).toMatchObject([{ kind: "jam", targetId: "Q1" }]);
   });
 
   it("makes no ring for a solved station that comes back into sight (Task 46)", () => {
@@ -103,7 +225,9 @@ describe("detectFx: small effects for what just changed between two views", () =
     // absent from prev (out of sight), present and already solved in next: not newly solved
     expect(detectFx([other], [other, safe(true)])).toEqual([]);
     // unsolved in view, then solved in view: still exactly one ring
-    expect(detectFx([other, safe(false)], [other, safe(true)])).toHaveLength(1);
+    expect(
+      detectFx([other, safe(false)], [other, safe(true)]).filter((f) => f.kind === "ring"),
+    ).toHaveLength(1);
   });
 
   it("makes no ring for a door already open, a bell already ringing or a sign already ahead on entering view (Task 46)", () => {
@@ -129,14 +253,18 @@ describe("detectFx: small effects for what just changed between two views", () =
     expect(arc).toMatchObject({ kind: "arc", tone: "ui", pos: a.pos, to: b.pos, item: "uv" });
   });
 
-  it("swings a bell the tick it is rung", () => {
+  it("bell rung emits a bell fx targeting the bell, once", () => {
     const bell = e({ id: "b1", kind: "bell" });
-    expect(detectFx([bell], [{ ...bell, state: "on" }])).toMatchObject([{ kind: "swing" }]);
+    expect(detectFx([bell], [{ ...bell, state: "on" }])).toMatchObject([
+      { kind: "bell", targetId: "b1" },
+    ]);
+    expect(detectFx([{ ...bell, state: "on" }], [{ ...bell, state: "on" }])).toEqual([]);
   });
 
   it("puffs a dye cloud from the station when the team is splattered", () => {
     const p = e({ id: "P0", kind: "player", seat: 0, pos: { x: 2.5, y: 2.5 } });
-    const [cloud] = detectFx([p, safe(false)], [{ ...p, dyed: true }, safe(false)]);
+    const fx = detectFx([p, safe(false)], [{ ...p, dyed: true }, safe(false)]);
+    const cloud = fx.find((f) => f.kind === "cloud");
     expect(cloud).toMatchObject({ kind: "cloud", tone: "muted", pos: { x: 5.5, y: 2.5 } });
   });
 
@@ -148,23 +276,19 @@ describe("detectFx: small effects for what just changed between two views", () =
     const at = { x: 3.5, y: 5.5 };
     const other = e({ id: "P0", kind: "player", seat: 0 });
 
-    it("slides the door and puffs dust at the event, for an uncover and for a solve", () => {
+    it("slides the door with a curtain of dust at the event, for an uncover and for a solve", () => {
       for (const result of ["uncover", "solved"] as const) {
         expect(fxOfCacheEvent({ result, at, owner: 1 }).map((f) => f.kind)).toEqual([
           "slide",
-          "dust",
+          "curtain",
         ]);
         expect(fxOfCacheEvent({ result, at, owner: 1 })[0]).toMatchObject({ pos: at, tone: "ui" });
       }
     });
 
-    it("lifts the item, sparks and rings at the plinth on a take", () => {
+    it("lifts the item off the plinth on a take: no ring, no spark", () => {
       const fx = fxOfCacheEvent({ result: "taken", at, owner: 1, item: "watch" });
-      expect(fx).toMatchObject([
-        { kind: "lift", keep: "watch", pos: at, tone: "goal" },
-        { kind: "spark", pos: at, tone: "goal" },
-        { kind: "ring", pos: at, tone: "goal", big: true },
-      ]);
+      expect(fx).toEqual([{ kind: "lift", keep: "watch", pos: at, tone: "goal" }]);
     });
 
     it("lets the lift live a second and a slide the usual 600 ms", () => {

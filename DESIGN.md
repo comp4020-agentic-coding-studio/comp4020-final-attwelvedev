@@ -209,7 +209,7 @@ in the same 3/4 world, steel and brass, as quiet as a plate; the UV pool is the 
 - **A tug of war (escape-room phase 12, ADR 0019):** both hand-holders steer, and when they push opposite ways and the pair stalls, the slack hold arc is drawn straight, thicker (4 px) and crossed by three short strain ticks (`drawHold` with `pulling`): never told by colour alone, and no new token. Both figures carry `pulling`. Its sound is `pull`, a short low strain heard in the two holders' heads only, captioned "Pulled" with no direction.
 - **UV ink (escape-room phase 12):** the words are wrapped to the light they sit in (a pool is at most 5 tiles across), never below 11 px, and written on the wall's face: the pool is cast over floor only, so the block's last line ends at the wall tile's top edge and the rest stand above it over the lit floor (`inkBox` in `gear.ts`, which the label chips also read, so no chip sits on a line). Room 7's ink is only a number (the wire to cut; `numbered` panels), so it fits; the wrap rule stays for any longer text, which can still lose the start of its first line where a wall cuts the pool.
 - **Jammed (FR13):** a teaching station or a cache answered wrong ignores input for 3 s (`JAM_TICKS`). Its anchor is greyed under a `--w-mist` wash with a small bar hatched in `--w-line` diagonal stripes over it, like barrier tape (`jammedBar`), drawn while the view's `station.jammed` is set. The station is redrawn at the same moment, but there is no dye and no banner. Its sound is `jam`, two short low sawtooth pulses from the mistakes family (caption "Jammed"), heard within 6 tiles. An ordinary station never jams: its wrong answer is the dye pack.
-- **Braille plate (FR6 to FR8, ADR 0023):** for the sighted, a `--w-brass` plaque flush with the floor, outlined in `--w-line`, studded with a fixed 2 by 3 pattern of `--w-line` dots, the same on every plate (`drawBraillePlate`): what it really carries is Can't see's alone and never sent to them. While a hand is on it (`state: "on"`) its outline is `--ui` and thicker; the read pulses one `--ui` ring (`detectFx`). Its sound is `tap`, two soft high sine taps (caption "Plate read"), heard within 4 tiles. The Act hint is "Read the plate".
+- **Braille plate (FR6 to FR8, ADR 0023):** for the sighted, a `--w-brass` plaque flush with the floor, outlined in `--w-line`, studded with a fixed 2 by 3 pattern of `--w-line` dots, the same on every plate (`drawBraillePlate`): what it really carries is Can't see's alone and never sent to them. While a hand is on it (`state: "on"`) its outline is `--ui` and thicker; the read lifts its studs in reading order (`detectFx`; no ring, FR16). Its sound is `tap`, two soft high sine taps (caption "Plate read"), heard within 4 tiles. The Act hint is "Read the plate".
 - **Practice lever (escape-room phase 12):** a wide steel plate on the floor with a long handle thrown to the left (off, the word "Real") or the right (on, "Practice") and left there, so it never reads as the lamp switch's short post (`drawLever`). While it is on, the keys and bells of the stations that name it are drawn at 45 % (`PRACTICE_ALPHA`): still there, plainly not counting. It adds no colour. Its sounds are `lever` (a heavy two-part clunk) and `practice` (a short low thud, then the real rising chimes of the key or bell pressed at 60 % level, so a person hears which one they pressed and the thud keeps it from passing for a solve), so the dimming has a sound twin and the sound has a picture.
 - **Links (escape-room phase 12):** a safe's back box and a music box's tune box are joined to their station by a thin dashed wire in the line colour at 35 % (`drawLink`, `linkPath`). It runs along wall tiles where a short wall route exists (no more than twice the Manhattan distance), else straight. It is drawn in the row of its southernmost point, after that row's wall blocks and before what stands in the row, so the walls it runs along never hide it; points on a wall tile sit on the wall's top. A safe's wire is drawn only when a wall, pane or vent lies on the straight line between its dial and its back box (an open-floor back needs none); a music box's wire ends in the middle of its bells, not at the first bell. A keypad has no remote tile and no wire; a keypad anchor draws no box, only its keys.
 - **Clues (escape-room phase 03):** a sign's own words (a plaque) sit on a brass plate on the wall over its tile, wrapped to about four tiles wide, outlined, never below 11 px (`drawPlaque`). The switches' target card is a cream card on a stand with the station's lamp grid, lit lamps filled with rays and hollow ones outlined (`drawTargetCard`). A link's motif (moon, star, wave, key, eye, leaf; `motifGlyph`, a family apart from the vault's symbols) sits on a cream disc at the front corner of both stations it joins (`motifBadge`); the vault's order clue is a brass plate of its wings' motifs in socket order (`drawOrder`). A solved wing shows a card plate above it with its vault symbol. A teaching safe has a small lamp by its face: lit with rays on the right number, hollow otherwise.
@@ -289,8 +289,36 @@ pattern and outline), `turnPad` (a floor pad with its arrow), `symbolGlyph` (a v
 | Start of a room | 300 ms hold, 900 ms tilt, 900 ms swoop, 300 ms land (2.4 s); reduced motion: the hold, then a 300 ms cross-fade |
 | Dusk palette | 600 ms; instant under reduced motion |
 | Secret door (chamber or vault) | slides into the floor over 600 ms with a dust puff; reduced motion: a 300 ms cross-fade, no slide; the dust only fades |
-| Keepsake taken | the item lifts off its plinth and fades over 1 s with a spark burst and a `--goal` ring; reduced motion: it fades in place |
+| Keepsake taken | the item lifts off its plinth and fades over 1 s; no ring, no spark; reduced motion: it fades in place |
 | Taken side-job chip | one 600 ms pulse; none under reduced motion (the vault chip does not pulse) |
+
+**Object motion** (FR15): each event moves the thing it happened to, in that thing's own painter row and inside the light (`src/client/fx.ts` detects it from two views; the drawer reads its live effect with `activeFx`). The primitives are in `src/client/render/motion.ts`: `ease` (out, inOut, outBack, outBounce, spring, linear), `sink`, `squash`, `pivot`, `swing`, `slide`, `shake`, `hop`, `arc`, `pop`, `unfurl`, `ripple` and `puff` (side, line, trail, curtain, burst). **The ring is reserved for station solved and you landed (FR16)**; `src/client/render/ring.test.ts` fails on any other.
+
+| Event | Motion | ms | Reduced motion |
+| --- | --- | --- | --- |
+| Plate press / release | press: sinks, a puff each side; release: springs up past level, no dust | 180 / 200 | end state |
+| Door opens | the two leaves part from the seam and sink, a line of dust along it, a 1 px thud; drawn wherever the door is (ADR 0025) | 450 | the slot |
+| Crate pushed | rocks 2° and settles, a trail of dust where it was | 250 | moved |
+| Loot taken | hops and arcs to the nearest figure, then a spark | 400 | fades in place over 150 ms |
+| Gear take / drop / give | the figure hops / the gear bounces down / the glyph arcs between the two | 250 | end state |
+| Flag pip / checkpoint set | the new pip pops and the pole wobbles / the pennant unrolls and waves once | 220 / 500 | end state |
+| Exit occupied / room cleared | an outline marches out of the hatching / every figure in view hops twice | 400 / 600 | static |
+| Hide | the figure squashes into the box | 250 | hidden |
+| Sequence right / wrong / done | the sign stamps / one ±4 px shake (300 ms) and a steady danger outline / a fill spreads across it | 200 / 900 / 400 | end state |
+| Station solved | the **ring** (big, at the anchor), and the tick plate drops in | 600 | the ring only fades |
+| Station part set | the station dips once, like a detent | 250 | end state |
+| Bell rung | three swings, **once**, then still while it stays on (FR17) | 1200 | a static tilt |
+| Braille read | the studs lift in reading order; no ring | 400 | the outline only |
+| Jam | a stutter, then the tape unrolls | 240 + 200 | the tape at once |
+| Dye | a cloud from the station, the blotches splat in 80 ms apart | 600 | the blotches at once |
+| Hands join / let go / tug | the beads meet / draw back / a steady ±1 px tremor at 2 Hz | 150 / 150 / loop | end state, no tremor |
+| Lever | the handle sweeps across, then a 1 px thud | 280 | thrown |
+| Secret door / vault | sinks into the floor with a curtain of dust | 600 | a 300 ms cross-fade |
+| Camera wakes / laser on | a nod as the lens opens / the beam draws out | 250 / 150 | instant |
+| Caught | a burst of dust where each figure was, then it pops up at the flag | 200 + 250 | a teleport |
+| Inspection plate | never dips when walked on (FR17) | — | — |
+
+Nothing here flashes: a shake is one movement, and no event differs from another only by colour or size.
 
 **Menu sounds** (client only; not `SoundCue`s, so no parity row): a soft tick or chime for pressing, never for play (the wheel, the touch zones, the canvas, the gear slot and the talk bar's buttons are marked `data-no-ui-sound`; nothing sounds while the audio context is locked; the lobby's join and leave chimes stop once the game is on). Switched by `Settings.menuSounds` (on by default, "Menu sounds" in both settings places), separate from game sound. Each has a picture twin, because a sound alone would tell the hearing something the rest cannot see:
 
@@ -313,8 +341,8 @@ pattern and outline), `turnPad` (a floor pad with its arrow), `symbolGlyph` (a v
 **Cache sounds** (`uncover`, `stash`; team-wide, like `solved`): the uncover is one soft low thunk (a sine falling from 150 to 90 Hz and a dull knock); the stash is two soft rising triangle notes about half a second long, a fifth apart. Neither is the `solved` arpeggio (three rising sines) or the `dye` pomf. High contrast: the tile draws from the same world tokens, so it remaps by itself, and the item itself is flat (see `ItemGlyph`).
 
 **Reduced motion** (`prefers-reduced-motion`): no pulses, no hop or squash, no
-dust, no water drift, no morph (a plain cross-fade), no wall rise. State changes
-are instant or fade. **Flashing is at most 3 per second**, always.
+dust, no water drift, no morph (a plain cross-fade), no wall rise. Each object
+draws its end state; state changes are instant or fade (at most 150 ms). **Flashing is at most 3 per second**, always.
 
 ## 6. Accessibility
 
