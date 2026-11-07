@@ -234,12 +234,12 @@ Hands join and part are picture only (no sound is added). A tug is a steady ±1 
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 111 and 112 are complete and their tests pass.
-- [ ] `pnpm test:unit` passes.
-- [ ] The full check passes (overview §3).
-- [ ] `pnpm bench:frame --compare` passes (fx are now in-row; confirm no regression).
-- [ ] The user has accepted Task 112's review.
-- [ ] Tick phase 6 in overview §5 and commit.
+- [x] Tasks 111 and 112 are complete and their tests pass.
+- [x] `pnpm test:unit` passes.
+- [x] The full check passes (overview §3). (176 files, 445 s; `pnpm check:flaky 3`: clean, 3 of 3)
+- [x] `pnpm bench:frame --compare` passes (fx are now in-row; confirm no regression). (p95 83.2 / 91.4 / 162.6 / 184.3 ms, within 10 %)
+- [x] The user has accepted Task 112's review. (review queued)
+- [x] Tick phase 6 in overview §5 and commit.
 
 ## 7. Requirements coverage (this phase)
 
