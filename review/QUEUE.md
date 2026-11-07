@@ -536,3 +536,10 @@ plate is part of the station it serves, so the pacing test does not count it), m
 - **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080` in three tabs, make a lobby, Start. Rooms 02 (teal) and 06 (violet) via a cleared heist or `ROOMS_DIR` holding one room file.
 - **Screenshots:** `review/diorama/p0-room{01,02,03,06,07}-{1280,375}.png` (copies as `review/n7-dl01-task97-room<NN>-<width>.png`).
 - **Judged:** teal and violet looked right (viewed 02 at 1280 and 06 at 375); the others were not individually inspected. The dusk look (room 03 alarm) is covered by unit tests only, no screenshot.
+
+### dl02 Task 99: the plum shell and the trimmed display face (human review, pending)
+
+- **Look at:** home, lobby, reveal, game HUD and the cleared card read as warm dusk plum that belongs with the pastel world; the text is as legible as before; headings are calmer, and only the home hero, the lobby code, the reveal's role line and the cleared title and time keep the big expanded face. Compare with older shots in `review/` (navy).
+- **Start locally:** `pnpm build && pnpm start`, open `http://localhost:8080` in three tabs, make a lobby, Start, press I'm ready. The cleared card needs a cleared room (or `ROOMS_DIR=spec/fixtures/rooms-next`, where walking east clears it).
+- **Screenshots:** `review/n7-dl02-task99-{home,lobby,reveal,game,cleared}-{1280,375}.png` (also `review/diorama/p1-<page>-<width>.png`).
+- **Judged:** home at 1280, game at 375, cleared at 1280 and reveal at 375 viewed: plum reads well, nothing clipped. The lobby shots were not individually inspected. The panels are flat until the next phase gives them gradients. `door-pill.test.ts` is an existing flake (fails on the base commit too); see `plans/2026-11-07-overnight.md`.

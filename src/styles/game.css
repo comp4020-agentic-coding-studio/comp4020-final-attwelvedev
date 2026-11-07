@@ -652,7 +652,7 @@ body.playing main {
   padding: var(--s-3) var(--s-2);
   gap: var(--s-2);
   text-align: center;
-  background: rgb(11 18 32 / 85%);
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
 }
 .overlay h2 {
   font-size: var(--t-28);
@@ -765,7 +765,7 @@ body.playing main {
 .captions p {
   margin: 0;
   padding: 2px var(--s-2);
-  background: rgb(11 18 32 / 85%);
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
   color: var(--ui);
   border-radius: var(--r);
   font-size: var(--t-18);
@@ -923,6 +923,8 @@ fieldset.settings {
 }
 .cleared-head h2 {
   margin: 0;
+  font-stretch: 125%; /* the display face: the cleared title and time */
+  font-weight: 900;
 }
 .cleared-stats {
   display: flex;
@@ -938,6 +940,10 @@ fieldset.settings {
 .cleared-stats dt {
   color: var(--ui-muted);
   font-size: var(--t-14);
+}
+.cleared-stats div:first-child dd {
+  font-stretch: 125%;
+  font-weight: 900;
 }
 .cleared-stats dd {
   margin: 0;
@@ -1039,7 +1045,7 @@ fieldset.settings {
   box-sizing: border-box;
   border: 2px solid var(--ui);
   border-radius: 28px;
-  background: rgb(11 18 32 / 30%); /* the field is 70% transparent */
+  background: color-mix(in srgb, var(--bg) 30%, transparent); /* the field is 70% transparent */
 }
 .wheel-outline.is-circle {
   border-radius: 50%;

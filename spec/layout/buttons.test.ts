@@ -19,7 +19,7 @@ beforeAll(async () => {
   ).join("\n");
   page = await browser.newPage();
   await page.setContent(
-    `<body style="margin:0;padding:24px;background:#0b1220;color:#e8eef9">${CLASSES.map(
+    `<body style="margin:0;padding:24px;background:#15121f;color:#efeaf5">${CLASSES.map(
       (c, i) => `<p><button id="b${i}" type="button" class="${c}">Sure? Restart room</button></p>`,
     ).join("")}</body>`,
   );

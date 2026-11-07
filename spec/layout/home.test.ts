@@ -25,6 +25,18 @@ describe.each([
     await leaveAndClose(page);
   });
 
+  it("uses the 125 % display face only on the hero on the home page", async () => {
+    const page = await openPage(browser, baseUrl, viewport);
+    await page.getByRole("button", { name: "Start a new team" }).waitFor();
+    const stretched = await page.evaluate(() =>
+      [...document.querySelectorAll("h1, h2, h3, h4")]
+        .filter((el) => getComputedStyle(el).fontStretch === "125%")
+        .map((el) => `${el.tagName.toLowerCase()}#${el.id}`),
+    );
+    expect(stretched).toEqual(["h1#home-title"]);
+    await leaveAndClose(page);
+  });
+
   it("keeps the Join button's label on one line next to the code field", async () => {
     // a squeezed button wraps "Join" to "Joi/n", which no overflow or axe check notices
     const page = await openPage(browser, baseUrl, viewport);

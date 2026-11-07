@@ -52,3 +52,12 @@
 - dl01/97: the spec reads a pixel via `data-camera` in `spec/layout/game.test.ts` → a new `spec/layout/hue.test.ts` with its own app on fixture `spec/fixtures/rooms-teal` (room 02 can't be reached cheaply from the shared app), counting exact `HUE_WALLS.teal.wallFront` pixels and asserting zero rose. Reversible by moving the case into game.test.ts.
 - dl01/97: the alarm-dusk screenshot of room 03 → not taken (needs a live alarm); the dusk blend is asserted in `tokens.test.ts`. Reversible by taking it by hand.
 - dl01/97: the full check showed `spec/layout/door-pill.test.ts` red once (the pill's box); solo it passed 2 of 3 runs with this unit's changes → the same existing flake logged under sounds/95, not touched (outside scope). Needs `pnpm check:flaky` on that file in the morning. Reversible by nothing.
+
+## dl02
+
+- dl02/99: `spec/layout/door-pill.test.ts` ("a door opening off screen, drawn as an edge pill") went red once in the full check and about 1 run in 3 alone → I did not touch it and ran it against the unchanged baseline commit 44354bf in a detached worktree: it fails there too (3 of 8 runs, "Can't hear at 1280: the door pill is drawn"), so it is an existing flake (a 4 s pill polled role by role), not caused by the retint; I recorded it here and went on, because the plan forbids retries to hide a flake and the fix is outside Task 99's scope. Reversible by n/a (no change). Fix later with `pnpm check:flaky`.
+- dl02/99: the plan names the cleared "title and time" as display-face lines → I kept `.cleared-head h2` and the first `.cleared-stats dd` (Time) at 125%/900 and gave every other heading 100%/800, because the Time is the first stat in `RoomCleared.tsx`. Reversible by editing those two rules in `game.css`.
+- dl02/99: the reveal's `.reveal-title` stays at 125%/900 as the role line; the lobby `.code` and the home `h1` too. `.code-input`, `.player-row .place`, `.feed figcaption b`, `.brand`, `h1/h2` base and `.lobby-solo > h1.share` dropped to 100%/800. The 28px joystick field and 3px vote bar radii are not the shell's corner, so they stay literal. Reversible by editing the same CSS rules.
+- dl02/99: canvas chips' glass is now `SHELL.glass` in `tokens.ts` (rgba(34, 28, 48, 0.9)), because the canvas cannot read an rgba token; `SHELL.r = 8` drives the label and pop chips.
+- dl02/99: human review of the plum retint → built, committed and queued in `review/QUEUE.md` (review queued), because the user is asleep.
+

@@ -16,7 +16,7 @@ removes the marker. Status words: *built* means it is in the app today.
 
 **Daylight and night.** The world is a morning in a pastel island garden over
 teal water. Everything that is not the world (HUD, wheel, captions, lobby,
-reveal, menus) is **night-glass**: the dark shell, as built today.
+reveal, menus) is **dusk plum**: a warm dark shell. It matches the world's dusk, which the alarm blends toward, where the old cold navy fought the pastel island.
 
 - **Light = seen.** Things in your line of sight are drawn in full colour.
 - **Haze = known.** The layout of what you can't see right now is veiled, not hidden.
@@ -109,7 +109,7 @@ by room (never lilac); the room's `hue` meta picks it, defaulting to rose: `setH
 One family, **Archivo** (variable, self-hosted, OFL), so there is no network
 dependency. Roles by axis:
 
-- **Expanded, black (width 125 %, weight 900):** the lobby code, the reveal's role line, the room-end time, headings.
+- **Expanded, black (width 125 %, weight 900):** exactly four lines: the home hero, the lobby code, the reveal's role line, and the room-cleared title and time. Every other heading is 100 %, 800.
 - **Condensed, 700 (width 75 %):** HUD chips, wheel labels, receiver lines.
 - **Regular:** body and captions.
 - **Tabular figures** for timers and cooldown numbers.

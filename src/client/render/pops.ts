@@ -1,5 +1,5 @@
 import { STAMP_FACE } from "../hud.ts";
-import { COLOR, MAP, ROLE_COLOR, ROLE_SHAPE, WORLD } from "../tokens.ts";
+import { COLOR, MAP, ROLE_COLOR, ROLE_SHAPE, SHELL, WORLD } from "../tokens.ts";
 import type { FacePop, Scene } from "./index.ts";
 import { type Camera, LIVE, toScreen } from "./project.ts";
 import { shapePath } from "./shared.ts";
@@ -25,7 +25,7 @@ function drawPop(ctx: CanvasRenderingContext2D, scene: Scene, cam: Camera, pop: 
   ctx.strokeStyle = WORLD.line;
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.roundRect(x - 3, y - 3, size + 6, size + 6, 8);
+  ctx.roundRect(x - 3, y - 3, size + 6, size + 6, SHELL.r);
   ctx.fill();
   ctx.stroke();
   ctx.drawImage(pop.img, x, y, size, size);
@@ -96,7 +96,7 @@ function drawPill(
         (hasPicture ? FACE_PX : 0);
   const x = Math.max(PILL_MARGIN, Math.min(scene.w - PILL_MARGIN - w, at.x - w / 2));
   const y = at.y - PILL_H / 2;
-  ctx.fillStyle = "rgba(20, 30, 54, 0.88)"; // --glass: the canvas can't read an rgba token
+  ctx.fillStyle = SHELL.glass; // --glass
   ctx.strokeStyle = colour;
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -126,7 +126,7 @@ function drawPill(
     const fy = y - FACE_PX - 2;
     ctx.fillStyle = COLOR.ui;
     ctx.beginPath();
-    ctx.roundRect(x + w - FACE_PX - 6, fy - 3, FACE_PX + 6, FACE_PX + 6, 8);
+    ctx.roundRect(x + w - FACE_PX - 6, fy - 3, FACE_PX + 6, FACE_PX + 6, SHELL.r);
     ctx.fill();
     ctx.drawImage(pop.img, x + w - FACE_PX - 3, fy, FACE_PX, FACE_PX);
   }

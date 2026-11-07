@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 // DESIGN.md is the design reference (overview A5). It keeps names, never values, so
@@ -40,5 +40,18 @@ describe("DESIGN.md", () => {
     const first = readFileSync("doc/prompts/DESIGN.md", "utf8").split("\n")[0];
     expect(first).toMatch(/superseded/i);
     expect(first).toContain("DESIGN.md");
+  });
+
+  it("no shell CSS or component holds the old navy (#0b1220, #141e36, rgb(11 18 32, rgb(20 30 54)", () => {
+    const old = /#0b1220|#141e36|rgba?\(\s*11[ ,]+18[ ,]+32|rgba?\(\s*20[ ,]+30[ ,]+54/i;
+    const files = [
+      ...readdirSync("src/styles").map((f) => `src/styles/${f}`),
+      ...readdirSync("src/components").map((f) => `src/components/${f}`),
+      ...readdirSync("src/client/render")
+        .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
+        .map((f) => `src/client/render/${f}`),
+    ];
+    const holding = files.filter((f) => old.test(readFileSync(f, "utf8")));
+    expect(holding).toEqual([]);
   });
 });

@@ -110,6 +110,8 @@ input {
   grid-area: desk;
 }
 .home h1 {
+  font-stretch: 125%; /* the display face: one of the four big lines (DESIGN.md) */
+  font-weight: 900;
   font-size: clamp(30px, 8.4vw, 40px);
   line-height: 1.02;
   letter-spacing: -0.01em;
@@ -147,8 +149,8 @@ input {
 .code-input {
   min-height: 64px;
   font-size: var(--t-28);
-  font-stretch: 125%;
-  font-weight: 900;
+  font-stretch: 100%;
+  font-weight: 800;
   letter-spacing: 0.3em;
   text-transform: uppercase;
 }
@@ -274,8 +276,8 @@ input {
 }
 .feed figcaption b {
   color: var(--ui);
-  font-stretch: 125%;
-  font-weight: 900;
+  font-stretch: 100%;
+  font-weight: 800;
 }
 .feed-captions,
 .feed-tag {
@@ -293,7 +295,7 @@ input {
 .feed-tag {
   margin: 0;
   padding: 1px var(--s-2);
-  background: rgb(11 18 32 / 85%);
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
   border-radius: var(--r);
   font-size: var(--t-14);
   line-height: 1.4;
@@ -348,8 +350,8 @@ input {
 }
 .lobby-solo > h1.share {
   font-size: var(--t-28);
-  font-stretch: 125%;
-  font-weight: 900;
+  font-stretch: 100%;
+  font-weight: 800;
   color: var(--ui);
 }
 /* The code is as big as its column allows: the spec's clamp(72px, 22vw, 160px)
@@ -466,8 +468,8 @@ input {
 .player-row .place {
   grid-area: place;
   min-width: 1.2em;
-  font-stretch: 125%;
-  font-weight: 900;
+  font-stretch: 100%;
+  font-weight: 800;
   color: var(--ui-muted);
 }
 .player-row .grip {

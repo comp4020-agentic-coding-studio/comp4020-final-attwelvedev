@@ -1,4 +1,4 @@
-import { COLOR, WORLD } from "../tokens.ts";
+import { COLOR, SHELL, WORLD } from "../tokens.ts";
 import { inkBox } from "./gear.ts";
 import type { Scene } from "./index.ts";
 import { type Camera, LIVE, toScreen } from "./project.ts";
@@ -92,9 +92,9 @@ export function drawLabels(ctx: CanvasRenderingContext2D, scene: Scene, cam: Cam
     ctx.arc(target.x, target.y, 3, 0, Math.PI * 2);
     ctx.fillStyle = COLOR.ui;
     ctx.fill();
-    ctx.fillStyle = "rgba(20, 30, 54, 0.88)"; // --glass: the canvas can't read an rgba token
+    ctx.fillStyle = SHELL.glass; // --glass
     ctx.beginPath();
-    ctx.roundRect(x, y, w, h, 8);
+    ctx.roundRect(x, y, w, h, SHELL.r);
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = COLOR.ui;
