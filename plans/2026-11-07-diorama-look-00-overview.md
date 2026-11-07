@@ -327,7 +327,7 @@ export function activeFx( // added by Task 111fx: readonly (Fx & { age: number }
 | --- | --- | --- | --- | --- | --- |
 | 0 | `…-01-room-tints.md` | 96, 97 | — | Each room's walls in its hue, day, dusk and HC (Task 97 human review) | [x] (review queued) |
 | 1 | `…-02-shell-tokens.md` | 98, 99 | — | Plum retint, radii, AA test green (human review) | [x] (review queued) |
-| 2 | `…-03-shell-surfaces.md` | 100, 101, 102 | 1 | Lit panels and buttons, display face trimmed, the bezel and tab, the dusk reveal, home glow (human reviews) | [ ] |
+| 2 | `…-03-shell-surfaces.md` | 100, 101, 102 | 1 | Lit panels and buttons, display face trimmed, the bezel and tab, the dusk reveal, home glow (human reviews) | [x] (reviews queued) |
 | 3 | `…-04-world-atlas.md` | 103, 104, 105 | 0 | Phone-profile baseline committed; atlas; stone/wood floor, AO, lit walls, backdrop, water; bench ≤ baseline (human review) | [ ] |
 | 4 | `…-05-objects.md` | 106, 107, 108 | 3 | Doors, crates, glass, vents, stations, figures in material; HC flat; bench ≤ baseline (human review) | [ ] |
 | 5 | `…-06-intro.md` | 109, 110 | 3 (the atlas's `clearAtlas` and the live/atlas switch) | The staged start; the server holds `INTRO_MS`; restart replays (human review) | [ ] |

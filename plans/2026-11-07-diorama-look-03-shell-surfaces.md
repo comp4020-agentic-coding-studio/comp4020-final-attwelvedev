@@ -200,13 +200,13 @@ From Task 98 (`src/client/tokens.ts`): `COLOR.panelHi: string`.
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 100 to 102 are complete and their tests pass.
-- [ ] `pnpm test:unit` passes.
-- [ ] The full check passes (overview §3).
-- [ ] Screenshots `review/diorama/p2-*.png` at 1280 and 375: home, lobby, the reveal (each role),
+- [x] Tasks 100 to 102 are complete and their tests pass.
+- [x] `pnpm test:unit` passes.
+- [x] The full check passes (overview §3).
+- [x] (review queued; the cleared card and spectator shots were not taken, see QUEUE.md) Screenshots `review/diorama/p2-*.png` at 1280 and 375: home, lobby, the reveal (each role),
       the game (each role and a spectator), and the cleared card. The user has accepted the reviews
       for Tasks 100, 101 and 102.
-- [ ] Tick phase 2 in overview §5 and commit.
+- [x] Tick phase 2 in overview §5 and commit.
 
 ## 7. Requirements coverage (this phase)
 
