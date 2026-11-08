@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Browser, Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { loadRooms } from "../../src/game/rooms/load.ts";
 import { launch } from "../browser.ts";
 import { playRoom, type Table } from "../playUi.ts";
 
@@ -11,6 +12,11 @@ import { playRoom, type Table } from "../playUi.ts";
 // hear on a 375 phone (playRoom). Its own app holds the first tick 7200 ms (INTRO_MS, the real timeline three times as slow), so the
 // sequence really plays and the input lock can be seen; the timeline itself is unit-tested
 // (src/client/intro.test.ts).
+// the room playRoom plays (the first), read from its .room file: its width and height in tiles
+const FIRST = loadRooms("./rooms")[0];
+if (!FIRST) throw new Error("no rooms");
+const W = FIRST.grid[0]?.length ?? 0;
+const H = FIRST.grid.length;
 const port = 26080 + Math.floor(Math.random() * 1000);
 const dir = mkdtempSync(join(tmpdir(), "intro-spec-"));
 const url = `http://127.0.0.1:${port}`;
@@ -198,9 +204,14 @@ describe("the start of a room (FR14)", () => {
       ).toBeTruthy();
       const { game, backdrop } = seen as { game: Placed; backdrop: Placed };
       const msg = `backdrop ${JSON.stringify(backdrop)} game ${JSON.stringify(game)}`;
-      expect(Math.abs(game.scale - backdrop.scale), msg).toBeLessThanOrEqual(1);
       expect(Math.abs(game.x - backdrop.x), msg).toBeLessThanOrEqual(1);
       expect(Math.abs(game.y - backdrop.y), msg).toBeLessThanOrEqual(1);
+      // the far corner too: a scale off by under 1 px a tile drifts by up to W px across the room
+      // (a flat plan: a tile is `scale` tall as well as wide on both canvases)
+      const far = (p: Placed) => ({ x: p.x + W * p.scale, y: p.y + H * p.scale });
+      const corner = `${msg} far game ${JSON.stringify(far(game))} backdrop ${JSON.stringify(far(backdrop))}`;
+      expect(Math.abs(far(game).x - far(backdrop).x), corner).toBeLessThanOrEqual(1);
+      expect(Math.abs(far(game).y - far(backdrop).y), corner).toBeLessThanOrEqual(1);
     },
   );
 
