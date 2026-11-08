@@ -7,6 +7,7 @@ const item = (role: ReviewItem["role"], width: number): ReviewItem => ({
   beat: "1",
   role,
   width,
+  rotation: 0,
   perceived: "",
   prior: "",
 });

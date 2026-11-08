@@ -11,7 +11,15 @@ import type { Role, Seat } from "../src/game/types.ts";
 import { type Args, parseArgs, rotatedWidths } from "./playtest/args.ts";
 import { freshBeats, nextShot } from "./playtest/beats.ts";
 import { soundIsOn } from "./playtest/drive.ts";
-import { evidencePath, perceivedText, runName, writeEvidence } from "./playtest/evidence.ts";
+import {
+  evidencePath,
+  homePath,
+  perceivedText,
+  revealPath,
+  runName,
+  shotStem,
+  writeEvidence,
+} from "./playtest/evidence.ts";
 import { freeHands, inputCheck } from "./playtest/inputCheck.ts";
 import { sampleTab, type TabMemory } from "./playtest/invariants.ts";
 import { renderReport } from "./playtest/report.ts";
@@ -73,10 +81,17 @@ async function record(
   findings.push({ ...f, screenshot: tab ? png : null, viewJson: tab ? json : null });
 }
 
-async function shot(table: Seat3[], room: Room, roles: Role[], beat: string, seat?: Seat) {
+async function shot(
+  table: Seat3[],
+  room: Room,
+  roles: Role[],
+  rotation: number,
+  beat: string,
+  seat?: Seat,
+) {
   for (const [s, tab] of table.entries()) {
     if (seat !== undefined && s !== seat) continue;
-    const stem = `${roles[s]}-${tab.width}-${beat}`;
+    const stem = shotStem(roles[s] as string, tab.width, beat, rotation);
     const png = runDir(room.id, `${stem}.png`);
     writeEvidence(png, await tab.page.screenshot());
     writeEvidence(runDir(room.id, `${stem}.txt`), await perceivedText(tab.page));
@@ -91,13 +106,13 @@ async function playRotation(
 ) {
   const widths = rotatedWidths(args.widths, rotation);
   const table = await openTable(browser, url, widths, {
-    onHome: (seat, text) => writeEvidence(runDir("prior", `${seat}-home.txt`), text),
+    onHome: (seat, text) => writeEvidence(runDir(homePath(seat, rotation)), text),
   });
   for (const [index, room] of rooms.entries()) {
     const roles = rolesFor(index) as Role[];
     for (const [seat, tab] of table.entries()) {
       const text = await tab.page.locator("body").ariaSnapshot();
-      writeEvidence(runDir(room.id, "prior", `${roles[seat]}-reveal.txt`), text);
+      writeEvidence(runDir(revealPath(room.id, roles[seat] as string, rotation)), text);
     }
     const clearedBefore = table.map((t) => t.wire.messages("cleared").length);
     await readyAll(table);
@@ -114,7 +129,7 @@ async function playRotation(
     const soundOn = await Promise.all(table.map((t) => soundIsOn(t)));
     // each tab is first sampled once its canvas holds still (NFR6: no frame is compared before then)
     await Promise.all(table.map((t) => settledHash(t.page)));
-    await shot(table, room, roles, "start");
+    await shot(table, room, roles, rotation, "start");
     await Promise.all(table.map((t) => t.page.evaluate("window.__playtest.autopilot(true)")));
     const beats = freshBeats(table.length);
     const sampledAt = table.map(() => Date.now());
@@ -151,7 +166,7 @@ async function playRotation(
         const b = beatOf(room, table, seat);
         if (nextShot(beats[seat] as number, b)) {
           beats[seat] = b;
-          await shot(table, room, roles, String(b), seat);
+          await shot(table, room, roles, rotation, String(b), seat);
         }
       }
       if (table.every((t, i) => t.wire.messages("cleared").length > (clearedBefore[i] as number))) {
@@ -171,7 +186,7 @@ async function playRotation(
       return;
     }
     await sleep(600); // the cleared card draws
-    await shot(table, room, roles, "end");
+    await shot(table, room, roles, rotation, "end");
     const last = index === rooms.length - 1;
     if (last) {
       // the heist message follows the last cleared by a moment

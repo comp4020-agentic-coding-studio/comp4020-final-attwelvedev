@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
+import { homePath, revealPath, shotStem } from "./playtest/evidence.ts";
 
 it("refuses to start without --yes: exit 2, an estimate, no call", () => {
   const dir = mkdtempSync(join(tmpdir(), "review-run-"));
@@ -15,10 +16,10 @@ it("refuses to start without --yes: exit 2, an estimate, no call", () => {
     [2, "mute", 1280],
   ] as const;
   for (const [seat, role, width] of seats) {
-    writeFileSync(join(dir, "prior", `${seat}-home.txt`), "home");
-    writeFileSync(join(dir, "01-first-steps", "prior", `${role}-reveal.txt`), "reveal");
+    writeFileSync(join(dir, homePath(seat, 0)), "home");
+    writeFileSync(join(dir, revealPath("01-first-steps", role, 0)), "reveal");
     for (const beat of ["start", "1", "end"]) {
-      writeFileSync(join(dir, "01-first-steps", `${role}-${width}-${beat}.txt`), "seen");
+      writeFileSync(join(dir, "01-first-steps", `${shotStem(role, width, beat, 0)}.txt`), "seen");
     }
   }
   const r = spawnSync("node", ["scripts/playtest-review.ts", dir, "--room", "01"], {

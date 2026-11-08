@@ -33,3 +33,13 @@ export function runName(now = new Date()): string {
 }
 
 export const evidencePath = (...parts: string[]): string => join("review", "playtest", ...parts);
+
+// Evidence names (overview §4.5), relative to the run. Each carries the rotation (`r0`, `r1`, …):
+// roles depend only on the room and a seat sits at the same width in more than one rotation, so
+// without it a later rotation would overwrite an earlier one's files.
+export const shotStem = (role: string, width: number, beat: string, rotation: number): string =>
+  `${role}-${width}-r${rotation}-${beat}`;
+export const homePath = (seat: number, rotation: number): string =>
+  `prior/${seat}-r${rotation}-home.txt`;
+export const revealPath = (room: string, role: string, rotation: number): string =>
+  `${room}/prior/${role}-r${rotation}-reveal.txt`;

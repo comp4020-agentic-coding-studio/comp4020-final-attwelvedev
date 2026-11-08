@@ -7,6 +7,7 @@ const item = (over: Partial<ReviewItem> = {}): ReviewItem => ({
   beat: "1",
   role: "deaf",
   width: 1280,
+  rotation: 0,
   screenshot: "shot.png",
   perceived: "- main: a plate\n\nCaptions:\n",
   prior: "HOME TEXT\nREVEAL TEXT",

@@ -268,10 +268,10 @@ estimate in `scripts/playtest/review/cost.ts` is within 15% of the tally (the fi
 ```
 review/playtest/<run>/
   run.json                                  { rooms: string[]; widths: number[]; seats: { seat: number; width: number }[] }
-  prior/<seat>-home.txt                    the home page as text, before joining
-  <room-id>/prior/<role>-reveal.txt        that room's reveal as text (+ the sound briefing for blind)
-  <room-id>/<role>-<width>-<beat>.png      beat screenshot (beat: "start", "1".."n", "end")
-  <room-id>/<role>-<width>-<beat>.txt      perceived text: the ariaSnapshot of the body, then "Captions:" and each caption line, arrows as "from the north-east"
+  prior/<seat>-r<rot>-home.txt             the home page as text, before joining (r0, r1, … per rotation; auto fixes 6)
+  <room-id>/prior/<role>-r<rot>-reveal.txt that room's reveal as text (+ the sound briefing for blind)
+  <room-id>/<role>-<width>-r<rot>-<beat>.png beat screenshot (beat: "start", "1".."n", "end")
+  <room-id>/<role>-<width>-r<rot>-<beat>.txt perceived text: the ariaSnapshot of the body, then "Captions:" and each caption line, arrows as "from the north-east"
   <room-id>/fail-<n>.png, fail-<n>.json    a finding's evidence (FR7)
   report.html                               the run report (Task 128)
   review.html                               the review (Task 130)

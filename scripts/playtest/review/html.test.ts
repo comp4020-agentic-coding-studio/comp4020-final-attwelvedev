@@ -3,7 +3,7 @@ import type { Answered } from "./html.ts";
 import { renderReview } from "./html.ts";
 
 const t = { calls: 2, errors: 0, input: 10, output: 5, cacheRead: 3, cacheWrite: 0, usd: 0.01 };
-const base = { room: "01-x", beat: "1", width: 1280, perceived: "", prior: "" };
+const base = { room: "01-x", beat: "1", width: 1280, rotation: 0, perceived: "", prior: "" };
 const intents = { "01-x": { "1": { blind: "stands on <the plate>", deaf: "calls it" } } };
 const blind: Answered = {
   item: { ...base, role: "blind" },
@@ -13,7 +13,7 @@ const blind: Answered = {
   },
 };
 const deaf: Answered = {
-  item: { ...base, role: "deaf", screenshot: "01-x/deaf-1280-1.png" },
+  item: { ...base, role: "deaf", screenshot: "01-x/deaf-1280-r0-1.png" },
   error: "boom <script>",
 };
 
@@ -34,6 +34,6 @@ describe("renderReview", () => {
   });
   it("shows an errored item's error, with its screenshot", () => {
     expect(html).toContain("boom &lt;script&gt;");
-    expect(html).toContain('<img src="01-x/deaf-1280-1.png"');
+    expect(html).toContain('<img src="01-x/deaf-1280-r0-1.png"');
   });
 });
