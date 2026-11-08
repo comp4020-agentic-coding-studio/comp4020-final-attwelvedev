@@ -469,7 +469,7 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
                 [
                   {
                     foot: groundSlice(tiles, t.x + 0.5, t.y + 0.5, 0.5),
-                    wallBehind: isBlock(tiles[t.y - 1]?.[t.x]),
+                    wallBehind: opaque(tiles[t.y - 1]?.[t.x]),
                   },
                 ],
                 height,

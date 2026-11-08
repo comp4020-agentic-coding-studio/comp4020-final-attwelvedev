@@ -2063,16 +2063,20 @@ describe("what stands in front of glass is cut by the cone's diagonal, not the g
         }
     expect(met.lit, "points where the diagonal and the glass's line disagree").toBeGreaterThan(20);
     expect(wrong.slice(0, 6), `${wrong.length} points of a box wrong`).toEqual([]);
+  });
+});
 
 describe("a bell is drawn only from its own light (L4 and L6, screenshots 126 and 129)", () => {
   // every part of a station is drawn under one clip, the union of each part's piece; a piece is the part's tile
   // swept up by the whole station's height (3 tiles for bells) and 0.3 each side, so the music box's lit piece
   // reaches up over bell 3's number, and a lit bell's piece over its neighbours' sides
-  const bellsIn = (room: ReturnType<typeof loadRooms>[0], id: string): P[] =>
-    (room.objects.find((o) => o.id === id)?.params?.bells as [number, number][]).map(([x, y]) => ({
-      x,
-      y,
-    }));
+  const bellsIn = (room: ReturnType<typeof loadRooms>[0], id: string): P[] => {
+    const bells = room.objects.find((o) => o.id === id)?.params?.bells as
+      | [number, number][]
+      | undefined;
+    if (!bells) throw new Error(`room ${room.id} has no bells station ${id}`);
+    return bells.map(([x, y]) => ({ x, y }));
+  };
   function check(
     id: string,
     station: string,
