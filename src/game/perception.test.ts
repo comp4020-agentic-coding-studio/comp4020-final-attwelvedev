@@ -1092,6 +1092,35 @@ describe("viewFor: stations, gear and signals", () => {
     }
   });
 
+  // final review F2: a cut's spark is a picture of a tile, so a dark zone hides it from a seat with no goggles
+  it("a wire cut inside a dark zone sends no spark to a seat without goggles, and does to a wearer", () => {
+    const grid = ["############", "#1.........#", "#2...Q.....#", "#3....g....#", "############"];
+    const w = worldWith(
+      grid,
+      {
+        Q1: {
+          type: "wires",
+          wires: [
+            [6, 2],
+            [7, 2],
+            [8, 2],
+          ],
+        },
+        g1: { item: "goggles" },
+      },
+      { flips: [{ kind: "dark", zone: [6, 1, 9, 3] }] },
+    );
+    place(w, 0, { x: 7, y: 2 });
+    w.events.push({ kind: "station", id: "Q1", result: "cut", n: 1, at: { x: 7.5, y: 2.5 } });
+    place(w, 1, { x: 2, y: 2 });
+    place(w, 2, { x: 3, y: 3 });
+    // in line of sight of the tile, but the tile is dark: no spark, and so no wire index
+    expect(viewFor(w, 1, "deaf", false).cuts).toBeUndefined();
+    expect(viewFor(w, 2, "mute", false).cuts).toBeUndefined();
+    holdGear(w, "g1", 1);
+    expect(viewFor(w, 1, "deaf", false).cuts).toEqual([{ id: "Q1", at: { x: 7.5, y: 2.5 }, n: 1 }]);
+  });
+
   // The user heard the caption "Tumbler" and no sound: a click at a third of its level, 0.07 s long, on the
   // same tick as the dial's own louder tick. Within touch range it must carry, not fade to nothing.
   it("the tumbler is still plainly audible at the edge of touch range, and absent beyond it", () => {

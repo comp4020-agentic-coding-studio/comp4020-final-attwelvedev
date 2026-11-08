@@ -1191,13 +1191,15 @@ function cacheEventOf(world: World): RoleView["cacheEvent"] {
 }
 
 // This tick's wire cuts at a tile the viewer sees (walls, vents and closed doors block it; glass
-// does not). Only the sighted are asked: Can't see is never sent one.
-function cutsSeen(world: World, seen: Visible): NonNullable<RoleView["cuts"]> {
+// does not), and not in a dark zone the viewer has no goggles for: a spark there would show what the
+// dark hides. Only the sighted are asked: Can't see is never sent one.
+function cutsSeen(world: World, seen: Visible, zones: Zone[]): NonNullable<RoleView["cuts"]> {
   return world.events.flatMap((e) =>
     e.kind === "station" &&
     e.result === "cut" &&
     e.n !== undefined &&
-    seen.has(Math.floor(e.at.x), Math.floor(e.at.y))
+    seen.has(Math.floor(e.at.x), Math.floor(e.at.y)) &&
+    !inAny(zones, e.at)
       ? [{ id: e.id, at: e.at, n: e.n }]
       : [],
   );
@@ -1282,7 +1284,7 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
       const grid = maskCache(world, world.room.grid);
       view.tiles = zones.length === 0 ? grid : maskTiles(grid, zones);
     }
-    const cuts = cutsSeen(world, seen);
+    const cuts = cutsSeen(world, seen, zones);
     if (cuts.length > 0) view.cuts = cuts;
     // the lamp (FR25) is a light: for the sighted only
     const lamp = world.events.find((e) => e.kind === "lamp");
