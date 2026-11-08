@@ -2,7 +2,7 @@
 
 - **Date:** 2026-11-08
 - **Tier:** Slice (investigate first: Task 1 decides which of Tasks 2 to 4 apply)
-- **Status:** Partly done (Tasks 1 and 2; 3 parked, 4 needs a ruling)
+- **Status:** Done (Tasks 1 to 4), on `fix/los-combined`; not merged to `auto/overnight`
 - **Requirements confirmed by user:** yes, 2026-11-08, in conversation (the seven symptoms and the two stated expectations: veil starts after the corner; a diagonal cut in front of glass)
 - **Comes from:** `overnight/playtest-2026-11-08-findings.md` (L1 to L7); screenshots 122 to 130 in `overnight/playtest-2026-11-08-shots/`
 - **Runs:** first of the four follow-up plans. L4 and L6 may be a perception bug, which matters for play more than the look does.
@@ -60,7 +60,7 @@ Each new or changed assertion is shown red first with a break script (CLAUDE.md)
   - Depends on: Task 1.
   - Human review: screenshots of 124 and 130's scenes at 1280 and 375, after. A pass means the glass reads as glass and the cut reads as light.
 
-- [ ] **Task 4: A music box in sight is drawn whole** (if (c)) (not (c): back to the user; tests on `auto/overnight-parked-los-task4`)
+- [x] **Task 4: A music box in sight is drawn whole** (if (c)) (not (c): the cause was the one clip a bells station's parts shared; ruled by the user 2026-11-08 as per-part clipping for bell stations; L4 and L6 tests green; the user confirmed the music hall's bells in play, 2026-11-08. The L4 before/after screenshots did not show the bug, so the tests are the evidence for L4 in the chamber)
   - Files: `src/client/render/sight.ts` (`cutToSight`) and/or `src/game/perception.ts`, whichever Task 1 names. If the fix is in perception, a test in `src/game/perception.test.ts` shows a seat that can see the box gets it whole, a seat that cannot gets nothing, and `parity.test.ts` still holds (ADR 0007, 0012).
   - Tests first: the Task 1 tests for L4 and L6 go green; the existing furniture test (`perception.test.ts`, "the buttons are furniture and drawn, the lamps' state…") stays green.
   - Acceptance: demo 4. If it needs a new field on the wire, stop and ask: that is an ADR question.
@@ -73,4 +73,5 @@ Each new or changed assertion is shown red first with a break script (CLAUDE.md)
 ## Corrections log
 
 <!-- one line per user redirect during execution: date — what changed and why -->
+- 2026-11-08 — Task 4: ruled as per-part clipping, for bell stations only (a bells station's music box and each bell are drawn under their own piece of the light); other stations keep the shared clip. Task 3's glass fix and Task 4's bell drawing interact (a bell station's music box needs `opaque()` too): fixed on the combined branch.
 - 2026-11-08 — L2: glass follows the floor under each pixel (room 3's rule), so a pane before the corner (room 6) is clear and one past it (room 3) is veiled, top included. The plan's cause (b) said "glass is cut the same way as a wall"; the parked test's "every pane's top clear" contradicted room 3 and was replaced.
