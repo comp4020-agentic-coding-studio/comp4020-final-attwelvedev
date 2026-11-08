@@ -285,8 +285,8 @@ review/playtest/<run>/
 | Phase | File | Tasks | Needs | Ends with | Done |
 | --- | --- | --- | --- | --- | --- |
 | 01 | `…-01-seam.md` | 121–124 | — | Proxy proven (gate); autopilot seam, refusal on Fly and page hook live behind the flag; `spec/autopilot.test.ts` green and shown red first | [x] |
-| 02 | `…-02-regression.md` | 125–128 | 01 | `pnpm playtest` plays all 9 rooms at both widths, report.html written; **Human review** of the report | [x] (review queued; full-run item not met, see phase file) |
-| 03 | `…-03-review.md` | 129–131 | 01, 02 | `pnpm playtest:review` refuses without `--yes`; room 01 reviewed for real, its estimate within 15% of the tally; docs; ADRs put to the user; **Human review** of the review and README | [x] (review queued; ADRs 0027 and 0028 stay proposed) |
+| 02 | `…-02-regression.md` | 125–128 | 01 | `pnpm playtest` plays all 9 rooms at both widths, report.html written; **Human review** of the report | [ ] (review queued; full-run item not met, see phase file) |
+| 03 | `…-03-review.md` | 129–131 | 01, 02 | `pnpm playtest:review` refuses without `--yes`; room 01 reviewed for real, its estimate within 15% of the tally; docs; ADRs put to the user; **Human review** of the review and README | [ ] (review queued; ADRs 0027 and 0028 stay proposed) |
 
 ## 6. Feature-level Definition of Done
 

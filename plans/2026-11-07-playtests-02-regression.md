@@ -221,7 +221,7 @@ and the view JSON are written next to the beat shots as `fail-<n>.png` and `fail
   - `git status` shows nothing under `review/playtest/`.
   - `pnpm check` is green, and it does not run the playtest.
 - **Depends on:** phase 01.
-- [x] Done (`pnpm playtest --room 01` clears and writes the evidence; unit tests and break check as in the commit)
+- [ ] Done (`pnpm playtest --room 01` clears and writes the evidence; unit tests and break check as in the commit. Left open: the criterion "`pnpm playtest` with no flags plays all nine rooms and reaches the heist screen" has never held, the run stalls in room 04, see `specs/backlog.md`)
 
 ### Task 126: The input check, per tab per room, before autopilot
 
@@ -358,8 +358,8 @@ and the view JSON are written next to the beat shots as `fail-<n>.png` and `fail
 - [x] `pnpm test:unit` passes (it includes `scripts/**/*.test.ts`)
 - [x] `pnpm check` passes against `pnpm start:check` (195 files, 2773 tests)
 - [ ] A full `pnpm playtest` run completed: NOT MET. The default run stops at room 04 (`run:timeout`, the bots stall at the Q2 dial about half the time under autopilot, with or without the input check; `specs/backlog.md`). Rooms 05 to 09 and the heist screen have never run through the full loop. Next: fix or reseed room 04's stall, or let the run skip a stalled room (a restart) and go on.
-- [x] Task 128's human review accepted by the user (review queued)
-- [x] Tick phase 02 in overview §5 and commit
+- [ ] Task 128's human review accepted by the user (review queued; not yet given)
+- [ ] Tick phase 02 in overview §5 and commit (left open: the full run and the human review above are not done; unticked by auto fixes 6, Task 264)
 
 ## 7. Requirements coverage (this phase)
 

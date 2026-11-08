@@ -231,8 +231,8 @@ interface ReviewAnswer {
 - [x] Tasks 129–131 complete, each committed with `pnpm check` green (129 and 130 in one commit)
 - [x] `pnpm test:unit` passes
 - [x] `pnpm check` passes against `pnpm start:check`
-- [x] Task 131's human review accepted by the user; the ADRs' status is set by the user's decision (review queued; ADRs 0027 and 0028 stay `proposed`, queued)
-- [x] Tick phase 03 in overview §5, and tick the overview's §6 boxes that are now met, and commit
+- [ ] Task 131's human review accepted by the user; the ADRs' status is set by the user's decision (review queued; ADRs 0027 and 0028 stay `proposed`, queued)
+- [ ] Tick phase 03 in overview §5, and tick the overview's §6 boxes that are now met, and commit (left open: Task 131's human review above is only queued; unticked by auto fixes 6, Task 264)
 
 ## 7. Requirements coverage (this phase)
 
