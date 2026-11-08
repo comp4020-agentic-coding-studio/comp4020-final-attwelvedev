@@ -1953,3 +1953,191 @@ describe("what stands is dropped only when the light touches none of its footpri
     expect(lost.slice(0, 5), `${lost.length} gear lost`).toEqual([]);
   });
 });
+
+describe("glass is not veiled before the corner (L2, screenshot 124)", () => {
+  // room 3's rule (a pixel of a pane is veiled exactly where the floor under it is dark), measured in room 6, whose
+  // panes (row 4, x 8 to 11) stand before the blocking corner: where the light reaches the floor under a pixel, the
+  // pixel is clear, top included
+  it("veils a pixel of a pane exactly where the floor under it is dark, room 6", () => {
+    vi.stubGlobal("Path2D", class {});
+    const room = roomOf("06-lights-out");
+    const wrong: string[] = [];
+    const met = { lit: 0, dark: 0 };
+    for (const vy of [2.4, 3.4, 3.7, 5.5, 6.4])
+      for (let vx = 5.3; vx <= 16; vx += 0.7) {
+        if (room.grid[Math.floor(vy)]?.[Math.floor(vx)] !== ".") continue;
+        const v = { x: vx, y: vy };
+        const { tiles, sc, light } = viewAt(room, v);
+        rememberOrigin(light, v);
+        sc.cam = camera(sc);
+        const cam = sc.cam;
+        const { ctx, ops } = recorder();
+        drawMist(ctx, cam, tiles, light, { x0: 0, x1: 44, y0: 0, y1: 13 }, 4);
+        const pieces = ops.flatMap((o, i) =>
+          o.name === "fill" && o.args[0] === "nonzero" ? pathBefore(ops, i) : [],
+        );
+        for (let tx = 8; tx <= 11; tx++) {
+          const top = toScreen(cam, tx, 4, LIVE.wall);
+          const h = cam.scale * LIVE.depth + LIVE.wall * cam.scale;
+          for (let fx = 0.1; fx < 1; fx += 0.2)
+            for (let fy = 0.05; fy < 1; fy += 0.1) {
+              const p = { x: top.x + fx * cam.scale, y: top.y + fy * h };
+              const g = fromScreen(cam, p.x, p.y);
+              if (distToEdge(light, g) < 0.06) continue;
+              const want = !inLight(light, g);
+              if (want) met.dark++;
+              else met.lit++;
+              if (covered(pieces, "nonzero", p) !== want)
+                wrong.push(
+                  `viewer ${vx.toFixed(1)},${vy} pane ${tx} ${fy < FRONT0 ? "top" : "front"} at ${fx.toFixed(1)},${fy.toFixed(2)} should be ${want ? "veiled" : "clear"}`,
+                );
+            }
+        }
+      }
+    expect(met.lit, "clear points").toBeGreaterThan(100);
+    expect(met.dark, "veiled points").toBeGreaterThan(100);
+    expect(wrong.slice(0, 6), `${wrong.length} glass points wrong`).toEqual([]);
+  });
+});
+
+describe("what stands in front of glass is cut by the cone's diagonal, not the glass's vertical line (L7, screenshot 130)", () => {
+  it("cuts a music box under a pane where the ground under its front is lit, not where the pane's foot is, room 8", () => {
+    vi.stubGlobal("Path2D", class {});
+    const room = roomOf("08-music-room");
+    const wrong: string[] = [];
+    const met = { lit: 0 };
+    // the two music boxes under the glass: (5, 5) under the pane at (5, 4), and (24, 5) under (24, 4)
+    for (const bx of [5, 24])
+      for (let vy = 1.2; vy < room.height; vy += 0.37)
+        for (let vx = bx - 6; vx < bx + 7; vx += 0.41) {
+          if (room.grid[Math.floor(vy)]?.[Math.floor(vx)] !== ".") continue;
+          const v = { x: vx, y: vy };
+          const { sc, light } = viewAt(room, v);
+          // the camera the game passes (eased, from every figure): draw would otherwise rebuild it from the figures
+          // litEntities leaves, which moves it when a teammate stands in the dark
+          sc.cam = camera(sc);
+          const { ctx, ops } = recorder();
+          draw(ctx, sc);
+          const cam = sc.cam;
+          const body = ops.findIndex(
+            (o) =>
+              o.name === "fillRect" &&
+              o.fillStyle === WORLD.steelFront &&
+              Math.abs((o.args[0] as number) - toScreen(cam, bx + 0.18, 0).x) < 1,
+          );
+          if (body < 0) continue;
+          // the box as drawn: its top (the rectangle before the front) and its front. Only what lies above the pane's
+          // foot line on screen (y = 5) is over the glass, where the glass's vertical cut and the diagonal can differ;
+          // below it the two agree, which is why sampling the front low down could not tell them apart
+          const top = ops[body - 1] as Op;
+          const [tx, ty, tw, th] = top.args as [number, number, number, number];
+          const [rx, ry, rw, rh] = (ops[body] as Op).args as [number, number, number, number];
+          const paneFoot = toScreen(cam, bx, 5).y;
+          const footY = fromScreen(cam, rx, ry + rh).y;
+          // the glass's vertical line: lit where the pane's foot (y = 5) is lit. The diagonal: a point of the front is
+          // lit where the ground under the front's foot is, carried straight up; a point of the top, where the ground
+          // under it is (the diagonal carries a floor point straight up, so the top is read at its own screen row).
+          // Taken only where the two disagree
+          const check = (sx: number, sy: number, groundY: number, what: string) => {
+            if (sy >= paneFoot - 1) return;
+            const x = fromScreen(cam, sx, 0).x;
+            const atGround = { x, y: groundY };
+            const atPane = { x, y: 5.01 };
+            if (distToEdge(light, atGround) < 0.08 || distToEdge(light, atPane) < 0.08) return;
+            const want = inLight(light, atGround);
+            if (want === inLight(light, atPane)) return;
+            met.lit++;
+            if (drawnAt(ops, body, { x: sx, y: sy }) !== want)
+              wrong.push(
+                `box ${bx} viewer ${vx.toFixed(2)},${vy.toFixed(2)} ${what} at ${sx.toFixed(0)},${sy.toFixed(0)} should be ${want ? "drawn" : "cut"}`,
+              );
+          };
+          for (let fx = 0.05; fx < 1; fx += 0.1) {
+            for (let fy = 0.1; fy < 1; fy += 0.2) {
+              const sy = ty + fy * th;
+              check(tx + fx * tw, sy, fromScreen(cam, 0, sy).y, "top");
+            }
+            for (let fy = 0.1; fy < 1; fy += 0.2)
+              check(rx + fx * rw, ry + fy * rh, footY - 0.02, "front");
+          }
+        }
+    expect(met.lit, "points where the diagonal and the glass's line disagree").toBeGreaterThan(20);
+    expect(wrong.slice(0, 6), `${wrong.length} points of a box wrong`).toEqual([]);
+  });
+});
+
+describe("a bell is drawn only from its own light (L4 and L6, screenshots 126 and 129)", () => {
+  // every part of a station is drawn under one clip, the union of each part's piece; a piece is the part's tile
+  // swept up by the whole station's height (3 tiles for bells) and 0.3 each side, so the music box's lit piece
+  // reaches up over bell 3's number, and a lit bell's piece over its neighbours' sides
+  const bellsIn = (room: ReturnType<typeof loadRooms>[0], id: string): P[] => {
+    const bells = room.objects.find((o) => o.id === id)?.params?.bells as
+      | [number, number][]
+      | undefined;
+    if (!bells) throw new Error(`room ${room.id} has no bells station ${id}`);
+    return bells.map(([x, y]) => ({ x, y }));
+  };
+  function check(
+    id: string,
+    station: string,
+    area: { x0: number; x1: number; y0: number; y1: number },
+  ) {
+    vi.stubGlobal("Path2D", class {});
+    const room = roomOf(id);
+    const bells = bellsIn(room, station);
+    const wrong: string[] = [];
+    let dark = 0;
+    for (let vy = area.y0; vy < area.y1; vy += 0.3)
+      for (let vx = area.x0; vx < area.x1; vx += 0.3) {
+        if (room.grid[Math.floor(vy)]?.[Math.floor(vx)] !== ".") continue;
+        const v = { x: vx, y: vy };
+        const { sc, light, view } = viewAt(room, v);
+        if (!view.entities.some((e) => e.id === station)) continue;
+        // the camera the game passes: draw would rebuild its own from the figures litEntities leaves
+        sc.cam = camera(sc);
+        const { ctx, ops } = recorder();
+        draw(ctx, sc);
+        const cam = sc.cam;
+        bells.forEach((b, i) => {
+          const ground = [0.05, 0.3, 0.5, 0.7, 0.95].flatMap((fx) =>
+            [0.05, 0.5, 0.95].map((fy) => ({ x: b.x + fx, y: b.y + fy })),
+          );
+          if (ground.some((p) => inLight(light, p) || distToEdge(light, p) < 0.1)) return;
+          dark++;
+          const num = toScreen(cam, b.x + 0.5, b.y + 0.9);
+          const n = ops.findIndex(
+            (o) =>
+              o.name === "fillText" &&
+              o.args[0] === String(i + 1) &&
+              Math.abs((o.args[1] as number) - num.x) < 1 &&
+              Math.abs((o.args[2] as number) - num.y) < 1,
+          );
+          if (n >= 0 && drawnAt(ops, n, num))
+            wrong.push(`viewer ${vx.toFixed(1)},${vy.toFixed(1)} bell ${i + 1}: number drawn`);
+          const c = toScreen(cam, b.x + 0.5, b.y + 0.5, LIVE.block * 0.8);
+          const body = ops.findIndex(
+            (o) =>
+              o.name === "translate" &&
+              Math.abs((o.args[0] as number) - c.x) < 1 &&
+              Math.abs((o.args[1] as number) - c.y) < 1,
+          );
+          for (const dx of [-0.2, 0, 0.2])
+            if (body >= 0 && drawnAt(ops, body, { x: c.x + dx * cam.scale, y: c.y }))
+              wrong.push(
+                `viewer ${vx.toFixed(1)},${vy.toFixed(1)} bell ${i + 1}: body drawn at ${dx}`,
+              );
+        });
+      }
+    return { wrong, dark };
+  }
+  it("draws no number of a bell whose own ground is dark, room 8's music hall (L4)", () => {
+    const { wrong, dark } = check("08-music-room", "Q3", { x0: 19.2, x1: 31, y0: 4.2, y1: 7 });
+    expect(dark, "bells in the dark, station in sight").toBeGreaterThan(50);
+    expect(wrong.slice(0, 6), `${wrong.length} wrong`).toEqual([]);
+  });
+  it("draws no part of a bell whose own ground is dark, room 8's chamber (L6)", () => {
+    const { wrong, dark } = check("08-music-room", "Q4", { x0: 1.2, x1: 11, y0: 5.2, y1: 11 });
+    expect(dark, "bells in the dark, station in sight").toBeGreaterThan(20);
+    expect(wrong.slice(0, 6), `${wrong.length} wrong`).toEqual([]);
+  });
+});

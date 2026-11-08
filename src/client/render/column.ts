@@ -1,6 +1,6 @@
 import { cutToBox, inLight } from "../../game/light.ts";
 import type { Vec } from "../../game/types.ts";
-import { type Camera, LIVE, toScreen } from "./project.ts";
+import { type Camera, fromScreen, LIVE, toScreen } from "./project.ts";
 
 // What stands, and the walls, are cut by the cone's own edges, carried straight on up the screen.
 //
@@ -288,6 +288,7 @@ export interface Part {
   // carried up the screen (the user, screenshots 117 and 118: a head cut though the feet were in the light).
   figure?: boolean;
 }
+const TOUCH_AREA = 1e-4; // tiles squared: under this a lit sliver is not light (the same floor as `footLit`)
 const SIDE = 0.3; // tiles each side of a piece that its drawing may reach (a figure's shoulders, a plate's overhang)
 
 // What may be drawn of a thing: all of it (no clip), none, or the lit parts of each piece it stands on. A shadow edge is
@@ -318,7 +319,9 @@ export function regionOf(
       continue;
     }
     const lit = cutToBox(light, foot);
-    if (lit.length < 3) {
+    // a lit sliver with no area (the light's edge running along the tile's own edge) is not light on this ground: the
+    // part is dark, not whole (the user, playtest L6: a bell drawn with no clip because its neighbour's edge grazed it)
+    if (lit.length < 3 || Math.abs(areaOfPlan(lit)) < TOUCH_AREA) {
       whole = false;
       continue;
     }
@@ -775,7 +778,8 @@ export function darkOfWall(
 // Glass passes sight, so no ray lands on a pane: it is lit where the light covers the ground its pixels belong
 // to, not where a vertex touches it. The edges that cross the pane's drawing cut it, the way they cut a wall,
 // and each cell is lit when a point of the pane's footprint that falls in it is in the light.
-const GLASS_GRID = [0.1, 0.5, 0.9];
+const GLASS_COLS = [0.1, 0.3, 0.5, 0.7, 0.9];
+const GLASS_ROWS = [0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95];
 export function darkOfGlass(
   cam: Camera,
   light: readonly Vec[],
@@ -787,9 +791,14 @@ export function darkOfGlass(
     coneEdges(cam, light),
     boxOf(screenRect(cam, { x0: tx, x1: tx + 1, y0: ty, y1: ty + 1 }, LIVE.wall, 0)),
   );
+  // the ground each pixel of the pane belongs to: the pixel carried straight down the screen to the floor (the cone's
+  // edge line carried up). That reaches north of the pane's own tile, to the floor its top is drawn over, so a top
+  // cell has samples of its own and is lit when that ground is (the user, playtest L2, screenshot 124)
+  const [a, , c] = rect as [S, S, S, S];
   const samples: Vec[] = [];
-  for (const fx of GLASS_GRID)
-    for (const fy of GLASS_GRID) samples.push({ x: tx + fx, y: ty + fy });
+  for (const fx of GLASS_COLS)
+    for (const fy of GLASS_ROWS)
+      samples.push(fromScreen(cam, a.x + fx * (c.x - a.x), a.y + fy * (c.y - a.y)));
   if (edges.length === 0) return samples.some((p) => inLight(light, p)) ? "lit" : "dark";
   const split = cells(cam, rect, edges, samples, light);
   if (split.lit.length === 0) return "dark";

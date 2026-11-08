@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { footLit } from "../../game/light.ts";
 import type { Vec } from "../../game/types.ts";
 import type { EntityView } from "../../net/protocol.ts";
 import {
@@ -224,6 +225,23 @@ describe("inLight / litEntities: what stands out of the exact light is not drawn
     ]);
     expect(tileTouched(light, 9, 3), "a tile straight behind the block").toBe(false);
     expect(litEntities([player("P2", 9.5, 3.5, 2)], light, 0)).toEqual([]);
+  });
+
+  it("keeps a guard or camera on a tile the light touches only at a vertex, as the server sends it (review F3)", () => {
+    // guards and cameras keep the tile-set rule (the server sends them by `seen`), so the client must not
+    // drop one the server sent: here the polygon has a vertex inside tile (10,3) but covers under 1e-4 of it
+    const v = lightPolygon({ x: 2, y: 4 }, GRID);
+    expect(tileTouched(v, 10, 3), "the tile is touched at a vertex").toBe(true);
+    expect(footLit(v, { x: 10.5, y: 3.5 }, 0.5), "but its footprint is not lit").toBe(false);
+    for (const kind of ["guard", "camera"]) {
+      const e = { id: kind, kind, pos: { x: 10.5, y: 3.5 } } as unknown as EntityView;
+      expect(
+        litEntities([e], v, 0).map((x) => x.id),
+        kind,
+      ).toEqual([kind]);
+    }
+    const crate = { id: "c", kind: "crate", pos: { x: 10.5, y: 3.5 } } as unknown as EntityView;
+    expect(litEntities([crate], v, 0), "a crate there is still dropped").toEqual([]);
   });
 
   it("keeps your own figure, marks, cones and floor layout whatever the light says", () => {

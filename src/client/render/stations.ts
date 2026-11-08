@@ -690,18 +690,21 @@ function cutSwatch(
 
 // A part just set (a dial turned, a key pressed, a wire cut, a switch thrown; 250 ms): the station
 // gives one short dip, like a detent, and settles. Reduced motion: none.
+// `only` draws just the part on that tile (a bell, the music box): a bell station's parts each stand on their own ground
+// and are cut by their own piece of the light, so the caller draws them one at a time.
 export function drawStationStanding(
   ctx: CanvasRenderingContext2D,
   e: EntityView,
   cam: Camera,
   scene: Scene,
   row: number,
+  only?: Vec,
 ) {
   const t = motionT(scene, e.id, "part");
-  if (t === undefined) return stationStanding(ctx, e, cam, scene, row);
+  if (t === undefined) return stationStanding(ctx, e, cam, scene, row, only);
   ctx.save();
   ctx.translate(0, hop(t, 2));
-  stationStanding(ctx, e, cam, scene, row);
+  stationStanding(ctx, e, cam, scene, row, only);
   ctx.restore();
 }
 
@@ -711,12 +714,13 @@ function stationStanding(
   cam: Camera,
   scene: Scene,
   row: number,
+  only?: Vec,
 ) {
   const st = e.station;
   if (!st) return;
   const s = cam.scale;
   const anchor = partsOf(st, "anchor")[0] ?? { x: Math.floor(e.pos.x), y: Math.floor(e.pos.y) };
-  const inRow = (t: Vec) => t.y === row;
+  const inRow = (t: Vec) => t.y === row && (!only || (t.x === only.x && t.y === only.y));
   if (st.type === "dial" && inRow(anchor)) {
     // the safe: a squat steel box, its dial face on the front with the number at the top
     steelBlock(ctx, cam, {
