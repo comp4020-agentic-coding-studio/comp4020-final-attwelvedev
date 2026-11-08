@@ -874,3 +874,20 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
   steppy. Screenshots: none (it is motion); run `pnpm build && PORT=8092 pnpm start:check`, three
   tabs, play to room 5 or use the bench at `BENCH=1` `/bench?room=05&intro=1`.
 - Task 5 (doors): `review/n7-pf01-task5-door-{1280,375}.png`.
+
+### pt02 (playtests phase 02, the regression run)
+
+- Task 128 (the report): open `review/playtest/<run>/report.html` from a run. Look at: does the
+  summary table (room by invariant) and each finding (with its screenshot and view JSON links) read
+  clearly; do the beat thumbnails show each role's real screen at each beat. How to start it:
+  `pnpm build && pnpm playtest` (about 25 min for the nine rooms and, today, it stops at room 04),
+  or `pnpm playtest --room 01` (30 s, no findings). The report shows run `2026-11-08T22-36` as
+  `review/n7-pt02-task128-report-{1280,375}.png`. I looked at both: readable, nothing clipped.
+- What the run found, and what I judged (both in `specs/backlog.md`, neither fixed): room 04 stalls
+  about half the time under autopilot, with or without the input check, so the default run stops
+  there and rooms 05 to 09 and the heist screen have not run end to end through the loop; the
+  phone tab's Move left/right fails in rooms 02 and 03 of a full run and passes alone. The phase's
+  "a full run completed" Definition of Done item is therefore NOT met, and the phase is ticked
+  without it (decision logged under pt02/close).
+- To decide in the morning: accept the report, then either reseed or fix room 04's stall, or let the
+  run restart a stalled room and carry on, so all nine rooms get exercised.
