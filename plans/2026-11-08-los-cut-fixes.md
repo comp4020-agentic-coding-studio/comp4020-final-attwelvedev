@@ -54,7 +54,7 @@ Each new or changed assertion is shown red first with a break script (CLAUDE.md)
   - Tests first: the Task 1 tests for L1, L3 and L5 go green; a thing wholly in the dark is still dropped (it must stay red if `litEntities` keeps everything). Break: restore the own-tile test.
   - Depends on: Task 1.
 
-- [ ] **Task 3: Glass veil and the diagonal in front of glass** (if (b)) (PARKED: `auto/overnight-parked-los-task3`, see `review/QUEUE.md`)
+- [x] **Task 3: Glass veil and the diagonal in front of glass** (if (b)) (`5be7db8` L7, `65a2982` L2; screenshots `review/n7-los-task3-*`, signed off by the user 2026-11-08)
   - Files: `src/client/render/column.ts` (`darkOfGlass` and `splitOfWall`'s overlap rule: no veil on glass before the corner; a station over glass takes the cone's diagonal), `DESIGN.md` §4.4 (the sentence about glass being cut the same way and about a station over a wall's front).
   - Tests first: the Task 1 tests for L2 and L7 go green; a station over a wall's front still takes the vertical cut (it must stay red if the rule is applied to walls too). Break: restore the vertical cut.
   - Depends on: Task 1.
@@ -68,8 +68,9 @@ Each new or changed assertion is shown red first with a break script (CLAUDE.md)
 
 ## Human review
 
-- **Task 3 on a local build**: screenshots at both widths. Your sign-off is needed.
+- [x] **Task 3 on a local build**: screenshots at both widths (`review/n7-los-task3-{l2-room6-above,l2-room6-west,l7-room8-a,l7-room8-b}-{1280,375}.png`, from `scripts/los-shots.mjs`). Signed off by the user, 2026-11-08.
 
 ## Corrections log
 
 <!-- one line per user redirect during execution: date — what changed and why -->
+- 2026-11-08 — L2: glass follows the floor under each pixel (room 3's rule), so a pane before the corner (room 6) is clear and one past it (room 3) is veiled, top included. The plan's cause (b) said "glass is cut the same way as a wall"; the parked test's "every pane's top clear" contradicted room 3 and was replaced.
