@@ -38,3 +38,10 @@ that needs a tiny, fast room starts its own app with
 `ROOMS_DIR=spec/fixtures/rooms`; `spec/fixtures/rooms/01-tiny.room` has three
 spawns, one three-plate door and an exit, the bots clear it in seconds, and
 `src/game/rooms/lint.test.ts` keeps it lint-clean.
+
+## Playtests
+
+`pnpm playtest` and `pnpm playtest:review` live in `scripts/` and `scripts/playtest/`, outside `pnpm check`'s
+browser specs. Their pure parts (flag parsing, the judges, the report and review renderers, the review's
+request, cost and collection) have unit tests beside them, which `pnpm check` does run. The runs
+themselves are on demand: see the README's Playtests section.

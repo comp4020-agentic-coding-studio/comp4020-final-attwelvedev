@@ -18,9 +18,23 @@ const room01 = [
 ];
 
 describe("estimate", () => {
-  it("matches the hand-computed figure for room 01 within 1%", () => {
-    // blind: 1500*.2 + 1500*2 + 500*10 = 8300 micro$; phone: +400*2 = 9100; desktop: +1400*2 = 11100
-    const hand = (3 * 8300 + 3 * 9100 + 3 * 11100) / 1e6;
+  it("matches the measured room 01 tally within 15%", () => {
+    // the six calls of review/playtest/2026-11-08T23-57 (blind at 375, deaf and mute at 1280,
+    // beats start and 2): 6 calls cost $0.0734 (7666 in, 4183 written, 4183 read, 4678 out)
+    const measured = 0.0734;
+    const six = [
+      ...[1, 2].map(() => item("blind", 375)),
+      ...[1, 2].map(() => item("deaf", 1280)),
+      ...[1, 2].map(() => item("mute", 1280)),
+    ];
+    const e = estimate(six, "claude-sonnet-5-5");
+    expect(Math.abs((e.usd as number) - measured) / measured).toBeLessThan(0.15);
+  });
+  it("matches a hand-computed figure for 9 items within 1%", () => {
+    // per role: one cache write and two reads of the 1394-token prefix, then text, image, output
+    const role = (img: number) =>
+      (1394 * 2.5 + 2 * 1394 * 0.2 + 3 * ((img + 700) * 2 + 780 * 10)) / 1e6;
+    const hand = role(0) + role(260) + role(870);
     const e = estimate(room01, "claude-sonnet-5-5");
     expect(e.calls).toBe(9);
     expect(Math.abs((e.usd as number) - hand) / hand).toBeLessThan(0.01);

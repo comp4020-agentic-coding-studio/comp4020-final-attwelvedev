@@ -6,13 +6,14 @@ export const PRICES: Record<string, { input: number; output: number; cacheRead: 
   "claude-sonnet-5-5": { input: 2, output: 10, cacheRead: 0.2 },
 };
 
-// Per-call token constants (overview §4.4), set from the measured room in Task 131.
+// Per-call token constants (overview §4.4), set from the measured room 01 review (Task 131):
+// 6 calls, 7666 input, 4183 written to and 4183 read from the cache, 4678 output.
 export const TOKENS = {
-  prefix: 1500, // the cached system prefix: role and prior knowledge
-  image1280: 1400, // w x h / 750
-  image375: 400,
-  text: 1500, // the perceived text
-  output: 500, // including thinking at effort low
+  prefix: 1394, // the cached system prefix: role and prior knowledge, written once per room and role
+  image1280: 870, // a desktop screenshot, as billed
+  image375: 260,
+  text: 700, // the perceived text
+  output: 780, // including thinking at effort low
 };
 
 export interface Estimate {
@@ -31,11 +32,15 @@ export function estimate(items: ReviewItem[], model: string): Estimate {
     };
   }
   let usd = 0;
+  const written = new Set<string>(); // the first call of a room and role writes the cache
   for (const item of items) {
     const image =
       item.role === "blind" ? 0 : item.width >= 1000 ? TOKENS.image1280 : TOKENS.image375;
+    const key = `${item.room}/${item.role}`;
+    const prefix = written.has(key) ? price.cacheRead : price.input * 1.25;
+    written.add(key);
     usd +=
-      (TOKENS.prefix * price.cacheRead +
+      (TOKENS.prefix * prefix +
         (image + TOKENS.text) * price.input +
         TOKENS.output * price.output) /
       1e6;

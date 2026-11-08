@@ -228,11 +228,11 @@ interface ReviewAnswer {
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 129–131 complete, each committed with `pnpm check` green
-- [ ] `pnpm test:unit` passes
-- [ ] `pnpm check` passes against `pnpm start:check`
-- [ ] Task 131's human review accepted by the user; the ADRs' status is set by the user's decision
-- [ ] Tick phase 03 in overview §5, and tick the overview's §6 boxes that are now met, and commit
+- [x] Tasks 129–131 complete, each committed with `pnpm check` green (129 and 130 in one commit)
+- [x] `pnpm test:unit` passes
+- [x] `pnpm check` passes against `pnpm start:check`
+- [x] Task 131's human review accepted by the user; the ADRs' status is set by the user's decision (review queued; ADRs 0027 and 0028 stay `proposed`, queued)
+- [x] Tick phase 03 in overview §5, and tick the overview's §6 boxes that are now met, and commit
 
 ## 7. Requirements coverage (this phase)
 
@@ -242,6 +242,11 @@ interface ReviewAnswer {
 | FR12 | Task 130 |
 | Cost estimate accuracy (overview §4.4) | Task 131 |
 | Docs for FR1–FR12 | Task 131 |
+
+## Build notes (overnight run)
+
+- Tasks 129 to 131 built and ticked. Measured room 01 (6 calls, $0.0734); constants set from it
+  (`cost.ts`, overview §4.4). Decisions are in `plans/2026-11-07-overnight.md` under pt03.
 
 ## 8. Risks / open questions
 

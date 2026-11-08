@@ -891,3 +891,20 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
   without it (decision logged under pt02/close).
 - To decide in the morning: accept the report, then either reseed or fix room 04's stall, or let the
   run restart a stalled room and carry on, so all nine rooms get exercised.
+
+### Playtests phase 03, Task 131: room 01's `review.html` and the README's Playtests section
+
+- **Look at:** (1) the findings in room 01's review: real leads, or noise? (2) "would do next"
+  beside "designed" readable at a glance? (3) the README's Playtests section: can a new reader run both
+  commands and see what each costs and finds? (4) Accept or reject ADRs 0027 and 0028 (both still
+  `proposed`; accepting is a status-line-only commit of its own).
+- **Start locally:** `pnpm build && pnpm playtest --room 01` (about 40 s, free), then
+  `pnpm playtest:review <run> --room 01` (prints the estimate, about $0.07, exits 2) and the same with
+  `--yes` to spend it. The measured run is `review/playtest/2026-11-08T23-57/review.html` (git-ignored;
+  open the file). README: `pnpm start`, then `/readme/`.
+- **Screenshots:** `review/n7-pt03-task131-review-1280.png`, `-375.png`; `review/n7-pt03-task131-readme-1280.png`, `-375.png`.
+- **Judged:** the measured review is 6 calls, $0.0734, 18 s, no errors, 37 findings. Most are plausible
+  legibility leads (stacked figures at the spawn, an empty Captions region, a vague "Not restarted: Ana kept
+  playing." status), but the volume is high at effort `low` and some are generic ("Live is vague"); treat
+  them as leads. The page is readable at both widths; the 375 review table scrolls sideways (three role
+  columns), which I left. The estimate is within 15% of the tally after correcting the constants.

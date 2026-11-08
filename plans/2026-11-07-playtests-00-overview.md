@@ -254,11 +254,14 @@ the clash with Playwright's `Page`.)
 
 ### 4.4 Cost model (Task 130, set from a measured room in Task 131)
 
-Per call: cached system prefix (role, prior knowledge) ≈ 1.5k tokens; a 1280×800 screenshot ≈ 1.4k
-(w·h/750; a 375×812 one ≈ 0.4k); perceived text ≈ 1.5k; output ≈ 500 including thinking at effort `low`.
-On `claude-sonnet-5-5` ($2 in, $10 out, $0.20 cache read per MTok) that is about $0.012 for a sighted
-desktop call and about $0.009 for Can't see. Room 01 is 9 calls ≈ $0.10; a heist is 132 calls ≈ $1.60,
-quoted as "about $2". Task 131 measures room 01 and corrects the constants.
+Measured on room 01 (Task 131, run `2026-11-08T23-57`, `claude-sonnet-5-5`; 6 calls, as the run had no
+beat 1): 7,666 input, 4,183 cache written, 4,183 cache read, 4,678 output tokens, $0.0734, 18 s at 3 calls
+at a time. Per call: cached system prefix ≈ 1.4k tokens (written once per room and role at 1.25 × input,
+then read at $0.20); a 1280×800 screenshot ≈ 0.9k (a 375 one ≈ 0.26k); perceived text ≈ 0.7k; output ≈ 780
+including thinking at effort `low`. That is about $0.012 for a call with a desktop shot and about $0.011
+for Can't see (the output dominates). A heist is 132 calls, about $1.50, quoted as "about $2". The
+estimate in `scripts/playtest/review/cost.ts` is within 15% of the tally (the first guess, 1.5k text and
+500 output, was 17% low).
 
 ### 4.5 Evidence layout (Tasks 125 and 128 write it; Task 129 reads it)
 
@@ -283,13 +286,13 @@ review/playtest/<run>/
 | --- | --- | --- | --- | --- | --- |
 | 01 | `…-01-seam.md` | 121–124 | — | Proxy proven (gate); autopilot seam, refusal on Fly and page hook live behind the flag; `spec/autopilot.test.ts` green and shown red first | [x] |
 | 02 | `…-02-regression.md` | 125–128 | 01 | `pnpm playtest` plays all 9 rooms at both widths, report.html written; **Human review** of the report | [x] (review queued; full-run item not met, see phase file) |
-| 03 | `…-03-review.md` | 129–131 | 01, 02 | `pnpm playtest:review` refuses without `--yes`; room 01 reviewed for real, its estimate within 15% of the tally; docs; ADRs put to the user; **Human review** of the review and README | [ ] |
+| 03 | `…-03-review.md` | 129–131 | 01, 02 | `pnpm playtest:review` refuses without `--yes`; room 01 reviewed for real, its estimate within 15% of the tally; docs; ADRs put to the user; **Human review** of the review and README | [x] (review queued; ADRs 0027 and 0028 stay proposed) |
 
 ## 6. Feature-level Definition of Done
 
 - [ ] Every phase in §5 is ticked, and every task is complete with tests passing
-- [ ] `pnpm test:unit` passes
-- [ ] `pnpm check` passes against `pnpm start:check`
+- [x] `pnpm test:unit` passes
+- [x] `pnpm check` passes against `pnpm start:check`
 - [ ] Manually verified: `pnpm playtest` completes nine rooms at both widths and exits 0 (or each
       failure it reports is a real bug, logged and fixed test-first); `pnpm playtest:review <run> --room
       01 --yes` writes a `review.html` the user has read
