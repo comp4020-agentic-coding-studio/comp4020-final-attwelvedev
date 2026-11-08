@@ -1,5 +1,5 @@
 import { mix, WORLD } from "../../tokens.ts";
-import { BLACK, bulb, darker, glow, iron, lighter, litBox, type Painter, wood } from "./kit.ts";
+import { bulb, darker, glow, iron, lighter, litBox, type Painter, wood } from "./kit.ts";
 
 // Rooms 03 (watch house), 04 (bank) and 05 (gallery): things a watch house, a bank hall and a gallery
 // hang on their walls, each with a job (DESIGN.md §4.9).
@@ -139,19 +139,6 @@ export const ropeCoil: Painter = (c, _item, w, h) => {
     Math.max(1.5, w * 0.035),
     rope,
   ); // the end
-};
-
-function sconceBody(c: CanvasRenderingContext2D, w: number, h: number) {
-  c.fillStyle = mix(WORLD.wallFront, BLACK, 0.35); // plate and cup
-  c.fillRect(w / 2 - w * 0.06, h * 0.5, w * 0.12, h * 0.05);
-  c.fillRect(w / 2 - w * 0.04, h * 0.34, w * 0.08, h * 0.16);
-}
-export const sconceDim: Painter = (c, _item, w, h) => {
-  sconceBody(c, w, h);
-  c.fillStyle = mix(WORLD.sconce, WORLD.wallFront, 0.8); // a cold bulb
-  c.beginPath();
-  c.arc(w / 2, h * 0.31, w * 0.04, 0, Math.PI * 2);
-  c.fill();
 };
 
 // The bank: a raised-panel wainscot under one dado rail, a framed engraving, a banker's lamp, a strip

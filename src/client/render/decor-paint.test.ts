@@ -237,11 +237,19 @@ describe("the rules", () => {
     }
   });
 
-  it("the staff draws no filled ellipse or circle (it carries no notes)", () => {
-    for (const item of items().filter((i) => i.kind === "staff")) {
-      const names = paint(item).ops.map((o) => o.name);
+  // rule 2: the manuscript shows staves, bar lines and a clef; a note head (a filled ellipse or
+  // circle) would read as a tune to play
+  it("the manuscript draws bar lines and a clef and no filled ellipse or circle", () => {
+    for (const v of [0, 1]) {
+      const { ops } = paint({ x: 0, y: 0, face: "front", kind: "manuscript", variant: v });
+      const names = ops.map((o) => o.name);
       expect(names).not.toContain("ellipse");
       expect(names).not.toContain("arc");
+      expect(names).toContain("quadraticCurveTo"); // the clef
+      const bars = ops.filter(
+        (o) => o.name === "fillRect" && (o.args[2] as number) < 1 && (o.args[3] as number) > 2,
+      );
+      expect(bars.length).toBeGreaterThanOrEqual(8); // 4 bar lines a stave, 2 or 3 staves
     }
   });
 

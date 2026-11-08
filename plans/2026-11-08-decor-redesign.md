@@ -83,7 +83,7 @@ Each new or changed assertion that guards a promise is shown red first, with a b
   - Acceptance: screenshots of 03, 04 and 05 at both widths; `spec/layout/decor.test.ts` green for them.
   - Depends on: Task 3.
 
-- [ ] **Task 5: Rooms 6, 7 and 8**
+- [x] **Task 5: Rooms 6, 7 and 8**
   - Files: `src/client/render/decor-paint/stage.ts`, `works.ts`, `decor.ts`, `LOOKS`, `DESIGN.md`. Rooms 7 and 8 have dark zones (`flips` of kind `dark` in their room files): if the client already has those zones, a lit item is not placed within 1 tile of one (add it to `excluded` in `decor.ts` and a test in `decor.test.ts`). If it does not, say so in the commit and make rooms 7 and 8's lit items sit on the far side of a wall from every dark zone's tiles; do not add a field to the wire for this.
   - Tests first: as Task 3; the manuscript painter draws bar lines and a clef and no filled ellipse (no note head). Red by adding a filled ellipse.
   - Acceptance: room 7's breaker cabinet and pegboard, and room 8's violin, lute and manuscript, each nameable at a glance in a screenshot at both widths.

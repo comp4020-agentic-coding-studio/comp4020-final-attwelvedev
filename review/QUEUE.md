@@ -766,3 +766,9 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
 
 - **Sheets:** `review/decor/03-watchers.png`, `04-the-safe.png`, `05-the-gallery.png`. **In game:** `review/n7-decor-task4-room{03,04,05}-{1280,375}.png`.
 - **What I judged:** watch house: a cloth banner hung flat from a rod (not on a pole, which is the exit's flag), a hooded lantern, crossed staves, a rope coil. Bank: raised-panel wainscot, a landscape engraving, a banker's lamp, coat hooks. Gallery: landscapes and still lifes in muted code colours (a test holds them at 70 % toward the wall), a blank label card, a picture light. The rope coil is a ring: say if it reads as a dial (rule 3).
+
+### decor Task 5: rooms 6, 7 and 8 (human review, pending; rooms 7 and 8 were your named complaints)
+
+- **Look at:** `review/decor/06-lights-out.png`, `07-night-shift.png`, `08-music-room.png`, and in game `review/n7-decor-task5-room{06,07,08}-{1280,375}.png`. A pass: you can say what each thing is. Room 7's breaker cabinet and pegboard (spanner and hammer) are on the north wall at Can't hear's spawn; room 8's framed manuscript is on the north wall and a violin on the glass corridor's wall.
+- **Start it:** as Task 3 (`pnpm decor:sheet 06 07 08`; or `pnpm build && PORT=8092 pnpm start` and play to rooms 7 and 8).
+- **What I judged:** each is nameable at 1280. Dropped from the plan's table: the conduit run (it read as a rail) and room 8's swag (it read as a bridge). The manuscript carries a clef and bar lines, never a note head (tested). The dressing mirror's glass is flat dull steel-grey, no sheen (rule 5). No lit item sits within a tile of a dark zone (tested).

@@ -30,20 +30,28 @@ export type DecorKind =
   | "hoodedLantern" // watch: a lantern under an iron hood, lit
   | "staves" // watch: two quarterstaffs crossed on pegs
   | "ropeCoil" // watch: a coil of rope on a hook
-  | "sconceDim" // backstage: an unlit sconce, no glow
   | "wainscot" // bank: raised panels under one dado rail
   | "engraving" // bank: a framed landscape engraving, no text
   | "bankerLamp" // bank: a green-shaded lamp on a brass arm, lit
   | "coatHooks" // bank: a board of brass coat hooks
-  | "kickPanel" // service: steel with vertical seams
+  | "curtain" // backstage: velvet on a rod, gathered by a tieback with a tassel
+  | "dressingMirror" // backstage: a dull mirror under a row of unlit bulbs
+  | "sandbag" // backstage: a fly rope on a cleat with its sandbag
+  | "sconceDim" // backstage: an unlit candle sconce, no glow
+  | "breakerCabinet" // service: a steel box, hinged lid, latch, a blank label plate
+  | "pipe" // service: a painted pipe with bolted flanges
+  | "pegboard" // service: a spanner and a hammer on a board
   | "cagedBulb" // service: a lit bulb in a cage
   | "painting" // gallery: a gilt frame round a landscape or a still life, a label card, a picture light
-  | "violin" // salon: silhouettes in a darker wall tone
-  | "lute"
-  | "staff" // salon: five lines, never a note
-  | "swag" // salon: a curtain swag across the top of a front
-  | "rivets" // strongroom: a row of six dots along the top of a front, or along a wall top
-  | "cladding" // strongroom: a steel panel with vertical seams
+  | "violin" // salon: hung by its scroll, shaded wood, strings
+  | "lute" // salon: a pear-shaped bowl, a bent pegbox
+  | "manuscript" // salon: framed staves with bar lines and a clef, never a note head
+  | "candleSconce" // salon: a candle sconce, lit
+  | "rivets" // strongroom: a row of six rivet heads, on a front or along a top
+  | "cladding" // strongroom: riveted steel plates with a weld seam
+  | "hingeStrap" // strongroom: two iron hinge straps, bolted
+  | "cableTray" // strongroom: a tray of cables on brackets
+  | "girder" // strongroom: the end of a steel girder (an I-section) on its base plate
   | "cagedSconce"; // strongroom: a lit bulb in a cage
 
 export const THEME_OF: Record<string, Theme> = {
@@ -64,10 +72,10 @@ export const THEME_KINDS: Record<Theme, readonly DecorKind[]> = {
   watch: ["banner", "hoodedLantern", "staves", "ropeCoil", "coping"],
   bank: ["wainscot", "engraving", "bankerLamp", "coatHooks", "coping"],
   gallery: ["painting", "coping"],
-  backstage: ["swag", "sconceDim"],
-  service: ["kickPanel", "cagedBulb"],
-  salon: ["violin", "lute", "staff", "swag"],
-  strongroom: ["rivets", "cladding", "cagedSconce"],
+  backstage: ["curtain", "dressingMirror", "sandbag", "sconceDim", "coping"],
+  service: ["breakerCabinet", "pipe", "pegboard", "cagedBulb", "coping"],
+  salon: ["violin", "lute", "manuscript", "candleSconce", "coping"],
+  strongroom: ["cladding", "hingeStrap", "cableTray", "girder", "cagedSconce", "rivets"],
 };
 
 // Which faces a kind can go on. A wall's top carries only flush things (DESIGN.md §4.9 rule 7).
@@ -85,20 +93,28 @@ export const KIND_FACES: Record<DecorKind, readonly ("front" | "top")[]> = {
   hoodedLantern: ["front"],
   staves: ["front"],
   ropeCoil: ["front"],
-  sconceDim: ["front"],
   wainscot: ["front"],
   engraving: ["front"],
   bankerLamp: ["front"],
   coatHooks: ["front"],
-  kickPanel: ["front"],
+  curtain: ["front"],
+  dressingMirror: ["front"],
+  sandbag: ["front"],
+  sconceDim: ["front"],
+  breakerCabinet: ["front"],
+  pipe: ["front"],
+  pegboard: ["front"],
   cagedBulb: ["front"],
   painting: ["front"],
   violin: ["front"],
   lute: ["front"],
-  staff: ["front"],
-  swag: ["front"],
-  rivets: ["front", "top"],
+  manuscript: ["front"],
+  candleSconce: ["front"],
+  rivets: ["top"],
   cladding: ["front"],
+  hingeStrap: ["front"],
+  cableTray: ["front"],
+  girder: ["front"],
   cagedSconce: ["front"],
 };
 
@@ -111,6 +127,7 @@ export const LIT: ReadonlySet<DecorKind> = new Set([
   "hoodedLantern",
   "bankerLamp",
   "cagedBulb",
+  "candleSconce",
 ]);
 
 export interface DecorItem {
@@ -123,16 +140,17 @@ export interface DecorItem {
 }
 
 // A room's nudge to its seed (R2): raised when the anchor test finds an item beside a station part.
-// Re-picked for the per-cell rolls (auto fixes 2): the first salt with no item beside a station part
-// or plaque and at least two items (09: the first with any).
+// Re-picked for the per-cell rolls (auto fixes 2), and again for the decor redesign: the first salt
+// with no item beside a station part, plaque or ink, at least two fronts, and no lit item within a
+// tile of a dark zone (07, 08); 08's also shows its violin and manuscript, the named complaint.
 export const SALT: Record<string, number> = {
   "03-watchers": 1,
   "04-the-safe": 2,
   "05-the-gallery": 242,
-  "06-lights-out": 5,
-  "07-night-shift": 198,
+  "06-lights-out": 67,
+  "07-night-shift": 21095,
   "08-music-room": 4,
-  "09-the-vault": 12365,
+  "09-the-vault": 33205,
 };
 
 // 32-bit FNV-1a, then mulberry32

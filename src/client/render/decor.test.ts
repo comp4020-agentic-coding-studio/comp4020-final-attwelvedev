@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { spectatorView, viewFor } from "../../game/perception.ts";
+import { flipsOf } from "../../game/rooms/format.ts";
 import { loadRooms } from "../../game/rooms/load.ts";
 import { createWorld } from "../../game/sim/world.ts";
 import type { Role, Vec } from "../../game/types.ts";
@@ -311,6 +312,26 @@ describe("decor is the same on every screen in a room", () => {
     expect(a.filter((i) => !near(i)).length, "some decor to compare").toBeGreaterThan(0);
     expect(awayFrom(decorFor(room.id, watcher), near)).toEqual(awayFrom(a, near));
   });
+});
+
+// Rule 4 (a light is quiet): a lit item never hangs within a tile of a dark zone, where its glow
+// would look like light spilling into the dark. A sighted seat gets a dark zone as night, which NEAR
+// already keeps decor clear of; a spectator gets the unmasked layout, so this checks that one against
+// the room file's own zones (the client is never told them: no wire field for decor).
+describe("no lit decor beside a dark zone", () => {
+  for (const room of loadRooms("./rooms")) {
+    const zones = flipsOf(room).flatMap((f) => (f.kind === "dark" ? [f.zone] : []));
+    if (zones.length === 0) continue;
+    it(`room ${room.id}`, () => {
+      const lit = decorFor(room.id, room.grid).filter((i) => i.lit);
+      for (const it of lit)
+        for (const [x0, y0, x1, y1] of zones) {
+          const dx = Math.max(x0 - it.x, 0, it.x - x1);
+          const dy = Math.max(y0 - it.y, 0, it.y - y1);
+          expect(Math.max(dx, dy), `${it.kind} at ${it.x},${it.y}`).toBeGreaterThan(1);
+        }
+    });
+  }
 });
 
 describe("faces (DESIGN.md §4.9 rule 7)", () => {

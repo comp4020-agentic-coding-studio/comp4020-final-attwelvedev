@@ -233,9 +233,9 @@ signal. Decor is also drawn in the home feeds (room 01's, for the sighted feeds 
 | 03 watch house | a cloth banner hung from a rod with tassels, a hooded lantern (lit), crossed staves on pegs, a rope coil on a hook | stone coping |
 | 04 bank | raised-panel wainscot under one dado rail, a framed landscape engraving (no text), a banker's lamp (lit), a brass coat-hook strip | stone coping |
 | 05 gallery | gilt frames in two sizes round a landscape or a still life (code colours mixed at least 70 % toward the wall, no portraits), a plain label card, a picture light (lit) | stone coping |
-| 06 backstage | curtain swags, unlit sconces | none |
-| 07 service | steel kick panels, caged bulbs | none |
-| 08 salon | violin and lute silhouettes, staves with no notes, curtain swags | none |
+| 06 backstage | a velvet curtain drawn back by a tieback, a dressing mirror (dull, opaque) under a row of unlit bulbs, a fly rope on a cleat with its sandbag, an unlit candle sconce | stone coping |
+| 07 service | a breaker cabinet (hinged lid, latch, a blank label plate), a painted pipe with bolted flanges, a pegboard with a spanner and a hammer, a caged bulb (lit) | stone coping |
+| 08 salon | a violin and a lute hung from pegs (shaded wood, strings), a framed manuscript (staves, bar lines, a clef, never a note head), a candle sconce (lit) | stone coping |
 | 09 strongroom | steel cladding, caged sconces, rivet rows | rivet rows |
 
 - **Placement** (`decorFor` in `src/client/render/decor.ts`): each wall cell's face rolls its own
@@ -265,6 +265,9 @@ signal. Decor is also drawn in the home feeds (room 01's, for the sighted feeds 
   6. **No outline in `WORLD.line`** (the mark of solid or interactive things). Depth comes from fills,
      a north-west highlight and a south-east shade.
   7. A wall's top carries only flush things (coping, moss, rivets), never something standing on it.
+  A lit item never hangs within a tile of a dark zone (`decor.test.ts`, from the room file's flips:
+  the client is never told the zones, and a sighted seat sees them as night, which decor keeps clear
+  of anyway).
   `decor-paint.test.ts` checks rules 2, 4, 5 and 6 on every painter; `decor.test.ts` checks kind
   names against rule 3. Whether a shape reads as a signal is judged at review on the contact sheet.
 - **High contrast draws no decor.**
