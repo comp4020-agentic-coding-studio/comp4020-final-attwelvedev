@@ -281,6 +281,84 @@ describe("the rules", () => {
     }
   });
 
+  // rule 3: no slats or rails. A band is a string-filled fillRect wider than half the face and at
+  // most 2 px tall; three or more on one item read as slats. Kinds allowed more, each with its reason:
+  const BANDS_OK: Partial<Record<DecorKind, string>> = {};
+  // Fills whose rows overlap or touch are one band: a rod drawn as a body with a lit edge and a shade
+  // edge (litBox) is one rail to the eye, not three. A thin fill inside a taller one drawn before it
+  // is that box's own edge (a strap's, a frame's), not a rail across the face.
+  const bandsOf = (ops: Op[]): [number, number][] => {
+    const rects = ops.flatMap((o, i) =>
+      o.name === "fillRect" && typeof o.fillStyle === "string"
+        ? [
+            {
+              i,
+              x: o.args[0] as number,
+              y: o.args[1] as number,
+              w: o.args[2] as number,
+              h: o.args[3] as number,
+            },
+          ]
+        : [],
+    );
+    const inBox = (r: (typeof rects)[number]) =>
+      rects.some(
+        (b) =>
+          b.i < r.i &&
+          b.h > 2 &&
+          b.x <= r.x + 0.01 &&
+          b.x + b.w >= r.x + r.w - 0.01 &&
+          b.y <= r.y + 0.01 &&
+          b.y + b.h >= r.y + r.h - 0.01,
+      );
+    const rows = rects
+      .filter((r) => r.w > W / 2 && r.h <= 2 && !inBox(r))
+      .map((r) => [r.y, r.y + r.h] as [number, number])
+      .sort((a, b) => a[0] - b[0]);
+    const out: [number, number][] = [];
+    for (const [y0, y1] of rows) {
+      const last = out.at(-1);
+      if (last && y0 <= last[1] + 0.01) last[1] = Math.max(last[1], y1);
+      else out.push([y0, y1]);
+    }
+    return out;
+  };
+  it("rule 3: no item draws more than 2 horizontal bands across half its face", () => {
+    for (const item of items()) {
+      if (BANDS_OK[item.kind]) continue;
+      const bands = bandsOf(paint(item).ops);
+      expect(
+        bands.length,
+        `${item.kind} ${item.face} ${item.variant} ${JSON.stringify(bands)}`,
+      ).toBeLessThanOrEqual(2);
+    }
+  });
+
+  // rule 3: no dial or gauge face. A near-round arc or ellipse (|rx − ry| < 0.2 of the larger) of
+  // radius 0.15 of the face's width or more reads as one. Kinds allowed a bigger one, with a reason:
+  const ROUND_OK: Partial<Record<DecorKind, string>> = {
+    violin:
+      "its lower bout is the instrument's body (0.15 by 0.13 of the face), crossed by the strings and neck: a violin, not a dial",
+  };
+  it("rule 3: no item draws a near-round circle of radius ≥ 0.15 of its face", () => {
+    for (const item of items()) {
+      if (ROUND_OK[item.kind]) continue;
+      for (const o of paint(item).ops) {
+        const [rx, ry] =
+          o.name === "arc"
+            ? [o.args[2] as number, o.args[2] as number]
+            : o.name === "ellipse"
+              ? [o.args[2] as number, o.args[3] as number]
+              : [0, 0];
+        const r = Math.max(rx, ry);
+        if (r > 0 && Math.abs(rx - ry) < 0.2 * r)
+          expect(r, `${item.kind} ${item.face} ${item.variant} (${rx} by ${ry})`).toBeLessThan(
+            0.15 * W,
+          );
+      }
+    }
+  });
+
   it("every theme kind has a painter", () => {
     for (const k of KINDS) expect(PAINTERS[k], k).toBeTypeOf("function");
   });

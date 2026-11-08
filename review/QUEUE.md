@@ -797,3 +797,11 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
   small, and in play the cutter stands on the wire's tile, so their own figure covers much of it; the
   teammates in sight still see it at the panel's foot. If it reads too faint, the knob is the spark's
   size in the renderer, not the field.
+
+### autofix4 Task 244: rule 3's slat and dial guards; the cable tray and rope coil redrawn
+
+- **Look at:** room 9's cable tray (`cableTray`), now three cables sagging out of the tray between its brackets instead of three flat bands; the watch theme's rope coil (`ropeCoil`), now a long hank hanging off its hook instead of near-round rings. A pass means the tray reads as cable (not a rail or slats) and the coil as rope (not a dial or a ring target).
+- **Start it:** `node scripts/decor-sheet.ts 09 03` writes `review/decor/09-the-vault.png` (row 4, the tray) and `review/decor/03-watchers.png` (row 5, the coil) at 1×, 2× and 3×. In the game: `pnpm build && pnpm start`, room 9, walk east along the top corridor past the wire panel Q2 to x ≈ 29.
+- **Screenshots:** `review/n7-autofix4-task244-tray-room9-1280.png` (Can't hear at (25, 2): Q2's wires and the tray in one frame, from a real `viewFor`), `review/n7-autofix4-task244-tray-room9-375.png` (at (27, 2): the tray; Q2 is off a phone's width). No shipped room places a rope coil, so it has only the contact sheet.
+- **Allow-list entries for you:** `violin` may draw its lower bout (0.15 by 0.13 of the face) because it is the instrument's body, not a dial. The band count merges a rod's lit and shaded edges into one band and ignores a box's own edges (logged in `plans/2026-11-07-overnight.md`).
+- **Judged:** the tray reads as loose cable at 2× and 3×; at 1× it is a thin sagging line, which is fine. The coil reads as rope at every size. The tray's red cable is still strong next to Q2's red wire: that is Task 245's (rule 2's colour ban).

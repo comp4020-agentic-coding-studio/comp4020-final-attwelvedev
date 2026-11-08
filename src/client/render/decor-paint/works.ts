@@ -160,10 +160,18 @@ export const cableTray: Painter = (c, _item, w, h) => {
   litBox(c, 0, y + h * 0.1, w, h * 0.03, steel()); // the tray's lip and bottom
   c.fillStyle = darker(steel(), 0.15);
   c.fillRect(0, y + h * 0.13, w, h * 0.02);
+  // the cables lie heaped in the tray and sag out of it between the brackets, each its own way, so
+  // they read as loose cable, never as flat bands across the face (rule 3)
   const cables = [darker(WORLD.steelFront, 0.5), red(), darker(WORLD.steelFront, 0.35)];
+  c.lineWidth = Math.max(1, h * 0.022);
   cables.forEach((tone, i) => {
-    c.fillStyle = tone;
-    c.fillRect(0, y + h * (0.03 + i * 0.025), w, h * 0.022);
+    const top = y + h * (0.06 + i * 0.012);
+    const sag = h * (0.06 + i * 0.05);
+    c.strokeStyle = tone;
+    c.beginPath();
+    c.moveTo(0, top);
+    c.quadraticCurveTo(w * (0.45 + i * 0.05), top + sag * 2, w, top + h * 0.01 * i);
+    c.stroke();
   });
   for (const x of [0.25, 0.75])
     litBox(c, w * x - w * 0.02, y + h * 0.13, w * 0.04, h * 0.12, iron());

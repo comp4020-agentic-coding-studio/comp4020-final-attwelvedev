@@ -110,7 +110,8 @@ export const staves: Painter = (c, _item, w, h) => {
   for (const x of [0.36, 0.64]) litBox(c, w * x - w * 0.03, h * 0.36, w * 0.06, h * 0.05, iron());
 };
 
-// A coil of rope hung on an iron hook: rings of rope, each lit on its top.
+// A coil of rope hung on an iron hook: rings of rope, each lit on its top, hanging long and flattened
+// under its own weight, so never a round face (rule 3).
 export const ropeCoil: Painter = (c, _item, w, h) => {
   const cx = w * 0.5;
   const cy = h * 0.52;
@@ -119,8 +120,8 @@ export const ropeCoil: Painter = (c, _item, w, h) => {
   bar(c, cx, h * 0.22, cx, h * 0.3, Math.max(1, w * 0.025), iron());
   c.lineWidth = Math.max(1.5, w * 0.035);
   for (let i = 0; i < 4; i++) {
-    const rx = w * (0.2 - i * 0.012);
-    const ry = h * (0.2 - i * 0.008);
+    const rx = w * (0.13 - i * 0.008);
+    const ry = h * (0.22 - i * 0.008);
     c.strokeStyle = darker(rope, 0.15 + 0.05 * (i % 2));
     c.beginPath();
     c.ellipse(cx + i * 0.6, cy + i * 0.8, rx, ry, 0.15, 0, Math.PI * 2);

@@ -271,8 +271,11 @@ signal. Decor is also drawn in the home feeds (room 01's, for the sighted feeds 
   A lit item never hangs within a tile of a dark zone (`decor.test.ts`, from the room file's flips:
   the client is never told the zones, and a sighted seat sees them as night, which decor keeps clear
   of anyway).
-  `decor-paint.test.ts` checks rules 2, 4, 5 and 6 on every painter; `decor.test.ts` checks kind
-  names against rule 3. Whether a shape reads as a signal is judged at review on the contact sheet.
+  `decor-paint.test.ts` checks rules 2, 4, 5 and 6 on every painter, and two shapes of rule 3 on
+  every painter: slats (no more than 2 horizontal bands across half a face) and dial or gauge faces
+  (no near-round circle of radius 0.15 of the face or more), each with an allow-list whose entries
+  name their reason. `decor.test.ts` checks kind names against the rest of rule 3. Whether a shape
+  reads as a signal is judged at review on the contact sheet.
 - **High contrast draws no decor.**
 
 ### 4.7 The role frame (built)
