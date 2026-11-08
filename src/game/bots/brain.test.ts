@@ -684,8 +684,11 @@ describe("a seeing bot among hazards", () => {
 describe("with a person on the team", () => {
   const ROTATION_2: [Role, Role, Role] = ["mute", "blind", "deaf"];
 
-  it("recovers when the team is caught and sent back, wherever they were: nobody walks on in the old direction", () => {
-    for (const when of [60, 100, 130, 170, 220, 260]) {
+  // One test a tick, not one loop of six: each is a 2,400-tick simulation (about 2 s here), and all six in one
+  // test ran past the 20 s limit on a CI runner that is slower than a laptop.
+  it.each([60, 100, 130, 170, 220, 260])(
+    "recovers when the team is caught and sent back at tick %i: nobody walks on in the old direction",
+    (when) => {
       let sentBack = false;
       const run = play("10-vault", ROTATION_2, [0, 1, 2], 2400, () => {}, {
         onTick: (world) => {
@@ -703,8 +706,8 @@ describe("with a person on the team", () => {
       });
       expect(sentBack).toBe(true);
       expect(run.world.status, `sent back at tick ${when}`).toBe("cleared");
-    }
-  });
+    },
+  );
 
   it("clears the sequence door when the person is slow: the others step off and press again", () => {
     // a person who does nothing for 25 s, longer than the 5 s the sequence allows (not the one
