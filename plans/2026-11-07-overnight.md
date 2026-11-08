@@ -244,3 +244,14 @@
 - sunrise/Task 4: "none ... on a restart before the flat plan" vs demo 6 "restart replays from dusk" → a restart that replays the intro gets the sunrise; a page loaded mid-game (no intro, no flat plan) gets none, because that reading satisfies both. Reversible in `introScene`.
 - sunrise/Task 4: the sunrise curve → ease in-out over the tilt and swoop together (1800 ms), the same easing as rise and swoop, because the plan names only the endpoints. Reversible in `introAt`.
 - sunrise/Human review: the plan's Human review (Tasks 3 and 4 on a local build with the real hold) is the user's; left unticked, sign-off pending, queued in `review/QUEUE.md` with contact sheets.
+
+## decor
+
+- decor: the plan's Human review section (Tasks 3, 5 and 6) is the user's: left unticked, sign-off pending; each review is queued in `review/QUEUE.md`.
+- decor/3: the style-bar review cannot be waited for overnight → rooms 1 and 2 are drawn, committed with `Human review: pending (overnight run)`, and rooms 3 to 9 are drawn to the bar of rooms 1 and 2 as built, because the run was told to. Reversible by redrawing per the user's strikes in `src/client/render/decor-paint/*.ts`.
+- decor/3: the plan's table gives room 2 a "glazing-bar cresting" top, but its own Task 3 test says a top gets only `coping` or `moss`, and a cresting stands up from the top (rule 7) → room 2's tops are coping only, because a flush-top rule that one item breaks is no rule. Reversible by adding a `cresting` top kind.
+- decor/3: a first trellis of iron uprights under an arched head read as a gate (rule 3: a door) on the contact sheet → it is a wooden fan trellis. Reversible by editing `trellis` in `garden.ts`.
+- decor/3: coping drawn as a grey stone fill read as a separate tile on the pink top in game → coping draws only its joints over the top's own fill and light. Reversible by giving `coping` a fill.
+- decor/3: the flush-top test also lets `rivets` on a top (room 9's existing rivet row, named in the plan's table for room 9). Reversible by editing `FLUSH` in `decor.test.ts`.
+- decor/2: `CAP = 64` stays: each shipped room uses at most 3 distinct decorated wall tiles. Reversible by raising `CAP` in `atlas.ts`.
+

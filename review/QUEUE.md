@@ -741,3 +741,23 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
   frozen and stepped, which runs a little ahead of the real timeline (the 1200 ms frame is warmer
   than it is live). A real-time probe of the canvas's sky on Can't speak's page read 59,45,67 (dusk)
   at the first frame, rising every frame to 247,221,205 (day) by the end of the swoop.
+
+### decor Task 3: the style bar, rooms 1 and 2 (plan `plans/2026-11-08-decor-redesign.md`)
+
+- **Look at:** the contact sheets `review/decor/01-first-steps.png` and `review/decor/02-three-hands.png`
+  (every look of every kind on a wall tile, at 1×, 2× and 3×), then the same rooms in game. A pass:
+  each item can be named at a glance, it looks lit from the north-west with no outline, and none can be
+  taken for a signal. Strike or swap items; rooms 3 to 9 were drawn overnight to this bar as built,
+  so a strike here may need the same change there.
+- **Start it:** `pnpm decor:sheet` (all nine sheets); in game, `pnpm build && PORT=8092 pnpm start`,
+  three tabs, play rooms 1 and 2. A one-frame view per room: `BENCH=1 pnpm build`, then
+  `BENCH=1 PORT=8092 node server.ts` and open `http://localhost:8092/bench?room=01&still=1`.
+- **Screenshots:** `review/n7-decor-task3-room{01,02}-{1280,375}.png` (Can't hear's spawn view; at
+  375 the decor in view is off screen in room 1, the sheets show every item).
+- **What I judged:** pavilion: ivy on a lattice, a lantern on a bracket, a hanging basket, coping (its
+  joints only) and moss. Conservatory: a fan trellis with a vine, a plant shelf with three pots, a
+  fern basket, a gooseneck lamp. Calls made (`plans/2026-11-07-overnight.md`, decor/3): no cresting
+  on room 2's tops (it stands up from the top); the first trellis (arched iron bars) read as a gate
+  and was redrawn in wood; the lantern's lit panes are the brightest decor so far: say if it reads as
+  a signal lamp.
+- **Ask: accept ADR 0029** (`doc/adr/0029-decor-may-show-real-things-with-a-job.md`, `proposed`).

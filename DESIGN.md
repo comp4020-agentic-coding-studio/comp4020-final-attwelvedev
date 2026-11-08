@@ -228,8 +228,8 @@ signal. Decor is also drawn in the home feeds (room 01's, for the sighted feeds 
 
 | Room (theme) | Fronts | Tops |
 |---|---|---|
-| 01 pavilion | ivy trails | planter |
-| 02 conservatory | a diagonal trellis | fern |
+| 01 pavilion | ivy climbing a wooden lattice (leaves in three sizes, a few blossoms), a hanging lantern on an iron bracket (lit), a hanging basket on a hook | stone coping (its joints only), moss |
+| 02 conservatory | a wooden fan trellis with a flowering vine, a plant shelf on two brackets with three pots, a fern in a hanging wire basket, a gooseneck wall lamp (lit) | stone coping |
 | 03 watch house | swallowtail banners, unlit sconces | none |
 | 04 bank | a wainscot with one rail, framed certificates, lit sconces | none |
 | 05 gallery | gilt-framed paintings under a picture light | none |

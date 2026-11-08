@@ -70,7 +70,7 @@ Each new or changed assertion that guards a promise is shown red first, with a b
   - Acceptance: the contact sheet renders for all nine rooms; `pnpm bench:frame --compare` is unchanged.
   - Depends on: Task 1.
 
-- [ ] **Task 3: Rooms 1 and 2, and the style bar**
+- [x] **Task 3: Rooms 1 and 2, and the style bar**
   - Files: `src/client/render/decor.ts` (`DecorKind`, `THEME_KINDS`, `KIND_FACES`, `LIT`: add the kinds in the table; `planter` and `fern` leave `KIND_FACES`' tops, and tops get `coping`), `src/client/render/decor-paint/garden.ts` (the painters), `LOOKS`, `DESIGN.md` §4.9.
   - Tests first: `decor.test.ts` (every theme kind has a painter and a face, no front kind is placed on a top, a top gets only `coping` or `moss`), `spec/layout/decor.test.ts` stays green for rooms 01 and 02 (decor changes only wall-face pixels). Red by putting `planter` back on a top.
   - Acceptance: the contact sheet and in-game screenshots of rooms 1 and 2 at both widths.

@@ -1,7 +1,17 @@
 import { isHighContrast } from "../tokens.ts";
 import type { DecorItem, DecorKind } from "./decor.ts";
 import { banner, certificate, painting, sconce, sconceDim, wainscot } from "./decor-paint/civic.ts";
-import { fern, ivy, planter, trellis } from "./decor-paint/garden.ts";
+import {
+  coping,
+  fernBasket,
+  hangingBasket,
+  hangingLantern,
+  ivy,
+  moss,
+  plantShelf,
+  trellis,
+  wallLamp,
+} from "./decor-paint/garden.ts";
 import type { Painter } from "./decor-paint/kit.ts";
 import { lute, staff, swag, violin } from "./decor-paint/stage.ts";
 import { cagedBulb, cagedSconce, cladding, kickPanel, rivets } from "./decor-paint/works.ts";
@@ -21,10 +31,15 @@ export { BLACK, bulb, dark, glow, type Painter } from "./decor-paint/kit.ts";
 // How many looks each kind has: the rest of an item's variant is ignored, so the atlas keeps one tile
 // per look, not per variant.
 export const LOOKS: Record<DecorKind, number> = {
-  ivy: 6,
-  planter: 3,
+  ivy: 3,
+  hangingLantern: 1,
+  hangingBasket: 2,
+  coping: 2,
+  moss: 2,
   trellis: 2,
-  fern: 3,
+  plantShelf: 2,
+  fernBasket: 1,
+  wallLamp: 1,
   banner: 1,
   sconceDim: 1,
   wainscot: 1,
@@ -47,9 +62,14 @@ export const decorTile = (item: DecorItem): string =>
 
 export const PAINTERS: Record<DecorKind, Painter> = {
   ivy,
-  planter,
+  hangingLantern,
+  hangingBasket,
+  coping,
+  moss,
   trellis,
-  fern,
+  plantShelf,
+  fernBasket,
+  wallLamp,
   banner,
   sconceDim,
   wainscot,

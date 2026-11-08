@@ -31,3 +31,75 @@ export function bulb(c: CanvasRenderingContext2D, x: number, y: number, w: numbe
 }
 
 export const dark = (t: number) => mix(WORLD.wallFront, BLACK, t);
+
+// Lit from the north-west: a tone a little lighter, or a little darker, than the one given.
+const WHITE = "#ffffff";
+export const lighter = (tone: string, t = 0.25) => mix(tone, WHITE, t);
+export const darker = (tone: string, t = 0.25) => mix(tone, BLACK, t);
+
+// A solid box lit as the world is: its fill, a highlight along its top and left edges and a shade
+// along its bottom and right (rule 6: no outline). Edges are 1 px, or less on a small box.
+export function litBox(
+  c: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  tone: string,
+) {
+  const e = Math.max(0.5, Math.min(1, w / 6, h / 6));
+  c.fillStyle = tone;
+  c.fillRect(x, y, w, h);
+  c.fillStyle = lighter(tone);
+  c.fillRect(x, y, w, e);
+  c.fillRect(x, y, e, h);
+  c.fillStyle = darker(tone);
+  c.fillRect(x, y + h - e, w, e);
+  c.fillRect(x + w - e, y, e, h);
+}
+
+// Wood and iron as the decor uses them: a warm brown from brass, and a dark iron from steel, both
+// mixed a little toward the wall so they sit in the room's light.
+export const wood = () => mix(darker(WORLD.brass, 0.45), WORLD.wallFront, 0.15);
+export const iron = () => mix(darker(WORLD.steelFront, 0.55), WORLD.wallFront, 0.1);
+export const leafTone = (t = 0) => mix(darker(WORLD.codeGreen, 0.2 + t), WORLD.wallFront, 0.3);
+
+// A small leaf: a lens at (x, y), l long, turned by a, with its lit half a shade lighter.
+export function leaf(
+  c: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  l: number,
+  a: number,
+  tone: string,
+) {
+  c.fillStyle = tone;
+  c.beginPath();
+  c.ellipse(x, y, l / 2, l / 4.5, a, 0, Math.PI * 2);
+  c.fill();
+  c.fillStyle = lighter(tone, 0.2);
+  c.beginPath();
+  c.ellipse(x - l * 0.06, y - l * 0.06, l / 3.5, l / 9, a, 0, Math.PI * 2);
+  c.fill();
+}
+
+// A small blossom: five dots round a brass centre, d across.
+export function blossom(
+  c: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  d: number,
+  tone: string,
+) {
+  c.fillStyle = tone;
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    c.beginPath();
+    c.arc(x + Math.cos(a) * d * 0.28, y + Math.sin(a) * d * 0.28, d * 0.24, 0, Math.PI * 2);
+    c.fill();
+  }
+  c.fillStyle = WORLD.brass;
+  c.beginPath();
+  c.arc(x, y, d * 0.14, 0, Math.PI * 2);
+  c.fill();
+}

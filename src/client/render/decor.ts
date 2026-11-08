@@ -17,10 +17,15 @@ export type Theme =
 
 // A closed union: each theme's kinds.
 export type DecorKind =
-  | "ivy" // pavilion: trailing small leaves from the top edge of a front
-  | "planter" // pavilion: a box with foliage, on a wall's top
-  | "trellis" // conservatory: a diagonal lattice only
-  | "fern" // conservatory: fronds on a wall's top
+  | "ivy" // pavilion: ivy climbing a wooden lattice, leaves in three sizes, a few blossoms
+  | "hangingLantern" // pavilion: a lantern on an iron bracket, lit
+  | "hangingBasket" // pavilion: a willow basket of trailing plants on a hook
+  | "coping" // every top: flush stone coping with its joints
+  | "moss" // pavilion top: moss cushions on the coping
+  | "trellis" // conservatory: an arched iron trellis with a flowering vine
+  | "plantShelf" // conservatory: a board on two brackets with three pots
+  | "fernBasket" // conservatory: a fern in a wire basket on chains
+  | "wallLamp" // conservatory: a gooseneck lamp, lit
   | "banner" // watch: a swallowtail in wall tones
   | "sconceDim" // watch, backstage: an unlit sconce, no glow
   | "wainscot" // bank: a lower panel with one rail
@@ -50,8 +55,8 @@ export const THEME_OF: Record<string, Theme> = {
 };
 
 export const THEME_KINDS: Record<Theme, readonly DecorKind[]> = {
-  pavilion: ["ivy", "planter"],
-  conservatory: ["trellis", "fern"],
+  pavilion: ["ivy", "hangingLantern", "hangingBasket", "coping", "moss"],
+  conservatory: ["trellis", "plantShelf", "fernBasket", "wallLamp", "coping"],
   watch: ["banner", "sconceDim"],
   bank: ["wainscot", "certificate", "sconce"],
   gallery: ["painting"],
@@ -61,12 +66,17 @@ export const THEME_KINDS: Record<Theme, readonly DecorKind[]> = {
   strongroom: ["rivets", "cladding", "cagedSconce"],
 };
 
-// Which faces a kind can go on. Only a row of rivets also reads on a wall's top.
+// Which faces a kind can go on. A wall's top carries only flush things (DESIGN.md §4.9 rule 7).
 export const KIND_FACES: Record<DecorKind, readonly ("front" | "top")[]> = {
   ivy: ["front"],
-  planter: ["top"],
+  hangingLantern: ["front"],
+  hangingBasket: ["front"],
+  coping: ["top"],
+  moss: ["top"],
   trellis: ["front"],
-  fern: ["top"],
+  plantShelf: ["front"],
+  fernBasket: ["front"],
+  wallLamp: ["front"],
   banner: ["front"],
   sconceDim: ["front"],
   wainscot: ["front"],
@@ -86,6 +96,8 @@ export const KIND_FACES: Record<DecorKind, readonly ("front" | "top")[]> = {
 
 // Kinds that carry a --w-sconce glow, clipped to their own face.
 export const LIT: ReadonlySet<DecorKind> = new Set([
+  "hangingLantern",
+  "wallLamp",
   "painting",
   "cagedSconce",
   "sconce",

@@ -313,6 +313,22 @@ describe("decor is the same on every screen in a room", () => {
   });
 });
 
+describe("faces (DESIGN.md §4.9 rule 7)", () => {
+  // a wall's top carries only flush things: coping, moss, a row of rivets
+  const FLUSH = new Set(["coping", "moss", "rivets"]);
+  it("every theme kind has a face, and only a flush kind goes on a top", () => {
+    for (const k of Object.values(THEME_KINDS).flat()) {
+      expect(KIND_FACES[k]?.length, k).toBeGreaterThan(0);
+      if (KIND_FACES[k].includes("top")) expect(FLUSH.has(k), k).toBe(true);
+    }
+  });
+  it("no shipped room places anything but a flush kind on a top", () => {
+    for (const room of loadRooms("./rooms"))
+      for (const it of decorFor(room.id, room.grid).filter((i) => i.face === "top"))
+        expect(FLUSH.has(it.kind), `${room.id} ${it.kind}`).toBe(true);
+  });
+});
+
 describe("the banned list", () => {
   // rule 3 (DESIGN.md §4.9): no kind is named as a game object, a motif or a role. Kind names are
   // camelCase, so each word is checked on its own (a cable tray is not a ray).
