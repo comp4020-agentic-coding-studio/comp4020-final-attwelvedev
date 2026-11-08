@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { ClientMsg } from "../net/protocol.ts";
 import {
+  bareScene,
   installPlaytest,
   type PlaytestHook,
   playtestFrame,
@@ -80,5 +81,22 @@ describe("the playtest page hook", () => {
     installPlaytest(socket);
     w().__playtest?.autopilot(true);
     expect(sent.at(-1)).toEqual({ t: "autopilot", on: true });
+  });
+});
+
+describe("bareScene", () => {
+  it("drops every entity but the closed doors, which the light is cut by", () => {
+    const door = { id: "D1", kind: "door", pos: { x: 5.5, y: 1.5 }, state: "closed" };
+    const open = { id: "D2", kind: "door", pos: { x: 6.5, y: 1.5 }, state: "open" };
+    const crate = { id: "K1", kind: "crate", pos: { x: 2.5, y: 1.5 } };
+    const bare = bareScene({
+      ...scene(),
+      entities: [door, open, crate],
+      floorEntities: [crate],
+    } as unknown as Scene);
+    expect(bare.entities.map((e) => e.id)).toEqual(["D1"]);
+    expect(bare.floorEntities).toEqual([]);
+    expect(bare.fx).toEqual([]);
+    expect(bare.report).toBeUndefined();
   });
 });

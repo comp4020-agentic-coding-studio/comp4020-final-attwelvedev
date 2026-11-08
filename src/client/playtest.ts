@@ -55,6 +55,20 @@ const pixel = (ctx: CanvasRenderingContext2D, x: number, y: number): Rgba => {
   return [d[0] ?? 0, d[1] ?? 0, d[2] ?? 0, d[3] ?? 0];
 };
 
+// The scene as sent, less what stands on it: no entities, effects, pops or chip report. A closed door
+// stays: the light the renderer cuts the mist by is stopped by closed doors, so without it the bare
+// scene would be lit through a door the real one is not (a door's own tile is never sampled).
+export function bareScene(scene: Scene): Scene {
+  return {
+    ...scene,
+    entities: scene.entities.filter((e) => e.kind === "door" && e.state === "closed"),
+    floorEntities: [],
+    fx: [],
+    pops: [],
+    report: undefined,
+  };
+}
+
 // Called by the game right after each draw: a no-op unless the hook is installed. Answers any
 // pending samples from this very frame, so the drawn and bare pixels are of one animation frame.
 export function playtestFrame(
@@ -84,7 +98,7 @@ export function playtestFrame(
   const bctx = bare.getContext("2d");
   if (bctx) {
     bctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    draw(bctx, { ...scene, entities: [], floorEntities: [], fx: [], pops: [], report: undefined });
+    draw(bctx, bareScene(scene));
   }
   for (const { tiles, resolve } of asked) {
     resolve(
