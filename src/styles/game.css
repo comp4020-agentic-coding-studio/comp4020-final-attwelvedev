@@ -83,6 +83,41 @@ body.playing main {
     animation: reveal-out var(--intro-cover, 300ms) linear var(--intro-delay, 0ms) both;
   }
 }
+/* ...and the HUD fades in under it on the same timing, as a window opening on the room (R2): the
+   bars, the bezel and the overlays come in while the room itself stays (the game canvas draws what
+   the backdrop drew, in the same place), so the card going and the HUD coming add to one and are
+   never both at full strength. Can't see's black screen has only the HUD to come in. */
+.game.intro-window > :not(.frame),
+.game.intro-window .frame > :not(.recess),
+.game.intro-window .frame::after,
+.game.intro-window .recess > :not(canvas) {
+  animation: hud-in var(--intro-cover, 900ms) ease-out var(--intro-delay, 0ms) both;
+}
+.game.intro-window .frame {
+  animation: bezel-in var(--intro-cover, 900ms) ease-out var(--intro-delay, 0ms) both;
+}
+@keyframes hud-in {
+  from {
+    opacity: 0;
+  }
+}
+/* only the bezel's fill: its role-colour rim stays, so the role frame is there from the first frame */
+@keyframes bezel-in {
+  from {
+    background-color: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .game.intro-window > :not(.frame),
+  .game.intro-window .frame > :not(.recess),
+  .game.intro-window .frame::after,
+  .game.intro-window .recess > :not(canvas) {
+    animation: hud-in var(--intro-cover, 300ms) linear var(--intro-delay, 0ms) both;
+  }
+  .game.intro-window .frame {
+    animation: bezel-in var(--intro-cover, 300ms) linear var(--intro-delay, 0ms) both;
+  }
+}
 .reveal-stage {
   position: relative;
   display: grid;

@@ -666,6 +666,7 @@ export function Game({
           watchers={watchers}
           audio={audio}
           onLeave={onLeave}
+          cover={covering ? coverMs : null}
         />
       )}
       {cover && (
@@ -772,6 +773,7 @@ function Hud({
   watchers,
   audio,
   onLeave,
+  cover,
 }: {
   rt: Runtime;
   socket: GameSocket;
@@ -786,6 +788,9 @@ function Hud({
   watchers: { ref: number; nickname: string }[]; // spectators the host may pull into an empty seat
   audio: { current: GameAudio | null };
   onLeave: () => void;
+  // the reveal's cover is fading over the start: the HUD fades in on its timing, as a window opening
+  // on the room (R2). Null once it has gone, on a restart and for a page loaded mid-game.
+  cover: { delay: number; fade: number } | null;
 }) {
   const { role, real } = reveal;
   const frame = useRef<HTMLDivElement>(null);
@@ -1166,7 +1171,16 @@ function Hud({
   const label = ROLE_LABEL[role];
   const roomTitle = `Room ${reveal.index + 1} of ${reveal.rooms}: ${reveal.name}`;
   return (
-    <div class="game" ref={root} style={{ "--frame": `var(--role-${role})` }}>
+    <div
+      class={cover ? "game intro-window" : "game"}
+      ref={root}
+      style={{
+        "--frame": `var(--role-${role})`,
+        ...(cover
+          ? { "--intro-delay": `${cover.delay}ms`, "--intro-cover": `${cover.fade}ms` }
+          : {}),
+      }}
+    >
       <h1 class="sr-only">
         {reveal.name}: {label}
       </h1>

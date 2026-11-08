@@ -54,7 +54,7 @@ Each new or changed assertion is shown red first with a break script, and the co
   - Acceptance: demo 1. The reveal card's own layout does not move (`spec/layout/reveal.test.ts` stays green).
   - Depends on: Task 1.
 
-- [ ] **Task 3: The HUD fades in as a window**
+- [x] **Task 3: The HUD fades in as a window** (review queued)
   - Files: `src/styles/game.css` (the HUD's elements under `.game[data-intro="playing"]` fade from 0 to 1 over the same window that `.reveal-frame.covering` fades out, using the existing `--intro-delay` and `--intro-cover` values from `coverTiming` in `Game.tsx`; the reduced-motion rule keeps its 300 ms linear), `DESIGN.md` §4.5.
   - Test first, in `spec/layout/intro.test.ts`: sample the HUD's and the card's computed opacity at three points in the fade (`getComputedStyle`, with the intro clock paused as the existing intro tests do); the HUD's rises as the card's falls, and never both above 0.9. Red by removing the HUD fade. Can't see: the same, with no card to cross.
   - Acceptance: demo 2 and 5.

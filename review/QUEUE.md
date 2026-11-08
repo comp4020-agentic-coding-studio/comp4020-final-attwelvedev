@@ -707,3 +707,20 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
 - **Start it:** live: `pnpm build && PORT=8092 pnpm start:check`, three tabs, room 5, a sighted seat by the teaching panel Q1 while a teammate cuts a wire. Still frames: `BENCH=1 pnpm build && BENCH=1 PORT=8193 node server.ts`, open `http://localhost:8193/bench?room=05&still=1&decor=0`, then in the console give Q1 `cut: [1]` (and an `fx` of `snip`/`spark` for the motion) through `window.__still(false, { entities, fx, self })`.
 - **Screenshots:** `review/n7-wire-task3-cut-1280.png`, `review/n7-wire-task3-cut-375.png`, `review/n7-wire-task3-snip-1280.png`, `review/n7-wire-task3-snip-375.png`. Room 5's Q1 is all white this attempt (white's pattern is itself a hatch), so the shots recolour it red, blue, yellow to make the cut legible; the drawing is the real renderer.
 - **Judged:** the snip reads plainly. The settled cut reads at 1280 but is slight at 375 (a 3 px gap is about 1.5 CSS px of the swatch's height on a phone); if it reads as a seam, the knob is `CUT_GAP_PX` in `src/client/render/stations.ts`. On an all-white panel the hatch across the gap is close to white's own pattern: worth a look live. Reduced motion draws exactly the settled frame (no spark), checked pixel for pixel at both widths.
+
+## Overnight run 2026-11-07
+
+### sunrise Task 3: the HUD fades in as a window (plan `plans/2026-11-08-intro-sunrise.md`)
+
+- **Look at:** the start of a room, from the card to the land: the card and scrim fade while the
+  HUD (bars, overlays, the frame's bezel fill) fades in on the same timing, and the room stays in
+  place under both. Pass: it reads as a window opening on the room. Can't see: only the HUD comes in
+  over black.
+- **Start it:** `pnpm build && PORT=8092 pnpm start` (no `INTRO_MS`: the real 2400 ms hold), three
+  tabs (one at 375 px wide), create a lobby, join twice, Start, press I'm ready in all three.
+- **Screenshots** (contact sheets, left to right: cover start, mid-tilt, tilt end, mid-swoop, swoop
+  end, done): `review/n7-sunrise-task3-hud-window-1280.png` (Can't speak),
+  `review/n7-sunrise-task3-hud-window-375.png` (Can't hear).
+- **What I judged:** at 375 it reads as intended. At 1280 room 1 is small, so the fit and the
+  follow camera nearly coincide and the swoop is slight. The jump from the backdrop's dusk to the
+  day colours in these sheets is Task 4's sunrise, which came after.

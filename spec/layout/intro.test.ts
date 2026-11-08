@@ -80,6 +80,40 @@ const recordFirstFrame = (page: Page) =>
     };
     requestAnimationFrame(look);
   });
+// The HUD fading in as the card fades out (R2): the moment the cover starts, every animation on the
+// page is paused and stepped to three points of the cover's fade (start, middle, end), and the card's
+// and the HUD's computed opacity read at each; then put back where they were and played on.
+interface Sample {
+  at: number;
+  card: number;
+  hud: number;
+}
+const sampleCrossFade = (page: Page) =>
+  page.evaluate(() => {
+    const w = window as unknown as { __crossFade?: Sample[] };
+    new MutationObserver((_m, obs) => {
+      const cover = document.querySelector<HTMLElement>(".reveal-frame.covering");
+      const hud = document.querySelector(".game .hud-top");
+      const card = cover?.querySelector(".reveal-stage");
+      if (!cover || !hud || !card) return;
+      obs.disconnect();
+      const ms = (name: string) => Number.parseFloat(cover.style.getPropertyValue(name)) || 0;
+      const delay = ms("--intro-delay");
+      const fade = ms("--intro-cover");
+      const all = document.getAnimations();
+      const was = all.map((a) => a.currentTime);
+      for (const a of all) a.pause();
+      w.__crossFade = [0.1, 0.5, 0.9].map((at) => {
+        for (const a of all) a.currentTime = delay + at * fade;
+        const op = (el: Element) => Number(getComputedStyle(el).opacity);
+        return { at, card: op(card), hud: op(hud) };
+      });
+      all.forEach((a, n) => {
+        a.currentTime = was[n] ?? 0;
+        a.play();
+      });
+    }).observe(document.body, { subtree: true, childList: true, attributes: true });
+  });
 const releaseRight = (page: Page) =>
   page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowRight" })));
 
@@ -108,7 +142,10 @@ beforeAll(async () => {
   browser = await launch();
   // Can't speak holds an arrow key through the whole intro
   table = await playRoom(browser, url, async (byRole) => {
-    for (const page of Object.values(byRole)) await recordFirstFrame(page);
+    for (const page of Object.values(byRole)) {
+      await recordFirstFrame(page);
+      await sampleCrossFade(page);
+    }
     await holdRightThroughIntro(byRole.mute);
   });
 }, 60_000);
@@ -164,6 +201,25 @@ describe("the start of a room (FR14)", () => {
       expect(Math.abs(game.scale - backdrop.scale), msg).toBeLessThanOrEqual(1);
       expect(Math.abs(game.x - backdrop.x), msg).toBeLessThanOrEqual(1);
       expect(Math.abs(game.y - backdrop.y), msg).toBeLessThanOrEqual(1);
+    },
+  );
+
+  // every role, Can't see included: their card goes and only the HUD comes in over their black screen
+  it.each(["blind", "mute", "deaf"] as const)(
+    "%s: the HUD fades in as the card fades out, never both at full strength",
+    async (role) => {
+      const seen = (await table.byRole[role].evaluate(
+        () => (window as unknown as { __crossFade?: unknown }).__crossFade,
+      )) as Sample[] | undefined;
+      expect(seen, "the cover's fade was sampled").toHaveLength(3);
+      const [a, b, c] = seen as [Sample, Sample, Sample];
+      const msg = JSON.stringify(seen);
+      expect(a.hud, msg).toBeLessThan(b.hud);
+      expect(b.hud, msg).toBeLessThan(c.hud);
+      expect(a.card, msg).toBeGreaterThan(b.card);
+      expect(b.card, msg).toBeGreaterThan(c.card);
+      for (const s of seen as Sample[])
+        expect(Math.min(s.card, s.hud), msg).toBeLessThanOrEqual(0.9);
     },
   );
 

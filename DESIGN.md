@@ -177,7 +177,7 @@ When everyone is ready the server sends `intro` and holds its first tick for 240
 3. **Swoop**, 900 ms, ease in-out: the camera flies from the whole room to the game camera on you. It starts only once the board has tipped.
 4. **Land**, 300 ms: your own figure hops once (a quarter of a tile) and one small `--ui` ring opens at your feet (`targetId: "landed"`, one of the two rings FR16 allows).
 
-The reveal stays over it as the same element (its flat backdrop keeps drawing, nothing remounts), and its card, scrim and blur fade away over the hold and the tilt. The cover takes no clicks and is `inert`. Input is locked until the land ends (`.game[data-intro="playing" | "done"]`). A passed room restart replays it from the flat plan.
+The reveal stays over it as the same element (its flat backdrop keeps drawing, nothing remounts), and its card, scrim and blur fade away over the hold and the tilt. On the same timing the HUD fades in under it, as a window opening on the room (`.game.intro-window`): the bars, the overlays and the frame's bezel fill go from 0 to full (its role-colour rim stays) while the room itself stays, so the card going and the HUD coming are never both at full strength. Can't see's black screen has only the HUD to come in. The cover takes no clicks and is `inert`. Input is locked until the land ends (`.game[data-intro="playing" | "done"]`). A passed room restart replays it from the flat plan.
 
 - **Reduced motion:** no tilt, swoop or hop frames. The 300 ms hold, then the cover cross-fades away over 300 ms; the land's ring is not drawn.
 - **Can't see** has no world to watch: their screen is black throughout, and their dimmed figure fades in over the land.
