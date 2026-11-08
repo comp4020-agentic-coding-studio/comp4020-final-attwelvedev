@@ -68,10 +68,11 @@ export type ClientMsg =
   | { t: "send"; msg: SendRequest }
   | { t: "spectate"; seat: Seat | null } // a watcher: follow this seat, or null for the whole room with no sound
   | { t: "spec.say"; text: string } // a watcher (a spectator, or someone sitting this room out): to the other watchers
-  | { t: "voice.stats"; p50: number; p95: number; dropped: number }; // a receiver's voice latency, ms
+  | { t: "voice.stats"; p50: number; p95: number; dropped: number } // a receiver's voice latency, ms
+  | { t: "autopilot"; on: boolean }; // playtest only (ADR 0027): a bot plays my seat; refused unless PLAYTEST_AUTOPILOT=1
 
 export type ServerMsg =
-  | { t: "welcome"; who: string }
+  | { t: "welcome"; who: string; autopilot?: true } // autopilot: the server runs with PLAYTEST_AUTOPILOT=1
   | { t: "pong"; at: number; serverAt: number } // serverAt: the server's clock, for the voice clock offset
   | { t: "lobbies"; list: LobbySummary[] }
   | {
@@ -251,6 +252,8 @@ export function parseClientMsg(raw: string): ClientMsg | null {
       return typeof m.yes === "boolean" ? { t: "vote.cast", yes: m.yes } : null;
     case "next":
       return { t: "next" };
+    case "autopilot":
+      return typeof m.on === "boolean" ? { t: "autopilot", on: m.on } : null;
     case "host.choice":
       if (m.choice === "bot" || m.choice === "lobby") return { t: "host.choice", choice: m.choice };
       if (m.choice === "pull") {

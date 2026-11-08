@@ -87,6 +87,13 @@ describe("parseClientMsg game messages", () => {
     });
   });
 
+  it("accepts autopilot only with a boolean `on` (playtest only, ADR 0027)", () => {
+    expect(parseClientMsg('{"t":"autopilot","on":true}')).toEqual({ t: "autopilot", on: true });
+    expect(parseClientMsg('{"t":"autopilot","on":false}')).toEqual({ t: "autopilot", on: false });
+    expect(parseClientMsg('{"t":"autopilot"}')).toBeNull();
+    expect(parseClientMsg('{"t":"autopilot","on":"yes"}')).toBeNull();
+  });
+
   it("carries gear (G pressed) when it is a boolean", () => {
     expect(
       parseClientMsg('{"t":"input","seq":4,"move":{"x":0,"y":0},"act":false,"gear":true}'),

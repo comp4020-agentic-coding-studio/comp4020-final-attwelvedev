@@ -7,6 +7,7 @@ import type { Seat } from "../game/types.ts";
 import {
   advanceRoom,
   applyInput,
+  autopilotOn,
   castVote,
   chooserFor,
   commsEdges,
@@ -24,6 +25,7 @@ import {
   relay,
   restartGame,
   resumeIfBack,
+  setAutopilot,
   settleVote,
   startGame,
   swapPeople,
@@ -1082,5 +1084,58 @@ describe("the comms map's counts", () => {
     expect(commsEdges(game.comms)).toEqual([{ from: 1, to: 2, count: 0, by: {}, voiceMs: 60 }]);
     restartGame(game);
     expect(game.comms).toEqual({});
+  });
+});
+
+describe("autopilot (playtest only, ADR 0027)", () => {
+  let l: LobbyState;
+  const started = () => {
+    l = lobby("a", "b", "c");
+    const game = startGame(l, rooms);
+    for (const s of [0, 1, 2] as const) game.ready.add(s);
+    return game;
+  };
+
+  it("hands a person's seat to a bot: it walks with no input from outside, and everyone stays ready", () => {
+    const game = started();
+    const before = { ...game.world.players[1].pos };
+    expect(setAutopilot(game, l, 1, true)).toBe(true);
+    expect(autopilotOn(game, 1)).toBe(true);
+    for (let i = 0; i < 40; i++) tickGame(game, new Set(), i * 50);
+    expect(game.world.players[1].pos).not.toEqual(before);
+    expect([...game.ready].sort()).toEqual([0, 1, 2]);
+  });
+
+  it("drops the held key, and a second toggle the same way is no change", () => {
+    const game = started();
+    applyInput(game, 1, { seq: 4, move: { x: 1, y: 0 }, act: false });
+    setAutopilot(game, l, 1, true);
+    expect(game.inputs[1]).toBeUndefined();
+    expect(setAutopilot(game, l, 1, true)).toBe(false);
+  });
+
+  it("gives the seat back when switched off", () => {
+    const game = started();
+    setAutopilot(game, l, 1, true);
+    expect(setAutopilot(game, l, 1, false)).toBe(true);
+    expect(game.bots[1]).toBeUndefined();
+    expect(autopilotOn(game, 1)).toBe(false);
+  });
+
+  it("ends when the room advances", () => {
+    const game = started();
+    setAutopilot(game, l, 1, true);
+    game.world.status = "cleared";
+    advanceRoom(game, l, rooms);
+    expect(game.autopilot.size).toBe(0);
+    expect(game.bots).toEqual({});
+  });
+
+  it("an autopilot seat is not a person to the other bots", () => {
+    const game = started();
+    setAutopilot(game, l, 1, true);
+    setAutopilot(game, l, 2, true);
+    expect(game.bots[2]?.memory.humans.has(1)).toBe(false);
+    expect(game.bots[1]?.memory.humans.has(0)).toBe(true);
   });
 });

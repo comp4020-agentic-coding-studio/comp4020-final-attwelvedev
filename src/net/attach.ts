@@ -24,6 +24,7 @@ import { normaliseLobbyCode } from "./codes.ts";
 import {
   advanceRoom,
   applyInput,
+  autopilotOn,
   castVote,
   chooserFor,
   commsEdges,
@@ -41,6 +42,7 @@ import {
   readyAgain,
   relay,
   resumeIfBack,
+  setAutopilot,
   settleVote,
   startGame,
   swapPeople,
@@ -74,6 +76,7 @@ import {
   startLobby,
   uniqueNickname,
 } from "./lobbies.ts";
+import { PLAYTEST_AUTOPILOT } from "./playtest.ts";
 import { type ClientMsg, inputOf, parseClientMsg, type ServerMsg } from "./protocol.ts";
 import { type RealLife, realLifeFor } from "./realLife.ts";
 import {
@@ -1087,6 +1090,7 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
           }
           return;
         }
+        if (autopilotOn(running.game, seat)) return; // the bot speaks for this seat (ADR 0027)
         const sent = relay(running.game, lobby, seat, msg.msg, Date.now());
         if (sent === null) return;
         const method = msg.msg.method;
@@ -1129,11 +1133,25 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         });
         return;
       }
+      case "autopilot": {
+        if (!PLAYTEST_AUTOPILOT)
+          throw new LobbyError("refused", "Autopilot is for playtests only.");
+        const code = registry.byDevice.get(who);
+        const running = code ? games.get(code) : undefined;
+        const lobby = code ? registry.lobbies.get(code) : undefined;
+        const seat = code ? seatOfDevice(code, who) : null;
+        if (!running || !lobby || seat === null) return;
+        if (setAutopilot(running.game, lobby, seat, msg.on)) {
+          record("autopilot", who, lobby, { kind: msg.on ? "on" : "off" });
+        }
+        return;
+      }
       case "input": {
         const code = registry.byDevice.get(who);
         const running = code ? games.get(code) : undefined;
         const seat = code ? seatOfDevice(code, who) : null;
         if (!running || seat === null) return;
+        if (autopilotOn(running.game, seat)) return; // the bot drives this seat (ADR 0027)
         applyInput(running.game, seat, inputOf(msg));
         return;
       }
@@ -1288,7 +1306,10 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
   };
   byes.set(socket, pageGone);
   socket.on("close", pageGone);
-  hub.send(socket, { t: "welcome", who });
+  hub.send(
+    socket,
+    PLAYTEST_AUTOPILOT ? { t: "welcome", who, autopilot: true } : { t: "welcome", who },
+  );
   record("socket.open", who, lobbyOf(who));
 });
 

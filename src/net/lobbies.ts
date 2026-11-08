@@ -51,7 +51,8 @@ export type ErrorCode =
   | "throttled"
   | "cooldown"
   | "cant-send"
-  | "not-in-sight"; // a mark on a tile the sender can't see
+  | "not-in-sight" // a mark on a tile the sender can't see
+  | "refused"; // autopilot without PLAYTEST_AUTOPILOT (ADR 0027)
 export class LobbyError extends Error {
   code: ErrorCode;
   constructor(code: ErrorCode, message: string) {

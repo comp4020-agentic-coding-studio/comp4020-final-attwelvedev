@@ -84,13 +84,16 @@ export interface Game {
   counted: number; // the last room whose crew was written to people's `played` (a restart is not a second play)
   botPlayed: Record<string, Role[]>; // what each bot has played this heist, by its name: a bot is not a person, so it has no `played`
   comms: Comms; // this room's deliveries, for the comms map on the cleared card
+  autopilot: Set<Seat>; // person seats a bot is playing for a playtest (ADR 0027); cleared with every seatBots
 }
 
 // Bots start afresh with each room: their memory is of that room and these roles.
-// A bot is always ready.
+// A bot is always ready. Autopilot ends here too: every caller but setAutopilot (a new room, a
+// restart, a takeover, a swap) leaves it off, and setAutopilot writes its set back after.
 function seatBots(game: Game, botSeats: readonly Seat[]): void {
   const humans = new Set<Seat>(([0, 1, 2] as const).filter((s) => !botSeats.includes(s)));
   game.bots = {};
+  game.autopilot = new Set();
   for (const seat of botSeats) {
     game.bots[seat] = { memory: createBotMemory(seat, humans, game.roles), inbox: [] };
     game.ready.add(seat);
@@ -99,6 +102,21 @@ function seatBots(game: Game, botSeats: readonly Seat[]): void {
 const botSeatsOf = (game: Game): Seat[] => ([0, 1, 2] as const).filter((s) => game.bots[s]);
 const botSeatsIn = (lobby: LobbyState): Seat[] =>
   ([0, 1, 2] as const).filter((s) => lobby.seats[s]?.bot);
+
+// Playtest only (ADR 0027): a bot plays a person's seat, so the regression run can drive all three.
+// The person's socket still gets the seat's views; its own input and sends are ignored (attach.ts).
+// Every bot starts afresh, as on a takeover, since who is a person has changed. False: no change.
+export function setAutopilot(game: Game, lobby: LobbyState, seat: Seat, on: boolean): boolean {
+  if (game.autopilot.has(seat) === on) return false;
+  const autopilot = new Set(game.autopilot);
+  if (on) autopilot.add(seat);
+  else autopilot.delete(seat);
+  delete game.inputs[seat]; // a held key does not walk on
+  seatBots(game, [...new Set([...botSeatsIn(lobby), ...autopilot])]);
+  game.autopilot = autopilot;
+  return true;
+}
+export const autopilotOn = (game: Game, seat: Seat): boolean => game.autopilot.has(seat);
 
 // The comms map (overhaul FR35): how many messages went each way, by method, counted once per seat
 // a message reached; keyed "from>to". Never what was said. A fresh world starts it again.
@@ -184,6 +202,7 @@ export function startGame(lobby: LobbyState, rooms: Room[]): Game {
     counted: -1,
     botPlayed: {},
     comms: {},
+    autopilot: new Set(),
   };
   seatBots(
     game,

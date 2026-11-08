@@ -36,7 +36,8 @@ export type GameEvent =
   | "signal" // the bell rung or the lamp flashed (detail kind: bell/lamp)
   | "practice" // a practice lever flipped (detail kind: on/off; never which lever)
   | "cache" // a side job's hidden station uncovered or solved (detail kind only: never the item, motif or riddle)
-  | "pull"; // a tug of war began between two hand-holders (no detail: who is never logged)
+  | "pull" // a tug of war began between two hand-holders (no detail: who is never logged)
+  | "autopilot"; // playtest only (ADR 0027): a seat handed to a bot or back; detail.kind "on" or "off"
 
 // One line per discrete thing a player did: never per tick. `who` is a device
 // hash and `lobby` a hash of the lobby's code and age, so neither leads back to

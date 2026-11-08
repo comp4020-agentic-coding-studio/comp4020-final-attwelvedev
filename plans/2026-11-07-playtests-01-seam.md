@@ -182,6 +182,8 @@ Both pixels come from one animation frame, which matches NFR6.
 
 ### Task 122: The autopilot message, under the env flag, with a log line
 
+- [x] Done
+
 - **Description.**
   - Add the wire contract (overview §4.1) and `"refused"` to `ErrorCode`.
   - Add `src/net/playtest.ts` and `setAutopilot`/`autopilotOn` (this file's §4).
