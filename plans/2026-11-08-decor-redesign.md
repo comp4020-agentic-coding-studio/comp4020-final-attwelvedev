@@ -2,7 +2,7 @@
 
 - **Date:** 2026-11-08
 - **Tier:** Architecture-lite (one file, six tasks, one area: the decor engine and its painters)
-- **Status:** Approved (rules and scope confirmed; the item lists below are proposals, gated by the human review in Task 3)
+- **Status:** Built, Tasks 1 to 6 (overnight run 2026-11-08); human reviews of Tasks 3, 5 and 6 pending (queued in `review/QUEUE.md`). Changes to the item table made during the run are logged in `plans/2026-11-07-overnight.md` under decor.
 - **Requirements confirmed by user:** yes, 2026-11-08, in conversation: relax the ban in DESIGN.md §4.9; richer detail in every room; each item either has a believable job (a light, a candle, a lamp) or fits the room's theme; decor must still never read as a clue; anything else is excluded
 - **Comes from:** the user's playthrough, 2026-11-08 (room 1's pots on a wall's top "make no sense", the ivy is better but needs detail; room 7's rectangles are unreadable; room 8's wall thing and notes are unclear)
 - **Runs after:** the overnight lane (dl09 is still editing decor and DESIGN.md §4.9). Refer to code by name: line numbers will have moved.
@@ -90,7 +90,7 @@ Each new or changed assertion that guards a promise is shown red first, with a b
   - Human review: rooms 7 and 8 specifically, since they were the named complaints. A pass means you can say what each thing is.
   - Depends on: Task 3.
 
-- [ ] **Task 6: Room 9, and the whole-set check**
+- [x] **Task 6: Room 9, and the whole-set check**
   - Files: `src/client/render/decor-paint/works.ts`, `decor.ts`, `LOOKS`, `DESIGN.md` §4.9 (final), `PROCESS_LOG.md` (the user's correction to decor and the rule it became).
   - Tests: `spec/layout/decor.test.ts` for all nine rooms at both widths; the full `pnpm check`; `pnpm bench:frame --compare` within the baseline in `review/diorama/bench-baseline.json`.
   - Acceptance: the contact sheet for all nine rooms is in `review/decor/`; the bench is green on a quiet machine (load under 6; a run under load is not a result).

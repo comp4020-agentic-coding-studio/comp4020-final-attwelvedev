@@ -219,7 +219,7 @@ in the same 3/4 world, steel and brass, as quiet as a plate; the UV pool is the 
 - **Inspection plate (escape-room phase 14, Task 66):** a cache dial's back tile is a small steel plate set flush in the floor (`drawInspectionPlate`): outlined in `--w-line`, two rivets, a faint worn ring round it where someone has knelt. It is flat (nothing stands up from the floor, unlike the plinth under an ordinary safe's back box), unlabelled, and has no wire to it. It adds no token. Its sound is `hollow`, a low dropping sine with a thin ring above it, played in place of the step (yours) or the footsteps (a teammate's) while someone walks on it, captioned "hollow step" with a direction. Ordinary safes are unchanged, and `hollow` is deliberately left out of Can't see's briefing, which would announce that a cache exists.
 - **Hatch:** a wall with a waist-high sill and a lintel on two posts, open between. **Bell:** brass on a bracket with its rope; it swings ±15° three times in 1.2 s when rung (a static tilt under reduced motion). **Lamp switch:** a steel post with a lever and a small bulb. **Holding hands:** a 2 px arc between the hands, a bead each end, an arrowhead toward the leader; the towed figure's eyes look at the leader.
 
-### 4.9 Decor (built, Tasks 113 to 116)
+### 4.9 Decor (built, Tasks 113 to 116; redrawn in the decor redesign)
 
 Each room has a theme, and its walls carry a little of it: real things you could name, each with a
 job. Why: a room should feel like a place, and a thing you can name is one you will not take for a
@@ -246,10 +246,13 @@ signal. Decor is also drawn in the home feeds (room 01's, for the sighted feeds 
   door, hatch, glass, vent, night or wire; room 01 at half. A room's `SALT` is nudged until no item
   stands beside a station, plaque, camera or ink (`decor.test.ts`). The page works it out once per
   room, so a cache opening never moves it, and a secret wall's decor sinks with it.
-- **Drawing** (`decor-paint.ts`): inside the wall's own tile, after its fills, so it shares the wall's
+- **Drawing** (`decor-paint.ts`, its painters in `decor-paint/` by theme group: `garden`, `civic`,
+  `stage`, `works`; shared helpers in `kit.ts`): inside the wall's own tile, after its fills, so it shares the wall's
   see-through and mist. Each item is clipped to its own face: a glow is a `--w-sconce` radial at 30 %
-  that never reaches the floor (`spec/layout/decor.test.ts`). Tones are wall, steel or brass tokens
-  mixed toward the wall. No outline, no motion.
+  that never reaches the floor (`spec/layout/decor.test.ts`). Tones are wall, steel, brass and code tokens
+  mixed toward the wall, each solid lit on its north-west edges and shaded on its south-east (`litBox`).
+  No outline, no motion. `pnpm decor:sheet` draws every look of a room on a wall tile at 1×, 2× and
+  3× to `review/decor/`.
 - **The rules** (ADR 0029, `proposed`; they replace the old list of banned shapes):
   1. **A job or a theme.** Every item lights, holds, hangs, covers or supports something, or belongs
      to the room's theme. Nothing is there only to fill a wall.

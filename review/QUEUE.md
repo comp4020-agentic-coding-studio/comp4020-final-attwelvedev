@@ -772,3 +772,9 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
 - **Look at:** `review/decor/06-lights-out.png`, `07-night-shift.png`, `08-music-room.png`, and in game `review/n7-decor-task5-room{06,07,08}-{1280,375}.png`. A pass: you can say what each thing is. Room 7's breaker cabinet and pegboard (spanner and hammer) are on the north wall at Can't hear's spawn; room 8's framed manuscript is on the north wall and a violin on the glass corridor's wall.
 - **Start it:** as Task 3 (`pnpm decor:sheet 06 07 08`; or `pnpm build && PORT=8092 pnpm start` and play to rooms 7 and 8).
 - **What I judged:** each is nameable at 1280. Dropped from the plan's table: the conduit run (it read as a rail) and room 8's swag (it read as a bridge). The manuscript carries a clef and bar lines, never a note head (tested). The dressing mirror's glass is flat dull steel-grey, no sheen (rule 5). No lit item sits within a tile of a dark zone (tested).
+
+### decor Task 6: room 9 and the nine-room sheet (human review, pending)
+
+- **Look at:** all nine sheets in `review/decor/0{1..9}-*.png`, and in game `review/n7-decor-task{3,4,5,6}-room<NN>-{1280,375}.png`. A pass: every item in every room can be named, none reads as a signal.
+- **Start it:** `pnpm decor:sheet`.
+- **What I judged:** room 9: riveted cladding with a weld seam, hinge straps, a cable tray, a girder end on its plate, a caged sconce; rivet rows on tops only. In game the cable tray is a thin band across a face: it is the closest any item comes to a rail (rule 3); strike it if it reads as one. `spec/layout/decor.test.ts` green for all nine rooms at 1280 and 375 (no floor pixel). `pnpm bench:frame --compare`: within 10 % of the baseline (p95 80.6/83.8 ms at 375, 157.3/169.8 ms at 1280), but run at load 5 to 15 (the machine never stayed under 6 for 9 minutes), so by the plan it is not a result: **rerun it on a quiet machine**.

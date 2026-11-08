@@ -1482,3 +1482,28 @@ e.g. room 8, viewer 3.3,1.6, figure 3.15,5.5) and is green with the gate over
 every tile the footprint overlaps. A break script that put the own-tile gate
 back turned it red again. Lesson for sweeps: place the subject where the two
 rules disagree, not only where it is convenient.
+
+## 2026-11-08 — Decor that obeyed a ban on shapes still read as noise; the rule became "a real thing with a job"
+
+fbb0f3e..fd7f7a0
+
+In a playthrough I found room 1's pots standing on a wall's top made no sense,
+room 7's rectangles were unreadable, and room 8's wall shapes and notes were
+unclear. Every one of them passed the old guard: DESIGN.md §4.9 banned shapes
+(no circle over 0.15 of a face, at most two lines across one, no lantern, no
+window), so the painters drew abstractions that met the letter of it. A shape
+nobody can name is exactly what a player may take for a signal, which is what
+the ban was for.
+
+The obvious fix was to tune the shapes. Instead I changed the rule: every item
+is a real thing with a job or the room's theme, never a clue, never a game
+object, light quiet and clipped, windows opaque, no outline, and a wall's top
+carries only flush things (ADR 0029, proposed). The guards moved with it: the
+shape-size tests were replaced by rule tests over every painter (no text, no
+`WORLD.line`, no glass colour, nothing translucent but the glow, the glow clipped
+at 35 %), plus a word-by-word check of kind names, a flush-top test, a manuscript
+that may never draw a note head, and no lit item beside a dark zone. Each went
+red on a deliberate break first. A contact sheet (`pnpm decor:sheet`) draws every
+look through the real renderer, so the judgement "can you name it" is made on
+the render, and it caught three things the tests could not (a trellis that read
+as a gate, a conduit as a rail, a swag as a bridge).
