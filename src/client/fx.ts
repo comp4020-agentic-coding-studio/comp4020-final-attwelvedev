@@ -209,6 +209,17 @@ export function detectFx(prev: EntityView[], next: EntityView[]): Fx[] {
       else if (now < then) on(e, "shake", "danger");
     } else if (e.kind === "station" && e.station && old?.station) {
       const st = e.station;
+      // a right cut solves the panel in the same act, so the snip is found before the chain (wire F2)
+      const cuts = snipped(old.station, st);
+      const snip = () => {
+        // a wire cut while the panel's face was in sight: the snip, and one spark at each cut wire
+        on(e, "snip");
+        const at = st.parts.find((p) => p.key === "wires")?.at ?? [];
+        for (const i of cuts) {
+          const t = at[i];
+          if (t) out.push({ kind: "spark", pos: { x: t.x + 0.5, y: t.y + 0.5 }, tone: "ui" });
+        }
+      };
       if (st.solved && !old.station.solved) {
         // solved: the big ring at the anchor, and its tick plate drops in. Only one seen unsolved just
         // before: a station back in line of sight was not solved just now.
@@ -217,16 +228,10 @@ export function detectFx(prev: EntityView[], next: EntityView[]): Fx[] {
         // ring: reserved (FR16)
         out.push({ kind: "ring", tone: "goal", big: true, pos: at });
         on(e, "tick", "goal");
+        if (cuts.length > 0) snip();
       } else if (st.jammed && !old.station.jammed) on(e, "jam", "muted");
-      else if (snipped(old.station, st).length > 0) {
-        // a wire cut while the panel's face was in sight: the snip, and one spark at each cut wire
-        on(e, "snip");
-        const at = st.parts.find((p) => p.key === "wires")?.at ?? [];
-        for (const i of snipped(old.station, st)) {
-          const t = at[i];
-          if (t) out.push({ kind: "spark", pos: { x: t.x + 0.5, y: t.y + 0.5 }, tone: "ui" });
-        }
-      } else if (
+      else if (cuts.length > 0) snip();
+      else if (
         // a station coming into or leaving line of sight is not a part set: a furniture-only view's
         // `shows` is empty, so it would always look changed (G3: the radio dipped on coming back)
         !old.station.furniture &&

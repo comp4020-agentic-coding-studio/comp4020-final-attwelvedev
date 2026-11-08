@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { viewFor } from "../game/perception.ts";
+import { step } from "../game/sim/step.ts";
+import { input, place, worldWith } from "../game/sim/testing.ts";
+import { TICK_MS } from "../game/sim/world.ts";
 import type { EntityView } from "../net/protocol.ts";
 import {
   activeFx,
@@ -263,6 +267,41 @@ describe("detectFx: small effects for what just changed between two views", () =
     const other = e({ id: "P0", kind: "player", seat: 0, pos: { x: 2.5, y: 2.5 } });
     expect(quiet(detectFx([other], [other, wires([1])]))).toEqual([]);
     expect(quiet(detectFx([wires(undefined, true)], [wires([1])]))).toEqual([]);
+  });
+
+  // wire F2: the hand-built cases above never meet a right cut, which solves the panel in the same act
+  it("a right cut made in real play snips and sparks for a sighted seat in sight (driven through step)", () => {
+    const w = worldWith(["##########", "#1..Q....#", "#2.......#", "#3.......#", "##########"], {
+      Q1: {
+        type: "wires",
+        wires: [
+          [3, 2],
+          [4, 2],
+          [5, 2],
+        ],
+      },
+    });
+    const right = w.stations.Q1?.answer[0] as number;
+    const before = viewFor(w, 1, "deaf", false).entities;
+    place(w, 0, { x: 3 + right, y: 2 });
+    step(w, { 0: input(0, 0, true) }, TICK_MS);
+    const after = viewFor(w, 1, "deaf", false).entities;
+    expect(w.stations.Q1?.solved).toBe(true);
+    const fx = detectFx(before, after);
+    expect(fx.filter((f) => f.kind === "snip")).toMatchObject([{ targetId: "Q1" }]);
+    expect(fx.filter((f) => f.kind === "spark")).toMatchObject([
+      { pos: { x: 3 + right + 0.5, y: 2.5 } },
+    ]);
+    expect(fx.filter((f) => f.kind === "ring" || f.kind === "tick")).toHaveLength(2);
+  });
+
+  it("a panel that comes back into sight already solved and cut starts no snip", () => {
+    const solvedCut = (furniture?: true) => {
+      const v = wires(furniture ? undefined : [1], furniture);
+      return { ...v, station: { ...v.station, solved: !furniture } } as EntityView;
+    };
+    const fx = detectFx([solvedCut(true)], [solvedCut()]);
+    expect(fx.filter((f) => f.kind === "snip" || f.kind === "spark")).toEqual([]);
   });
 
   it("at most three sparks start in any second", () => {

@@ -264,3 +264,7 @@
 - decor/5: `rivets` became top-only (a row along a front reads as slats' spacing). Reversible by giving it `"front"` again.
 - decor/6: the bench must run at load under 6; the machine stayed at 6 to 35 for 9 minutes of waiting → ran it anyway (it passed, within 10 % of the baseline) and queued a quiet-machine rerun in `review/QUEUE.md`, because a pass under load is at worst pessimistic. Reversible by nothing (no change made).
 - decor/6: the cable tray reads as a thin band in game, the nearest item to a rail → kept (the plan names it, and its three coloured cables say tray), flagged in the review. Reversible by removing `cableTray` from the strongroom's kinds.
+
+## autofix4
+
+- autofix4/240: the full check went red once on `spec/layout/wheel.test.ts` "a refused send says why…" (Can't see's `.wheel` not visible within its 1 s `waitFor`, at minute 8 of a loaded run); the spec passed 3/3 alone and fx.ts cannot reach the wheel → committed Task 240 and treated it as a load flake, watched in the next full check (not retried to green), because `pnpm check:flaky` runs the whole suite and its port setup clashes with the unit's server. Reversible by investigating with `PORT=8092 pnpm check:flaky`.
