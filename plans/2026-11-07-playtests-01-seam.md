@@ -151,6 +151,8 @@ Both pixels come from one animation frame, which matches NFR6.
 
 ### Task 121: Prove the proxy takes images, and add the SDK as a dev dependency
 
+- [x] Done (proxy gate passed: 5/5 replies, ~1.7 s each, 1358 input tokens)
+
 - **Description.** Add `@anthropic-ai/sdk` as a devDependency (`pnpm add -D @anthropic-ai/sdk@1.6.0`).
   Write `scripts/playtest/probe.ts`. It takes one screenshot of the home page at 1280 × 800 with
   Playwright, then sends 5 sequential messages to `process.env.PLAYTEST_MODEL ??
