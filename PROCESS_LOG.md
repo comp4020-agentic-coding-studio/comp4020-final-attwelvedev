@@ -1597,3 +1597,18 @@ wrong worktree; `cmp` is what showed it, and the redone pair differs.
 Outside the code: I had symlinked three worktrees' `node_modules` to
 `wt-night`, and a pnpm run through one rewrote `.modules.yaml` and stopped the
 overnight unit's `pnpm` scripts at 16:08. Each now has its own install.
+
+## 2026-11-08 — A ticked task whose guard had no test
+
+0043fd7
+
+The review of unit pf01 found Task 6 ticked although its plan asked for the
+restart watchdog to have its own test, and none did: the timer and its
+`room.stall` log line could be deleted with every check green. The rule that
+every guard is shown to fail first already exists in CLAUDE.md, so no new rule
+was added; it was skipped, not missing. This unit (overnight, auto fixes 5)
+adds the missing sensor: a `STALL_RESTART=1` seam that leaves a restarted room
+stalled on purpose, and `spec/restart-stall.test.ts` on its own app. It went
+red before the seam (first restarted tick at 353 ms, expected at least 2050),
+and red under each break: no watchdog interval (no view within 6.3 s) and no
+`room.stall` record (zero lines).
