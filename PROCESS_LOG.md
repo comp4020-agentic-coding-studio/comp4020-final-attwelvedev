@@ -1507,3 +1507,73 @@ red on a deliberate break first. A contact sheet (`pnpm decor:sheet`) draws ever
 look through the real renderer, so the judgement "can you name it" is made on
 the render, and it caught three things the tests could not (a trellis that read
 as a gate, a conduit as a rail, a swag as a bridge).
+
+## 2026-11-08 — Glass is veiled by the floor under it, not by a rule about tops
+
+9b31770, 65a2982, 30c79cf
+
+The overnight run parked Task 3 with a red test for L2 (glass veiled before the
+corner) that required every pane's top to stay clear, like a wall's top. I asked
+why it was parked, and the answer was that it ran out of budget on L7 and never
+attempted L2. When the first fix made that test pass it broke an older one, the
+2026-11-05 room 3 test that holds my rule "all wall materials should use this
+new dynamic veiling, including vents and glass": there a pane's pixel is veiled
+exactly where the floor under it is dark, top included.
+
+The obvious move was to keep the parked test and loosen room 3's. I chose the
+other way and told the agent the rule: a pane's top is veiled when it lies after
+a corner that blocks line of sight (room 3), and room 6's glass is before the
+corner, so veiling it makes no sense. The parked test's "every top clear" clause
+was the part that was wrong, so it became room 3's own per-pixel oracle measured
+in room 6, and the fix samples the floor each pixel belongs to (a 5 by 10 grid
+carried down the screen), not nine points on the pane's own tile.
+
+How I knew it was right: the new test went from 751 points wrong to 0, and a
+break that put the samples back on the pane's own tile turned it red again
+(742 wrong). Room 3's tests stayed green, and I looked at room 6 at 1280 and
+375 wide and said it looked good.
+
+## 2026-11-08 — Two tests were measuring a picture the game never draws
+
+141f20d, 5be7db8
+
+The parked L7 test (a music box in front of glass cut vertically) stayed red at
+70 points with and without the candidate fix, and the overnight note guessed a
+stray clip was in force. It was the test. `draw()` rebuilds its camera from the
+figures `litEntities` leaves, and the test built its own camera from the whole
+scene, about 70 px apart vertically, so it sampled one place and the renderer
+drew another. The game passes its own eased camera as `scene.cam`, so play was
+never affected. Pinning `sc.cam` in the test fixed it, and the fix the overnight
+run had already tried turned out to be right.
+
+Two misreadings of mine on the way: I first read a box's top a lift too low,
+which made the right fix look useless, and I withdrew that when the oracle
+turned out wrong. The L6 count moved from 8 to 22 once the camera was pinned and
+L4 stayed at 97, so the pinned tests are the honest reproduction.
+
+How I knew: with the camera pinned the L7 test is red on the old rule (90
+points wrong, mostly on the box's top face) and green on the new, and L4 and L6
+still reproduce. Not yet in the harness: a render test that draws through
+`draw()` should pin `scene.cam`, and nothing enforces it.
+
+## 2026-11-08 — Two fixes that merged cleanly and broke each other
+
+1713441, 76e564a
+
+I asked for Task 4 (bells) first and the merge after. The glass fix and the bell
+fix were on separate branches and cherry-picked with only a plan-file and a
+test-file conflict, but together the L7 test failed (90 points wrong): Task 4
+draws each bell and the music box through its own `Part`, built with `isBlock()`,
+so a music box under a pane took the glass's vertical cut again. It now uses
+`opaque()`. A break putting `isBlock()` back turned the test red.
+
+My conflict resolution also dropped two closing lines from the first `describe`
+(the file did not parse), and the Task 4 branch carried a Biome error I had
+never linted. What caught them: Biome on the whole changed file, and checking
+that every test name from all three sources is present once (63, no duplicates).
+My own before/after screenshots were byte-identical because my shell was in the
+wrong worktree; `cmp` is what showed it, and the redone pair differs.
+
+Outside the code: I had symlinked three worktrees' `node_modules` to
+`wt-night`, and a pnpm run through one rewrote `.modules.yaml` and stopped the
+overnight unit's `pnpm` scripts at 16:08. Each now has its own install.
