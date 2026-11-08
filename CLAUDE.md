@@ -35,7 +35,9 @@
   from what it perceives and what teammates send, so never hand it the simulation's state,
   and a station type needs its decoder in `src/game/bots/decode.ts`. A cache's chamber is
   Rooms 4 to 9 have exactly one `o` braille plate (`PLATE_ROOMS`); its carried part is
-  given nowhere else and it never names a teaching station or cache. From room 4 a wire
+  given nowhere else and it never names a teaching station or cache. A plated radio never
+  solves (`lintPlates` fails a room whose real band chimes or ticks); a sighted seat is never
+  sent a wire-cut spark from a dark zone it has no goggles for. From room 4 a wire
   plaque is a seeded riddle (`WIRE_RULES[].riddles`, `NUMBER_RIDDLES`) that bots read
   through `ruleOfText`/`numberOfText`. A cache's bot jobs carry `"cache"`; prove them in
   `spec/bots-caches.test.ts`. A cache's chamber is

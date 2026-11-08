@@ -1,4 +1,5 @@
 import { cacheOf, inRect, type Room } from "../rooms/format.ts";
+import { platePart } from "../sim/braille.ts";
 import type { Role, Seat, Vec } from "../types.ts";
 import type { StationBelief } from "./decode.ts";
 
@@ -487,6 +488,8 @@ export function isDone(
       const b = known.stations[id];
       const p = room.objects.find((o) => o.id === id)?.params;
       const digit = p?.type !== "radio" || typeof p.yields !== "string" || b?.answer[0] != null;
+      // a plated radio never solves (it is a hint): done once its real band's digit is known
+      if (p?.type === "radio" && platePart(room, id) !== undefined) return b?.answer[0] != null;
       return b?.solved === true && digit;
     }
     case "listen":

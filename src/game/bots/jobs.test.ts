@@ -267,6 +267,51 @@ describe("isDone / isOpen", () => {
     );
   });
 
+  it("a plated radio's job is done once its real band's digit is known, not when it is solved (it never is)", () => {
+    const grid = [
+      "####################",
+      "#1.#........o...E.#",
+      "#2.#B...Q..........#",
+      "#3.................#",
+      "####################",
+    ];
+    const plated = parseRoom(
+      `${JSON.stringify({
+        id: "t",
+        name: "T",
+        beats: [{ name: "b", x: [0, 19], intent: { blind: "b", deaf: "d", mute: "m" } }],
+        objects: {
+          D1: { opensWhen: ["p1", "p2", "p3"] },
+          Q1: {
+            type: "radio",
+            pads: [
+              [6, 3],
+              [8, 3],
+            ],
+            range: 8,
+            yields: "Q2",
+          },
+          o1: { for: "Q1", part: 0 },
+          Q2: {
+            type: "keypad",
+            keys: [
+              [10, 3],
+              [11, 3],
+              [12, 3],
+            ],
+            length: 1,
+            slot: { from: "Q1", at: 0 },
+          },
+        },
+        hints: { jobs: [{ beat: 1, station: "Q1" }] },
+      })}\n---\n${grid.join("\n")}\n`,
+    );
+    const job = hintsOf(plated)[0] as Job;
+    const b = (answer: (number | null)[]) => ({ ...emptyBelief(), answer });
+    expect(isDone(plated, job, known({ stations: { Q1: b([]) } }), undefined)).toBe(false);
+    expect(isDone(plated, job, known({ stations: { Q1: b([2]) } }), undefined)).toBe(true);
+  });
+
   it("a tile job is done once the player is on it", () => {
     const job = hintsOf(roomWith({ jobs: [{ beat: 1, goTo: [5, 2] }] }))[0] as Job;
     expect(isDone(room, job, known(), { x: 9.5, y: 2.5 })).toBe(false);

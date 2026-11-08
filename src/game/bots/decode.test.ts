@@ -1139,14 +1139,21 @@ describe("a plated radio's turner (FR10)", () => {
     expect(radioPad(o, belief(5, 5))).toBeNull();
   });
 
-  it("ignores a decoy's pips: only a solved radio gives its digit", () => {
-    const b = { ...emptyBelief(), shows: [3, 2] };
-    DECODERS.radio?.({ sounds: [] } as unknown as RoleView, [], b, o, 0, 0);
-    expect(b.answer).toEqual([]);
-    // plated and solved (on its real band): now the face's pips are its digit
-    const solved = { ...b, solved: true };
-    DECODERS.radio?.({ sounds: [] } as unknown as RoleView, [], solved, o, 0, 0);
-    expect(solved.answer).toEqual([2]);
+  it("ignores a decoy's pips: only a pip on the band Can't see texted gives its digit (the real band never solves)", () => {
+    const noView = { sounds: [] } as unknown as RoleView;
+    // no band told yet: whatever it shows is a guess
+    const untold = { ...emptyBelief(), shows: [3, 2] };
+    DECODERS.radio?.(noView, [], untold, o, 0, 0);
+    expect(untold.answer).toEqual([]);
+    // told band 5 but sitting on 3 (a decoy): its pip is not the digit
+    const decoy = { ...emptyBelief(), shows: [3, 2], numbers: [5] };
+    DECODERS.radio?.(noView, [], decoy, o, 0, 0);
+    expect(decoy.answer).toEqual([]);
+    // sitting on the told band: the face's pip is the digit, solved or not
+    const real = { ...emptyBelief(), shows: [5, 2], numbers: [5] };
+    DECODERS.radio?.(noView, [], real, o, 0, 0);
+    expect(real.solved).toBe(false);
+    expect(real.answer).toEqual([2]);
   });
 });
 

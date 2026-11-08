@@ -245,6 +245,8 @@ export function drawStations(world: World): void {
     if (world.stations[o.id]?.solved) continue;
     const params = o.params ?? {};
     const type = params.type as StationType;
+    // a plated radio is a hint, never solved: its bands and knob stay as they are, as a solved one's did
+    if (type === "radio" && world.stations[o.id] && isPlated(world, o.id)) continue;
     world.stations[o.id] = {
       id: o.id,
       type,
@@ -259,7 +261,9 @@ export function drawStations(world: World): void {
 
 // Answers that feed (clues FR3): a solved station that yields fixes the fed station's slot to its
 // digit (a radio's digit d is key d, the (d - 1)th), and a vault's socket i is the symbol `from[i]`
-// revealed once solved. Run after every draw and every solve, so a re-draw keeps what is true.
+// revealed once solved. A plated radio never solves (it is a hint: only its pips tell a digit, and
+// only the plate tells which band is real), so it feeds from the start. Run after every draw and
+// every solve, so a re-draw keeps what is true.
 function fixFeeds(world: World): void {
   for (const o of stationObjects(world)) {
     const s = world.stations[o.id];
@@ -267,7 +271,11 @@ function fixFeeds(world: World): void {
     if (!s || s.solved) continue;
     const slot = p.slot as { from?: unknown; at?: unknown } | undefined;
     const from = typeof slot?.from === "string" ? world.stations[slot.from] : undefined;
-    if (from?.solved && from.type === "radio" && typeof slot?.at === "number") {
+    if (
+      from?.type === "radio" &&
+      (from.solved || isPlated(world, from.id)) &&
+      typeof slot?.at === "number"
+    ) {
       s.answer[slot.at] = (from.answer[1] as number) - 1;
     }
     if (s.type === "vault" && Array.isArray(p.from)) {
@@ -458,9 +466,11 @@ function act(
         s.input[s.input.length - 1] = value;
         say("turn", value);
         if (s.type === "radio") {
-          // a decoy band is tuned (tone and pips) but never solves; only the real one does
+          // every band is tuned (tone and pips). A plated radio never solves, so its real band
+          // sounds and looks like a decoy and only the plate tells them apart (FR10); a bare
+          // radio solves on its one band
           s.tuned = bandDigit(s) !== undefined;
-          if (value === s.answer[0]) solve();
+          if (value === s.answer[0] && !isPlated(world, o.id)) solve();
         }
         return true;
       }

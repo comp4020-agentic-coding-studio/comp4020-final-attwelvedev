@@ -310,9 +310,9 @@ function fromTile(view: RoleView, s: { dir?: Vec }, at: Vec): boolean {
 // wrong answer, so the turner searches. Once tuned, every PIP_TICKS it gives its digit: on its face
 // for the sighted (shows[1]) and as `n` pips for hearers, from where it stands.
 const radio: Decoder = (view, _inbox, b, o, _now, plated) => {
-  // a radio with a plate has decoy bands that pip wrong digits (FR10): only a pip heard or seen once
-  // the radio is solved, on its real band, is its digit
-  if (plated !== undefined && !b.solved) return;
+  // a radio with a plate has decoy bands that pip wrong digits (FR10), and the real band sounds like
+  // them (it never solves): only a pip on the band Can't see texted is the digit
+  if (plated !== undefined && (b.shows[0] === undefined || b.numbers.at(-1) !== b.shows[0])) return;
   if (b.shows.length === 2) b.answer = [b.shows[1] as number];
   for (const s of view.sounds)
     if (s.kind === "pip" && s.n !== undefined && fromTile(view, s, o.tiles[0] as Vec))

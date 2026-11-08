@@ -103,7 +103,11 @@ After phase 14 the user played the game and listed what is wrong or thin:
   real band and pips the true digit. The other two are decoys, each pipping a wrong digit. All three
   sound and look the same to every role. The seeded generator draws the real band, both decoys and
   the decoy digits. The plate gives the real band. Feeding a keypad a decoy digit is an ordinary
-  wrong answer (FR13).
+  wrong answer (FR13). A plated radio is a hint, not a puzzle: it never solves, so no band plays a
+  `solved` chime or shows a tick, and the real band is told from a decoy by the plate alone (ruled
+  2026-11-09, after the final review found the real band solving: spinning the knob found it
+  without the plate). Its digit feeds the keypad from the start; a wrong keypad digit is what
+  costs the team.
 
 **Riddles**
 

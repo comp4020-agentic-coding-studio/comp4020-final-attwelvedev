@@ -1628,3 +1628,25 @@ fixes 6) adds `spec/plans.test.ts`, which fails on a ticked box that says
 an open Definition of Done item. Run on the tree before any untick, it listed
 exactly the four lines the review named; re-ticking one turns it red again.
 The gaps stay written beside the unticked boxes.
+
+## 2026-11-09 — The radio's plate was optional, and the lint skipped radios
+
+The final whole-branch review found that turning a plated radio onto its real band
+solved it at once: the `solved` chime and the tick told the band from the two
+decoys, so the braille plate (and Can't see's job in room 6) could be skipped by
+spinning the knob. The user had seen the same in play. The phase 04 plan had
+decided "a decoy does not solve; the real band does", which contradicted the
+spec's FR10 ("all three sound and look the same to every role").
+
+The obvious fix was a one-line change to the solve. I weighed three: make the
+solve silent, solve only when the keypad accepts the digit, or drop FR10's
+sameness. The user chose the first, calling the radio a hint to be used on the
+keypad rather than something to solve. That moved more than one line: the
+keypad feed, the send-back redraw, the bot decoder (which told the real band by
+`solved`) and the bot job's done rule all read the flag. `lintPlates` returned
+null for a radio ("pips carry its digit, never its band"), so no check could see
+the leak; it now turns the knob onto the real band and fails on any `solved` cue
+or tick. Each new guard was shown red by breaking the code it guards (the solve,
+the feed, the redraw guard, the decoder, the job rule, the lint on the real
+room 6). F2 of the same review (a wire-cut spark sent into a dark zone) got the
+same treatment.

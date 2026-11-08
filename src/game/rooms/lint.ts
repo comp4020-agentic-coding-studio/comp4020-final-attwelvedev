@@ -1010,5 +1010,26 @@ function plateLeak(room: Room, station: RoomObject, part: number, tune: Tune): s
     }
     return null;
   }
-  return null; // a radio's pips carry its digit, never its band
+  if (p.type === "radio") {
+    // the real band must sound and look like a decoy (FR10): turn the knob onto it and nothing may say
+    // it is the real one: no `solved` cue to any hearer, no `solved` flag on its face for the sighted
+    const pad = tilesOf(p.pads)[1];
+    if (!pad) return null;
+    const world = worldAt(room, pad.x, pad.y);
+    const s = world.stations[station.id];
+    if (!s) return null;
+    const range = typeof p.range === "number" ? p.range : 10;
+    s.input = [((s.answer[0] as number) + range - 1) % range]; // one notch below the real band
+    world.players[1].pos = { x: pad.x + 0.5, y: pad.y + 0.5 };
+    step(world, { 1: { seq: 1, move: { x: 0, y: 0 }, act: true } }, TICK_MS);
+    const told = ROLES.some((role) => {
+      const v = viewFor(world, 1, role, false);
+      return (
+        v.sounds.some((c) => c.kind === "solved") ||
+        v.entities.some((e) => e.id === station.id && e.station?.solved)
+      );
+    });
+    return told || s.solved ? "real band solves, so its chime and tick tell it from a decoy" : null;
+  }
+  return null;
 }

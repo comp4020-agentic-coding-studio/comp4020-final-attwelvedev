@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { viewFor } from "../perception.ts";
 import { loadRooms } from "../rooms/load.ts";
 import type { Seat, Vec } from "../types.ts";
 import { tuneGroups } from "./chimes.ts";
 import { rng } from "./rng.ts";
 import {
   drawAnswer,
+  drawStations,
   JAM_TICKS,
   NUMBER_RIDDLES,
   noteOf,
@@ -371,8 +373,11 @@ describe("a radio a braille plate names has decoy bands (FR10)", () => {
     redrawOne(w, o, st(w));
     return w;
   };
-  const turnTo = (w: World, value: number) => {
-    for (let i = 0; i < 8 && st(w).input[0] !== value; i++) press(w, { x: 8, y: 4 });
+  const turnTo = (w: World, value: number): WorldEvent[] => {
+    const events: WorldEvent[] = [];
+    for (let i = 0; i < 8 && st(w).input[0] !== value; i++)
+      events.push(...press(w, { x: 8, y: 4 }));
+    return events;
   };
 
   it("draws three distinct settings, and decoy digits that are not the real one", () => {
@@ -389,7 +394,7 @@ describe("a radio a braille plate names has decoy bands (FR10)", () => {
     }
   });
 
-  it("a decoy is tuned and pips a wrong digit, but never solves; the real band solves", () => {
+  it("every band is tuned and pips its digit; none solves, the real band included (final review F1)", () => {
     let tested = 0;
     for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
       const w = plated(seed);
@@ -409,13 +414,89 @@ describe("a radio a braille plate names has decoy bands (FR10)", () => {
       expect(decoy.d).not.toBe(a[1]);
       press(w, { x: 6, y: 4 }); // one notch back, off the decoy band
       expect(st(w).tuned).toBe(false);
-      turnTo(w, a[0] as number);
-      expect(st(w).solved).toBe(true);
+      const heard = turnTo(w, a[0] as number);
+      // the real band is tuned like a decoy: no solve, no `solved` cue, no tick on its face
+      expect(st(w).solved).toBe(false);
+      expect(st(w).tuned).toBe(true);
+      expect(stationResults(heard)).not.toContain("solved");
       expect(st(w).input).toEqual([a[0]]);
       w.tick = 0;
       expect(stationShows(w, st(w))).toEqual([a[0], a[1]]);
+      expect(
+        viewFor(w, 0, "mute", false).entities.find((e) => e.id === "Q1")?.station?.solved,
+      ).toBe(false);
     }
     expect(tested).toBeGreaterThan(0);
+  });
+
+  it("spinning the knob through every setting gives the real band away to no role (final review F1)", () => {
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const w = plated(seed);
+      const real = (st(w).answer as number[])[0] as number;
+      const trace = new Map<number, string>();
+      for (let i = 0; i < 8; i++) {
+        press(w, { x: 8, y: 4 });
+        const at = st(w).input[0] as number;
+        // the same view a decoy gets: tuned or static, tone or not, solved never
+        const sig = ["blind", "deaf", "mute"].map((role) => {
+          const v = viewFor(w, 1, role as "blind", false);
+          return `${role}:${v.sounds.map((c) => c.kind).join()}:${JSON.stringify(
+            v.entities.find((e) => e.id === "Q1")?.station?.solved,
+          )}`;
+        });
+        expect(sig.join("|")).not.toContain("solved,");
+        trace.set(at, sig.join("|"));
+      }
+      expect(w.events.some((e) => e.kind === "station" && e.result === "solved")).toBe(false);
+      expect(st(w).solved).toBe(false);
+      // the real band's signature is one a decoy has too (tone, never the solved cue)
+      const decoys = [(st(w).answer as number[])[2], (st(w).answer as number[])[4]] as number[];
+      const mine = trace.get(real) as string;
+      expect(
+        decoys.some(
+          (d) => trace.get(d)?.replaceAll(/pip,?/g, "") === mine.replaceAll(/pip,?/g, ""),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("a plated radio still feeds its keypad: the slot holds the real digit from the start, and survives a send-back", () => {
+    const keys = [0, 1, 2].flatMap((y) => [0, 1, 2].map((x) => [10 + x, 1 + y]));
+    const w = stationWorld(
+      {
+        Q1: { ...RADIO, yields: "Q2", motif: "moon" },
+        Q2: { type: "keypad", keys, length: 3, motif: "moon", slot: { from: "Q1", at: 0 } },
+      },
+      3,
+    );
+    w.room.objects.push({
+      id: "o1",
+      kind: "braille",
+      tiles: [{ x: 2, y: 2 }],
+      visibleTo: ["deaf", "mute"],
+      audibleTo: [],
+      params: { for: "Q1", part: 0 },
+    });
+    const q1 = w.room.objects.find((x) => x.id === "Q1") as NonNullable<
+      World["room"]["objects"][0]
+    >;
+    redrawOne(w, q1, st(w));
+    const digit = (st(w).answer as number[])[1] as number;
+    // nobody has touched the radio: the keypad already wants the key its digit names
+    step(w, {}); // any step runs the feed
+    expect(st(w, "Q2").answer[0]).toBe(digit - 1);
+    expect(st(w).solved).toBe(false);
+  });
+
+  it("a send-back keeps a plated radio's bands, as it kept a solved radio's (the team's learned digit stands)", () => {
+    for (const seed of [1, 2, 3]) {
+      const w = plated(seed);
+      const before = [...(st(w).answer as number[])];
+      turnTo(w, before[0] as number);
+      drawStations(w); // what a send-back does to every unsolved station
+      expect(st(w).answer).toEqual(before);
+      expect(st(w).input).toEqual([before[0]]);
+    }
   });
 
   it("a radio with no plate is unchanged: one band", () => {

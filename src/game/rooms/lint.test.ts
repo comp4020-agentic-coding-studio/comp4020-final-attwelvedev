@@ -1077,6 +1077,18 @@ describe("lintPlates", () => {
     expect(plates(none, [])).toEqual([]);
   });
 
+  it("a plated radio passes: its real band is tuned like a decoy, nothing tells it apart but the plate (final review F1)", () => {
+    const RADIO = {
+      type: "radio",
+      pads: [
+        [5, 1],
+        [7, 1],
+      ],
+      range: 8,
+    };
+    expect(plates(plateRoom("06-x", { Q1: RADIO, o1: { for: "Q1", part: 0 } }))).toEqual([]);
+  });
+
   it("a plate in rooms 1 to 3 fails", () => {
     const r = plateRoom("02-x", { Q1: DIAL, o1: { for: "Q1", part: 0 } });
     expect(plates(r, [])).toEqual(["plate o1: rooms 1 to 3 have no braille plates"]);
