@@ -239,7 +239,7 @@ describe("object materials: doors, crates, glass, vents", () => {
     const { ctx, ops } = recorder();
     paintCrateShadow(ctx, 50, 50, 14, 12, 40);
     paintCrate(ctx, 34, 28, 28);
-    const shadow = ops.findIndex((o) => o.name === "ellipse");
+    const shadow = ops.findIndex((o) => o.name === "roundRect");
     const body = ops.findIndex((o) => o.name === "fillRect" && o.fillStyle === WORLD.crate);
     expect(shadow).toBeGreaterThan(-1);
     expect(shadow).toBeLessThan(body);
@@ -249,6 +249,19 @@ describe("object materials: doors, crates, glass, vents", () => {
     // its brace is kept, and it has three grain lines
     expect(ops.some((o) => o.name === "stroke")).toBe(true);
     expect(ops.filter((o) => o.name === "fillRect" && o.args[3] === 1)).toHaveLength(3);
+  });
+
+  it("a crate's shadow is a rectangle the box's size, not an ellipse (playtest: the box is square)", () => {
+    const { ctx, ops } = recorder();
+    paintCrateShadow(ctx, 50, 50, 14, 12, 40);
+    expect(ops.some((o) => o.name === "ellipse" || o.name === "arc")).toBe(false);
+    const rect = ops.find((o) => o.name === "roundRect");
+    // from the same centre, 0.08 tile south-east, spanning 2 rx by 2 ry
+    const [x, y, w, h] = (rect?.args ?? []) as number[];
+    expect(x).toBeCloseTo(50 + 3.2 - 14);
+    expect(y).toBeCloseTo(50 + 3.2 - 12);
+    expect(w).toBeCloseTo(28);
+    expect(h).toBeCloseTo(24);
   });
 
   it("a door draws two inset panels and keeps its seam", () => {
@@ -271,7 +284,7 @@ describe("object materials: doors, crates, glass, vents", () => {
     paintGlass(r.ctx, 40, 32, 44);
     paintVent(r.ctx, 40, 32, 44);
     expect(r.gradients).toHaveLength(0);
-    expect(r.ops.some((o) => o.name === "ellipse")).toBe(false);
+    expect(r.ops.some((o) => o.name === "ellipse" || o.name === "roundRect")).toBe(false);
     expect(r.ops.every((o) => !isGradient(o))).toBe(true);
     expect(r.ops.some((o) => o.name === "closePath")).toBe(false);
   });

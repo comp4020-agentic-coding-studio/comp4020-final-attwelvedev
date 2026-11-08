@@ -212,8 +212,8 @@ export function paintDoor(
   c.fillRect(ox + w / 2 - 1, oy + d, 2, h);
 }
 
-// A crate's drop shadow on the floor under it: an ellipse of the outline colour at 18 %, 0.08 tile
-// south-east. None in high contrast.
+// A crate's drop shadow on the floor under it: a rectangle the box's size (rx, ry its half-extents),
+// slightly rounded, of the outline colour at 18 %, 0.08 tile south-east. None in high contrast.
 export function paintCrateShadow(
   c: CanvasRenderingContext2D,
   cx: number,
@@ -227,7 +227,7 @@ export function paintCrateShadow(
   c.globalAlpha *= 0.18;
   c.fillStyle = WORLD.line;
   c.beginPath();
-  c.ellipse(cx + tile * 0.08, cy + tile * 0.08, rx, ry, 0, 0, Math.PI * 2);
+  c.roundRect(cx + tile * 0.08 - rx, cy + tile * 0.08 - ry, rx * 2, ry * 2, tile * 0.06);
   c.fill();
   c.restore();
 }

@@ -290,3 +290,7 @@
 - pt01/124: `playtestFrame(ctx, scene)` in the plan has no way to know the labels (Scene carries only `{text, at}`, the hook's `PlaytestFrame.labels` is `Label[]` with `kind`) → gave it a third argument `labels: readonly Label[] = []`, passed `rt.labels` from Game.tsx. Also exported `uninstallPlaytest()` for the unit test's cleanup. Reversible by editing `src/client/playtest.ts`; phase 02 reads only `window.__playtest`.
 - pt01/124: the bare render also drops `fx`, `pops` and `report` (as §4 says for fx and pops; `report` so the offscreen draw does not overwrite the frame's chip boxes). Its wall-tile check uses (9, 4), room 01's bottom wall, far from the spawns. Added a second break check (bare read from the live canvas: the own-figure case went red), so the drawn/bare comparison is proven too. Reversible: none needed.
 - pt01/close: the phase DoD's "One PROCESS_LOG.md entry if the user corrected anything" → none written: the user corrected nothing in this unit.
+
+## pf01
+
+- pf01/2: the full check went red once on `spec/layout/home.test.ts` "holds still with reduced motion" (a frame changed in 400 ms), the flake autofix4 parked in `specs/backlog.md`; alone it passed 4 of 4 (the first straight after the full check). Two more alone-runs failed on lobby-creating tests that timed out, which is pt01's exhausted-lobby-cap shape (green on a fresh server) → committed Task 2 (a crate shadow; room 01's feeds have no crate) without retrying the full check, because the failing test cannot reach the change. Reversible: `git revert` the Task 2 commit.
