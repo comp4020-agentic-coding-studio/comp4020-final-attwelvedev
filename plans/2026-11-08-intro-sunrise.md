@@ -42,13 +42,13 @@ Needs the real hold: `INTRO_MS` unset (`pnpm build && PORT=8092 pnpm start`, not
 
 Each new or changed assertion is shown red first with a break script, and the commit says what was broken. A render bug that will not reproduce from the model is reproduced by drawing the real scene and looking, before any fix (CLAUDE.md). Browser specs that need the real hold run their own app, as `spec/layout/intro.test.ts` and `spec/leaderboard.test.ts` do; read how `intro.test.ts` gets its hold before adding to it.
 
-- [ ] **Task 1: Find out why the rooms do not line up**
+- [x] **Task 1: Find out why the rooms do not line up**
   - Files: `spec/layout/intro.test.ts` (a new spec: measure the room's origin and tile size on the reveal's backdrop canvas, drawn by `useDraw(..., true)` in `Game.tsx`, and on the game canvas at the first intro frame; assert they match to 1 px, at 1280×800 and 375×812, for each role), `review/intro-align-2026-11-08.md` (new: the measured numbers and the cause).
   - Hypothesis to confirm or refute: the backdrop canvas fills the whole `.reveal-frame`, while the game canvas sits inside the HUD's layout, so the same flat plan is drawn at two sizes. DESIGN.md says the hold shows the plan "as the reveal showed it"; the measurement says whether it does.
   - Acceptance: the spec fails today, and the finding names the cause. If the rooms already match and only the colour differs, say so: Task 2 is then dropped.
   - Depends on: none.
 
-- [ ] **Task 2: One rectangle for both**
+- [x] **Task 2: One rectangle for both**
   - Files: whichever of `src/components/Game.tsx`, `src/styles/game.css` and `src/client/render/index.ts` Task 1 names. Two options, chosen from the finding: size the backdrop canvas to the game canvas's rectangle, or fit the flat camera inside it. Either way the first intro frame is the same picture as the backdrop.
   - Test: the Task 1 spec goes green; `introAt`'s first frame is unchanged (`src/client/intro.test.ts` stays green).
   - Acceptance: demo 1. The reveal card's own layout does not move (`spec/layout/reveal.test.ts` stays green).

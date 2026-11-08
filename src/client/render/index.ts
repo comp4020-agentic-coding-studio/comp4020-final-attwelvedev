@@ -84,6 +84,10 @@ export interface Scene {
   rise?: number;
   swoop?: number;
   landing?: number;
+  // Where the reveal's backdrop drew the whole room (canvas px; it may reach past the canvas): the
+  // swoop flies from the room fitted there, so the first intro frame is the backdrop's picture.
+  // Absent: the room fitted to the canvas.
+  introFit?: Box;
   // The camera to draw with, when the caller eases one (the game does). Absent: the scene's own.
   cam?: Camera;
   // The view's `seen`: the tiles in your line of sight. Present for the sighted, who draw everything

@@ -172,7 +172,7 @@ a symbol into copy; it would fall back to another font and look wrong.
 
 When everyone is ready the server sends `intro` and holds its first tick for 2400 ms (`INTRO_MS`), so the clock, the guards and the bots start when it ends. Meanwhile every page plays the staged start under the reveal (`introAt` in `src/client/intro.ts`):
 
-1. **Hold**, 300 ms: the flat plan, as the reveal showed it.
+1. **Hold**, 300 ms: the flat plan, as the reveal showed it: the same picture in the same place. The backdrop fills the window and the game canvas sits inside the HUD, so the intro's camera fits the room to the backdrop's rectangle (`Scene.introFit`), not to its own canvas, and the swoop flies from there (`spec/layout/intro.test.ts` measures it to 1 px).
 2. **Tilt**, 900 ms, ease in-out: depth goes from a full tile to 0.82 and the walls grow from no height **north to south** (row 0 is whole at two thirds of the tilt, the last row at its end; doors, hatches, glass and vents grow with their row).
 3. **Swoop**, 900 ms, ease in-out: the camera flies from the whole room to the game camera on you. It starts only once the board has tipped.
 4. **Land**, 300 ms: your own figure hops once (a quarter of a tile) and one small `--ui` ring opens at your feet (`targetId: "landed"`, one of the two rings FR16 allows).

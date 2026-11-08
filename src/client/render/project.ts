@@ -1,5 +1,5 @@
 import { MAP } from "../tokens.ts";
-import type { Scene } from "./index.ts";
+import type { Box, Scene } from "./index.ts";
 
 // The 3/4 projection (ADR 0016, DESIGN.md "The 3/4 recipe"). The grid stays axis-aligned with
 // north up; depth is squashed by TILT.depth and height lifts a point straight up the screen.
@@ -78,16 +78,17 @@ function windowStart(
   return Math.max(0, Math.min(room - view, centre - view / 2));
 }
 
-// The whole room in frame, walls and a strip of cliff included.
-function fitCamera(scene: Scene): Camera {
+// The whole room in frame, walls and a strip of cliff included: in the canvas, or in `box` (canvas
+// px, and it may reach past the canvas) when one is given.
+function fitCamera(scene: Scene, box: Box = { x: 0, y: 0, w: scene.w, h: scene.h }): Camera {
   const roomW = scene.tiles?.[0]?.length ?? 1;
   const roomH = scene.tiles?.length ?? 1;
   const projected = roomH * LIVE.depth + LIVE.wall; // the room's height on screen, in tiles
-  const scale = Math.max(Math.min(scene.w / roomW, scene.h / (projected + CLIFF_RESERVE)), 1);
+  const scale = Math.max(Math.min(box.w / roomW, box.h / (projected + CLIFF_RESERVE)), 1);
   return {
     scale,
-    ox: (scene.w - roomW * scale) / 2,
-    oy: (scene.h - (projected + CLIFF_RESERVE) * scale) / 2 + LIVE.wall * scale,
+    ox: box.x + (box.w - roomW * scale) / 2,
+    oy: box.y + (box.h - (projected + CLIFF_RESERVE) * scale) / 2 + LIVE.wall * scale,
   };
 }
 
@@ -135,7 +136,7 @@ export function camera(scene: Scene): Camera {
   if (scene.layout === "fit" || !scene.tiles) return fitCamera(scene);
   const follow = followCamera(scene);
   if (swoop >= 1) return follow;
-  const fit = fitCamera(scene);
+  const fit = fitCamera(scene, scene.introFit); // the reveal's backdrop showed it there
   const mix = (a: number, b: number) => a + (b - a) * swoop;
   return {
     scale: mix(fit.scale, follow.scale),

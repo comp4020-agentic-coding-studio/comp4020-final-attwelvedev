@@ -35,6 +35,7 @@ import { createPredictor, type Predictor } from "../client/predict.ts";
 import { type RoomDecor, roomDecor } from "../client/render/decor.ts";
 import { inSight, seenOf } from "../client/render/sight.ts";
 import {
+  type Box,
   type Camera,
   camera,
   draw,
@@ -132,8 +133,10 @@ interface Runtime {
   soundOn: boolean;
   // The start of a room (FR14): when the server's `intro` came, how long it holds (`ms`), and
   // whether it is reduced motion's cross-fade. Null until the game starts; a page that loads
-  // mid-game has none. `landed`: the land's ring has been shown.
-  intro: { at: number; ms: number; reduced: boolean; landed: boolean } | null;
+  // mid-game has none. `landed`: the land's ring has been shown. `fit`: where the reveal's backdrop
+  // drew the room, relative to the game canvas (read each frame while the backdrop is there, the last
+  // one kept; none on a restart, which has no backdrop).
+  intro: { at: number; ms: number; reduced: boolean; landed: boolean; fit?: Box | null } | null;
   cam: { scale: number; ox: number; oy: number } | null; // the last frame's map camera, to turn a tap into a tile
   lampTick: number; // the tick of the last lamp flash shown, and until when it shows, from whom
   lampUntil: number;
@@ -195,6 +198,10 @@ function useDraw(
       raf = requestAnimationFrame(frameLoop);
       const view = rt.view;
       if (!view || !el.isConnected) return; // the reveal's backdrop goes when the game starts
+      // a box that changed size this frame (the reveal's cover turning fixed as the game starts) is
+      // drawn at its new size now, not a frame late when the observer says so: the intro's first
+      // frame fits the room to the backdrop's rectangle as it is (R1)
+      if (box.clientWidth !== size.w || box.clientHeight !== size.h) resize();
       const now = performance.now();
       if (rt.self && rt.shown) {
         const gap = Math.hypot(rt.self.x - rt.shown.x, rt.self.y - rt.shown.y);
@@ -272,7 +279,7 @@ function useDraw(
         bots: crew.map((c) => !!c.bot) as Scene["bots"],
         layout: "follow", // the game camera on every screen; the intro's swoop flies it in from the whole room
         // the reveal's backdrop is the flat plan, before anyone has landed (Can't see's figure is not yet shown)
-        ...(flat ? { rise: 0, swoop: 0, landing: 0 } : introScene(rt, now)),
+        ...(flat ? { rise: 0, swoop: 0, landing: 0 } : introScene(rt, now, el)),
         pops,
         fx: rt.fx
           .filter((f) => now - f.at < fxMs(f.fx))
@@ -282,19 +289,28 @@ function useDraw(
         nowMs: now,
         reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
       };
-      // the camera is eased frame to frame so it never snaps; the home feeds and the reveal's flat
-      // backdrop ask for the whole room, which does not move, so easing leaves them alone
+      // the camera is eased frame to frame so it never snaps. The reveal's flat backdrop is a still
+      // picture of the whole room and takes its camera outright: eased, a small change of its height
+      // (the page settling as the game mounts) left it trailing the fit the intro starts from (R1)
       const target = camera(scene);
-      const cam = easeCamera(eased, target, now - lastFrame, scene);
+      const cam = flat ? target : easeCamera(eased, target, now - lastFrame, scene);
       eased = cam;
       lastFrame = now;
       scene.cam = cam;
+      // Where tile (0, 0) is, for the specs that read a pixel of a tile: the picture alone does not
+      // say where a tile is, and the camera is eased, so it is not worked out from the room. The
+      // reveal's backdrop says it too (as its own attribute), so its room can be lined up with the
+      // game's first frame.
+      const at = `${cam.scale.toFixed(3)},${cam.ox.toFixed(3)},${cam.oy.toFixed(3)}`;
+      if (flat && el.dataset.flatCamera !== at) el.dataset.flatCamera = at;
+      if (!flat && el.dataset.camera !== at) el.dataset.camera = at;
+      // and how far the board has tipped while the intro plays, so a spec can tell the hold's frames
+      // (rise 0) from the tilt's: under load the first frame drawn may already be past the hold
+      const rise = flat || scene.rise === undefined ? undefined : scene.rise.toFixed(3);
+      if (rise === undefined) delete el.dataset.rise;
+      else if (el.dataset.rise !== rise) el.dataset.rise = rise;
       if (!flat) {
         rt.cam = cam; // the reveal's backdrop is not what a tap is turned into a tile by
-        // Where tile (0, 0) is, for the specs that read a pixel of a tile: the picture alone does not
-        // say where a tile is, and the camera is eased, so it is not worked out from the room.
-        const at = `${cam.scale.toFixed(3)},${cam.ox.toFixed(3)},${cam.oy.toFixed(3)}`;
-        if (el.dataset.camera !== at) el.dataset.camera = at;
         // and whether the alarm is on: it is only ever drawn, so the picture cannot be asked
         const alarm = view.alarm ? "on" : "off";
         if (el.dataset.alarm !== alarm) el.dataset.alarm = alarm;
@@ -338,9 +354,24 @@ const introDone = (rt: Runtime): boolean => introNow(rt, performance.now()).done
 
 // The scene's part of the intro, and the land's ring at your feet the moment the land begins: one
 // of the two rings FR16 allows, pushed once.
-function introScene(rt: Runtime, now: number): Pick<Scene, "rise" | "swoop" | "landing"> {
+function introScene(
+  rt: Runtime,
+  now: number,
+  el: HTMLCanvasElement,
+): Pick<Scene, "rise" | "swoop" | "landing" | "introFit"> {
   const f = introNow(rt, now);
   const i = rt.intro;
+  // the swoop starts from the room as the reveal's backdrop drew it, which fills the window while
+  // the game canvas sits inside the HUD (R1): its rectangle, in the game canvas's px. Read every
+  // frame while the backdrop is there (the page settles under it: a scroll left over from the reveal,
+  // the HUD's bars), and the last one kept for the swoop, which runs after the cover has gone.
+  if (i && !f.done) {
+    const back = document.querySelector(".reveal-canvas canvas")?.getBoundingClientRect();
+    if (back && back.width > 0) {
+      const own = el.getBoundingClientRect();
+      i.fit = { x: back.left - own.left, y: back.top - own.top, w: back.width, h: back.height };
+    } else if (i.fit === undefined) i.fit = null;
+  }
   if (i && !i.landed && !i.reduced && f.land > 0 && rt.shown) {
     i.landed = true;
     // ring: reserved (FR16)
@@ -348,7 +379,12 @@ function introScene(rt: Runtime, now: number): Pick<Scene, "rise" | "swoop" | "l
     rt.fx = [...rt.fx, { fx: ring, at: now }].slice(-FX_MAX);
   }
   if (f.done) return {};
-  return { rise: f.rise, swoop: f.swoop, landing: f.land };
+  return {
+    rise: f.rise,
+    swoop: f.swoop,
+    landing: f.land,
+    ...(i?.fit ? { introFit: i.fit } : {}),
+  };
 }
 
 // The reveal's cover over the start: it fades over the hold and the tilt; reduced motion holds it,
@@ -526,7 +562,8 @@ export function Game({
       const r = rt.current;
       if (intro !== null) {
         const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-        const first = r.intro === null && r.view?.tick === 0;
+        // the room's first start, under its reveal; an `intro` that beats the reveal's view still is
+        const first = r.intro === null && (r.view === null || r.view.tick === 0);
         r.intro = { at: performance.now(), ms: intro, reduced, landed: false };
         if (first) {
           setCoverMs(coverTiming(intro, reduced));

@@ -8,7 +8,7 @@ import { launch } from "../browser.ts";
 import { playRoom, type Table } from "../playUi.ts";
 
 // The start of a room (FR14) through the real screens: Can't see and Can't speak at 1280, Can't
-// hear on a 375 phone (playRoom). Its own app holds the first tick 1500 ms (INTRO_MS), so the
+// hear on a 375 phone (playRoom). Its own app holds the first tick 7200 ms (INTRO_MS, the real timeline three times as slow), so the
 // sequence really plays and the input lock can be seen; the timeline itself is unit-tested
 // (src/client/intro.test.ts).
 const port = 26080 + Math.floor(Math.random() * 1000);
@@ -37,6 +37,49 @@ const holdRightThroughIntro = (page: Page) =>
         seen.push(self);
     }).observe(document.body, { subtree: true, childList: true, attributes: true });
   });
+// Where the room is drawn, in viewport px: tile (0, 0)'s corner and a tile's width. The backdrop
+// (the reveal's flat room) is read the moment the game canvas first draws a frame of the hold (rise
+// 0, the intro's held flat plan), and the game canvas at that frame (R1: the same picture in the same
+// place). Under load the first frame may already be in the tilt; frames past the hold are skipped.
+interface Placed {
+  x: number;
+  y: number;
+  scale: number;
+}
+const recordFirstFrame = (page: Page) =>
+  page.evaluate(() => {
+    const at = (
+      c: Element | null,
+      attr: string,
+    ): { x: number; y: number; scale: number } | null => {
+      const cam = c?.getAttribute(attr);
+      if (!c || !cam) return null;
+      const [scale, ox, oy] = cam.split(",").map(Number) as [number, number, number];
+      const r = c.getBoundingClientRect();
+      return { x: r.left + ox, y: r.top + oy, scale };
+    };
+    // read every animation frame, after the game's own draw (its loop was registered first), so no
+    // frame is missed the way a delayed observer callback can miss one; the rises seen are kept, to
+    // say why if no frame of the hold was ever drawn
+    const w = window as unknown as { __firstFrame?: unknown; __rises?: string[] };
+    const rises: string[] = [];
+    w.__rises = rises;
+    const look = () => {
+      const canvas = document.querySelector(".frame canvas");
+      const game = at(canvas, "data-camera");
+      const rise = canvas?.getAttribute("data-rise");
+      if (game && rises.at(-1) !== rise) rises.push(String(rise));
+      if (!game || rise !== "0.000") {
+        if (rises.length < 40) requestAnimationFrame(look);
+        return;
+      }
+      w.__firstFrame = {
+        game,
+        backdrop: at(document.querySelector(".reveal-canvas canvas"), "data-flat-camera"),
+      };
+    };
+    requestAnimationFrame(look);
+  });
 const releaseRight = (page: Page) =>
   page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowRight" })));
 
@@ -47,7 +90,9 @@ beforeAll(async () => {
       ...process.env,
       PORT: String(port),
       DATABASE_PATH: join(dir, "app.db"),
-      INTRO_MS: "1500",
+      // the real sequence, stretched to three times its length (the timeline scales with it): a
+      // 900 ms flat hold, so a loaded machine still draws a frame of it once the HUD has mounted
+      INTRO_MS: "7200",
     },
     stdio: "ignore",
   });
@@ -62,7 +107,10 @@ beforeAll(async () => {
   }
   browser = await launch();
   // Can't speak holds an arrow key through the whole intro
-  table = await playRoom(browser, url, ({ mute }) => holdRightThroughIntro(mute));
+  table = await playRoom(browser, url, async (byRole) => {
+    for (const page of Object.values(byRole)) await recordFirstFrame(page);
+    await holdRightThroughIntro(byRole.mute);
+  });
 }, 60_000);
 
 afterAll(async () => {
@@ -95,6 +143,29 @@ describe("the start of a room (FR14)", () => {
       .toBeGreaterThan(start + 0.5);
     await releaseRight(mute);
   });
+
+  // Can't see has no room on either canvas (ink), so only the sighted two: Can't speak at 1280,
+  // Can't hear on the 375 phone
+  it.each(["mute", "deaf"] as const)(
+    "%s: the first intro frame draws the room where the reveal's backdrop drew it",
+    async (role) => {
+      const seen = (await table.byRole[role].evaluate(
+        () => (window as unknown as { __firstFrame?: unknown }).__firstFrame,
+      )) as { game: Placed; backdrop: Placed | null } | undefined;
+      const rises = await table.byRole[role].evaluate(
+        () => (window as unknown as { __rises?: string[] }).__rises,
+      );
+      expect(
+        seen?.backdrop,
+        `a frame of the hold, under the backdrop (rises ${rises})`,
+      ).toBeTruthy();
+      const { game, backdrop } = seen as { game: Placed; backdrop: Placed };
+      const msg = `backdrop ${JSON.stringify(backdrop)} game ${JSON.stringify(game)}`;
+      expect(Math.abs(game.scale - backdrop.scale), msg).toBeLessThanOrEqual(1);
+      expect(Math.abs(game.x - backdrop.x), msg).toBeLessThanOrEqual(1);
+      expect(Math.abs(game.y - backdrop.y), msg).toBeLessThanOrEqual(1);
+    },
+  );
 
   it("after ready, .game reaches data-intro=done and Act works", async () => {
     for (const page of table.pages)
