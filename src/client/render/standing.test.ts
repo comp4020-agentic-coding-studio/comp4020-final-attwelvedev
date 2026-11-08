@@ -1955,44 +1955,48 @@ describe("what stands is dropped only when the light touches none of its footpri
 });
 
 describe("glass is not veiled before the corner (L2, screenshot 124)", () => {
-  it("leaves a pane whose ground is lit end to end clear, top and front, and every pane's top clear, room 6", () => {
+  // room 3's rule (a pixel of a pane is veiled exactly where the floor under it is dark), measured in room 6, whose
+  // panes (row 4, x 8 to 11) stand before the blocking corner: where the light reaches the floor under a pixel, the
+  // pixel is clear, top included
+  it("veils a pixel of a pane exactly where the floor under it is dark, room 6", () => {
     vi.stubGlobal("Path2D", class {});
     const room = roomOf("06-lights-out");
     const wrong: string[] = [];
-    let lit = 0;
+    const met = { lit: 0, dark: 0 };
     for (const vy of [2.4, 3.4, 3.7, 5.5, 6.4])
       for (let vx = 5.3; vx <= 16; vx += 0.7) {
         if (room.grid[Math.floor(vy)]?.[Math.floor(vx)] !== ".") continue;
         const v = { x: vx, y: vy };
         const { tiles, sc, light } = viewAt(room, v);
         rememberOrigin(light, v);
-        const cam = camera(sc);
+        sc.cam = camera(sc);
+        const cam = sc.cam;
         const { ctx, ops } = recorder();
         drawMist(ctx, cam, tiles, light, { x0: 0, x1: 44, y0: 0, y1: 13 }, 4);
         const pieces = ops.flatMap((o, i) =>
           o.name === "fill" && o.args[0] === "nonzero" ? pathBefore(ops, i) : [],
         );
         for (let tx = 8; tx <= 11; tx++) {
-          const ground = [0.1, 0.5, 0.9].flatMap((fx) =>
-            [0.1, 0.5, 0.9].map((fy) => ({ x: tx + fx, y: 4 + fy })),
-          );
-          const whole = ground.every((p) => inLight(light, p));
-          if (whole) lit++;
           const top = toScreen(cam, tx, 4, LIVE.wall);
           const h = cam.scale * LIVE.depth + LIVE.wall * cam.scale;
           for (let fx = 0.1; fx < 1; fx += 0.2)
             for (let fy = 0.05; fy < 1; fy += 0.1) {
-              if (!whole && fy >= FRONT0) continue; // a front partly lit is cut on the cone's line
               const p = { x: top.x + fx * cam.scale, y: top.y + fy * h };
-              if (covered(pieces, "nonzero", p))
+              const g = fromScreen(cam, p.x, p.y);
+              if (distToEdge(light, g) < 0.06) continue;
+              const want = !inLight(light, g);
+              if (want) met.dark++;
+              else met.lit++;
+              if (covered(pieces, "nonzero", p) !== want)
                 wrong.push(
-                  `viewer ${vx.toFixed(1)},${vy} pane ${tx} ${fy < FRONT0 ? "top" : "front"} veiled`,
+                  `viewer ${vx.toFixed(1)},${vy} pane ${tx} ${fy < FRONT0 ? "top" : "front"} at ${fx.toFixed(1)},${fy.toFixed(2)} should be ${want ? "veiled" : "clear"}`,
                 );
             }
         }
       }
-    expect(lit, "panes lit end to end").toBeGreaterThan(20);
-    expect(wrong.slice(0, 6), `${wrong.length} glass points veiled`).toEqual([]);
+    expect(met.lit, "clear points").toBeGreaterThan(100);
+    expect(met.dark, "veiled points").toBeGreaterThan(100);
+    expect(wrong.slice(0, 6), `${wrong.length} glass points wrong`).toEqual([]);
   });
 });
 
