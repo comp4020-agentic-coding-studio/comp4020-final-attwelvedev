@@ -27,6 +27,7 @@ import {
   resumeIfBack,
   setAutopilot,
   settleVote,
+  stalledRestart,
   startGame,
   swapPeople,
   takeOverWithBot,
@@ -223,6 +224,45 @@ describe("inputs and views", () => {
     expect(tickGame(game).cleared).toBe(false);
     game.world.status = "cleared";
     expect(tickGame(game).cleared).toBe(true);
+  });
+});
+
+describe("stalledRestart: the guard for a restarted room that never ticks (playtest fixes, Task 6)", () => {
+  // The playtest's freeze was not reproduced (20 restarts in spec/restart-resume.test.ts, 4 on the
+  // page in spec/layout/hud.test.ts); this is the guard the plan asks for in that case.
+  const restarted = () => {
+    const game = startGame(lobby("a", "b", "c"), firstJob);
+    for (const s of [0, 1, 2] as const) game.ready.add(s);
+    restartGame(game);
+    return game;
+  };
+  const idle = { ticking: false, holding: false };
+
+  it("a restarted room with no tick loop and no hold, still at tick 0, has stalled", () => {
+    expect(stalledRestart(restarted(), idle)).toBe(true);
+  });
+
+  it("a room that ticks, or is still in its hold, has not", () => {
+    const game = restarted();
+    expect(stalledRestart(game, { ticking: true, holding: false })).toBe(false);
+    expect(stalledRestart(game, { ticking: false, holding: true })).toBe(false);
+    tickGame(game);
+    expect(stalledRestart(game, idle)).toBe(false);
+  });
+
+  it("a room held for a reason is not stalled: paused, a vote open, not all ready, or cleared", () => {
+    const paused = restarted();
+    pauseFor(paused, 1, Date.now(), PAUSE_MS);
+    expect(stalledRestart(paused, idle)).toBe(false);
+    const voting = restarted();
+    proposeVote(voting, lobby("a", "b", "c"), 0, "room", Date.now());
+    expect(stalledRestart(voting, idle)).toBe(false);
+    const unready = restarted();
+    unready.ready.delete(2);
+    expect(stalledRestart(unready, idle)).toBe(false);
+    const cleared = restarted();
+    cleared.world.status = "cleared";
+    expect(stalledRestart(cleared, idle)).toBe(false);
   });
 });
 

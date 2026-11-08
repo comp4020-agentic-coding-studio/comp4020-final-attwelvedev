@@ -203,6 +203,34 @@ describe("restart votes", () => {
     await closeAll(table.pages);
   });
 
+  it("a restart after a vote resumes every time, on the page: the intro plays to done, the clock runs and a seat moves (playtest fixes, Task 6)", async () => {
+    const table: Table = await playRoom(browser, baseUrl);
+    const { blind: ana, deaf: bo, mute: cy } = table.byRole;
+    const clock = (page: Page) => page.locator(".hud-clock").innerText();
+    for (let run = 1; run <= 4; run++) {
+      // the room runs a moment first, so the clock has gone past 0:00
+      await expect.poll(() => clock(bo), { timeout: 5000 }).not.toBe("0:00");
+      const proposer = [ana, bo, cy][run % 3] as Page;
+      await proposeFrom(proposer);
+      for (const page of [ana, bo, cy]) {
+        if (page === proposer) continue;
+        await card(page).getByRole("button", { name: "Restart room" }).click();
+      }
+      for (const page of table.pages) {
+        await page.getByText("Restarting the room.").waitFor({ timeout: 3000 });
+        // the restarted room's intro plays (with INTRO_MS=0 it is over at once) and ends in done
+        await page.locator('.game[data-intro="done"]').waitFor({ timeout: 5000 });
+      }
+      // the clock runs from the restart
+      await expect.poll(() => clock(bo), { timeout: 5000 }).toMatch(/^0:0[1-9]$/);
+      // and a seat can move: Can't hear walks and its canvas changes
+      const before = await settledHash(bo);
+      await move(bo);
+      expect(await settledHash(bo), `run ${run}: Bo moves`).not.toBe(before);
+    }
+    await closeAll(table.pages);
+  });
+
   it("one No shows 'Not restarted: <name> kept playing.' to everyone, then it goes", async () => {
     const table = await playRoom(browser, baseUrl);
     const { blind: ana, deaf: bo, mute: cy } = table.byRole;

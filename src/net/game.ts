@@ -384,6 +384,16 @@ export function restartGame(game: Game): void {
   seatBots(game, botSeatsOf(game));
 }
 
+// A restarted room that should be running and is not: all three ready, nothing holding it (no pause,
+// no open vote, not cleared), and yet no tick loop, no hold, and its clock still at tick 0. The
+// playtest's freeze after a restart vote was never reproduced (playtest fixes, Task 6); this is how the
+// server notices one if it happens, so it can log it and start the room's ticks.
+export function stalledRestart(game: Game, loop: { ticking: boolean; holding: boolean }): boolean {
+  if (loop.ticking || loop.holding) return false;
+  if (game.paused || game.vote || game.ready.size < 3) return false;
+  return game.world.status === "playing" && game.world.tick === 0;
+}
+
 export function crewOf(lobby: LobbyState, game: Game): CrewMember[] {
   return lobby.seats.map((s, i) => ({
     seat: i as Seat,

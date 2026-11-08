@@ -44,6 +44,7 @@ import {
   resumeIfBack,
   setAutopilot,
   settleVote,
+  stalledRestart,
   startGame,
   swapPeople,
   takeOverWithBot,
@@ -544,6 +545,7 @@ function endVote(code: string, result: "passed" | "declined" | "timeout", by?: s
     // start of the room plays on the restarted room and not the old one's last frame
     sendRevealViews(code);
     runIfReady(code, running); // a restarted room has everyone ready already
+    watchRestart(code, running);
   } else if (acted === "heist") {
     if (running.timer) clearInterval(running.timer);
     running.timer = null;
@@ -554,6 +556,21 @@ function endVote(code: string, result: "passed" | "declined" | "timeout", by?: s
     record("room.start", null, lobby, { room: running.game.world.room.id });
     announceRoom(code);
   }
+}
+
+// The playtest once saw a restarted room that never ticked (playtest fixes, Task 6); it was never
+// reproduced. Once the hold should be over, a restarted room that is still stalled (stalledRestart) is
+// logged and its ticks are started, so nobody is left frozen. Checked once per restart, never per tick.
+const STALL_MARGIN_MS = 2000;
+function watchRestart(code: string, running: Running): void {
+  const world = running.game.world;
+  setTimeout(() => {
+    if (games.get(code) !== running || running.game.world !== world) return; // gone, or restarted again
+    if (!stalledRestart(running.game, { ticking: !!running.timer, holding: !!running.introTimer }))
+      return;
+    record("room.stall", null, registry.lobbies.get(code), { room: world.room.id });
+    running.timer = setInterval(() => tick(code), TICK_MS);
+  }, INTRO_FOR + STALL_MARGIN_MS);
 }
 
 // People came or went: an open vote may now be decided by those who are left.

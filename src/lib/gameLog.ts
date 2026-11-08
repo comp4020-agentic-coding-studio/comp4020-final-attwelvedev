@@ -23,6 +23,7 @@ export type GameEvent =
   | "game.start"
   | "room.start"
   | "room.clear"
+  | "room.stall" // a restarted room had not ticked after its hold, so the server started its ticks (detail room)
   | "channel.send"
   | "channel.refused"
   | "caught"
