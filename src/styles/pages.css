@@ -97,6 +97,8 @@ input {
   display: grid;
   grid-template-areas: "title" "desk" "feeds";
   gap: var(--s-6);
+  /* the glow stays full bleed; the content sits inside it, off its top and left edge */
+  padding: var(--s-5) var(--s-4) 0;
   /* a still dusk glow from the north-west corner behind the hero (flat in high contrast) */
   background: radial-gradient(
     at 15% 0%,
@@ -754,6 +756,7 @@ input {
     grid-template-areas: "title desk" "feeds desk";
     gap: var(--s-5) 48px;
     align-items: start;
+    padding: var(--s-6) var(--s-6) 0;
   }
   .home h1 {
     display: flex;

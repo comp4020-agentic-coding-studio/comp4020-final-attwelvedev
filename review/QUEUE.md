@@ -830,3 +830,14 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
   any tab's console `__playtest.autopilot(true)`: that seat walks itself. `PLAYTEST_AUTOPILOT=1
   FLY_APP_NAME=x node server.ts` exits 1.
 - Decisions: `plans/2026-11-07-overnight.md` under `## pt01`.
+
+### pf01 Task 1: landing margins (plan `plans/2026-11-08-playtest-fixes.md`, Human review pending)
+
+- Look at: the landing page. The headline and feeds now sit inside the north-west glow, off its edge
+  (`.home` padding: 24/16 px on a phone, 32 px at 880 px and up; the glow stays full bleed).
+- Run: `pnpm build && PORT=8092 pnpm start:check`, open `http://localhost:8092/` at 1280 and 375.
+- Screenshots: `review/n7-pf01-task1-landing-1280.png`, `review/n7-pf01-task1-landing-375.png`.
+- Measured: headline and feeds 32 px left / 32 px top at 1280, 16 px left / 24 px top at 375; no
+  horizontal scroll at 375; high contrast still draws no gradient.
+- My read: comfortably inside the glow at both widths. A pass means you agree it no longer sits
+  on the edge.
