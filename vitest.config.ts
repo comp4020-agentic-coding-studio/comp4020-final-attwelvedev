@@ -9,7 +9,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: "unit",
-          include: ["src/**/*.test.ts"],
+          include: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
           // The slowest unit test (a loop of bot simulations) takes under a second on a quiet
           // machine, but once missed the default 5 s when it ran alongside a dozen browsers
           // (they now run after it, see the spec project). Roomy enough for a busy machine, and

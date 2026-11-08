@@ -13,6 +13,7 @@
     "format": "biome check --write .",
     "check": "pnpm typecheck && pnpm lint && pnpm lint:rooms && pnpm test",
     "lint:rooms": "node scripts/lint-rooms.ts",
+    "playtest": "node scripts/playtest.ts",
     "mockup:room": "node scripts/mockup-room.ts",
     "check:evidence": "node scripts/check-evidence.ts",
     "check:flaky": "node scripts/check-flaky.ts",

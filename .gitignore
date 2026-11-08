@@ -30,3 +30,4 @@ mise.local.toml
 src/assets/bluemojis/
 src/assets/soundboard/
 .vitest/
+review/playtest/
