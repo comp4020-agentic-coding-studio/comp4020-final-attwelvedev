@@ -5,7 +5,9 @@
 // { room, viewport, p50, p95 }[] as JSON: with --runs N, the median of N runs per row. --compare runs 3
 // (one run varies by about 10 %, as much as the slack) and exits 1 if any p95 is more than 10 % worse
 // than the baseline's (review/diorama/bench-baseline.json by default). Runs on one machine are
-// compared, never absolute numbers.
+// compared, never absolute numbers. --intro times the room-start intro instead (bench ?intro=1: the
+// tilt, swoop, land and sunrise swept over the frames) and adds each row's longest frame; it prints
+// only, with no baseline to compare against.
 import { type ChildProcess, execSync, spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -26,6 +28,7 @@ export interface Row {
   viewport: string;
   p50: number;
   p95: number;
+  max?: number; // --intro: the longest single frame
 }
 
 // The bench page is built only with BENCH=1, into dist-bench/ (astro.config.ts), which is stale when
@@ -54,6 +57,8 @@ async function up(url: string) {
   throw new Error(`the bench app never came up on ${url}`);
 }
 
+const INTRO = process.argv.includes("--intro");
+
 async function run(): Promise<Row[]> {
   const dir = mkdtempSync(join(tmpdir(), "bench-frame-"));
   const app: ChildProcess = spawn("node", ["server.ts"], {
@@ -72,14 +77,20 @@ async function run(): Promise<Row[]> {
         });
         const cdp = await page.context().newCDPSession(page);
         await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
-        await page.goto(`${URL_BASE}/bench?room=${room}`);
+        await page.goto(`${URL_BASE}/bench?room=${room}${INTRO ? "&intro=1" : ""}`);
         const result = (await page.waitForFunction(
           () => (window as unknown as { __bench?: unknown }).__bench,
           undefined,
           { timeout: 120_000 },
-        )) as { jsonValue(): Promise<{ p50: number; p95: number }> };
-        const { p50, p95 } = await result.jsonValue();
-        rows.push({ room, viewport: vp.name, p50: round(p50), p95: round(p95) });
+        )) as { jsonValue(): Promise<{ p50: number; p95: number; max: number }> };
+        const { p50, p95, max } = await result.jsonValue();
+        rows.push({
+          room,
+          viewport: vp.name,
+          p50: round(p50),
+          p95: round(p95),
+          ...(INTRO ? { max: round(max) } : {}),
+        });
         await page.close();
       }
     }
@@ -111,6 +122,7 @@ export function median(runs: Row[][]): Row[] {
     ...r,
     p50: mid(runs.map((x) => x[i]?.p50 ?? 0)),
     p95: mid(runs.map((x) => x[i]?.p95 ?? 0)),
+    ...(r.max !== undefined ? { max: mid(runs.map((x) => x[i]?.max ?? 0)) } : {}),
   }));
 }
 

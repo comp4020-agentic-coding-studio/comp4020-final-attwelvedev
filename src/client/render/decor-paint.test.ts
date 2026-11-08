@@ -84,6 +84,37 @@ const DRAWS = new Set(["fill", "fillRect", "stroke", "strokeRect", "drawImage", 
 afterEach(() => setContrast(false));
 
 describe("paintDecor", () => {
+  // Found by the intro bench (playtest fixes, Task 7): early in the board's tilt a wall face is only
+  // a few px tall, and the gallery's painting worked its picture out to a negative height, so Chrome's
+  // ellipse threw mid-frame and the intro's frames from rise 0.02 to 0.26 were never drawn. The canvas
+  // throws on a negative radius (ellipse, arc) and on a negative roundRect radius; a non-finite one is
+  // as wrong. Every item, on every face and look, from a sliver to the full face.
+  it("never hands the canvas a negative radius, at any size the tilt draws a face", () => {
+    const bad: string[] = [];
+    for (const item of items())
+      for (const w of [W, 36]) // a face is a whole tile wide; the tilt shrinks only its height
+        for (const h of [0.5, 1, 2, 3, 5, 8, 12, 20, H]) {
+          const { ops } = (() => {
+            const r = recorder();
+            paintDecor(r.ctx, item, w, h);
+            return r;
+          })();
+          for (const o of ops) {
+            const radii =
+              o.name === "ellipse"
+                ? [o.args[2], o.args[3]]
+                : o.name === "arc"
+                  ? [o.args[2]]
+                  : o.name === "roundRect"
+                    ? [o.args[4]].flat()
+                    : [];
+            if (radii.some((r) => typeof r === "number" && (!(r >= 0) || !Number.isFinite(r))))
+              bad.push(`${item.kind}/${item.face}/${item.variant} ${w}x${h}: ${o.name}`);
+          }
+        }
+    expect([...new Set(bad)].slice(0, 8), `${bad.length} bad radii`).toEqual([]);
+  });
+
   it("every kind clips to its face rect before it paints anything", () => {
     for (const item of items()) {
       const { ops } = paint(item);

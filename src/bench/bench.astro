@@ -37,6 +37,7 @@ if (process.env.BENCH !== "1") return new Response(null, { status: 404 });
       import room05 from "../../rooms/05-the-gallery.room?raw";
       import room08 from "../../rooms/08-music-room.room?raw";
       import room09 from "../../rooms/09-the-vault.room?raw";
+      import { INTRO_TOTAL, introAt } from "../client/intro.ts";
       import { camera, draw, type Scene } from "../client/render.ts";
       import { wall } from "../client/render/blocks.ts";
       import { type DecorItem, decorFor, KIND_FACES, LIT, THEME_KINDS, THEME_OF } from "../client/render/decor.ts";
@@ -54,7 +55,9 @@ if (process.env.BENCH !== "1") return new Response(null, { status: 404 });
       const ROLES: [Role, Role, Role] = ["blind", "deaf", "mute"];
       // ?room=01..09 (05 by default); ?decor=0 draws the room without its decor (spec/layout/decor.test.ts);
       // ?still=1 draws one settled frame and stops, for a spec to read; ?hc=1 is high contrast;
-      // ?sheet=1 is the decor contact sheet (scripts/decor-sheet.ts)
+      // ?sheet=1 is the decor contact sheet (scripts/decor-sheet.ts); ?intro=1 times the room-start intro
+      // instead of the settled room: its 2400 ms timeline (the tilt, the swoop, the land and the sunrise,
+      // as Game.tsx's introScene passes them) swept over FRAMES frames, and the longest frame reported
       const q = new URLSearchParams(location.search);
       const which = {
         "01": room01,
@@ -168,10 +171,16 @@ if (process.env.BENCH !== "1") return new Response(null, { status: 404 });
       const times: number[] = [];
       let frame = 0;
       const start = performance.now();
+      const intro = q.get("intro") === "1";
       function tick(now: number) {
-        const cam = benchCam(camera(base), frame);
+        // the intro: the scene's own camera (the swoop flies it from the whole room to you), at the
+        // point of the timeline this frame stands for, warm-up included so the tilt's first frames count
+        const f = introAt((Math.min(frame, WARMUP + FRAMES - 1) * INTRO_TOTAL) / (WARMUP + FRAMES - 1), false);
+        const scene: Scene = intro
+          ? { ...base, nowMs: now - start, rise: f.rise, swoop: f.swoop, landing: f.land, sunrise: f.sunrise }
+          : { ...base, cam: benchCam(camera(base), frame), nowMs: now - start };
         const t0 = performance.now();
-        draw(ctx, { ...base, cam, nowMs: now - start });
+        draw(ctx, scene);
         // read one pixel back so the frame is rasterised inside the timing, not deferred past it
         ctx.getImageData(0, 0, 1, 1);
         const ms = performance.now() - t0;
@@ -180,9 +189,10 @@ if (process.env.BENCH !== "1") return new Response(null, { status: 404 });
         if (times.length < FRAMES) return void requestAnimationFrame(tick);
         const sorted = [...times].sort((a, b) => a - b);
         const at = (q: number) => sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] ?? 0;
-        (window as unknown as { __bench: { p50: number; p95: number } }).__bench = {
+        (window as unknown as { __bench: { p50: number; p95: number; max: number } }).__bench = {
           p50: at(0.5),
           p95: at(0.95),
+          max: sorted.at(-1) ?? 0,
         };
       }
       if (q.get("still") !== "1" && q.get("sheet") !== "1") requestAnimationFrame(tick);

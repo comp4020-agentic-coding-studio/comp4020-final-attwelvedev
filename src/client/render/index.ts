@@ -274,6 +274,12 @@ function clipToLight(
 
 let lastDusk = false; // whether the previous scene drawn asked for the dusk palette
 
+// The sunrise is drawn in this many even steps (see drawScene): each step repaints every world token
+// and drops what is cached against them, so a sunrise that changed every frame doubled the intro's
+// frame cost (playtest fixes, Task 7). 24 over its 1.8 s is a step about every 75 ms, each about 4 %
+// of the way from dusk to day.
+export const SUNRISE_STEPS = 24;
+
 function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
   ctx.clearRect(0, 0, scene.w, scene.h);
   setRise(scene.rise ?? 1, scene.tiles?.length);
@@ -302,7 +308,7 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
   // is drawn in the room's colours at once, never easing back from dusk
   const dusk = !!scene.dusk;
   if (!dusk && !scene.alarm && scene.sunrise !== undefined)
-    setDuskAmount(1 - scene.sunrise, scene.nowMs ?? 0);
+    setDuskAmount(1 - Math.round(scene.sunrise * SUNRISE_STEPS) / SUNRISE_STEPS, scene.nowMs ?? 0);
   else
     setDusk(
       dusk || !!scene.alarm,

@@ -252,23 +252,17 @@ export const coatHooks: Painter = (c, _item, w, h) => {
 // colours mixed most of the way to the wall (MUTE), so no code survives in it; a plain label card
 // under it, and a picture light above (lit). No portraits: a figure would read as a role's shape.
 export { MUTE };
-export const painting: Painter = (c, item, w, h) => {
-  const big = item.variant % 2 === 0;
-  const fw = w * (big ? 0.66 : 0.5);
-  const fh = h * (big ? 0.42 : 0.34);
-  const fx = (w - fw) / 2;
-  const fy = h * 0.2;
-  glow(c, w / 2, fy + fh * 0.3, w * 0.55);
-  const gilt = brassFrame();
-  litBox(c, fx, fy, fw, fh, gilt);
-  c.fillStyle = darker(gilt, 0.2); // the moulding's inner step
-  const m = Math.max(2, fw * 0.08);
-  c.fillRect(fx + m * 0.6, fy + m * 0.6, fw - m * 1.2, fh - m * 1.2);
-  const ix = fx + m;
-  const iy = fy + m;
-  const iw = fw - 2 * m;
-  const ih = fh - 2 * m;
-  if (item.variant < 2) {
+
+// The picture inside a painting's moulding: a landscape (looks 0 and 1) or a still life (2 and 3).
+function paintingPicture(
+  c: CanvasRenderingContext2D,
+  variant: number,
+  ix: number,
+  iy: number,
+  iw: number,
+  ih: number,
+): void {
+  if (variant < 2) {
     // a landscape: sky, a far hill, a near field, a tree
     c.fillStyle = muted(WORLD.codeBlue);
     c.fillRect(ix, iy, iw, ih);
@@ -303,6 +297,27 @@ export const painting: Painter = (c, item, w, h) => {
     c.ellipse(ix + iw * 0.76, iy + ih * 0.66, iw * 0.07, ih * 0.09, 0, 0, Math.PI * 2);
     c.fill();
   }
+}
+
+export const painting: Painter = (c, item, w, h) => {
+  const big = item.variant % 2 === 0;
+  const fw = w * (big ? 0.66 : 0.5);
+  const fh = h * (big ? 0.42 : 0.34);
+  const fx = (w - fw) / 2;
+  const fy = h * 0.2;
+  glow(c, w / 2, fy + fh * 0.3, w * 0.55);
+  const gilt = brassFrame();
+  litBox(c, fx, fy, fw, fh, gilt);
+  c.fillStyle = darker(gilt, 0.2); // the moulding's inner step
+  const m = Math.max(2, fw * 0.08);
+  c.fillRect(fx + m * 0.6, fy + m * 0.6, fw - m * 1.2, fh - m * 1.2);
+  const ix = fx + m;
+  const iy = fy + m;
+  const iw = fw - 2 * m;
+  const ih = fh - 2 * m;
+  // a face only a few px tall (the board early in its tilt) has no room inside the moulding: the
+  // frame alone, never a picture of negative size (which makes ellipse throw mid-frame)
+  if (iw > 0 && ih > 0) paintingPicture(c, item.variant, ix, iy, iw, ih);
   // a plain label card under the frame (no text)
   litBox(c, w / 2 - w * 0.07, fy + fh + h * 0.05, w * 0.14, h * 0.05, paper());
   // the picture light: a brass arm and a short hood above the frame
