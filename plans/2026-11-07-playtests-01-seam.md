@@ -229,6 +229,8 @@ Both pixels come from one animation frame, which matches NFR6.
 
 ### Task 123: The server refuses to start with the flag on Fly
 
+- [x] Done
+
 - **Description.** `refuseOnFly(env)` returns
   `"PLAYTEST_AUTOPILOT is set on a Fly machine (FLY_APP_NAME). It is for local playtests only; refusing to start."`
   when `env.PLAYTEST_AUTOPILOT === "1"` and `env.FLY_APP_NAME` is a non-empty string. Otherwise it

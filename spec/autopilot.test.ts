@@ -116,3 +116,49 @@ describe("autopilot, on the shared app (flag off)", () => {
     await socket.close();
   });
 });
+
+describe("autopilot on a Fly machine", () => {
+  it("the server refuses to start, says why, and never answers on its port", async () => {
+    const port = 23080 + Math.floor(Math.random() * 1000);
+    const dir = mkdtempSync(join(tmpdir(), "autopilot-fly-spec-"));
+    const app = spawn("node", ["server.ts"], {
+      env: {
+        ...process.env,
+        PORT: String(port),
+        DATABASE_PATH: join(dir, "app.db"),
+        PLAYTEST_AUTOPILOT: "1",
+        FLY_APP_NAME: "x",
+      },
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    let stderr = "";
+    app.stderr?.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    let answered = false;
+    const probe = setInterval(() => {
+      fetch(`http://127.0.0.1:${port}`).then(
+        () => {
+          answered = true;
+        },
+        () => {},
+      );
+    }, 200);
+    try {
+      const code = await new Promise<number | null>((resolve) => {
+        const timer = setTimeout(() => resolve(-1), 10_000);
+        app.on("exit", (c) => {
+          clearTimeout(timer);
+          resolve(c);
+        });
+      });
+      expect(code).toBe(1);
+      expect(stderr).toContain("refusing to start");
+      expect(answered).toBe(false);
+    } finally {
+      clearInterval(probe);
+      app.kill();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 15_000);
+});

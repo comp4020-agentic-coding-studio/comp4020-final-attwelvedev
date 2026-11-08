@@ -2,6 +2,14 @@
 // the WebSocket endpoint at /ws. See ADR 0007.
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { attachSockets } from "./src/net/attach.ts";
+import { refuseOnFly } from "./src/net/playtest.ts";
+
+// The playtest autopilot (ADR 0027) is never on the deployed app: refuse to start with it on Fly.
+const refusal = refuseOnFly(process.env);
+if (refusal) {
+  console.error(refusal);
+  process.exit(1);
+}
 
 // The adapter's entry starts its own listener on import unless told not to;
 // we want only its handler (pages and static assets) on our server.
