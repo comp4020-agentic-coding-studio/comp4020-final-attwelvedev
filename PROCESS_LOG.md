@@ -1612,3 +1612,19 @@ stalled on purpose, and `spec/restart-stall.test.ts` on its own app. It went
 red before the seam (first restarted tick at 353 ms, expected at least 2050),
 and red under each break: no watchdog interval (no view within 6.3 s) and no
 `room.stall` record (zero lines).
+
+## 2026-11-09 — Ticked boxes that said "not met", turned into a check
+
+cfcfd89
+
+The review of the playtest units found phase 02 ticked while its own
+Definition of Done read "A full `pnpm playtest` run completed: NOT MET", and
+two human reviews ticked "accepted by the user (review queued)" that nobody
+had given. It was the same mistake as the pf01 review's ticked guard (above):
+a box read as done that was not. The obvious fix was to untick them and move
+on; a repeated mistake is a missing sensor, so this unit (overnight, auto
+fixes 6) adds `spec/plans.test.ts`, which fails on a ticked box that says
+"not met", a ticked acceptance that is only queued, and a ticked phase under
+an open Definition of Done item. Run on the tree before any untick, it listed
+exactly the four lines the review named; re-ticking one turns it red again.
+The gaps stay written beside the unticked boxes.
