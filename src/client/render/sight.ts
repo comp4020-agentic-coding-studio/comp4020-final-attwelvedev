@@ -77,7 +77,13 @@ export function litEntities(
   mySeat: number,
 ): EntityView[] {
   if (light === null) return entities;
-  const touched = (e: EntityView) => footLit(light, e.pos, footHalf(e.kind));
+  // a guard or camera keeps the tile-set rule on the server (it is sent by `seen`; what it sees is sent
+  // apart), so it keeps it here too: a footprint test would drop one the server sent, leaving its cone
+  // drawn with nobody in it (review F3)
+  const touched = (e: EntityView) =>
+    e.kind === "guard" || e.kind === "camera"
+      ? tileTouched(light, Math.floor(e.pos.x), Math.floor(e.pos.y))
+      : footLit(light, e.pos, footHalf(e.kind));
   return entities.filter((e) => {
     if (e.kind === "player") return e.seat === mySeat || touched(e);
     return !STANDS.has(e.kind) || touched(e);
