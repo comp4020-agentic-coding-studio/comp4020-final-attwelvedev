@@ -328,3 +328,8 @@
 - pt03/131: ADRs 0027 and 0028 → left `proposed`, acceptance queued in `review/QUEUE.md`, because the run's rules forbid accepting an ADR. Reversible: n/a.
 - pt03/131: "the phase's corrections logged in `PROCESS_LOG.md`" → none written, because the user corrected nothing in this unit.
 - pt03/close: the overview's feature-level DoD "a full `pnpm playtest` completes nine rooms" stays unticked (room 04 stalls, see pt02/close); the other §6 boxes whose human items are queued are left unticked until the user accepts.
+
+## autofix6
+
+- autofix6/261 (2026-11-09): supersedes pt03/131's "Reversible by re-measuring on a run with every beat": no run could shoot beat 1 (the seats started at beat 1 and shot only on `b > beats[seat]`), so the room 01 run's 6 items were all the run could ever give. Fixed in auto fixes 6 Task 261: seats start at 0 (`freshBeats`), so a re-measure now sees beat 1. Reversible by reverting that commit.
+- autofix6/261: a `pnpm check` run went red (spec/layout hud, lobby, spectator timeouts), and reruns of those three files got worse → judged not flaky and not this change's (scripts only): the server log showed `lobby.error server-full`, because the same `pnpm start:check` server had served a full check before. A fresh server gave a green check. From here a fresh server starts before each full check. Reversible: n/a.

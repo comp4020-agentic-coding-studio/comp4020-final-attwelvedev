@@ -29,6 +29,9 @@ describe("collect", () => {
     expect(items).toHaveLength(9);
     expect(items.some((i) => i.beat === "end")).toBe(false);
   });
+  it("makes a beat-1 file an item (the run shoots beat 1)", () => {
+    expect(items.find((i) => i.role === "blind" && i.beat === "1")?.perceived).toBe("SEEN blind 1");
+  });
   it("gives blind no screenshot, the sighted theirs, at the seat's width", () => {
     for (const i of items) {
       if (i.role === "blind") expect(i.screenshot).toBeUndefined();

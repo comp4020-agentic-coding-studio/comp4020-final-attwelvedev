@@ -9,6 +9,7 @@ import type { Room } from "../src/game/rooms/format.ts";
 import { loadRooms } from "../src/game/rooms/load.ts";
 import type { Role, Seat } from "../src/game/types.ts";
 import { type Args, parseArgs, rotatedWidths } from "./playtest/args.ts";
+import { freshBeats, nextShot } from "./playtest/beats.ts";
 import { soundIsOn } from "./playtest/drive.ts";
 import { evidencePath, perceivedText, runName, writeEvidence } from "./playtest/evidence.ts";
 import { freeHands, inputCheck } from "./playtest/inputCheck.ts";
@@ -115,7 +116,7 @@ async function playRotation(
     await Promise.all(table.map((t) => settledHash(t.page)));
     await shot(table, room, roles, "start");
     await Promise.all(table.map((t) => t.page.evaluate("window.__playtest.autopilot(true)")));
-    const beats = table.map(() => 1);
+    const beats = freshBeats(table.length);
     const sampledAt = table.map(() => Date.now());
     const memories: TabMemory[] = table.map(() => ({ heard: [], judgedUntil: Date.now() }));
     const cap = Date.now() + Number((room.meta.budgetS as number) ?? 240) * 3000;
@@ -148,7 +149,7 @@ async function playRotation(
       }
       for (const seat of [0, 1, 2] as Seat[]) {
         const b = beatOf(room, table, seat);
-        if (b > (beats[seat] as number)) {
+        if (nextShot(beats[seat] as number, b)) {
           beats[seat] = b;
           await shot(table, room, roles, String(b), seat);
         }
