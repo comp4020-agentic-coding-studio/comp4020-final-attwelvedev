@@ -2089,9 +2089,11 @@ describe("a bell is drawn only from its own light (L4 and L6, screenshots 126 an
         const v = { x: vx, y: vy };
         const { sc, light, view } = viewAt(room, v);
         if (!view.entities.some((e) => e.id === station)) continue;
+        // the camera the game passes: draw would rebuild its own from the figures litEntities leaves
+        sc.cam = camera(sc);
         const { ctx, ops } = recorder();
         draw(ctx, sc);
-        const cam = camera(sc);
+        const cam = sc.cam;
         bells.forEach((b, i) => {
           const ground = [0.05, 0.3, 0.5, 0.7, 0.95].flatMap((fx) =>
             [0.05, 0.5, 0.95].map((fy) => ({ x: b.x + fx, y: b.y + fy })),
