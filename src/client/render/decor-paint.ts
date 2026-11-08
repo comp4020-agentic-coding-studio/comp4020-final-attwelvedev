@@ -6,9 +6,9 @@ import type { DecorItem, DecorKind } from "./decor.ts";
 // included) leaves the face. No outline (WORLD.line is never used), no animation, and nothing in high
 // contrast: decor is mood, never information.
 //
-// The banned list holds for every painter (decor-paint.test.ts): no circle big enough to read as a
-// dial or a bell, no more than two horizontal lines across the face (no slats or rails; the staff's
-// five carry no notes), and no motif or role shape.
+// The rules hold for every painter (DESIGN.md §4.9, ADR 0029; decor-paint.test.ts): a real thing with
+// a job, never a clue or a game object, no text, nothing in WORLD.line or glass's colours, nothing
+// translucent but a glow clipped to its face.
 
 type Painter = (c: CanvasRenderingContext2D, item: DecorItem, w: number, h: number) => void;
 

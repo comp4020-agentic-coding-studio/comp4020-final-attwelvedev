@@ -314,12 +314,18 @@ describe("decor is the same on every screen in a room", () => {
 });
 
 describe("the banned list", () => {
+  // rule 3 (DESIGN.md §4.9): no kind is named as a game object, a motif or a role. Kind names are
+  // camelCase, so each word is checked on its own (a cable tray is not a ray).
+  const BANNED = new Set(
+    "door hatch glass pane vent louvre slat slats bell dial wheel gauge clock keypad key camera eye cone beam ray rays hazard stripe stripes exit flag blind deaf mute ear mouth moon star wave note leaf horn".split(
+      " ",
+    ),
+  );
+  const words = (k: string) => k.split(/(?=[A-Z])/).map((w) => w.toLowerCase());
   it("no theme kind is named as a banned thing", () => {
-    const banned =
-      /clock|dial|bell|horn|window|slat|rail|lantern|ray|blind|deaf|mute|ear|eye|mouth|moon|star|wave|key|leaf|note/i;
     const kinds = Object.values(THEME_KINDS).flat();
     expect(kinds.length).toBeGreaterThan(0);
-    for (const k of kinds) expect(k, k).not.toMatch(banned);
+    for (const k of kinds) for (const w of words(k)) expect(BANNED.has(w), k).toBe(false);
     // every room maps to a theme
     for (const room of loadRooms("./rooms")) expect(THEME_OF[room.id], room.id).toBeDefined();
   });

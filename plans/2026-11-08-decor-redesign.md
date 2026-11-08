@@ -58,7 +58,7 @@ Excluded on purpose, from the rules: valve wheels and gauges (dial), spotlights 
 
 Each new or changed assertion that guards a promise is shown red first, with a break script that asserts the text it replaces (CLAUDE.md), and the commit says what was broken. A visual change is verified by a screenshot at 1280 and 375. `pnpm check` green against `PORT=8092 pnpm start:check`.
 
-- [ ] **Task 1: The rules, the ADR and the guards**
+- [x] **Task 1: The rules, the ADR and the guards**
   - Files: `doc/adr/0029-decor-may-show-real-things-with-a-job.md` (new, `proposed`; check the next free number first: the overnight run queued ADRs up to 0028; ADR 0026's decor bullets stay as history, 0029 narrows them), `DESIGN.md` §4.9 (the "Never" bullet becomes the seven rules; the theme list becomes the table), `src/client/render/decor-paint.test.ts` (the "banned shapes" tests: replace the circle-size, two-lines, leaf-width and trellis rules with tests for rules 2 to 6: no text or `fillText` call, no stroke in `WORLD.line`, a lit item's glow is clipped to its face and stays at or under 0.35 alpha, a window painter draws no glass sheen, nothing translucent above 0.9 alpha except a glow), `src/client/render/decor.test.ts` ("no theme kind is named as a banned thing": update the banned names to rule 3's list).
   - Tests first: the new guards run against today's painters. Break: add `fillText` to one painter, a `WORLD.line` stroke to another, a translucent window to a third; each goes red.
   - Acceptance: `pnpm check` green; the old banned-shape tests are gone, not weakened (the replaced ones guard rules that no longer exist, and each is replaced by a stricter one on the same file).

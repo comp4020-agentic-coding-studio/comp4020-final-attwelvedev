@@ -116,17 +116,6 @@ describe("paintDecor", () => {
       expect(paint(item).grads.filter((g) => g.kind === "createRadialGradient")).toEqual([]);
   });
 
-  it("no decor painter ever strokes in WORLD.line", () => {
-    for (const item of items()) {
-      const { ops } = paint(item);
-      for (const o of ops) {
-        if (o.name === "stroke" || o.name === "strokeRect")
-          expect(o.strokeStyle).not.toBe(WORLD.line);
-        if (DRAWS.has(o.name)) expect(o.fillStyle, item.kind).not.toBe(WORLD.line);
-      }
-    }
-  });
-
   it("in high contrast paintDecor draws nothing", () => {
     setContrast(true);
     for (const item of items()) expect(paint(item).ops, item.kind).toEqual([]);
@@ -174,39 +163,76 @@ describe("decor in the wall", () => {
   });
 });
 
-// The banned list (FR12): no painter makes a dial or bell face, slats or rails, or a note head.
-describe("banned shapes", () => {
-  // kinds allowed a bigger circle, each with its reason: none today. (A sconce's bulb is 0.1 of the
-  // face across, under the limit.)
-  const BIG_ARC_OK: Partial<Record<DecorKind, string>> = {};
-  it("no painter draws a circle of radius ≥ 0.15 of the face", () => {
-    for (const item of items()) {
-      if (BIG_ARC_OK[item.kind]) continue;
+// The rules (DESIGN.md §4.9, ADR 0029): decor shows real things with a job, and never a clue, a game
+// object or glass. These guard rules 2 to 6 over every kind, face and look.
+const alphaOf = (style: unknown): number => {
+  if (typeof style !== "string") return 1;
+  const hex = /^#[0-9a-f]{8}$/i.exec(style);
+  if (hex) return Number.parseInt(style.slice(7, 9), 16) / 255;
+  const rgba = /rgba?\(([^)]*)\)/i.exec(style);
+  if (rgba) {
+    const parts = (rgba[1] as string).split(/[\s,/]+/).filter(Boolean);
+    if (parts.length >= 4) {
+      const a = parts[3] as string;
+      return a.endsWith("%") ? Number.parseFloat(a) / 100 : Number.parseFloat(a);
+    }
+  }
+  return 1;
+};
+const FILLS = new Set(["fill", "fillRect"]);
+const STROKES = new Set(["stroke", "strokeRect"]);
+
+describe("the rules", () => {
+  it("rule 2: no painter writes text", () => {
+    for (const item of items())
+      for (const o of paint(item).ops)
+        expect(["fillText", "strokeText"], item.kind).not.toContain(o.name);
+  });
+
+  it("rule 6: no painter fills or strokes in WORLD.line, the mark of a solid thing", () => {
+    for (const item of items())
       for (const o of paint(item).ops) {
-        if (o.name === "arc") expect(o.args[2] as number, item.kind).toBeLessThan(0.15 * W);
-        if (o.name === "ellipse") {
-          // a near-round ellipse is a circle too
-          const [rx, ry] = o.args.slice(2, 4) as number[];
-          if (
-            Math.abs((rx as number) - (ry as number)) <
-            0.2 * Math.max(rx as number, ry as number)
-          )
-            expect(Math.max(rx as number, ry as number), item.kind).toBeLessThan(0.15 * W);
-        }
+        if (STROKES.has(o.name)) expect(o.strokeStyle, item.kind).not.toBe(WORLD.line);
+        if (FILLS.has(o.name)) expect(o.fillStyle, item.kind).not.toBe(WORLD.line);
+      }
+  });
+
+  it("rule 5: no painter draws in glass's colours, and no gradient but the glow", () => {
+    const glassy = [WORLD.glass, WORLD.glassFront];
+    for (const item of items()) {
+      const { ops, grads } = paint(item);
+      for (const o of ops) {
+        if (FILLS.has(o.name)) expect(glassy, item.kind).not.toContain(o.fillStyle);
+        if (STROKES.has(o.name)) expect(glassy, item.kind).not.toContain(o.strokeStyle);
+      }
+      // a sheen band is a gradient across a face: the only gradient decor makes is a lit item's glow
+      for (const g of grads) {
+        expect(g.kind, item.kind).toBe("createRadialGradient");
+        for (const [, c] of g.stops) expect(c.slice(0, 7), item.kind).toBe(WORLD.sconce);
       }
     }
   });
 
-  it("no painter draws more than 2 horizontal lines across half the face, but the staff's 5", () => {
+  it("rule 5: nothing is translucent (under 0.9 alpha) but a glow", () => {
+    for (const item of items())
+      for (const o of paint(item).ops) {
+        const isGlow = typeof o.fillStyle === "object" && o.fillStyle !== null;
+        if (FILLS.has(o.name) && !isGlow)
+          expect(o.globalAlpha * alphaOf(o.fillStyle), item.kind).toBeGreaterThanOrEqual(0.9);
+        if (STROKES.has(o.name))
+          expect(o.globalAlpha * alphaOf(o.strokeStyle), item.kind).toBeGreaterThanOrEqual(0.9);
+      }
+  });
+
+  it("rule 4: a glow is drawn only inside the face's clip, at or under 0.35 alpha", () => {
     for (const item of items()) {
-      const lines = paint(item).ops.filter(
-        (o) =>
-          o.name === "fillRect" &&
-          (o.args[2] as number) > W / 2 &&
-          (o.args[3] as number) <= 2 &&
-          typeof o.fillStyle === "string",
-      );
-      expect(lines.length, item.kind).toBeLessThanOrEqual(item.kind === "staff" ? 5 : 2);
+      const { ops } = paint(item);
+      const clip = ops.findIndex((o) => o.name === "clip");
+      ops.forEach((o, i) => {
+        if (!FILLS.has(o.name) || typeof o.fillStyle !== "object" || o.fillStyle === null) return;
+        expect(i, item.kind).toBeGreaterThan(clip);
+        expect(o.globalAlpha, item.kind).toBeLessThanOrEqual(0.35);
+      });
     }
   });
 
@@ -224,29 +250,6 @@ describe("banned shapes", () => {
       expect(dim.grads).toEqual([]);
       const lit = paint({ x: 0, y: 0, face: "front", kind: "sconce", variant: v, lit: true });
       expect(lit.grads.length).toBeGreaterThan(0);
-    }
-  });
-
-  it("no painter draws a single leaf wider than 0.2 of the face", () => {
-    for (const item of items().filter((i) => ["ivy", "planter", "fern"].includes(i.kind)))
-      for (const o of paint(item).ops)
-        if (o.name === "ellipse")
-          expect(2 * Math.max(o.args[2] as number, o.args[3] as number), item.kind).toBeLessThan(
-            0.2 * W,
-          );
-  });
-
-  it("the trellis is diagonal only: no horizontal or vertical stroke segment", () => {
-    for (const v of [0, 1]) {
-      const { ops } = paint({ x: 0, y: 0, face: "front", kind: "trellis", variant: v });
-      const moves = ops.filter((o) => o.name === "moveTo" || o.name === "lineTo");
-      expect(moves.length).toBeGreaterThan(0);
-      for (let i = 0; i < moves.length; i += 2) {
-        const [x0, y0] = (moves[i]?.args ?? []) as number[];
-        const [x1, y1] = (moves[i + 1]?.args ?? []) as number[];
-        expect(x0).not.toBe(x1);
-        expect(y0).not.toBe(y1);
-      }
     }
   });
 

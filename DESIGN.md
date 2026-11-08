@@ -221,12 +221,22 @@ in the same 3/4 world, steel and brass, as quiet as a plate; the UV pool is the 
 
 ### 4.9 Decor (built, Tasks 113 to 116)
 
-Each room has a theme, and its walls carry a little of it: the gallery (05) gilt-framed abstract
-paintings each under a picture light, the music salon (08) violin and lute silhouettes, staves with no
-notes and curtain swags, the strongroom (09) rivet rows, steel cladding with vertical seams and caged
-sconces. The rest: the pavilion (01) ivy trails and planters, the conservatory (02) a diagonal trellis and ferns, the watch house (03) swallowtail banners and unlit sconces, the bank (04) a wainscot with one rail, framed certificates and lit sconces, backstage (06) curtain swags and unlit sconces, and service (07) steel kick panels and caged bulbs. Why: a room should feel like a place, without
-anything that could be read as a clue. Decor is also drawn in the home feeds (room 01's, for the sighted
-feeds only). Decided in ADR 0026 (`proposed`).
+Each room has a theme, and its walls carry a little of it: real things you could name, each with a
+job. Why: a room should feel like a place, and a thing you can name is one you will not take for a
+signal. Decor is also drawn in the home feeds (room 01's, for the sighted feeds only). Decided in ADR
+0026 and narrowed by ADR 0029 (both `proposed`).
+
+| Room (theme) | Fronts | Tops |
+|---|---|---|
+| 01 pavilion | ivy trails | planter |
+| 02 conservatory | a diagonal trellis | fern |
+| 03 watch house | swallowtail banners, unlit sconces | none |
+| 04 bank | a wainscot with one rail, framed certificates, lit sconces | none |
+| 05 gallery | gilt-framed paintings under a picture light | none |
+| 06 backstage | curtain swags, unlit sconces | none |
+| 07 service | steel kick panels, caged bulbs | none |
+| 08 salon | violin and lute silhouettes, staves with no notes, curtain swags | none |
+| 09 strongroom | steel cladding, caged sconces, rivet rows | rivet rows |
 
 - **Placement** (`decorFor` in `src/client/render/decor.ts`): each wall cell's face rolls its own
   dice, seeded from the room id and that cell alone, so two seats whose views differ only by the night
@@ -240,9 +250,23 @@ feeds only). Decided in ADR 0026 (`proposed`).
   see-through and mist. Each item is clipped to its own face: a glow is a `--w-sconce` radial at 30 %
   that never reaches the floor (`spec/layout/decor.test.ts`). Tones are wall, steel or brass tokens
   mixed toward the wall. No outline, no motion.
-- **Never** shaped like a game object or a motif: no clock, dial, bell, horn, window, slat or rail,
-  lantern with rays, role shape, moon, star, wave, key, eye or leaf, and no note head. Circles stay
-  under 0.15 of a face, and at most two lines run across one (the staff's five carry no notes).
+- **The rules** (ADR 0029, `proposed`; they replace the old list of banned shapes):
+  1. **A job or a theme.** Every item lights, holds, hangs, covers or supports something, or belongs
+     to the room's theme. Nothing is there only to fill a wall.
+  2. **Never a clue.** No text, numerals, note heads or the motif shapes (moon, star, wave, key, eye,
+     a single large leaf), and no pattern or colour that encodes a code.
+  3. **Never a game object.** Nothing that reads as a door, hatch, glass pane, vent with slats, bell,
+     dial, wheel or gauge face, clock, keypad, camera or eye, a cone or beam, a lamp with rays, hazard
+     stripes, or an exit or flag.
+  4. **Light is quiet.** Static, wall-mounted, one small source; the glow is clipped to its own face,
+     at most 35 %, never on the floor, never animated.
+  5. **Windows look opaque:** shutters, curtains or a night-blue pane with muntins. Never translucent,
+     no sheen band or glints, nothing in glass's colours.
+  6. **No outline in `WORLD.line`** (the mark of solid or interactive things). Depth comes from fills,
+     a north-west highlight and a south-east shade.
+  7. A wall's top carries only flush things (coping, moss, rivets), never something standing on it.
+  `decor-paint.test.ts` checks rules 2, 4, 5 and 6 on every painter; `decor.test.ts` checks kind
+  names against rule 3. Whether a shape reads as a signal is judged at review on the contact sheet.
 - **High contrast draws no decor.**
 
 ### 4.7 The role frame (built)
