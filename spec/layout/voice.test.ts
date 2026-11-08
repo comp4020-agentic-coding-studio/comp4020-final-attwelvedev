@@ -5,7 +5,7 @@ import { leaveGameAndClose } from "../lobbyUi.ts";
 import { playRoom, settledHash, type Table } from "../playUi.ts";
 
 const baseUrl = inject("baseUrl");
-const HOOK_MS = 30_000;
+const HOOK_MS = 60_000; // not under vitest.config.ts hookTimeout: seating three takes longer on a CI runner
 
 // A fake microphone that is allowed without asking, as a person who clicked Allow would have it.
 const FAKE_MIC = [

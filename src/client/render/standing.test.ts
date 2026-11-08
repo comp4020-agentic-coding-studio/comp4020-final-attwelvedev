@@ -1826,12 +1826,18 @@ describe("a lit figure has no box around it", () => {
 // The playtest of 2026-11-08 (L1 to L7, screenshots 122 to 130, review/los-repro-2026-11-08.md), in the rooms with glass.
 const roomOf = (id: string) =>
   loadRooms().find((r) => r.id === id) as ReturnType<typeof loadRooms>[0];
+// The tile map and the light depend on where the viewer stands (and on the doors, which no figure moves), never
+// on where the other figure is: so a sweep that moves the figure across a hundred tiles for one viewer builds them
+// once. Rebuilding the light for every figure position made the L1 sweep run past its 20 s limit on a CI runner.
+const lightOfSpot = new Map<string, { tiles: string[]; light: ReturnType<typeof lightPolygon> }>();
 function viewAt(room: ReturnType<typeof loadRooms>[0], v: P, other?: P) {
   const world = worldAt(room, Math.floor(v.x), Math.floor(v.y));
   world.players[1].pos = v;
   world.players[0].pos = other ?? { x: 1.5, y: 1.5 };
   const view = viewFor(world, 1, "deaf", false);
-  const tiles = viewFor(world, 1, "deaf", true).tiles as string[];
+  const spot = `${room.id}@${v.x},${v.y}`;
+  const kept = lightOfSpot.get(spot);
+  const tiles = kept?.tiles ?? (viewFor(world, 1, "deaf", true).tiles as string[]);
   const sc: Scene = {
     layout: "follow",
     w: 892,
@@ -1850,7 +1856,8 @@ function viewAt(room: ReturnType<typeof loadRooms>[0], v: P, other?: P) {
       .filter((e) => e.kind === "door" && e.state === "closed")
       .map((e) => `${Math.floor(e.pos.x)},${Math.floor(e.pos.y)}`),
   );
-  const light = lightPolygon(v, tiles, (tx, ty) => closed.has(`${tx},${ty}`));
+  const light = kept?.light ?? lightPolygon(v, tiles, (tx, ty) => closed.has(`${tx},${ty}`));
+  if (!kept) lightOfSpot.set(spot, { tiles, light });
   return { world, view, tiles, sc, light };
 }
 // Points of what a thing stands on: a figure's shadow disc (radius 0.36), its centre and its rim; a tile, the same

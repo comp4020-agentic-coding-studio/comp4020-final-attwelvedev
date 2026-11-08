@@ -229,7 +229,7 @@ describe("restart votes", () => {
       expect(await settledHash(bo), `run ${run}: Bo moves`).not.toBe(before);
     }
     await closeAll(table.pages);
-  });
+  }, 120_000); // four restarts, each holding the real intro (2.4 s, as CI runs): 27 s alone, so not the default 30
 
   it("one No shows 'Not restarted: <name> kept playing.' to everyone, then it goes", async () => {
     const table = await playRoom(browser, baseUrl);

@@ -10,7 +10,7 @@ import {
 } from "../playUi.ts";
 
 const baseUrl = inject("baseUrl");
-const HOOK_MS = 30_000;
+const HOOK_MS = 60_000; // not under vitest.config.ts hookTimeout: seating three takes longer on a CI runner
 let browser: Browser;
 // One room for the file: seating three players takes seconds. Room 1: seat 0
 // Can't see on the host's desktop, seat 1 Can't hear on the phone, seat 2
