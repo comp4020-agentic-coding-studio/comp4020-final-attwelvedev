@@ -1,12 +1,13 @@
 import { mix, WORLD } from "../../tokens.ts";
-import { bulb, darker, glow, iron, lighter, litBox, type Painter, wood } from "./kit.ts";
+import { bulb, darker, glow, iron, lighter, litBox, muted, type Painter, wood } from "./kit.ts";
 
 // Rooms 07 (service) and 09 (strongroom): a plant room's fittings and a vault's steel, each with a
 // job (DESIGN.md §4.9).
 
 const steel = () => mix(WORLD.steel, WORLD.wallFront, 0.3);
 const grey = () => mix(WORLD.steelFront, WORLD.wallFront, 0.25);
-const red = () => mix(darker(WORLD.codeRed, 0.2), WORLD.wallFront, 0.3);
+// rust, not a code red: brass taken dark and warm (rule 2: no code colour a wire panel could share)
+const red = () => mix(darker(WORLD.brass, 0.35), WORLD.wallFront, 0.2);
 
 function bar(
   c: CanvasRenderingContext2D,
@@ -63,7 +64,8 @@ export const breakerCabinet: Painter = (c, _item, w, h) => {
 export const pipe: Painter = (c, item, w, h) => {
   const y = h * 0.4;
   const t = h * 0.12;
-  const tone = item.variant % 2 ? red() : mix(darker(WORLD.codeGreen, 0.25), WORLD.wallFront, 0.35);
+  // rust, or a grey-green painted steel: never a code red or green (rule 2)
+  const tone = item.variant % 2 ? red() : darker(WORLD.steelFront, 0.3);
   c.fillStyle = tone;
   c.fillRect(0, y, w, t);
   c.fillStyle = lighter(tone, 0.25); // round: a lit band on top, a shade below

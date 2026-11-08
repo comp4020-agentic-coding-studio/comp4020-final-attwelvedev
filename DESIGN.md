@@ -234,9 +234,9 @@ signal. Decor is also drawn in the home feeds (room 01's, for the sighted feeds 
 | 04 bank | raised-panel wainscot under one dado rail, a framed landscape engraving (no text), a banker's lamp (lit), a brass coat-hook strip | stone coping |
 | 05 gallery | gilt frames in two sizes round a landscape or a still life (code colours mixed at least 70 % toward the wall, no portraits), a plain label card, a picture light (lit) | stone coping |
 | 06 backstage | a velvet curtain drawn back by a tieback, a dressing mirror (dull, opaque) under a row of unlit bulbs, a fly rope on a cleat with its sandbag, an unlit candle sconce | stone coping |
-| 07 service | a breaker cabinet (hinged lid, latch, a blank label plate), a painted pipe with bolted flanges, a pegboard with a spanner and a hammer, a caged bulb (lit) | stone coping |
+| 07 service | a breaker cabinet (hinged lid, latch, a blank label plate), a pipe with bolted flanges (painted steel or rust, never a code colour), a pegboard with a spanner and a hammer, a caged bulb (lit) | stone coping |
 | 08 salon | a violin and a lute hung from pegs (shaded wood, strings), a framed manuscript (staves, bar lines, a clef, never a note head), a candle sconce (lit) | stone coping |
-| 09 strongroom | steel cladding, caged sconces, rivet rows | rivet rows |
+| 09 strongroom | steel cladding, iron hinge straps, a tray of grey and rust cables sagging between its brackets, a steel girder, caged sconces | rivet rows |
 
 - **Placement** (`decorFor` in `src/client/render/decor.ts`): each wall cell's face rolls its own
   dice, seeded from the room id and that cell alone, so two seats whose views differ only by the night
@@ -271,7 +271,9 @@ signal. Decor is also drawn in the home feeds (room 01's, for the sighted feeds 
   A lit item never hangs within a tile of a dark zone (`decor.test.ts`, from the room file's flips:
   the client is never told the zones, and a sighted seat sees them as night, which decor keeps clear
   of anyway).
-  `decor-paint.test.ts` checks rules 2, 4, 5 and 6 on every painter, and two shapes of rule 3 on
+  `decor-paint.test.ts` checks rules 2, 4, 5 and 6 on every painter (rule 2's colours by measure: no
+  fill or stroke is a code colour, darkened or not, less than 70 % of the way to the wall; leaf greens
+  are allow-listed by kind), and two shapes of rule 3 on
   every painter: slats (no more than 2 horizontal bands across half a face) and dial or gauge faces
   (no near-round circle of radius 0.15 of the face or more), each with an allow-list whose entries
   name their reason. `decor.test.ts` checks kind names against the rest of rule 3. Whether a shape

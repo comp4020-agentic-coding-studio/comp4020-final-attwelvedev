@@ -9,6 +9,7 @@ import {
   leafTone,
   lighter,
   litBox,
+  muted,
   type Painter,
   wood,
 } from "./kit.ts";
@@ -16,9 +17,13 @@ import {
 // Rooms 01 (pavilion) and 02 (conservatory): things a garden pavilion's walls carry. Each has a job
 // (DESIGN.md §4.9): a lattice holds the ivy, a lantern lights, a basket hangs, coping caps the wall.
 
-const terracotta = () => mix(darker(WORLD.codeRed, 0.25), WORLD.brass, 0.45);
+const terracotta = () => muted(mix(darker(WORLD.codeRed, 0.25), WORLD.brass, 0.45));
 const flower = (v: number) =>
-  [WORLD.codeWhite, WORLD.dyePink, mix(WORLD.codeYellow, WORLD.codeWhite, 0.4)][v % 3] as string;
+  [
+    mix(WORLD.codeWhite, WORLD.brass, 0.18),
+    WORLD.dyePink,
+    mix(WORLD.codeYellow, WORLD.codeWhite, 0.4),
+  ][v % 3] as string; // a white bloom is cream, not code white
 
 // A thin bar from (x0, y0) to (x1, y1), w wide, in tone: a lattice lath, a chain, a stem.
 function bar(

@@ -183,6 +183,37 @@ const alphaOf = (style: unknown): number => {
 const FILLS = new Set(["fill", "fillRect"]);
 const STROKES = new Set(["stroke", "strokeRect"]);
 
+// How strongly a fill carries a code colour (rule 2): for each code colour k, the fill f is fitted as
+// a·k + t·wall (a darkened k, mixed t of the way to the wall: a = (1 − t)(1 − d) for darkness d), by
+// least squares in RGB. The code whose fit leaves the least is the one the fill is nearest; `left` is
+// that distance, in 0 to 255 RGB units, and t its share toward the wall.
+const CODES = ["codeRed", "codeBlue", "codeYellow", "codeGreen", "codeWhite"] as const;
+const rgb = (c: string) => [1, 3, 5].map((i) => Number.parseInt(c.slice(i, i + 2), 16));
+function codeStrength(fill: string) {
+  if (!/^#[0-9a-f]{6}$/i.test(fill)) return null;
+  const f = rgb(fill);
+  const wall = rgb(WORLD.wallFront);
+  let best: { code: (typeof CODES)[number]; t: number; d: number; left: number } | null = null;
+  for (const code of CODES) {
+    const k = rgb(WORLD[code]);
+    // solve [k w] [a t]ᵀ ≈ f
+    const dot = (x: number[], y: number[]) => x.reduce((s, v, i) => s + v * (y[i] as number), 0);
+    const kk = dot(k, k);
+    const kw = dot(k, wall);
+    const ww = dot(wall, wall);
+    const det = kk * ww - kw * kw;
+    if (Math.abs(det) < 1e-6) continue;
+    const a = (dot(k, f) * ww - dot(wall, f) * kw) / det;
+    const t = (dot(wall, f) * kk - dot(k, f) * kw) / det;
+    if (a <= 0 || t < 0 || t >= 1) continue;
+    const d = 1 - a / (1 - t);
+    if (d < -0.05 || d > 0.5) continue; // a code colour taken through its darker range (and rounding)
+    const left = Math.hypot(...f.map((v, i) => v - a * (k[i] as number) - t * (wall[i] as number)));
+    if (!best || left < best.left) best = { code, t, d, left };
+  }
+  return best;
+}
+
 describe("the rules", () => {
   it("rule 2: no painter writes text", () => {
     for (const item of items())
@@ -357,6 +388,35 @@ describe("the rules", () => {
           );
       }
     }
+  });
+
+  // rule 2 on every painter: no fill or stroke is a code colour (taken through its darker range) at
+  // less than 70 % of the way to the wall. A fill made from a code colour fits it with under 1 RGB unit
+  // left over; brass, wood and steel come no nearer than 2.1 (moss's light green), so 2 is the line.
+  // Kinds allowed a code colour, each for one code and with its reason (listed for the user):
+  const CODE_OK: Partial<Record<DecorKind, { code: (typeof CODES)[number]; why: string }>> = {
+    ivy: { code: "codeGreen", why: "a leaf is green: that is what makes it a leaf" },
+    fernBasket: { code: "codeGreen", why: "a fern's fronds are green" },
+    hangingBasket: { code: "codeGreen", why: "its trailing leaves are green" },
+    moss: { code: "codeGreen", why: "moss is green" },
+    plantShelf: { code: "codeGreen", why: "the plants' leaves are green" },
+    trellis: { code: "codeGreen", why: "the climber's leaves are green" },
+  };
+  it("rule 2: no painter fills or strokes in a code colour at more than 30 % strength", () => {
+    expect(MUTE).toBeGreaterThanOrEqual(0.7);
+    const strong = new Set<string>();
+    for (const item of items())
+      for (const o of paint(item).ops) {
+        const tone = FILLS.has(o.name) ? o.fillStyle : STROKES.has(o.name) ? o.strokeStyle : null;
+        if (typeof tone !== "string") continue;
+        const m = codeStrength(tone);
+        if (!m || m.left >= 2 || m.t >= 0.7) continue; // 30 % strength: MUTE (0.72) clears it
+        if (CODE_OK[item.kind]?.code === m.code) continue;
+        strong.add(
+          `${item.kind}: ${tone} is ${m.code} at t ${m.t.toFixed(2)} (left ${m.left.toFixed(1)})`,
+        );
+      }
+    expect([...strong]).toEqual([]);
   });
 
   it("every theme kind has a painter", () => {

@@ -1,11 +1,22 @@
 import { mix, WORLD } from "../../tokens.ts";
-import { bulb, darker, glow, iron, lighter, litBox, type Painter, wood } from "./kit.ts";
+import {
+  bulb,
+  darker,
+  glow,
+  iron,
+  lighter,
+  litBox,
+  MUTE,
+  muted,
+  type Painter,
+  wood,
+} from "./kit.ts";
 
 // Rooms 03 (watch house), 04 (bank) and 05 (gallery): things a watch house, a bank hall and a gallery
 // hang on their walls, each with a job (DESIGN.md §4.9).
 
 const brassFrame = () => mix(WORLD.brass, WORLD.wallFront, 0.15);
-const cloth = () => mix(darker(WORLD.codeRed, 0.35), WORLD.wallFront, 0.35);
+const cloth = () => muted(darker(WORLD.codeRed, 0.35));
 const paper = () => mix(WORLD.codeWhite, WORLD.brass, 0.15);
 
 function bar(
@@ -37,7 +48,7 @@ export const banner: Painter = (c, item, w, h) => {
   bar(c, w * 0.5, h * 0.05, x0, top, 1, darker(wood(), 0.2)); // the cords to a peg
   bar(c, w * 0.5, h * 0.05, x1, top, 1, darker(wood(), 0.2));
   litBox(c, w * 0.485, h * 0.035, w * 0.03, w * 0.03, iron());
-  const tone = item.variant % 2 ? mix(darker(WORLD.codeBlue, 0.4), WORLD.wallFront, 0.35) : cloth();
+  const tone = item.variant % 2 ? muted(darker(WORLD.codeBlue, 0.4)) : cloth();
   c.fillStyle = tone;
   c.beginPath();
   c.moveTo(x0, top);
@@ -53,7 +64,7 @@ export const banner: Painter = (c, item, w, h) => {
   c.fillStyle = darker(tone, 0.18);
   c.fillRect(x0 + (x1 - x0) * 0.66, top, (x1 - x0) * 0.14, foot - top - h * 0.1);
   // a border band in brass a little below the rod
-  c.fillStyle = mix(WORLD.brass, tone, 0.35);
+  c.fillStyle = darker(WORLD.brass, 0.15); // plain brass: tinted by the cloth it read as a code yellow
   c.fillRect(x0, top + h * 0.06, x1 - x0, Math.max(1, h * 0.025));
   litBox(c, x0 - w * 0.06, top - h * 0.02, x1 - x0 + w * 0.12, h * 0.03, wood()); // the rod
   for (const x of [x0 - w * 0.05, x1 + w * 0.05]) {
@@ -206,7 +217,7 @@ export const bankerLamp: Painter = (c, _item, w, h) => {
   glow(c, cx, sy + h * 0.06, w * 0.5);
   litBox(c, cx - w * 0.04, h * 0.42, w * 0.08, h * 0.12, WORLD.brass); // the wall plate
   bar(c, cx, h * 0.44, cx, sy, Math.max(1, w * 0.025), WORLD.brass);
-  const shade = mix(darker(WORLD.codeGreen, 0.3), WORLD.wallFront, 0.2);
+  const shade = muted(darker(WORLD.codeGreen, 0.3));
   c.fillStyle = shade;
   c.beginPath();
   c.moveTo(cx - w * 0.18, sy + h * 0.04);
@@ -240,8 +251,7 @@ export const coatHooks: Painter = (c, _item, w, h) => {
 // The gallery: a gilt moulded frame, in one of two sizes, round a landscape or a still life in code
 // colours mixed most of the way to the wall (MUTE), so no code survives in it; a plain label card
 // under it, and a picture light above (lit). No portraits: a figure would read as a role's shape.
-export const MUTE = 0.72;
-const muted = (tone: string) => mix(tone, WORLD.wallFront, MUTE);
+export { MUTE };
 export const painting: Painter = (c, item, w, h) => {
   const big = item.variant % 2 === 0;
   const fw = w * (big ? 0.66 : 0.5);

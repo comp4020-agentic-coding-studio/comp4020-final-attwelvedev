@@ -1,10 +1,10 @@
 import { mix, WORLD } from "../../tokens.ts";
-import { bulb, darker, glow, iron, lighter, litBox, type Painter, wood } from "./kit.ts";
+import { bulb, darker, glow, iron, lighter, litBox, muted, type Painter, wood } from "./kit.ts";
 
 // Rooms 06 (backstage) and 08 (salon): a theatre's wings and a music room, each thing with a job
 // (DESIGN.md §4.9).
 
-const velvet = () => mix(darker(WORLD.codeRed, 0.45), WORLD.wallFront, 0.25);
+const velvet = () => muted(darker(WORLD.codeRed, 0.45));
 const paper = () => mix(WORLD.codeWhite, WORLD.brass, 0.18);
 
 function bar(
@@ -127,7 +127,7 @@ export const sconceDim: Painter = (c, _item, w, h) => {
     h * 0.24,
     w * 0.05,
     h * 0.13,
-    mix(WORLD.codeWhite, WORLD.wallFront, 0.3),
+    paper(), // wax, not code white
   );
 };
 

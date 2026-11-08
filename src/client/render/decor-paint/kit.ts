@@ -62,6 +62,10 @@ export function litBox(
 // mixed a little toward the wall so they sit in the room's light.
 export const wood = () => mix(darker(WORLD.brass, 0.45), WORLD.wallFront, 0.15);
 export const iron = () => mix(darker(WORLD.steelFront, 0.55), WORLD.wallFront, 0.1);
+// Rule 2 (DESIGN.md §4.9): a code colour in decor is mixed at least this far toward the wall, so no
+// code can be read off it (decor-paint.test.ts measures every painter against 70 %).
+export const MUTE = 0.72;
+export const muted = (tone: string) => mix(tone, WORLD.wallFront, MUTE);
 export const leafTone = (t = 0) => mix(darker(WORLD.codeGreen, 0.2 + t), WORLD.wallFront, 0.3);
 
 // A small leaf: a lens at (x, y), l long, turned by a, with its lit half a shade lighter.
