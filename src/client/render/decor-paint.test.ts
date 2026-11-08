@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { setContrast, WORLD } from "../tokens.ts";
+import { mix, setContrast, WORLD } from "../tokens.ts";
 import { wall } from "./blocks.ts";
 import { drawSlide } from "./chamber.ts";
 import { type DecorItem, type DecorKind, KIND_FACES, LIT, THEME_KINDS } from "./decor.ts";
+import { MUTE } from "./decor-paint/civic.ts";
 import { PAINTERS, paintDecor } from "./decor-paint.ts";
 import { type Camera, setRise } from "./project.ts";
 
@@ -244,12 +245,31 @@ describe("the rules", () => {
     }
   });
 
-  it("an unlit sconce draws no gradient, and a lit one does", () => {
+  it("an unlit sconce draws no gradient, and a lit lamp does", () => {
     for (const v of [0, 1, 2, 3]) {
       const dim = paint({ x: 0, y: 0, face: "front", kind: "sconceDim", variant: v });
       expect(dim.grads).toEqual([]);
-      const lit = paint({ x: 0, y: 0, face: "front", kind: "sconce", variant: v, lit: true });
+      const lit = paint({ x: 0, y: 0, face: "front", kind: "bankerLamp", variant: v, lit: true });
       expect(lit.grads.length).toBeGreaterThan(0);
+    }
+  });
+
+  // rule 2: a painting's colours are code colours mixed at least 70 % toward the wall, so no code
+  // (a colour order, a pair) can be read off one
+  it("the gallery's paintings use no code colour at more than 30 % strength", () => {
+    expect(MUTE).toBeGreaterThanOrEqual(0.7);
+    const codes = [
+      WORLD.codeRed,
+      WORLD.codeBlue,
+      WORLD.codeYellow,
+      WORLD.codeGreen,
+      WORLD.codeWhite,
+    ];
+    const strong = codes.flatMap((k) => [0, 0.1, 0.2, 0.3].map((t) => mix(k, WORLD.wallFront, t)));
+    for (const v of [0, 1, 2, 3]) {
+      const { ops } = paint({ x: 0, y: 0, face: "front", kind: "painting", variant: v, lit: true });
+      for (const o of ops.filter((o) => FILLS.has(o.name)))
+        expect(strong, `variant ${v}`).not.toContain(o.fillStyle);
     }
   });
 

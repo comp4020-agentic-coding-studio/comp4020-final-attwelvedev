@@ -761,3 +761,8 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
   and was redrawn in wood; the lantern's lit panes are the brightest decor so far: say if it reads as
   a signal lamp.
 - **Ask: accept ADR 0029** (`doc/adr/0029-decor-may-show-real-things-with-a-job.md`, `proposed`).
+
+### decor Task 4: rooms 3, 4 and 5, drawn to the bar of rooms 1 and 2 (no review line in the plan; for the whole-sheet review in Task 6)
+
+- **Sheets:** `review/decor/03-watchers.png`, `04-the-safe.png`, `05-the-gallery.png`. **In game:** `review/n7-decor-task4-room{03,04,05}-{1280,375}.png`.
+- **What I judged:** watch house: a cloth banner hung flat from a rod (not on a pole, which is the exit's flag), a hooded lantern, crossed staves, a rope coil. Bank: raised-panel wainscot, a landscape engraving, a banker's lamp, coat hooks. Gallery: landscapes and still lifes in muted code colours (a test holds them at 70 % toward the wall), a blank label card, a picture light. The rope coil is a ring: say if it reads as a dial (rule 3).

@@ -26,14 +26,18 @@ export type DecorKind =
   | "plantShelf" // conservatory: a board on two brackets with three pots
   | "fernBasket" // conservatory: a fern in a wire basket on chains
   | "wallLamp" // conservatory: a gooseneck lamp, lit
-  | "banner" // watch: a swallowtail in wall tones
-  | "sconceDim" // watch, backstage: an unlit sconce, no glow
-  | "wainscot" // bank: a lower panel with one rail
-  | "certificate" // bank: a framed card
-  | "sconce" // bank: a lit sconce
+  | "banner" // watch: a cloth banner hung from a rod, with tassels
+  | "hoodedLantern" // watch: a lantern under an iron hood, lit
+  | "staves" // watch: two quarterstaffs crossed on pegs
+  | "ropeCoil" // watch: a coil of rope on a hook
+  | "sconceDim" // backstage: an unlit sconce, no glow
+  | "wainscot" // bank: raised panels under one dado rail
+  | "engraving" // bank: a framed landscape engraving, no text
+  | "bankerLamp" // bank: a green-shaded lamp on a brass arm, lit
+  | "coatHooks" // bank: a board of brass coat hooks
   | "kickPanel" // service: steel with vertical seams
   | "cagedBulb" // service: a lit bulb in a cage
-  | "painting" // gallery: a gilt frame round an abstract field, with a picture light
+  | "painting" // gallery: a gilt frame round a landscape or a still life, a label card, a picture light
   | "violin" // salon: silhouettes in a darker wall tone
   | "lute"
   | "staff" // salon: five lines, never a note
@@ -57,9 +61,9 @@ export const THEME_OF: Record<string, Theme> = {
 export const THEME_KINDS: Record<Theme, readonly DecorKind[]> = {
   pavilion: ["ivy", "hangingLantern", "hangingBasket", "coping", "moss"],
   conservatory: ["trellis", "plantShelf", "fernBasket", "wallLamp", "coping"],
-  watch: ["banner", "sconceDim"],
-  bank: ["wainscot", "certificate", "sconce"],
-  gallery: ["painting"],
+  watch: ["banner", "hoodedLantern", "staves", "ropeCoil", "coping"],
+  bank: ["wainscot", "engraving", "bankerLamp", "coatHooks", "coping"],
+  gallery: ["painting", "coping"],
   backstage: ["swag", "sconceDim"],
   service: ["kickPanel", "cagedBulb"],
   salon: ["violin", "lute", "staff", "swag"],
@@ -78,10 +82,14 @@ export const KIND_FACES: Record<DecorKind, readonly ("front" | "top")[]> = {
   fernBasket: ["front"],
   wallLamp: ["front"],
   banner: ["front"],
+  hoodedLantern: ["front"],
+  staves: ["front"],
+  ropeCoil: ["front"],
   sconceDim: ["front"],
   wainscot: ["front"],
-  certificate: ["front"],
-  sconce: ["front"],
+  engraving: ["front"],
+  bankerLamp: ["front"],
+  coatHooks: ["front"],
   kickPanel: ["front"],
   cagedBulb: ["front"],
   painting: ["front"],
@@ -100,7 +108,8 @@ export const LIT: ReadonlySet<DecorKind> = new Set([
   "wallLamp",
   "painting",
   "cagedSconce",
-  "sconce",
+  "hoodedLantern",
+  "bankerLamp",
   "cagedBulb",
 ]);
 
@@ -119,7 +128,7 @@ export interface DecorItem {
 export const SALT: Record<string, number> = {
   "03-watchers": 1,
   "04-the-safe": 2,
-  "05-the-gallery": 56,
+  "05-the-gallery": 242,
   "06-lights-out": 5,
   "07-night-shift": 198,
   "08-music-room": 4,

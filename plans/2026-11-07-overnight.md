@@ -255,3 +255,6 @@
 - decor/3: the flush-top test also lets `rivets` on a top (room 9's existing rivet row, named in the plan's table for room 9). Reversible by editing `FLUSH` in `decor.test.ts`.
 - decor/2: `CAP = 64` stays: each shipped room uses at most 3 distinct decorated wall tiles. Reversible by raising `CAP` in `atlas.ts`.
 
+- decor/4: the gallery gained a coping top, which put an item beside a station in room 5 (R2) → `SALT["05-the-gallery"]` 56 → 242, the first salt with no item beside a station part, plaque or ink and at least two fronts, as the decor.test comment prescribes. Reversible by editing `SALT`.
+- decor/4: backstage (room 6) still uses `sconceDim`, kept in `civic.ts` until Task 5 redraws room 6; the bank's `sconce` and `certificate` are gone (replaced by the banker's lamp and the engraving). Reversible by `git revert`.
+- decor/4: a full check failed 6 lobby/heist specs on 30 s timeouts at load 11 to 12; the three files passed 39/39 on a freshly started check server, then the full check passed on a fresh server. Read as the long-running check server going stale under load, not a decor fault; I now restart the server before each full check. Worth a `pnpm check:flaky` on `spec/layout/hud.test.ts` in the morning.

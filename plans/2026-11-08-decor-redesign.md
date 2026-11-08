@@ -77,7 +77,7 @@ Each new or changed assertion that guards a promise is shown red first, with a b
   - Human review: **the style bar.** Look at `review/decor/01-first-steps.png` and `02-three-hands.png`, and the same rooms in a local build. A pass means each item can be named at a glance, looks like part of this world (lit from the north-west, no outline), and none can be mistaken for a signal. Strike or swap items here. The later rooms are drawn to the bar you accept.
   - Depends on: Task 2.
 
-- [ ] **Task 4: Rooms 3, 4 and 5**
+- [x] **Task 4: Rooms 3, 4 and 5**
   - Files: `src/client/render/decor-paint/civic.ts`, `decor.ts`, `LOOKS`, `DESIGN.md`.
   - Tests first: as Task 3 for the new kinds; the gallery's paintings still use code colours only mixed at least 70 % toward the wall, so no fixed code pattern survives (a test over the painting painter's fills). Red by painting one at full code colour.
   - Acceptance: screenshots of 03, 04 and 05 at both widths; `spec/layout/decor.test.ts` green for them.

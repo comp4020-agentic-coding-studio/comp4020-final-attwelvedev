@@ -230,9 +230,9 @@ signal. Decor is also drawn in the home feeds (room 01's, for the sighted feeds 
 |---|---|---|
 | 01 pavilion | ivy climbing a wooden lattice (leaves in three sizes, a few blossoms), a hanging lantern on an iron bracket (lit), a hanging basket on a hook | stone coping (its joints only), moss |
 | 02 conservatory | a wooden fan trellis with a flowering vine, a plant shelf on two brackets with three pots, a fern in a hanging wire basket, a gooseneck wall lamp (lit) | stone coping |
-| 03 watch house | swallowtail banners, unlit sconces | none |
-| 04 bank | a wainscot with one rail, framed certificates, lit sconces | none |
-| 05 gallery | gilt-framed paintings under a picture light | none |
+| 03 watch house | a cloth banner hung from a rod with tassels, a hooded lantern (lit), crossed staves on pegs, a rope coil on a hook | stone coping |
+| 04 bank | raised-panel wainscot under one dado rail, a framed landscape engraving (no text), a banker's lamp (lit), a brass coat-hook strip | stone coping |
+| 05 gallery | gilt frames in two sizes round a landscape or a still life (code colours mixed at least 70 % toward the wall, no portraits), a plain label card, a picture light (lit) | stone coping |
 | 06 backstage | curtain swags, unlit sconces | none |
 | 07 service | steel kick panels, caged bulbs | none |
 | 08 salon | violin and lute silhouettes, staves with no notes, curtain swags | none |
