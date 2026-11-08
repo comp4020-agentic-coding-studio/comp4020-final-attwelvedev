@@ -38,7 +38,10 @@ if (process.env.BENCH !== "1") return new Response(null, { status: 404 });
       import room08 from "../../rooms/08-music-room.room?raw";
       import room09 from "../../rooms/09-the-vault.room?raw";
       import { camera, draw, type Scene } from "../client/render.ts";
-      import { decorFor } from "../client/render/decor.ts";
+      import { wall } from "../client/render/blocks.ts";
+      import { type DecorItem, decorFor, KIND_FACES, LIT, THEME_KINDS, THEME_OF } from "../client/render/decor.ts";
+      import { LOOKS } from "../client/render/decor-paint.ts";
+      import { setRise, TILT } from "../client/render/project.ts";
       import { setContrast, setHue } from "../client/tokens.ts";
       import { benchCam } from "./benchCam.ts";
       import { viewFor } from "../game/perception.ts";
@@ -50,7 +53,8 @@ if (process.env.BENCH !== "1") return new Response(null, { status: 404 });
       const WARMUP = 30;
       const ROLES: [Role, Role, Role] = ["blind", "deaf", "mute"];
       // ?room=01..09 (05 by default); ?decor=0 draws the room without its decor (spec/layout/decor.test.ts);
-      // ?still=1 draws one settled frame and stops, for a spec to read; ?hc=1 is high contrast
+      // ?still=1 draws one settled frame and stops, for a spec to read; ?hc=1 is high contrast;
+      // ?sheet=1 is the decor contact sheet (scripts/decor-sheet.ts)
       const q = new URLSearchParams(location.search);
       const which = {
         "01": room01,
@@ -119,6 +123,48 @@ if (process.env.BENCH !== "1") return new Response(null, { status: 404 });
         canvas.dataset.decor = JSON.stringify(base.decor);
         canvas.dataset.ready = "1";
       }
+      // The decor contact sheet: every look of every kind of the room's theme, on a wall tile in the
+      // room's tint, through the real wall painter, at 1×, 2× and 3× a 56 px tile; the bare wall first.
+      if (q.get("sheet") === "1") {
+        setRise(1);
+        const kinds = THEME_KINDS[THEME_OF[room.id] ?? "pavilion"];
+        const rows: (DecorItem | null)[] = [null];
+        for (const kind of kinds)
+          for (const face of KIND_FACES[kind])
+            for (let variant = 0; variant < LOOKS[kind]; variant++)
+              rows.push({ x: 0, y: 0, face, kind, variant, ...(LIT.has(kind) ? { lit: true as const } : {}) });
+        const S = 56;
+        const PAD = 16;
+        const LABEL = 150;
+        const tileH = (k: number) => S * k * (TILT.depth + TILT.wall) + PAD;
+        const width = LABEL + PAD + [1, 2, 3].reduce((a, k) => a + S * k + PAD, 0);
+        const height = PAD + rows.length * tileH(3);
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.fillStyle = "#1b1726";
+        ctx.fillRect(0, 0, width, height);
+        rows.forEach((item, i) => {
+          const top = PAD + i * tileH(3);
+          ctx.fillStyle = "#e8e2f0";
+          ctx.font = "13px system-ui";
+          ctx.fillText(item ? `${item.face} ${item.kind} ${item.variant}` : "bare wall", PAD, top + 20);
+          let left = LABEL + PAD;
+          for (const k of [1, 2, 3]) {
+            const scale = S * k;
+            // a camera that puts wall tile (0, 0)'s top at (left, top)
+            const cam = { scale, ox: left, oy: top + TILT.wall * scale };
+            const decor = item ? { [item.face]: item } : {};
+            ctx.save();
+            wall(ctx, cam, 0, 0, true, decor);
+            ctx.restore();
+            left += scale + PAD;
+          }
+        });
+        canvas.dataset.ready = "1";
+      }
       const times: number[] = [];
       let frame = 0;
       const start = performance.now();
@@ -139,7 +185,7 @@ if (process.env.BENCH !== "1") return new Response(null, { status: 404 });
           p95: at(0.95),
         };
       }
-      if (q.get("still") !== "1") requestAnimationFrame(tick);
+      if (q.get("still") !== "1" && q.get("sheet") !== "1") requestAnimationFrame(tick);
     </script>
   </body>
 </html>

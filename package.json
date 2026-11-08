@@ -19,6 +19,7 @@
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "bench:frame": "node scripts/bench-frame.ts",
+    "decor:sheet": "node scripts/decor-sheet.ts",
     "db:generate": "drizzle-kit generate"
   },
   "devDependencies": {

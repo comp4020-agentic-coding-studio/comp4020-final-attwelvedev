@@ -64,7 +64,7 @@ Each new or changed assertion that guards a promise is shown red first, with a b
   - Acceptance: `pnpm check` green; the old banned-shape tests are gone, not weakened (the replaced ones guard rules that no longer exist, and each is replaced by a stricter one on the same file).
   - Depends on: none.
 
-- [ ] **Task 2: Split the painters and build the contact sheet**
+- [x] **Task 2: Split the painters and build the contact sheet**
   - Files: `src/client/render/decor-paint.ts` becomes the shared helpers (`glow`, `bulb`, `dark`, `paintDecor`, `LOOKS`, `PAINTERS`) plus one file per theme group in `src/client/render/decor-paint/` (`garden.ts` for 01 and 02, `civic.ts` for 03 to 05, `stage.ts` for 06 and 08, `works.ts` for 07 and 09); `scripts/decor-sheet.ts` (new: draws every kind of a room, at its looks, on a wall face in the room's tint at 1×, 2× and 3×, through the real renderer in headless Chromium, to `review/decor/<room>.png`), `src/client/render/atlas.ts` (read `CAP = 64`: each wall tile with decor is an atlas tile named by its looks, so more looks may exceed the cap; Task 2 measures how many distinct wall tiles a room uses and raises `CAP` only if the bench says so).
   - Test first: a move with no look change: `decor-paint.test.ts` and `spec/layout/decor.test.ts` stay green, and `decorTile` names are unchanged. Break: drop one painter from `PAINTERS`; "every theme kind has a painter" goes red.
   - Acceptance: the contact sheet renders for all nine rooms; `pnpm bench:frame --compare` is unchanged.
