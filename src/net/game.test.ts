@@ -1171,6 +1171,18 @@ describe("autopilot (playtest only, ADR 0027)", () => {
     expect(game.bots).toEqual({});
   });
 
+  it("ends on a restart, and the lobby's own bots stay", () => {
+    const bl = withBots("a", 2); // seat 2 a lobby bot
+    const game = startGame(bl, rooms);
+    for (const s of [0, 1, 2] as const) game.ready.add(s);
+    setAutopilot(game, bl, 1, true);
+    restartGame(game);
+    expect(game.bots[1]).toBeUndefined();
+    expect(autopilotOn(game, 1)).toBe(false);
+    expect(game.bots[2]).toBeDefined();
+    expect(setAutopilot(game, bl, 1, true)).toBe(true);
+  });
+
   it("an autopilot seat is not a person to the other bots", () => {
     const game = started();
     setAutopilot(game, l, 1, true);

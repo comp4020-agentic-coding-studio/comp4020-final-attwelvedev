@@ -381,7 +381,8 @@ export function restartGame(game: Game): void {
   freshComms(game);
   game.inputs = {};
   game.startedAt = Date.now();
-  seatBots(game, botSeatsOf(game));
+  const lobbyBots = botSeatsOf(game).filter((s) => !game.autopilot.has(s));
+  seatBots(game, lobbyBots); // an autopilot seat goes back to its person
 }
 
 // A restarted room that should be running and is not: all three ready, nothing holding it (no pause,
