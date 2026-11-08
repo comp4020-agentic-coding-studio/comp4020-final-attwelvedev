@@ -863,3 +863,14 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
 - My read: each sentence reads naturally; nothing says "clips". Already there before this task and
   not changed: the refusal toast sits over the wheel's plate at the bottom of the frame on both
   widths, so both refusals show at once, overlapping. Worth a look.
+
+### pf01: things to check by hand in the morning (no review line in the plan)
+
+- Task 6 (restart freeze): not reproduced by 20 socket restarts or 4 page restarts. A three-tab
+  playtest of demo 6 (vote to restart repeatedly, with real people) is still worth doing; if it
+  freezes, the server now logs a `room.stall` game line and starts the room's ticks itself.
+- Task 7 (intro): look at a room start on room 05 (the gallery): the paintings used to crash the
+  first quarter of the tilt. The sunrise now changes colour in 24 steps; check it does not look
+  steppy. Screenshots: none (it is motion); run `pnpm build && PORT=8092 pnpm start:check`, three
+  tabs, play to room 5 or use the bench at `BENCH=1` `/bench?room=05&intro=1`.
+- Task 5 (doors): `review/n7-pf01-task5-door-{1280,375}.png`.

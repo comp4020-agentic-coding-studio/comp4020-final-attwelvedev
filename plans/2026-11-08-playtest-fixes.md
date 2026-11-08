@@ -2,7 +2,7 @@
 
 - **Date:** 2026-11-08
 - **Tier:** Slice (a batch of small slices and three investigations; one file because it is one playthrough's list and the tasks are small)
-- **Status:** Approved
+- **Status:** Executed 2026-11-08 overnight (unit pf01): Tasks 2, 4, 5, 6, 7 done; Tasks 1 and 3 built and committed, human review queued in `review/QUEUE.md`, left unticked until you accept them
 - **Requirements confirmed by user:** yes, 2026-11-08, in conversation; the spec is `specs/2026-11-08-playtest-fixes.md` (approved the same day, copy table and scope settled there)
 - **Comes from:** the user's playthrough, 2026-11-08
 - **Base and order:** runs on `auto/overnight` after `fix/los-combined` is merged, which waits for unit `pt01` to finish. Do not start while `pt01` is running; do not touch `wt-night`. Task order is the spec's: landing and crate first, then the copy, then the three investigations.
@@ -54,7 +54,7 @@ Each new or changed assertion is shown red first with a break script that assert
   - Depends on: none.
   - Human review: the two screenshots, in a local build. A pass means the headline and feeds sit comfortably inside the glow.
 
-- [ ] **Task 2: Crate shadow is a rectangle**
+- [x] **Task 2: Crate shadow is a rectangle**
   - Files: `src/client/render/materials.ts` (`paintCrateShadow`, line 217: draw a rounded rectangle from the same centre and half-extents instead of `ellipse`; keep `globalAlpha *= 0.18`, the 0.08 tile offset and the high-contrast early return), `src/client/render/materials.test.ts` (lines 240 to 246 and 270 look for an `ellipse` op: they pin today's circle, so change them to look for the rectangle op and its extents), `DESIGN.md` if it names the shadow.
   - Tests first: a test that the shadow's path spans `2 * rx` by `2 * ry` (a rectangle, not an ellipse) and goes red against today's code; high contrast still draws none. Break: put the `ellipse` back.
   - Acceptance: demo 2, a screenshot at 1280 and 375 of a crate. Frame bench unchanged.
@@ -67,20 +67,20 @@ Each new or changed assertion is shown red first with a break script that assert
   - Depends on: none.
   - Human review: the printed list of every changed string, read aloud, then the role screen and the wheel at 1280 and 375. A pass means each sentence reads naturally and nothing says "clips" to a player.
 
-- [ ] **Task 4: A sweep for any "clip" a player still reads**
+- [x] **Task 4: A sweep for any "clip" a player still reads**
   - Files: a grep of `src/components`, `src/pages`, `src/client` (not `render/`), `public/` and the captions for the word "clip" in visible text, with every remaining hit either changed or listed as internal.
   - Tests first: none new; the list is the artifact. Captions such as `[Air horn]` (`src/client/hud.ts:69`) come from `CLIPS` labels and stay.
   - Acceptance: a short list in the commit message of each remaining "clip" and why it is internal.
   - Depends on: Task 3.
 
-- [ ] **Task 5: Every tile of a door animates**
+- [x] **Task 5: Every tile of a door animates**
   - Cause, read from the code and not yet proven: a door is one entity per tile with one id (rooms 1 and 2 have two-tile doors at `12,1`/`12,2` and `22,1`/`22,2`). `detectFx` (`src/client/fx.ts:203`) makes one `door` fx per door at the first tile it meets ("one per door, however many tiles") and `drawDoorOpening` (`blocks.ts:359`) draws one position, so the other tile's leaves never move. `fx.test.ts` lines 63 to 80 pin "a door of three tiles moves once", so that test pins the bug if this is the cause.
   - Files: `src/client/fx.test.ts` (a red test first: a two-tile door that opens gives an effect for each tile, or one effect that draws both), then `src/client/fx.ts` (`detectFx`, and `openedDoors` if its one-pill-per-door rule is kept) and `src/client/render/blocks.ts` / `index.ts:699` as the red test points. A door's off-screen pill (`Game.tsx:442`) stays one per door.
   - Tests first: reproduce on rooms 1 and 2's real door tiles drawn through `draw()` with `sc.cam` pinned (a test that draws the real scene on a canvas, as `standing.test.ts` does), and show that only one tile's leaves move. If it passes, the cause is elsewhere: stop and say so.
   - Acceptance: demo 3, with a screenshot of a door mid-opening at 1280 and 375. Break: restore the first-tile-only rule.
   - Depends on: none.
 
-- [ ] **Task 6: Restart after a vote never freezes**
+- [x] **Task 6: Restart after a vote never freezes** (not reproduced: guard and log line added, cause not found; see commit)
   - Reproduce first. The server path is already covered by `spec/intro.test.ts:95` and `:117` ("a passed room restart sends intro again and holds again" and the tick-0 view), so the server is correct as far as those go. The unproven suspect is the client: in `Game.tsx:568` `start()` computes `first = r.intro === null && ...`, and after a restart `r.intro` is already set, so the cover and swoop may not run again; `restarted()` (`Game.tsx:1070`) resets `lastSent` and the summary but not `r.intro`. This is a hypothesis from reading, not a cause.
   - Files: a new `spec/restart-resume.test.ts` (a file for its area, per the slow-test rule): vote to restart 20 times in a row on one lobby, and after each assert an `intro`, then a tick, `elapsedMs` advancing and a seat's input moving it; then `src/components/Game.tsx` and `src/net/attach.ts` as the failing run points. A client-side check (a layout spec or a unit test on `start()`/`restarted()`) for the second play.
   - If it cannot be reproduced after the 20 runs and a client-side check: do not claim a fix. Add one `game` log line through `logGame` (`src/lib/gameLog.ts`, its name added to `GameEvent`, no nickname or code in `detail`) when a restarted room has not ticked within `INTRO_FOR` plus a margin, and a guard that restarts the tick loop in that case, and say plainly in the commit that the cause was not found.
@@ -88,7 +88,7 @@ Each new or changed assertion is shown red first with a break script that assert
   - Acceptance: demo 6. `pnpm check:flaky` on the new spec shows no flake.
   - Depends on: none (do it before Task 7, since a fix here may change the lag measurement).
 
-- [ ] **Task 7: The room-start intro without long stalls**
+- [x] **Task 7: The room-start intro without long stalls**
   - Investigation, on a quiet machine (not while `pt01` or another unit is running): the frame bench (`pnpm bench:frame`) draws a room in a loop but has no intro mode (`src/bench/bench.astro` has no rise or swoop), so first add a bench mode that draws the intro's frames (`rise` 0 to 1 and `swoop` 0 to 1, through `camera()`), at the bench's throttled CPU setting. Record p50 and p95 for the intro and the longest single frame, on desktop and phone width.
   - Files: `src/bench/bench.astro` and `scripts/bench-frame.ts` (an intro row), then whatever the measurement points at in `src/client/render/` or `Game.tsx`'s cover and rise code (`setCovering`, `coverTiming`).
   - Tests first: the target is set from the measurement, not before. If the intro frames are within the existing budget and the lag is only machine load, change no code and say so in the commit. Otherwise a bench assertion that goes red on the slow frame, then the fix.
