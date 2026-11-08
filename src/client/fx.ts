@@ -189,7 +189,6 @@ export function detectFx(prev: EntityView[], next: EntityView[]): Fx[] {
   const was = new Map(prev.map((e) => [key(e), e]));
   const nowById = new Map(next.map((e) => [e.id, e]));
   const wasById = new Map(prev.map((e) => [e.id, e]));
-  const doorsDone = new Set<string>();
   const on = (e: EntityView, kind: FxKind, tone: FxTone = "ui", extra: Partial<Fx> = {}) =>
     out.push({ kind, pos: e.pos, tone, targetId: e.id, ...extra });
 
@@ -202,9 +201,9 @@ export function detectFx(prev: EntityView[], next: EntityView[]): Fx[] {
       on(e, e.state === "pressed" ? "press" : "release", e.state === "pressed" ? "goal" : "muted");
     } else if (e.kind === "door" && before?.state === "closed" && e.state === "open") {
       // the door's own motion, never a ring (R1). A secret door never gets here as one: it is no
-      // entity until it opens, and its slide is a cacheEvent. One per door, however many tiles.
-      if (doorsDone.has(e.id)) continue;
-      doorsDone.add(e.id);
+      // entity until it opens, and its slide is a cacheEvent. One per tile: a door of several tiles
+      // is one entity per tile, and each tile's leaves part and sink (its off-screen pill is still
+      // one per door: openedDoors)
       on(e, "door", "ui", e.secret ? {} : { door: true });
     } else if (e.kind === "braille" && e.flash === "ok") {
       // Can't see read the plate: its studs lift where it lies, the picture of its tap (parity `tap`)

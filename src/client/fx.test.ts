@@ -71,12 +71,15 @@ describe("detectFx: small effects for what just changed between two views", () =
     const before = [door("D1", 5.5, "closed"), door("D2", 9.5, "closed"), door("D3", 12.5, "open")];
     const after = [door("D1", 5.5, "open"), door("D2", 9.5, "open"), door("D3", 12.5, "open")];
     expect(detectFx(before, after)).toHaveLength(2);
-    // a door of three tiles moves once
+    // a door of two tiles moves on both: each tile's leaves part (playtest fixes, Task 5)
     const tile = (y: number, state: "closed" | "open") =>
       e({ id: "D9", kind: "door", state, pos: { x: 1.5, y } });
     expect(
-      detectFx([tile(1.5, "closed"), tile(2.5, "closed")], [tile(1.5, "open"), tile(2.5, "open")]),
-    ).toHaveLength(1);
+      detectFx(
+        [tile(1.5, "closed"), tile(2.5, "closed")],
+        [tile(1.5, "open"), tile(2.5, "open")],
+      ).map((f) => f.pos.y),
+    ).toEqual([1.5, 2.5]);
     expect(openedDoors(before, after).map((d) => d.id)).toEqual(["D1", "D2"]);
   });
 
