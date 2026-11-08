@@ -1507,3 +1507,23 @@ red on a deliberate break first. A contact sheet (`pnpm decor:sheet`) draws ever
 look through the real renderer, so the judgement "can you name it" is made on
 the render, and it caught three things the tests could not (a trellis that read
 as a gate, a conduit as a rail, a swag as a bridge).
+
+## 2026-11-08 — Tests that passed only because they built states the game never reaches
+
+64ce6fd, 8f68e9b, 16b9f2e, 57290a9, db34908
+
+A cold review of the overnight units found guards that were green for the wrong
+reason. The wire snip had hand-built unit tests (`cut: [1]` on an unsolved panel),
+but in play a right cut solves the panel in the same act and a wrong cut is
+redrawn away in the same step, so the snip never fired. The fix started from
+tests that drive the cut through `step` and feed the real `viewFor` to the
+client; they went red on the old code, and removing the fix turned them red
+while the hand-built cases stayed green, which is exactly the gap. The same
+shape recurred: the intro spec checked only tile (0, 0), so a 2 % scale error
+drifted the far corner 7.5 px on a phone and passed; the decor colour test
+matched four exact strings on one painter, so a 70 % code red beside a wire
+panel passed. Each guard now measures the promise itself (the far corner, the
+colour's real strength fitted against every code colour, bands and circles
+over every painter), and each was shown to fail on a scripted break before it
+counted. The thresholds were drawn from printed data (code-made fills leave
+under 1 RGB unit, materials 2.1 or more), not guessed.
