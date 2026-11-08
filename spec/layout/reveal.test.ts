@@ -69,7 +69,7 @@ describe("each role's reveal card", () => {
     const LINES = [
       "Your teammates guide you. Talk to them; listen for the room.",
       "You see the map but hear nothing. Watch for faces and marks.",
-      "You see and hear everything. Send clips, faces and marks.",
+      "You see and hear everything. Use the soundboard, faces and marks.",
     ];
     const { pages } = await revealed(["Ana", "Bo", "Cy"]);
     for (const [i, page] of pages.entries()) {
@@ -107,11 +107,11 @@ describe("each role's reveal card", () => {
 
     // Can't see sends talk (Cy hears it, Bo can't) and faces (both see them)
     const talk = blind.locator(".reveal-lines li").filter({ hasText: "Talk" });
-    expect(await talk.innerText()).toMatch(/Cy hears this/);
+    expect(await talk.innerText()).toMatch(/Cy hears you talk/);
     expect(await talk.innerText()).toMatch(/Bo can't/);
     // Can't hear's faces and marks reach Can't speak, and Can't see only hears talk and clips
     expect(await deaf.locator(".reveal-lines li").filter({ hasText: "Marks" }).innerText()).toMatch(
-      /Cy sees this/,
+      /Cy sees your marks/,
     );
     expect(await deaf.locator(".reveal-lines li").filter({ hasText: "Marks" }).innerText()).toMatch(
       /Ana can't/,

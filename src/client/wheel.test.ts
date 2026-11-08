@@ -14,6 +14,7 @@ import {
   shouldDraw,
   tabAt,
   tabXY,
+  VERB,
   verbFor,
 } from "./wheel.ts";
 import { outlineOf } from "./wheelLayout.ts";
@@ -220,19 +221,29 @@ describe("pages and the quick slot", () => {
   });
 });
 
-describe("verbs fit what the receiver does", () => {
-  it("faces and marks are seen, callouts and clips heard, text read", () => {
-    expect(verbFor("face")).toBe("sees this");
-    expect(verbFor("face")).toBe("sees this");
-    expect(verbFor("mark")).toBe("sees this");
-    expect(verbFor("callout")).toBe("hears this");
-    expect(verbFor("clip")).toBe("hears this");
+describe("verbs name the comm the receiver gets", () => {
+  it("faces and marks are seen, talk and the soundboard heard, text read", () => {
+    expect(verbFor("face")).toBe("sees your faces");
+    expect(verbFor("mark")).toBe("sees your marks");
+    expect(verbFor("callout")).toBe("hears you talk");
+    expect(verbFor("clip")).toBe("hears your sounds");
     expect(verbFor("text")).toBe("reads this");
+  });
+
+  it("one phrase per method, each naming its comm", () => {
+    expect(VERB).toEqual({
+      callout: "hears you talk",
+      text: "reads this",
+      voice: "hears you talk",
+      clip: "hears your sounds",
+      face: "sees your faces",
+      mark: "sees your marks",
+    });
   });
 
   it("Can't speak hears everything that is sound: they can't talk, not hear", () => {
     for (const method of ["callout", "clip", "voice"] as const) {
-      expect(verbFor(method), method).toBe("hears this");
+      expect(verbFor(method), method).toMatch(/^hears /);
     }
   });
 

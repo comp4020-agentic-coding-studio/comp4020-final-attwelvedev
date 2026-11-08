@@ -3,7 +3,7 @@ import type { Method, Seat } from "../game/types.ts";
 import type { CrewMember } from "../net/protocol.ts";
 import { RoleShape } from "./RoleShape.tsx";
 
-// Who hears a method, by name: "● Ana hears this · ■ Bo can't". The shapes are
+// Who gets a method, by name, naming the comm: "● Ana hears you talk · ■ Bo can't". The shapes are
 // drawn (RoleShape), never typed, and each name is spelled out beside its shape
 // so the line never relies on a shape or a colour alone.
 export function ReceiverLine({
@@ -16,7 +16,7 @@ export function ReceiverLine({
   me: Seat;
 }) {
   const { hear, cant } = receiversOf(method, crew, me);
-  // each receiver's own verb: Can't hear sees a face, Can't speak reads a callout
+  // each receiver's phrase names the comm: Can't hear sees your faces, Can't speak hears you talk
   const parts = [
     ...hear.map((c) => ({ c, text: verbFor(method) })),
     ...cant.map((c) => ({ c, text: "can't" })),

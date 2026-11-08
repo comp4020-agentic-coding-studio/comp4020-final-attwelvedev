@@ -841,3 +841,25 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
   horizontal scroll at 375; high contrast still draws no gradient.
 - My read: comfortably inside the glow at both widths. A pass means you agree it no longer sits
   on the edge.
+
+### pf01 Task 3: the copy on the role screen and the wheel (Human review pending)
+
+- Every changed string a player reads:
+  - Receiver line (role screen "Who perceives what" and the wheel's plate): `Ana hears this` →
+    Talk `Ana hears you talk`, Faces `Bo sees your faces`, Soundboard `Ana hears your sounds`,
+    Marks `Bo sees your marks`; `Bo can't` unchanged; text still `reads this`.
+  - Can't speak's role line: "You see and hear everything. Send clips, faces and marks." →
+    "You see and hear everything. Use the soundboard, faces and marks."
+  - Wheel page tab: "Clips" → "Soundboard" (and so the reveal's "You can send / You get" rows).
+  - Wheel refusal (toast, plate, screen reader): "You can't send clips. Bo and Cy can." →
+    "You can't use the soundboard. Bo and Cy can." Other methods keep "You can't send faces" etc.
+- Also changed (my call): the wide wheel's tab pitch 100 → 120 px, because "3 Soundboard" touched
+  Faces and Marks at 1280 (a desktop fit check now guards it).
+- Run: `pnpm build && PORT=8092 pnpm start:check`, three tabs; on the reveal press "Who perceives
+  what"; in game press Q, page 3.
+- Screenshots: `review/n7-pf01-task3-role-{1280,375}.png` (Can't speak's card),
+  `review/n7-pf01-task3-wheel-{1280,375}.png` (Can't see refused on the Soundboard page),
+  `review/n7-pf01-task3-wheel-talk-{1280,375}.png` (the Talk plate).
+- My read: each sentence reads naturally; nothing says "clips". Already there before this task and
+  not changed: the refusal toast sits over the wheel's plate at the bottom of the frame on both
+  widths, so both refusals show at once, overlapping. Worth a look.

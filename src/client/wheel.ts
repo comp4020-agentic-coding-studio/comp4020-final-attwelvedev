@@ -23,7 +23,7 @@ export const PAGES: readonly Page[] = PAGES_ALL;
 export const PAGE_LABEL: Record<Page, string> = {
   talk: "Talk",
   faces: "Faces",
-  clips: "Clips",
+  clips: "Soundboard",
   marks: "Marks",
 };
 export const PAGE_METHOD: Record<Page, Method> = {
@@ -36,7 +36,7 @@ export const PAGE_METHOD: Record<Page, Method> = {
 export const DRAW_MS = 200; // a still hold this long draws the wheel
 export const FLICK_PX = 24; // moving this far before then and releasing sends undrawn
 const CENTRE_PX = 28; // a flick that moved less than this points at the middle slot, if there is one
-export const TAB_W = 100; // px between page labels on a wide frame
+export const TAB_W = 120; // px between page labels on a wide frame: "3 Soundboard" is about 108 px
 export const TAB_W_NARROW = 82; // and on a narrow one, so four labels fit a phone
 export const TAB_DWELL_MS = 300; // dwelling on a page label this long switches page
 
@@ -220,22 +220,21 @@ export function requestFor(slot: Slot): Exclude<SendRequest, { method: "mark" | 
   }
 }
 
-// What a receiver does with a method: Can't speak and Can't see read or hear,
-// Can't hear sees. Faces and marks are pictures; callouts and text are words.
+// What a receiver gets of a method, naming the comm: "Ana hears you talk". Can't
+// speak and Can't see read or hear, Can't hear sees. Faces and marks are pictures;
+// talk is heard (by Can't speak too: they can't talk, but they can hear), and so is
+// the soundboard; text is read.
 export const VERB: Record<Method, string> = {
-  callout: "hears this",
+  callout: "hears you talk",
   text: "reads this",
-  voice: "hears this",
-  clip: "hears this",
-  face: "sees this",
-  mark: "sees this",
+  voice: "hears you talk",
+  clip: "hears your sounds",
+  face: "sees your faces",
+  mark: "sees your marks",
 };
 
-// The verb for one receiver. Only text is read; callouts, clips and voice are
-// heard (by Can't speak too: they can't talk, but they can hear); faces and marks
-// are seen.
-export const verbFor = (method: Method): string =>
-  method === "text" ? "reads this" : VERB[method];
+// The phrase for one receiver of a method.
+export const verbFor = (method: Method): string => VERB[method];
 
 // Where a slot is drawn, in px from the wheel's centre.
 export const slotXY = slotPos;

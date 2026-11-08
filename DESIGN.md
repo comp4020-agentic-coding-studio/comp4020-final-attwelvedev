@@ -428,17 +428,18 @@ draws its end state; state changes are instant or fade (at most 150 ms). **Flash
 
 ## 7. Copy
 
-- Name a method as the wheel does: **Talk**, **Faces**, **Clips**, **Marks**. Never with a family word.
-- Name people, not channels: "Ana hears this", not "goes to the voice channel".
+- Name a method as the wheel does: **Talk**, **Faces**, **Soundboard**, **Marks**. Never with a family word.
+- Name people, not channels, and name the comm they get: "Ana hears you talk", "sees your faces",
+  "hears your sounds", "sees your marks"; "Bo can't"; not "goes to the voice channel".
 - Never say "Say", "Sound", "Show" or "channel" as a category. They were the old tray's names.
 - Sentence case. No exclamation marks. "Room cleared". The canvas banner says "Alarm".
 - Say what is true now and what to do: "Dark on purpose. Listen."; "Tap where, in sight".
-- A refusal says why: "You can't send clips. Ana and Cy can."
+- A refusal says why: "You can't use the soundboard. Ana and Cy can."
 - Every reveal says the goal, the same words for every role and room: "Get all three onto the exit."
   (`.reveal-goal`), a 18 px bold sentence directly under the role line and above the role sentence.
 - Under it, one sentence for the role: Can't see "Your teammates guide you. Talk to them; listen for
   the room."; Can't hear "You see the map but hear nothing. Watch for faces and marks."; Can't speak
-  "You see and hear everything. Send clips, faces and marks."
+  "You see and hear everything. Use the soundboard, faces and marks."
 - Three play each room. More than three **take turns**: whoever sits out a room **watches** it and
   plays a later one ("Up to six can join and take turns."). A watcher is someone sitting out, not a
   lesser seat.

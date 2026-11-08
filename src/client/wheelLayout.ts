@@ -9,7 +9,7 @@ export const PAGES_ALL: readonly Page[] = ["talk", "faces", "clips", "marks"];
 // "wide": a desktop frame. "narrow": a phone frame (~350 px).
 export type Mode = "wide" | "narrow";
 // ring8: eight slots round a centre disc (Talk, Marks). ring12: twelve round an empty
-// middle (Faces, Clips, wide). grid4: a 4x3 grid (Faces, Clips, narrow, where a ring of
+// middle (Faces, Soundboard, wide). grid4: a 4x3 grid (Faces, Soundboard, narrow, where a ring of
 // twelve 48 px targets would be wider than the phone).
 export type Layout = "ring8" | "ring12" | "grid4";
 

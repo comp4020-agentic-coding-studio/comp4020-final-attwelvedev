@@ -29,7 +29,7 @@ const YOU: Record<Role, string> = {
 const ROLE_LINE: Record<Role, string> = {
   blind: "Your teammates guide you. Talk to them; listen for the room.",
   deaf: "You see the map but hear nothing. Watch for faces and marks.",
-  mute: "You see and hear everything. Send clips, faces and marks.",
+  mute: "You see and hear everything. Use the soundboard, faces and marks.",
 };
 
 // The pages as the reveal says them: what you send, and what you get, in the wheel's words.
