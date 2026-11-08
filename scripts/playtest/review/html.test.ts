@@ -36,4 +36,18 @@ describe("renderReview", () => {
     expect(html).toContain("boom &lt;script&gt;");
     expect(html).toContain('<img src="01-x/deaf-1280-r0-1.png"');
   });
+
+  it("shows every answer for a role at a beat, one per width, and counts what it shows", () => {
+    const at = (width: number, next: string): Answered => ({
+      item: { ...base, role: "mute", width },
+      answer: { findings: [{ kind: "unreadable", what: "x", where: "y" }], next },
+    });
+    const both = renderReview([at(375, "phone answer"), at(1280, "desktop answer")], intents, t);
+    expect(both).toContain("phone answer");
+    expect(both).toContain("desktop answer");
+    expect(both).toContain("at 375");
+    expect(both).toContain("at 1280");
+    // the summary row: unreadable is the first kind
+    expect(both).toMatch(/01-x<\/th><td>2<\/td>/);
+  });
 });

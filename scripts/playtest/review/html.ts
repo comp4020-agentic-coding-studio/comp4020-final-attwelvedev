@@ -18,12 +18,12 @@ const e = escapeHtml;
 // the reader only; it is never sent to the model.
 export type Intents = Record<string, Record<string, Partial<Record<string, string>>>>;
 
-function cell(a: Answered, intents: Intents): string {
+// One answered item: its width and rotation, its screenshot, and what the model said.
+function entry(a: Answered): string {
   const { item } = a;
   const shot = item.screenshot
     ? `<a href="${e(item.screenshot)}"><img src="${e(item.screenshot)}" alt="${e(`${ROLE_LABEL[item.role]}, beat ${item.beat}`)}" loading="lazy" style="height:9rem;border:1px solid #bbb"></a>`
     : "<p><em>screen dark</em></p>";
-  const designed = intents[item.room]?.[item.beat]?.[item.role];
   let body = "";
   if (a.error) body = `<p class="finding"><strong>error:</strong> ${e(a.error)}</p>`;
   else if (a.answer) {
@@ -37,7 +37,15 @@ function cell(a: Answered, intents: Intents): string {
       .join("");
     body = `${groups || "<p>No findings.</p>"}<p><strong>would do next:</strong> ${e(answer.next)}</p>`;
   }
-  return `<td>${shot}${body}${designed ? `<p><strong>designed:</strong> ${e(designed)}</p>` : ""}</td>`;
+  return `<div><p><small>at ${item.width}, r${item.rotation}</small></p>${shot}${body}</div>`;
+}
+
+// A role at a beat: every answer for it (one per width and rotation), then the designed intent once.
+function cell(list: Answered[], intents: Intents): string {
+  const first = list[0]?.item;
+  if (!first) return "<td></td>";
+  const designed = intents[first.room]?.[first.beat]?.[first.role];
+  return `<td>${list.map(entry).join("")}${designed ? `<p><strong>designed:</strong> ${e(designed)}</p>` : ""}</td>`;
 }
 
 export function renderReview(answered: Answered[], intents: Intents, t: Tally): string {
@@ -57,8 +65,8 @@ ${rooms.map((r) => `<tr><th scope="row">${e(r)}</th>${KINDS.map((k) => `<td>${co
     const rows = beats
       .map((beat) => {
         const cells = ROLES.map((role) => {
-          const a = mine.find((m) => m.item.beat === beat && m.item.role === role);
-          return a ? cell(a, intents) : "<td></td>";
+          const list = mine.filter((m) => m.item.beat === beat && m.item.role === role);
+          return cell(list, intents);
         }).join("");
         return `<tr><th scope="row">${e(beat)}</th>${cells}</tr>`;
       })
