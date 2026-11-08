@@ -814,3 +814,19 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
 - **Allow-list entries for you (green only, each "a leaf is green"):** `ivy`, `fernBasket`, `hangingBasket`, `moss`, `plantShelf`, `trellis`. Their leaf greens are about 70 % of a darkened code green. If you want them muted too, delete the entries and mute `leafTone`.
 - **The measure:** each fill or stroke is fitted as a·code + t·wall by least squares; colours made from a code colour leave under 1 RGB unit, and brass, wood and steel leave 2.1 or more, so a fill fails at a leftover under 2 and t under 0.7. Neutral greys near the rose wall can fall in a code's plane by chance (the first steel pipe tone did); if one does, change the tone rather than the line.
 - **Judged:** the sheets for rooms 7 and 9 read as steel, rust and brass; nothing in them reads as a code colour.
+
+## Overnight run 2026-11-07
+
+### pt01 (playtests phase 01: proxy proof, autopilot seam, page hook)
+
+- **No human review task in this phase.** Nothing visible changed (the full check, all of
+  `spec/layout`, is green).
+- **ADRs to accept:** 0027 (a test-only autopilot for a person's seat) as built: env flag
+  `PLAYTEST_AUTOPILOT=1`, refusal on Fly (`server.ts`, `src/net/playtest.ts`), `autopilot` message,
+  `window.__playtest`/`__cuesPlayed` only when the welcome says so. 0028 (the screenshot review) is
+  committed with the SDK as a devDependency; its proxy gate passed (5/5 image calls, Task 121's commit).
+  Both stay `proposed` until you accept.
+- **Try it:** `pnpm build && PLAYTEST_AUTOPILOT=1 pnpm start`, open three tabs, start a room, then in
+  any tab's console `__playtest.autopilot(true)`: that seat walks itself. `PLAYTEST_AUTOPILOT=1
+  FLY_APP_NAME=x node server.ts` exits 1.
+- Decisions: `plans/2026-11-07-overnight.md` under `## pt01`.

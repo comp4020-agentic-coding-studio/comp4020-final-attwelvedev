@@ -32,6 +32,7 @@ import {
 import { createInput, inputKey } from "../client/input.ts";
 import { INTRO, INTRO_TOTAL, type IntroFrame, introAt, REDUCED_FADE } from "../client/intro.ts";
 import { ESCAPE_KINDS, LABEL_CAP, type Label, labelsFor } from "../client/labels.ts";
+import { playtestFrame } from "../client/playtest.ts";
 import { createPredictor, type Predictor } from "../client/predict.ts";
 import { type RoomDecor, roomDecor } from "../client/render/decor.ts";
 import { inSight, seenOf } from "../client/render/sight.ts";
@@ -325,6 +326,7 @@ function useDraw(
         }
       }
       draw(ctx, scene);
+      if (!flat) playtestFrame(ctx, scene, labels ? rt.labels : []); // a no-op unless a playtest (ADR 0027)
       if (!flat && scene.report) {
         // the chips and plaques as drawn, for the layout specs (a chip must never sit on a plaque)
         const boxes = JSON.stringify(scene.report, (_k, v) =>

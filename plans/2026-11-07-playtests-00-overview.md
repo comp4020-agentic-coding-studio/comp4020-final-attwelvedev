@@ -281,7 +281,7 @@ review/playtest/<run>/
 
 | Phase | File | Tasks | Needs | Ends with | Done |
 | --- | --- | --- | --- | --- | --- |
-| 01 | `…-01-seam.md` | 121–124 | — | Proxy proven (gate); autopilot seam, refusal on Fly and page hook live behind the flag; `spec/autopilot.test.ts` green and shown red first | [ ] |
+| 01 | `…-01-seam.md` | 121–124 | — | Proxy proven (gate); autopilot seam, refusal on Fly and page hook live behind the flag; `spec/autopilot.test.ts` green and shown red first | [x] |
 | 02 | `…-02-regression.md` | 125–128 | 01 | `pnpm playtest` plays all 9 rooms at both widths, report.html written; **Human review** of the report | [ ] |
 | 03 | `…-03-review.md` | 129–131 | 01, 02 | `pnpm playtest:review` refuses without `--yes`; room 01 reviewed for real, its estimate within 15% of the tally; docs; ADRs put to the user; **Human review** of the review and README | [ ] |
 

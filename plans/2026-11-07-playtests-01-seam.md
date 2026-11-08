@@ -249,6 +249,8 @@ Both pixels come from one animation frame, which matches NFR6.
 
 ### Task 124: The page hook, present only when the server says autopilot is on
 
+- [x] Done
+
 - **Description.** `src/client/playtest.ts` with `installPlaytest(socket)` and
   `playtestFrame(ctx, scene)`, typed as in overview §4.2. Wire it as described in this file's §4: one
   `welcome` subscription in `useSocket.ts`, and one `playtestFrame` call after `draw` in `Game.tsx`.
@@ -278,13 +280,13 @@ Both pixels come from one animation frame, which matches NFR6.
 
 ## 6. Phase Definition of Done
 
-- [ ] Tasks 121–124 complete, each committed with `pnpm check` green
-- [ ] `pnpm test:unit` passes
-- [ ] `pnpm check` passes against `pnpm start:check`
-- [ ] The proxy gate passed (Task 121's probe output is recorded in its commit message)
-- [ ] `spec/autopilot.test.ts` shown red for each break check, named in the commits
-- [ ] One `PROCESS_LOG.md` entry if the user corrected anything
-- [ ] Tick phase 01 in overview §5 and commit
+- [x] Tasks 121–124 complete, each committed with `pnpm check` green
+- [x] `pnpm test:unit` passes
+- [x] `pnpm check` passes against `pnpm start:check`
+- [x] The proxy gate passed (Task 121's probe output is recorded in its commit message)
+- [x] `spec/autopilot.test.ts` shown red for each break check, named in the commits
+- [x] One `PROCESS_LOG.md` entry if the user corrected anything (none: no corrections)
+- [x] Tick phase 01 in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)
 
