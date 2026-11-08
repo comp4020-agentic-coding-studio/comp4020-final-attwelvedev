@@ -1063,6 +1063,35 @@ describe("viewFor: stations, gear and signals", () => {
     expect(f?.station?.cut).toBeUndefined();
   });
 
+  // wire F1 to F3: a wrong cut is redrawn away in the same step, so only the tick's cut event still
+  // carries it. The sighted who see the wire's tile are told of it; Can't see and anyone walled off are not.
+  describe("a wrong cut made through step reaches the sighted who see the wire (auto fixes 4, Task 241)", () => {
+    const grid = ["##########", "#1..Q.#..#", "#2....#.3#", "#.....#..#", "##########"];
+    const wrongCut = (teach: boolean) => {
+      const w = worldWith(grid, { Q1: { ...WIRES.Q1, ...(teach ? { teach: true } : {}) } });
+      const wrong = [0, 1, 2].find((i) => i !== w.stations.Q1?.answer[0]) as number;
+      place(w, 0, { x: 3 + wrong, y: 2 });
+      step(w, { 0: { seq: 1, move: { x: 0, y: 0 }, act: true } }, TICK_MS);
+      return { w, wrong };
+    };
+    for (const teach of [false, true]) {
+      it(
+        teach ? "on a teaching panel (redrawn at once)" : "on an ordinary panel (sent back)",
+        () => {
+          const { w, wrong } = wrongCut(teach);
+          expect(w.stations.Q1?.input).not.toContain(wrong); // the panel itself no longer shows it
+          expect(viewFor(w, 1, "deaf", false).cuts).toEqual([
+            { id: "Q1", at: { x: 3 + wrong + 0.5, y: 2.5 }, n: wrong },
+          ]);
+          expect(viewFor(w, 1, "mute", false).cuts).toHaveLength(1);
+          expect(viewFor(w, 2, "deaf", false).cuts).toBeUndefined(); // behind the wall
+          expect(viewFor(w, 1, "blind", false).cuts).toBeUndefined();
+          expect(JSON.stringify(viewFor(w, 0, "blind", true))).not.toContain('"cuts"');
+        },
+      );
+    }
+  });
+
   // The user heard the caption "Tumbler" and no sound: a click at a third of its level, 0.07 s long, on the
   // same tick as the dial's own louder tick. Within touch range it must carry, not fade to nothing.
   it("the tumbler is still plainly audible at the edge of touch range, and absent beyond it", () => {

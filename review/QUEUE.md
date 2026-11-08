@@ -778,3 +778,22 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
 - **Look at:** all nine sheets in `review/decor/0{1..9}-*.png`, and in game `review/n7-decor-task{3,4,5,6}-room<NN>-{1280,375}.png`. A pass: every item in every room can be named, none reads as a signal.
 - **Start it:** `pnpm decor:sheet`.
 - **What I judged:** room 9: riveted cladding with a weld seam, hinge straps, a cable tray, a girder end on its plate, a caged sconce; rivet rows on tops only. In game the cable tray is a thin band across a face: it is the closest any item comes to a rail (rule 3); strike it if it reads as one. `spec/layout/decor.test.ts` green for all nine rooms at 1280 and 375 (no floor pixel). `pnpm bench:frame --compare`: within 10 % of the baseline (p95 80.6/83.8 ms at 375, 157.3/169.8 ms at 1280), but run at load 5 to 15 (the machine never stayed under 6 for 9 minutes), so by the plan it is not a result: **rerun it on a quiet machine**.
+
+### autofix4 Task 241: a wrong wire cut sparks for the sighted (plan `plans/2026-11-07-auto-fixes-4.md`)
+
+- **Look at:** a wrong cut at a wires panel, seen by Can't hear or Can't speak in sight: one `ui` spark at the
+  cut wire's foot, while the panel is already redrawn (a teaching panel also jams). A right cut: ring,
+  tick, snip and exactly one spark. A pass means the wrong cut reads as "that wire was cut", not a glitch.
+- **Start it:** live: `pnpm build && PORT=8092 pnpm start:check`, three tabs, room 5; Can't hear and Can't
+  speak stand below teaching panel Q1 while Can't see cuts a wire. The shots: `BENCH=1 pnpm build &&
+  BENCH=1 PORT=8193 node server.ts`, then a script drives room 5's real sim (seed 1, as the bench) through
+  `step` (a wrong cut, and separately a right cut, at Q1 by seat 0, with seats 1 and 2 at (6,3) and (8,3)),
+  feeds the real `viewFor` results to `detectFx` + `fxOfCuts`, and draws them with `window.__still(true,
+  { entities, fx, self })` at fx age 0.35. Nothing is hand-built.
+- **Screenshots:** `review/n7-autofix4-task241-wrongcut-1280.png`, `-wrongcut-375.png`,
+  `-rightcut-1280.png`, `-rightcut-375.png`, and `review/n7-autofix4-task241-wrongcut-spark-zoom-1280.png`
+  (a 3× crop with the cutter's figure moved one tile aside, for this shot only, so the spark is visible).
+- **Judged:** the right cut reads plainly (snip, spark, ring, tick). The wrong cut's spark is real but
+  small, and in play the cutter stands on the wire's tile, so their own figure covers much of it; the
+  teammates in sight still see it at the panel's foot. If it reads too faint, the knob is the spark's
+  size in the renderer, not the field.

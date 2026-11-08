@@ -14,6 +14,7 @@ import {
   fxOfCacheEvent,
   fxOfCaught,
   fxOfCleared,
+  fxOfCuts,
   openedDoors,
 } from "./fx.ts";
 
@@ -293,6 +294,55 @@ describe("detectFx: small effects for what just changed between two views", () =
       { pos: { x: 3 + right + 0.5, y: 2.5 } },
     ]);
     expect(fx.filter((f) => f.kind === "ring" || f.kind === "tick")).toHaveLength(2);
+  });
+
+  // Task 241: a wrong cut is gone from the panel by the time the view is built; the view's `cuts` carry it
+  for (const teach of [false, true]) {
+    it(`a wrong cut made in real play sparks at its wire (${teach ? "teaching" : "ordinary"} panel)`, () => {
+      const w = worldWith(["##########", "#1..Q....#", "#2.......#", "#3.......#", "##########"], {
+        Q1: {
+          type: "wires",
+          wires: [
+            [3, 2],
+            [4, 2],
+            [5, 2],
+          ],
+          ...(teach ? { teach: true } : {}),
+        },
+      });
+      const wrong = [0, 1, 2].find((i) => i !== w.stations.Q1?.answer[0]) as number;
+      const before = viewFor(w, 1, "deaf", false).entities;
+      place(w, 0, { x: 3 + wrong, y: 2 });
+      step(w, { 0: input(0, 0, true) }, TICK_MS);
+      const view = viewFor(w, 1, "deaf", false);
+      const fx = detectFx(before, view.entities);
+      fx.push(...fxOfCuts(view.cuts, fx));
+      expect(fx.filter((f) => f.kind === "spark")).toMatchObject([
+        { pos: { x: 3 + wrong + 0.5, y: 2.5 }, tone: "ui" },
+      ]);
+    });
+  }
+
+  it("a right cut made in real play gets exactly one spark, not one from the panel and one from cuts", () => {
+    const w = worldWith(["##########", "#1..Q....#", "#2.......#", "#3.......#", "##########"], {
+      Q1: {
+        type: "wires",
+        wires: [
+          [3, 2],
+          [4, 2],
+          [5, 2],
+        ],
+      },
+    });
+    const right = w.stations.Q1?.answer[0] as number;
+    const before = viewFor(w, 1, "deaf", false).entities;
+    place(w, 0, { x: 3 + right, y: 2 });
+    step(w, { 0: input(0, 0, true) }, TICK_MS);
+    const view = viewFor(w, 1, "deaf", false);
+    expect(view.cuts).toHaveLength(1);
+    const fx = detectFx(before, view.entities);
+    fx.push(...fxOfCuts(view.cuts, fx));
+    expect(fx.filter((f) => f.kind === "spark")).toHaveLength(1);
   });
 
   it("a panel that comes back into sight already solved and cut starts no snip", () => {

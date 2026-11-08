@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import roomText from "../../rooms/01-first-steps.room?raw";
 import { faceImage } from "../client/faces.ts";
-import { capSparks, detectFx, FX_MAX, type Fx, fxMs } from "../client/fx.ts";
+import { capSparks, detectFx, FX_MAX, type Fx, fxMs, fxOfCuts } from "../client/fx.ts";
 import { captionFor, cueCaptions, type HeldCues, hearCues, heardCues } from "../client/hud.ts";
 import type { DecorItem } from "../client/render/decor.ts";
 import { decorFor } from "../client/render/decor.ts";
@@ -82,13 +82,11 @@ export function advance(run: Run, now: number) {
   const tick = run.attract.next();
   for (const seat of [0, 1, 2] as const) {
     const view = tick.views[seat];
+    const fresh = detectFx(run.last.views[seat].entities, view.entities);
+    fresh.push(...fxOfCuts(view.cuts, fresh)); // a wrong cut is redrawn away: only `cuts` show it
     run.fx[seat] = [
       ...run.fx[seat].filter((f) => now - f.at < fxMs(f.fx)),
-      ...capSparks(
-        run.sparks[seat] as number[],
-        detectFx(run.last.views[seat].entities, view.entities),
-        now,
-      ).map((fx) => ({ fx, at: now })),
+      ...capSparks(run.sparks[seat] as number[], fresh, now).map((fx) => ({ fx, at: now })),
     ].slice(-FX_MAX);
     hearCues(run.cues[seat] as HeldCues, cueCaptions(view.sounds), now);
   }

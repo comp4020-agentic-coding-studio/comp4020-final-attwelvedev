@@ -11,6 +11,7 @@ import {
   fxOfCacheEvent,
   fxOfCaught,
   fxOfCleared,
+  fxOfCuts,
   openedDoors,
 } from "../client/fx.ts";
 import {
@@ -443,6 +444,8 @@ function onView(rt: Runtime, view: RoleView, audio: GameAudio, names: readonly s
   // a secret door opening or the keepsake taken: the one team-wide signal (see fxOfCacheEvent)
   const moment = cacheMoment(view.cacheEvent, names);
   if (view.cacheEvent) fresh.push(...fxOfCacheEvent(view.cacheEvent));
+  // a wire cut in sight: a wrong one is redrawn away at once, so only the view's `cuts` show it
+  fresh.push(...fxOfCuts(view.cuts, fresh));
   // the room cleared: every figure in view hops twice (FR17)
   if (view.status === "cleared" && !wasCleared && rt.prevEntities.length > 0)
     fresh.push(...fxOfCleared(view.entities));

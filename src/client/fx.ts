@@ -109,6 +109,17 @@ export function fxOfCacheEvent(event: NonNullable<RoleView["cacheEvent"]>): Fx[]
   ];
 }
 
+// A wire cut in sight this tick (RoleView.cuts): a spark at the wire. A wrong cut is redrawn away in the
+// same step, so the panel has no swatch left to split and detectFx finds nothing; a right cut already
+// sparks there (detectFx's solved branch), so a cut with a spark at its wire in `fresh` is skipped.
+export function fxOfCuts(cuts: RoleView["cuts"], fresh: readonly Fx[]): Fx[] {
+  return (cuts ?? [])
+    .filter(
+      (c) => !fresh.some((f) => f.kind === "spark" && f.pos.x === c.at.x && f.pos.y === c.at.y),
+    )
+    .map((c) => ({ kind: "spark", pos: c.at, tone: "ui" }));
+}
+
 // The room cleared: every figure in view hops twice (FR17).
 export function fxOfCleared(entities: readonly EntityView[]): Fx[] {
   return entities

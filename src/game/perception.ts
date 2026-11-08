@@ -251,6 +251,9 @@ export interface RoleView {
   // hear the cue, the rest read the caption (caches FR9). Only the solve and the take name the item.
   cacheEvent?: { result: "uncover" | "solved" | "taken"; at: Vec; owner: Seat; item?: ItemId };
   lamp?: { seat: Seat; tick: number }; // the lamp flashed this tick: for the sighted only
+  // this tick's wire cuts whose wire is in your sight: for the sighted only. A wrong cut is redrawn
+  // away in the same step, so the panel never shows it; this is its picture (the wires click's).
+  cuts?: { id: string; at: Vec; n: number }[];
   act?: string; // what Act would do here, phrased from what this role perceives
   braille?: { id: string; cells: number[][]; teach?: true }; // Can't see's own open plate: its cells, never the number
 }
@@ -1187,6 +1190,19 @@ function cacheEventOf(world: World): RoleView["cacheEvent"] {
   return undefined;
 }
 
+// This tick's wire cuts at a tile the viewer sees (walls, vents and closed doors block it; glass
+// does not). Only the sighted are asked: Can't see is never sent one.
+function cutsSeen(world: World, seen: Visible): NonNullable<RoleView["cuts"]> {
+  return world.events.flatMap((e) =>
+    e.kind === "station" &&
+    e.result === "cut" &&
+    e.n !== undefined &&
+    seen.has(Math.floor(e.at.x), Math.floor(e.at.y))
+      ? [{ id: e.id, at: e.at, n: e.n }]
+      : [],
+  );
+}
+
 // Can't see's open braille plate: its cells only, never the number they spell (FR6). Nobody else
 // is ever sent them: the sighted see the plate, not what is raised on it.
 function brailleFor(world: World, seat: Seat, role: Role): RoleView["braille"] {
@@ -1266,6 +1282,8 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
       const grid = maskCache(world, world.room.grid);
       view.tiles = zones.length === 0 ? grid : maskTiles(grid, zones);
     }
+    const cuts = cutsSeen(world, seen);
+    if (cuts.length > 0) view.cuts = cuts;
     // the lamp (FR25) is a light: for the sighted only
     const lamp = world.events.find((e) => e.kind === "lamp");
     if (lamp?.kind === "lamp") view.lamp = { seat: lamp.seat, tick: world.tick };
