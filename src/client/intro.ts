@@ -8,6 +8,9 @@ export interface IntroFrame {
   rise: number; // 0 during the hold, 0 → 1 over the tilt (ease in-out), 1 after
   swoop: number; // 0 until the tilt ends, then 0 → 1 over the swoop (ease in-out), 1 after
   land: number; // 0 until the swoop ends, then 0 → 1 over the land
+  // the sunrise: 0 (the reveal's dusk) through the hold, then 0 → 1 (the room's own colours) from the
+  // start of the tilt to the end of the swoop (ease in-out); 1 under reduced motion
+  sunrise: number;
   done: boolean;
 }
 
@@ -20,11 +23,11 @@ const inOut = (t: number) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 // Where the sequence is `elapsedMs` after `intro` arrived. `ms` is how long the server holds (the
 // timeline is scaled to it), so `INTRO_MS=0` is done at once.
 export function introAt(elapsedMs: number, reduced: boolean, ms: number = INTRO_TOTAL): IntroFrame {
-  if (!(ms > 0)) return { rise: 1, swoop: 1, land: 1, done: true };
+  if (!(ms > 0)) return { rise: 1, swoop: 1, land: 1, sunrise: 1, done: true };
   const t = (elapsedMs * INTRO_TOTAL) / ms; // on the 2400 ms timeline
   if (reduced) {
     const land = clamp01((t - INTRO.hold) / REDUCED_FADE);
-    return { rise: 1, swoop: 1, land, done: land >= 1 };
+    return { rise: 1, swoop: 1, land, sunrise: 1, done: land >= 1 };
   }
   const tiltAt = INTRO.hold;
   const swoopAt = tiltAt + INTRO.tilt;
@@ -34,6 +37,7 @@ export function introAt(elapsedMs: number, reduced: boolean, ms: number = INTRO_
     rise: inOut(clamp01((t - tiltAt) / INTRO.tilt)),
     swoop: inOut(clamp01((t - swoopAt) / INTRO.swoop)),
     land,
+    sunrise: inOut(clamp01((t - tiltAt) / (INTRO.tilt + INTRO.swoop))),
     done: t >= INTRO_TOTAL,
   };
 }

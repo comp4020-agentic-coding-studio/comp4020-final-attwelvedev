@@ -49,7 +49,7 @@ import { afterRestart } from "../client/restart.ts";
 import { loadSettings, type Settings as SettingsState, saveSettings } from "../client/settings.ts";
 import type { ConnectionState, GameSocket } from "../client/socket.ts";
 import { browserSpeech } from "../client/speech.ts";
-import { NET, setContrast, setHue } from "../client/tokens.ts";
+import { isHighContrast, NET, setContrast, setHue } from "../client/tokens.ts";
 import { installUiSounds, savedSettings, uiSound } from "../client/uiSound.ts";
 import { quickSlot } from "../client/wheel.ts";
 import { FACE_POP_MS, type Stamp } from "../game/channels.ts";
@@ -358,7 +358,7 @@ function introScene(
   rt: Runtime,
   now: number,
   el: HTMLCanvasElement,
-): Pick<Scene, "rise" | "swoop" | "landing" | "introFit"> {
+): Pick<Scene, "rise" | "swoop" | "landing" | "introFit" | "sunrise"> {
   const f = introNow(rt, now);
   const i = rt.intro;
   // the swoop starts from the room as the reveal's backdrop drew it, which fills the window while
@@ -384,6 +384,10 @@ function introScene(
     swoop: f.swoop,
     landing: f.land,
     ...(i?.fit ? { introFit: i.fit } : {}),
+    // the sunrise, from the reveal's dusk to the room's colours; none for reduced motion (its
+    // cross-fade shows the room's colours at once) or high contrast (one look, no dusk). A restart
+    // replays it from dusk, as it replays the intro.
+    ...(i && !i.reduced && !isHighContrast() ? { sunrise: f.sunrise } : {}),
   };
 }
 

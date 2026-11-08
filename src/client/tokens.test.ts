@@ -12,6 +12,7 @@ import {
   SHELL,
   setContrast,
   setDusk,
+  setDuskAmount,
   setHue,
   WORLD,
 } from "./tokens.ts";
@@ -177,6 +178,21 @@ describe("setDusk", () => {
     expect(WORLD.wallTop).not.toBe(day.wallTop);
     setDusk(false, 2200);
     expect(WORLD.wallTop).toBe(day.wallTop);
+  });
+
+  it("can be set to an amount (the sunrise), and the clock eases on from there", () => {
+    const day = { ...WORLD };
+    setDuskAmount(1, 0);
+    expect(WORLD.wallTop).toBe(DUSK.wallTop);
+    setDuskAmount(0.5, 0);
+    expect(WORLD.wallTop).not.toBe(DUSK.wallTop);
+    expect(WORLD.wallTop).not.toBe(day.wallTop);
+    setDuskAmount(0, 0);
+    expect(WORLD.wallTop).toBe(day.wallTop);
+    setDuskAmount(1, 100);
+    setDusk(false, 400); // the alarm's clock path takes over from the amount: half way back
+    expect(WORLD.wallTop).not.toBe(DUSK.wallTop);
+    expect(WORLD.wallTop).not.toBe(day.wallTop);
   });
 
   it("is instant when asked (reduced motion)", () => {

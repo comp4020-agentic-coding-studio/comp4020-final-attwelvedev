@@ -583,6 +583,38 @@ describe("the 3/4 world", () => {
     expect(topFills({})).toContain(dayTop);
   });
 
+  it("the sunrise: dusk walls at 0, the room's at 1, in between never backward, and again on a restart", () => {
+    const top = (over: Partial<Scene>): string => {
+      const { ctx } = recorder();
+      draw(ctx, scene({ layout: "fit", w: 300, h: 200, nowMs: 1000, ...over }));
+      return WORLD.wallTop;
+    };
+    const day = top({});
+    const dusk = top({ dusk: true });
+    expect(top({ sunrise: 0 })).toBe(dusk);
+    const lum = (c: string) =>
+      [1, 3, 5].reduce((s, i) => s + Number.parseInt(c.slice(i, i + 2), 16), 0);
+    let last = lum(dusk);
+    for (const s of [0.25, 0.5, 0.75]) {
+      const c = top({ sunrise: s });
+      expect(c, `${s}`).not.toBe(day);
+      expect(lum(c), `${s}`).toBeGreaterThanOrEqual(last);
+      last = lum(c);
+    }
+    expect(top({ sunrise: 1 })).toBe(day);
+    expect(top({})).toBe(day); // the intro over: the room's colours, no jump
+    expect(top({ sunrise: 0 })).toBe(dusk); // a restart starts at dusk again
+  });
+
+  it("reduced motion draws the room's colours straight after the dusk backdrop", () => {
+    const { ctx } = recorder();
+    draw(ctx, scene({ layout: "fit", w: 300, h: 200, nowMs: 1000, reducedMotion: true }));
+    const day = WORLD.wallTop; // read at once, whatever the test before left the palette at
+    draw(ctx, scene({ layout: "fit", w: 300, h: 200, nowMs: 1000, dusk: true }));
+    draw(ctx, scene({ layout: "fit", w: 300, h: 200, nowMs: 1016, reducedMotion: true }));
+    expect(WORLD.wallTop).toBe(day);
+  });
+
   it("says Alarm in sentence case when the alarm is on", () => {
     const { ctx, ops } = recorder();
     draw(ctx, scene({ alarm: true }));

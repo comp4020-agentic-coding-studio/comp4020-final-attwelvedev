@@ -2,7 +2,7 @@
 
 - **Date:** 2026-11-08
 - **Tier:** Slice
-- **Status:** Approved
+- **Status:** Built (Tasks 1-4, 2026-11-08 overnight); Human review pending
 - **Requirements confirmed by user:** yes, 2026-11-08, in conversation (R2 in the playtest list: line the rooms up, fade the HUD in as a window, blend dusk to the room's colours like a sunrise)
 - **Comes from:** `overnight/playtest-2026-11-08-findings.md` (R2); DESIGN.md §4.5 (the start of a room)
 - **Runs after:** the overnight lane (dl09 and its fixes) and `2026-11-08-playtest-polish.md`, which also edits the reveal. It builds on `intro.ts`, the reveal cover and `setDusk`.
@@ -61,7 +61,7 @@ Each new or changed assertion is shown red first with a break script, and the co
   - Depends on: Task 2.
   - Human review: a contact sheet of the first intro frame, the middle and the end, at both widths, in a local build. A pass means it looks like a window opening on the room.
 
-- [ ] **Task 4: The sunrise**
+- [x] **Task 4: The sunrise** (review queued)
   - Files: `src/client/tokens.ts` (`setDusk` gains a way to be set from a 0 to 1 amount, not only from a clock and a target; the existing clock path stays for the alarm), `src/client/render/index.ts` (`drawScene`: today the first frame after a dusk scene is drawn at once in normal colours, "must not start in dusk and ease back"; with a `scene.sunrise` the world's dusk amount is `1 - sunrise` instead), `src/components/Game.tsx` (`introScene`: `sunrise` runs 0 → 1 from the start of the tilt to the end of the swoop, from the `IntroFrame`; none under reduced motion, high contrast, or on a restart before the flat plan), `src/client/intro.ts` if the amount belongs on `IntroFrame`, `DESIGN.md` §1 and §4.5.
   - Tests first: in `src/client/render/` and `src/client/intro.test.ts`: at the start of the tilt the palette equals the dusk set, at the end of the swoop it equals the room's, and it never goes backward in between; reduced motion and high contrast draw the room's colours straight away; a restarted room's first frame is dusk again. If any test pins the instant switch, change it first and say so in the commit. Red by returning the old instant switch.
   - Acceptance: demo 3, 4 and 6, with a screenshot for each of two rooms with different `hue` values.

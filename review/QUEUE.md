@@ -724,3 +724,20 @@ No human review in this unit (nothing here changes how the game looks, beyond ed
 - **What I judged:** at 375 it reads as intended. At 1280 room 1 is small, so the fit and the
   follow camera nearly coincide and the swoop is slight. The jump from the backdrop's dusk to the
   day colours in these sheets is Task 4's sunrise, which came after.
+
+### sunrise Task 4: the sunrise (plan `plans/2026-11-08-intro-sunrise.md`)
+
+- **Look at:** the same start of a room, watching the walls, floor and sky: they warm from the
+  reveal's dusk to the room's own colours between the start of the tilt and the end of the swoop,
+  with no jump at the first game frame. Try two rooms with different hues. Also: reduced motion
+  (room colours at once, no sunrise), high contrast (none), restart a passed room (plays from dusk
+  again).
+- **Start it:** as Task 3 (`pnpm build && PORT=8092 pnpm start`, three tabs). For a teal first
+  room: `mkdir /tmp/teal && cp rooms/02-three-hands.room /tmp/teal/ && ROOMS_DIR=/tmp/teal PORT=8092 pnpm start`.
+- **Screenshots** (same six marks as Task 3): `review/n7-sunrise-task4-sunrise-rose-1280.png`,
+  `review/n7-sunrise-task4-sunrise-rose-375.png`, `review/n7-sunrise-task4-sunrise-teal-1280.png`,
+  `review/n7-sunrise-task4-sunrise-teal-375.png`.
+- **What I judged:** it reads as a sunrise in both hues. The sheets were taken with the page's clock
+  frozen and stepped, which runs a little ahead of the real timeline (the 1200 ms frame is warmer
+  than it is live). A real-time probe of the canvas's sky on Can't speak's page read 59,45,67 (dusk)
+  at the first frame, rising every frame to 247,221,205 (day) by the end of the swoop.

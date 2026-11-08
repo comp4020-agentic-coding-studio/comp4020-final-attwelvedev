@@ -2,7 +2,7 @@ import type { Stamp } from "../../game/channels.ts";
 import type { Role, Seat, Vec } from "../../game/types.ts";
 import type { EntityView } from "../../net/protocol.ts";
 import { DURATION, type Fx, motionT } from "../fx.ts";
-import { COLOR, MAP, ROLE_COLOR, setDusk, WORLD } from "../tokens.ts";
+import { COLOR, MAP, ROLE_COLOR, setDusk, setDuskAmount, WORLD } from "../tokens.ts";
 import { drawAlarm } from "./alarm.ts";
 import { drawBackdrop } from "./backdrop.ts";
 import {
@@ -84,6 +84,9 @@ export interface Scene {
   rise?: number;
   swoop?: number;
   landing?: number;
+  // The sunrise, 0 to 1: the world's colours go from the reveal's dusk (0) to the room's own (1) as
+  // the board tilts and the camera flies in. Absent: no sunrise (over, reduced motion, high contrast).
+  sunrise?: number;
   // Where the reveal's backdrop drew the whole room (canvas px; it may reach past the canvas): the
   // swoop flies from the room fitted there, so the first intro frame is the backdrop's picture.
   // Absent: the room fitted to the canvas.
@@ -289,14 +292,19 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
     return;
   }
   // the dusk palette follows the alarm; with no clock (a paused feed) it is simply on or off
-  // a dusk scene (the reveal's backdrop) is drawn at once, and so is the first frame after one: the
-  // game rising under the fading reveal must not start in dusk and ease back
+  // a dusk scene (the reveal's backdrop) is drawn at once. The game rising under the fading reveal
+  // brings the room's colours up like a sunrise, from the intro's own timeline (`sunrise`), so it
+  // lands on them as you land; with no sunrise (reduced motion) the first frame after a dusk scene
+  // is drawn in the room's colours at once, never easing back from dusk
   const dusk = !!scene.dusk;
-  setDusk(
-    dusk || !!scene.alarm,
-    scene.nowMs ?? 0,
-    dusk || dusk !== lastDusk || scene.reducedMotion || scene.nowMs === undefined,
-  );
+  if (!dusk && !scene.alarm && scene.sunrise !== undefined)
+    setDuskAmount(1 - scene.sunrise, scene.nowMs ?? 0);
+  else
+    setDusk(
+      dusk || !!scene.alarm,
+      scene.nowMs ?? 0,
+      dusk || dusk !== lastDusk || scene.reducedMotion || scene.nowMs === undefined,
+    );
   lastDusk = dusk;
   const tiles = scene.tiles;
   const cam = scene.cam ?? camera(scene);

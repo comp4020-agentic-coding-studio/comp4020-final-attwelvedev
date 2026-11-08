@@ -28,7 +28,7 @@ describe("the start of a room (FR14)", () => {
     expect(introAt(2250, false).land).toBeCloseTo(0.5, 6);
     expect(introAt(2399, false).done).toBe(false);
     const end = introAt(INTRO_TOTAL, false);
-    expect(end).toEqual({ rise: 1, swoop: 1, land: 1, done: true });
+    expect(end).toEqual({ rise: 1, swoop: 1, land: 1, sunrise: 1, done: true });
   });
 
   it("reduced: rise and swoop are 1 at once, done at 600", () => {
@@ -41,8 +41,28 @@ describe("the start of a room (FR14)", () => {
   });
 
   it("ms = 0 is done at once", () => {
-    expect(introAt(0, false, 0)).toEqual({ rise: 1, swoop: 1, land: 1, done: true });
+    expect(introAt(0, false, 0)).toEqual({ rise: 1, swoop: 1, land: 1, sunrise: 1, done: true });
     expect(introAt(0, true, 0).done).toBe(true);
+  });
+
+  it("the sunrise: 0 through the hold, rising from the tilt's start to the swoop's end, never back", () => {
+    for (const ms of [0, 150, 300]) expect(introAt(ms, false).sunrise, `${ms}`).toBe(0);
+    expect(introAt(2100, false).sunrise).toBe(1);
+    expect(introAt(INTRO_TOTAL, false).sunrise).toBe(1);
+    const mid = introAt(1200, false).sunrise;
+    expect(mid).toBeGreaterThan(0.3);
+    expect(mid).toBeLessThan(0.7);
+    let last = 0;
+    for (let ms = 300; ms <= 2400; ms += 25) {
+      const s = introAt(ms, false).sunrise;
+      expect(s, `${ms}`).toBeGreaterThanOrEqual(last);
+      last = s;
+    }
+  });
+
+  it("reduced motion, or no hold: the room's colours at once", () => {
+    expect(introAt(0, true).sunrise).toBe(1);
+    expect(introAt(0, false, 0).sunrise).toBe(1);
   });
 
   it("is scaled to the server's hold: half the hold is half the timeline", () => {

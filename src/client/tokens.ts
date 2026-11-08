@@ -317,6 +317,15 @@ export function setDusk(on: boolean, nowMs: number, instant = false): void {
   paintWorld();
 }
 
+// Sets how far toward dusk the world is, 0 to 1, from an amount rather than a clock: the start of a
+// room's sunrise drives it from its own timeline. The clock path (setDusk) eases on from wherever this
+// left it. High contrast ignores it.
+export function setDuskAmount(p: number, nowMs: number): void {
+  const at = Math.max(0, Math.min(1, p));
+  dusk = { p: at, target: at, at: nowMs };
+  paintWorld();
+}
+
 const ROLE_NORMAL: Record<Role, string> = {
   blind: "#f2a93b",
   deaf: "#4db3ff",
