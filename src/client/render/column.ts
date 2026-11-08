@@ -288,6 +288,7 @@ export interface Part {
   // carried up the screen (the user, screenshots 117 and 118: a head cut though the feet were in the light).
   figure?: boolean;
 }
+const TOUCH_AREA = 1e-4; // tiles squared: under this a lit sliver is not light (the same floor as `footLit`)
 const SIDE = 0.3; // tiles each side of a piece that its drawing may reach (a figure's shoulders, a plate's overhang)
 
 // What may be drawn of a thing: all of it (no clip), none, or the lit parts of each piece it stands on. A shadow edge is
@@ -318,7 +319,9 @@ export function regionOf(
       continue;
     }
     const lit = cutToBox(light, foot);
-    if (lit.length < 3) {
+    // a lit sliver with no area (the light's edge running along the tile's own edge) is not light on this ground: the
+    // part is dark, not whole (the user, playtest L6: a bell drawn with no clip because its neighbour's edge grazed it)
+    if (lit.length < 3 || Math.abs(areaOfPlan(lit)) < TOUCH_AREA) {
       whole = false;
       continue;
     }

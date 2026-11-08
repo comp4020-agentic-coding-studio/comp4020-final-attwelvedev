@@ -458,6 +458,25 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
         ),
       );
       const height = (st?.type && HEIGHT[st.type]) || (HEIGHT.station as number);
+      if (st?.type === "bells") {
+        // a bell and the music box each stand on their own ground: each is drawn under its own piece of the light and
+        // no other part's, so a lit box does not draw bell 3's number and a lit bell does not draw its neighbour (the
+        // user, playtest L4 and L6, screenshots 126 and 129). The one clip a station shared reached over them all.
+        for (const q of st.parts)
+          for (const t of q.at)
+            if (t.y === y)
+              cut(
+                [
+                  {
+                    foot: groundSlice(tiles, t.x + 0.5, t.y + 0.5, 0.5),
+                    wallBehind: isBlock(tiles[t.y - 1]?.[t.x]),
+                  },
+                ],
+                height,
+                (c) => drawStationStanding(c, e, cam, scene, y, t),
+              );
+        continue;
+      }
       cut(parts, height, (c) => drawStationStanding(c, e, cam, scene, y));
     }
     for (const kind of STANDING) {
