@@ -1,7 +1,7 @@
 import { canReceive, canSend, type Role } from "../game/types.ts";
 import { PAGE_METHOD, PAGES, type Page } from "./wheel.ts";
 
-// What a role sends and gets, by the wheel's pages, in the wheel's order: "talk, faces, clips,
+// What a role sends and gets, by the wheel's pages, in the wheel's order: "talk, faces, soundboard,
 // marks". The reveal names these and the wheel draws them, so the two can't disagree.
 export const sendsOf = (role: Role): Page[] => PAGES.filter((p) => canSend(role, PAGE_METHOD[p]));
 
