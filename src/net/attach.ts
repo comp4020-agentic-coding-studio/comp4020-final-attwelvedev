@@ -495,6 +495,8 @@ const INTRO_FOR =
   process.env.INTRO_MS !== undefined && Number(process.env.INTRO_MS) >= 0
     ? Number(process.env.INTRO_MS)
     : INTRO_TOTAL;
+// STALL_RESTART=1: a test seam that leaves a restarted room stalled, so the watchdog's rescue can be tested.
+const STALL_ON_RESTART = process.env.STALL_RESTART === "1";
 
 function voteMsg(game: Game, lobby: LobbyState): ServerMsg | null {
   const vote = game.vote;
@@ -544,7 +546,7 @@ function endVote(code: string, result: "passed" | "declined" | "timeout", by?: s
     // the restarted room's tick-0 view (its map, everyone at spawn) goes out before its intro, so the
     // start of the room plays on the restarted room and not the old one's last frame
     sendRevealViews(code);
-    runIfReady(code, running); // a restarted room has everyone ready already
+    if (!STALL_ON_RESTART) runIfReady(code, running); // a restarted room has everyone ready already
     watchRestart(code, running);
   } else if (acted === "heist") {
     if (running.timer) clearInterval(running.timer);
