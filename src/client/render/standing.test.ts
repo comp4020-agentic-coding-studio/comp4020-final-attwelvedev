@@ -2009,9 +2009,12 @@ describe("what stands in front of glass is cut by the cone's diagonal, not the g
           if (room.grid[Math.floor(vy)]?.[Math.floor(vx)] !== ".") continue;
           const v = { x: vx, y: vy };
           const { sc, light } = viewAt(room, v);
+          // the camera the game passes (eased, from every figure): draw would otherwise rebuild it from the figures
+          // litEntities leaves, which moves it when a teammate stands in the dark
+          sc.cam = camera(sc);
           const { ctx, ops } = recorder();
           draw(ctx, sc);
-          const cam = camera(sc);
+          const cam = sc.cam;
           const body = ops.findIndex(
             (o) =>
               o.name === "fillRect" &&
@@ -2019,25 +2022,39 @@ describe("what stands in front of glass is cut by the cone's diagonal, not the g
               Math.abs((o.args[0] as number) - toScreen(cam, bx + 0.18, 0).x) < 1,
           );
           if (body < 0) continue;
-          // the front as drawn (its steel front rectangle), and the depth of its foot
+          // the box as drawn: its top (the rectangle before the front) and its front. Only what lies above the pane's
+          // foot line on screen (y = 5) is over the glass, where the glass's vertical cut and the diagonal can differ;
+          // below it the two agree, which is why sampling the front low down could not tell them apart
+          const top = ops[body - 1] as Op;
+          const [tx, ty, tw, th] = top.args as [number, number, number, number];
           const [rx, ry, rw, rh] = (ops[body] as Op).args as [number, number, number, number];
+          const paneFoot = toScreen(cam, bx, 5).y;
           const footY = fromScreen(cam, rx, ry + rh).y;
-          // the glass's vertical line: lit where the pane's foot (y = 5) is lit; the diagonal: where the ground under
-          // the front's foot is lit, carried straight up. Taken only where the two disagree, so the test tells them
-          // apart, and the point is just above the front's foot, where the diagonal has not yet moved
-          for (let fx = 0.05; fx < 1; fx += 0.1) {
-            const x = fromScreen(cam, rx + fx * rw, 0).x;
-            const atFoot = { x, y: footY - 0.02 };
+          // the glass's vertical line: lit where the pane's foot (y = 5) is lit. The diagonal: a point of the front is
+          // lit where the ground under the front's foot is, carried straight up; a point of the top, where the ground
+          // under it is (the diagonal carries a floor point straight up, so the top is read at its own screen row).
+          // Taken only where the two disagree
+          const check = (sx: number, sy: number, groundY: number, what: string) => {
+            if (sy >= paneFoot - 1) return;
+            const x = fromScreen(cam, sx, 0).x;
+            const atGround = { x, y: groundY };
             const atPane = { x, y: 5.01 };
-            if (distToEdge(light, atFoot) < 0.08 || distToEdge(light, atPane) < 0.08) continue;
-            const want = inLight(light, atFoot);
-            if (want === inLight(light, atPane)) continue;
+            if (distToEdge(light, atGround) < 0.08 || distToEdge(light, atPane) < 0.08) return;
+            const want = inLight(light, atGround);
+            if (want === inLight(light, atPane)) return;
             met.lit++;
-            const pt = { x: rx + fx * rw, y: ry + rh * 0.85 };
-            if (drawnAt(ops, body, pt) !== want)
+            if (drawnAt(ops, body, { x: sx, y: sy }) !== want)
               wrong.push(
-                `box ${bx} viewer ${vx.toFixed(2)},${vy.toFixed(2)} at ${fx.toFixed(2)} should be ${want ? "drawn" : "cut"}`,
+                `box ${bx} viewer ${vx.toFixed(2)},${vy.toFixed(2)} ${what} at ${sx.toFixed(0)},${sy.toFixed(0)} should be ${want ? "drawn" : "cut"}`,
               );
+          };
+          for (let fx = 0.05; fx < 1; fx += 0.1) {
+            for (let fy = 0.1; fy < 1; fy += 0.2) {
+              const sy = ty + fy * th;
+              check(tx + fx * tw, sy, fromScreen(cam, 0, sy).y, "top");
+            }
+            for (let fy = 0.1; fy < 1; fy += 0.2)
+              check(rx + fx * rw, ry + fy * rh, footY - 0.02, "front");
           }
         }
     expect(met.lit, "points where the diagonal and the glass's line disagree").toBeGreaterThan(20);

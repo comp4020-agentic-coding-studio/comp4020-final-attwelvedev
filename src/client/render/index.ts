@@ -472,7 +472,7 @@ function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
         // a figure with a wall behind it is cut over that wall's front by the wall's vertical line, as a station is
         // (the user, screenshots 110 and 111): its foot starts at the tile's north edge, the wall's own foot line
         const wallBehind =
-          kind === "player" && opaque(tiles[Math.floor(e.pos.y) - 1]?.[Math.floor(e.pos.x)]);
+          kind === "player" && isBlock(tiles[Math.floor(e.pos.y) - 1]?.[Math.floor(e.pos.x)]);
         // a figure is a flat sprite at one depth, as wide as its shadow: lit where its feet are, whole at every height,
         // and cut by a vertical line where a shadow edge crosses its depth (the user, screenshots 117 and 118)
         const ground = groundSlice(tiles, e.pos.x, e.pos.y, 0.5);
