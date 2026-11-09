@@ -48,7 +48,7 @@
 - **Break check:** by script; red.
 - **Depends on:** none.
 
-### Task 268: Phone movement, triage (B5) — [ ]
+### Task 268: Phone movement, triage (B5) — [ ] (review queued)
 
 - **Found:** `pnpm playtest` run `2026-11-10T04-39` showed Move left and right do nothing on the 375 tab in rooms 02 and 03, and Can't see "never showed moving" in room 04. Backlog 2026-11-08 says it passes alone.
 - **Steps:**
@@ -73,7 +73,7 @@
 - **Acceptance:** a lobby screenshot at 1280 and 375. Any spec naming the old label is updated in the same commit.
 - **Depends on:** none.
 
-### Task 271: The goal line for the sighted in room 1 (T3) — [ ]
+### Task 271: The goal line for the sighted in room 1 (T3) — [ ] (parked: `auto/playtest-3-parked-p3fix01-task271`)
 
 - **Found:** at 0:11 in room 1, Can't hear's and Can't speak's HUD has no goal. Can't see's has "No map. Listen. Get to the exit with the others." (`src/components/Game.tsx:1269`).
 - **Files:** `src/components/Game.tsx` near line 1269, `spec/layout/hud.test.ts`, `DESIGN.md`.
