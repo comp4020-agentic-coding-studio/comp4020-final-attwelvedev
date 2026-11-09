@@ -84,9 +84,30 @@ describe("a spectator follows a running game", () => {
     spectator.send({ t: "spectate", seat: blind.seat });
     await spectator.next<{ view: RoleView }>("view");
 
-    // say: deaf sends, blind and mute receive — the spectator is following blind
-    deaf.socket.send({ t: "send", msg: { method: "callout", callout: "wait" } });
-    const msg = await spectator.next<{ method: string }>("msg", 2000);
+    // say: deaf sends, blind and mute receive — the spectator is following blind. The follow takes effect when the
+    // server handles `spectate`, and a callout sent before that reaches nobody the spectator follows and is lost for
+    // good: sent once, this test failed in CI run 42605097983 (`no "msg" message within 2000 ms`) and, with the
+    // follow made to take effect 400 ms late, 3 of 3 locally. No view or reveal the spectator can read says the follow
+    // has taken effect (a view's `you.seat` comes from the `spectate` message itself, tried and dropped), so the callout
+    // is sent again every 200 ms until the spectator gets one. A callout has no cooldown (channels.ts), so a repeat is
+    // never refused; the extra frames wait in the queue, and the sends below wait for their `error` by type.
+    const msg = await new Promise<{ method: string }>((resolve, reject) => {
+      const resend = setInterval(
+        () => deaf.socket.send({ t: "send", msg: { method: "callout", callout: "wait" } }),
+        200,
+      );
+      deaf.socket.send({ t: "send", msg: { method: "callout", callout: "wait" } });
+      spectator.next<{ method: string }>("msg", 5000).then(
+        (m) => {
+          clearInterval(resend);
+          resolve(m);
+        },
+        (e) => {
+          clearInterval(resend);
+          reject(e);
+        },
+      );
+    });
     expect(msg.method).toBe("callout");
 
     for (const attempt of [

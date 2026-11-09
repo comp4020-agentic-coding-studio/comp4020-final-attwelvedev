@@ -221,7 +221,32 @@ describe("the game screen", () => {
       const [x = Number.NaN, y = Number.NaN] = raw.split(",").map(Number);
       return { x, y };
     };
-    await askToRestart(host, [deaf, mute]);
+    // A restart plays the room's start again and nothing moves you until it is over (FR14), so a seat is only
+    // moved once the restarted room is running. `tick` in `data-net` (nettrace.ts) is the server's count: it drops
+    // to 0 when the restart takes effect, stays there for the whole hold (2.4 s as CI runs the app, none under
+    // INTRO_MS=0) and then counts up. So the restart is waited for in two steps, both from the server: the tick
+    // below what it was (the reset landed; a tick left over from the old room cannot pass), then at least 1 (the
+    // hold is over). Moving earlier was ignored: with the app run as CI runs it this failed with "moved away from
+    // the spawn: expected 0 to be greater than 1" 3 of 3 locally and in CI run 42605097983, and `data-intro` is no
+    // help here, it still reads the old room's `done` for a moment after the restart.
+    const tickOf = async () => {
+      const raw = (await deaf.locator("canvas[data-net]").getAttribute("data-net")) ?? "";
+      return Number(/tick=(\d+)/.exec(raw)?.[1] ?? Number.NaN);
+    };
+    const restart = async (asker: Page, others: Page[]) => {
+      const before = await tickOf();
+      await askToRestart(asker, others);
+      await expect
+        .poll(async () => (await tickOf()) < before, { message: "the restart reached the world" })
+        .toBe(true);
+      await expect
+        .poll(async () => (await tickOf()) >= 1, {
+          timeout: 10_000,
+          message: "the restarted room's start is over",
+        })
+        .toBe(true);
+    };
+    await restart(host, [deaf, mute]);
     let spawn = { x: Number.NaN, y: Number.NaN };
     await expect
       .poll(
@@ -237,7 +262,7 @@ describe("the game screen", () => {
     await expect
       .poll(async () => (await at()).x - spawn.x, { message: "moved away from the spawn" })
       .toBeGreaterThan(1);
-    await askToRestart(deaf, [host, mute]);
+    await restart(deaf, [host, mute]);
     // back on the spawn: its tile, within a tenth, and still there a moment later (not passing through it)
     const back = async () => {
       const here = await at();
