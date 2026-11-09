@@ -5,7 +5,7 @@ import { axeViolations, DESKTOP, horizontalOverflow, launch } from "../browser.t
 import { clearRoomOne } from "../heistPlay.ts";
 import { leaveGameAndClose } from "../lobbyUi.ts";
 import { closeAll, type Player, ready, startedGame } from "../play.ts";
-import { canvasHash, playRoom, settledHash } from "../playUi.ts";
+import { canvasHash, playRoom, settledHash, type Table } from "../playUi.ts";
 
 const baseUrl = inject("baseUrl");
 let browser: Browser;
@@ -13,14 +13,27 @@ beforeAll(async () => {
   browser = await launch();
 });
 afterAll(async () => {
+  if (shared)
+    for (const page of shared.pages) await leaveGameAndClose(page, baseUrl).catch(() => {});
   await browser.close();
 });
+
+// The four tests that only read a live room (the frame and walls, the HUD's overflow and axe, the touch
+// controls, and the held joystick) share ONE table: seating three players costs about 6 s here and 12 s on a
+// CI runner, and each of the four paid it. Nobody walks in these four, so every page is left as it was found.
+// The two tests that walk a player (the blind figure's hop, the deaf avatar's 500 ms) and every test that
+// restarts, drops a connection or leaves keep a table each.
+let shared: Table | undefined;
+const sharedTable = async (): Promise<Table> => {
+  shared ??= await playRoom(browser, baseUrl);
+  return shared;
+};
 
 const SOLID = [0xf4, 0xb9, 0xc3]; // --w-wall-top, the wall colour (src/client/tokens.ts)
 
 describe("the game screen", () => {
   it("shows each role's frame, and only the sighted roles' canvas has walls", async () => {
-    const table = await playRoom(browser, baseUrl);
+    const table = await sharedTable();
     for (const role of ["blind", "deaf", "mute"] as const) {
       const page = table.byRole[role];
       // this page's own chip in the top bar: their shape, and their role in words for a screen reader
@@ -54,7 +67,6 @@ describe("the game screen", () => {
     expect(await wallPixels(table.byRole.blind)).toBe(0);
     await expect.poll(() => wallPixels(table.byRole.deaf), { timeout: 3000 }).toBeGreaterThan(0);
     await expect.poll(() => wallPixels(table.byRole.mute), { timeout: 3000 }).toBeGreaterThan(0);
-    for (const page of table.pages) await leaveGameAndClose(page, baseUrl);
   });
 
   it("draws Can't see's own figure, black around it, and it moves when they walk", async () => {
@@ -92,18 +104,15 @@ describe("the game screen", () => {
   });
 
   it("has no overflow and no axe violations on the HUD at phone and desktop widths", async () => {
-    const table = await playRoom(browser, baseUrl);
+    const table = await sharedTable();
     for (const page of table.pages) {
       expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
       expect(await axeViolations(page)).toEqual([]);
     }
-    await leaveGameAndClose(table.byRole.blind, baseUrl);
-    await leaveGameAndClose(table.byRole.deaf, baseUrl);
-    await leaveGameAndClose(table.byRole.mute, baseUrl);
   });
 
   it("puts the joystick and Act on touch, clear of the talk bar, with a touch hint and no key hints", async () => {
-    const table = await playRoom(browser, baseUrl);
+    const table = await sharedTable();
     const { phone } = table;
     await phone.locator("[data-joystick]").waitFor();
     await phone.locator("[data-act]").waitFor();
@@ -138,13 +147,10 @@ describe("the game screen", () => {
     expect(hints).toEqual(["Stick moves · big button acts · hold Wheel to send"]);
     for (const text of hints) expect(text).not.toMatch(/WASD|Space/);
     expect(await table.byRole.blind.locator("[data-joystick]").count()).toBe(0);
-    await leaveGameAndClose(table.byRole.blind, baseUrl);
-    await leaveGameAndClose(table.byRole.deaf, baseUrl);
-    await leaveGameAndClose(table.byRole.mute, baseUrl);
   });
 
   it("keeps a held joystick or Act from selecting text or raising a menu", async () => {
-    const table = await playRoom(browser, baseUrl);
+    const table = await sharedTable();
     const { phone } = table;
     for (const control of ["[data-joystick]", "[data-act]"]) {
       const el = phone.locator(control);
@@ -157,7 +163,6 @@ describe("the game screen", () => {
       });
       expect(prevented, control).toBe(true);
     }
-    for (const page of table.pages) await leaveGameAndClose(page, baseUrl);
   });
 
   it("moves the deaf player's avatar within 500 ms of pressing D", async () => {
