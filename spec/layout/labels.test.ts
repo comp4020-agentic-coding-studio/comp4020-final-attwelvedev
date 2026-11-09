@@ -80,6 +80,40 @@ async function walkAndSample(page: Page, route: [number, number][]): Promise<Box
     await page.waitForTimeout(45);
     await page.keyboard.up(key);
   };
+  // Holds `key` until the figure is within 0.4 tile of `target` on `axis` (`dir` 1 is toward larger values),
+  // read inside the page on every frame, and keeps sampling what is drawn while it walks. A pass of the loop
+  // below takes 100 to 300 ms on a loaded runner (CI run 42565070043), up to a tile of travel at 4 tiles a
+  // second, and a 45 ms tap moved the figure about 0.04 tile there: 9 tiles in 30 s. A held key walks at the
+  // game's own speed however slow the passes are. A window that loses focus drops the key and the wait runs
+  // out after 5 s; the loop's next pass then holds it again.
+  const holdTo = async (key: string, axis: number, dir: number, target: number) => {
+    let walking = true;
+    const sampler = (async () => {
+      while (walking) {
+        await take();
+        await page.waitForTimeout(40);
+      }
+    })();
+    try {
+      await page.keyboard.down(key);
+      await page
+        .waitForFunction(
+          (a) => {
+            const raw =
+              document.querySelector("canvas[data-camera]")?.getAttribute("data-self") ?? "";
+            const v = Number(raw.split(",")[a.axis]);
+            return !Number.isNaN(v) && (a.dir > 0 ? v >= a.target - 0.4 : v <= a.target + 0.4);
+          },
+          { axis, dir, target },
+          { polling: "raf", timeout: 5000 },
+        )
+        .catch(() => undefined);
+    } finally {
+      await page.keyboard.up(key);
+      walking = false;
+      await sampler;
+    }
+  };
   // Each leg has its own deadline, generous because three browser files run at once under the full
   // check, and a leg that is not reached is an error: a walk that quietly stopped short would skip
   // the plaque it was sent to look at and prove nothing.
@@ -154,7 +188,11 @@ async function walkAndSample(page: Page, route: [number, number][]): Promise<Box
       // a wall is one tile wide and a body that is a fifth of a tile off its middle pushes at the wall
       const alongX = Math.abs(dx) >= Math.abs(dy);
       const off = alongX ? dy : dx;
+      // only along x: a vertical leg goes through a one-tile gap in a wall, and a held key cannot correct
+      // the sideways drift that wedges a body on the gap's edge, which the short taps do
+      const far = Math.abs(dx) > 1.2;
       if (Math.abs(off) > 0.1) await press(alongX ? (dy > 0 ? "s" : "w") : dx > 0 ? "d" : "a");
+      else if (far && alongX) await holdTo(dx > 0 ? "d" : "a", 0, dx > 0 ? 1 : -1, tx);
       else if (alongX) await press(dx > 0 ? "d" : "a");
       else await press(dy > 0 ? "s" : "w");
       const t3 = Date.now();

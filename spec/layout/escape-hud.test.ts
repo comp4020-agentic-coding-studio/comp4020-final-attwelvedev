@@ -42,6 +42,35 @@ async function walk(page: Page, key: string, until: () => Promise<boolean>, maxM
   }
 }
 
+// Short taps toward a point on one axis until the figure is within `slack` of it. A held key is released
+// some polls after the predicate holds, and on a loaded runner that is a tile or more of travel: the
+// figure carried past a gear's tile never sees the "Take" hint. A tap is one input tick (a fifth of a
+// tile at 4 tiles a second), so this stops where it is sent however slow the page is.
+async function nudgeTo(page: Page, axis: 0 | 1, target: number, slack: number, maxMs = 20_000) {
+  const at = async () => {
+    const raw = (await page.locator("canvas[data-self]").getAttribute("data-self")) ?? "";
+    return Number(raw.split(",")[axis]);
+  };
+  await expect
+    .poll(
+      async () => {
+        const here = await at();
+        if (Math.abs(here - target) <= slack) {
+          // a read just after a tap can be a tick behind: only done once the figure has stopped
+          await page.waitForTimeout(150);
+          return Math.abs((await at()) - here) < 0.001;
+        }
+        const key = axis === 0 ? (here < target ? "d" : "a") : here < target ? "s" : "w";
+        await page.keyboard.down(key);
+        await page.waitForTimeout(45);
+        await page.keyboard.up(key);
+        return false;
+      },
+      { timeout: maxMs, interval: 20 },
+    )
+    .toBe(true);
+}
+
 // A box is read right after a resize or a render, so it is waited for (the page lays out on its own
 // schedule, later under load), not read once. An element that really is absent still fails, with
 // the locator named, after the wait.
@@ -145,8 +174,11 @@ describe("the gear slot", () => {
     // up to row 2, then east until standing on the first gear (the UV torch at x 22)
     const at = async () =>
       (await mute.locator("canvas[data-self]").getAttribute("data-self")) ?? "";
-    await walk(mute, "w", async () => Number((await at()).split(",")[1]) < 3);
-    await walk(mute, "d", async () => Number((await at()).split(",")[0]) >= 22.2, 10_000);
+    await walk(mute, "w", async () => Number((await at()).split(",")[1]) < 4);
+    await nudgeTo(mute, 1, 2.5, 0.3); // row 2: the gear's row (a late key-up carries it up to row 1)
+    // held to a point short of the gear (a late key-up carries it on a tile or more), then tapped onto it
+    await walk(mute, "d", async () => Number((await at()).split(",")[0]) >= 20, 10_000);
+    await nudgeTo(mute, 0, 22.5, 0.3);
     // where the walk stopped: the gear is at x 22, so a figure well past it has overshot
     const stoppedAt = await at();
     const pageState = () =>
