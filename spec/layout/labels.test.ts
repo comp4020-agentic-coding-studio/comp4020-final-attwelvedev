@@ -136,7 +136,14 @@ async function walkAndSample(page: Page, route: [number, number][]): Promise<Box
     const legEnd = Date.now() + 30_000;
     // how long each pass of this leg took and where the figure was after it, so a stall says whether
     // the walk ran out of passes (slow ones) or the figure stopped moving (the same x again and again)
-    const passes: { ms: number; take: number; read: number; press: number; x: number }[] = [];
+    const passes: {
+      ms: number;
+      take: number;
+      read: number;
+      press: number;
+      x: number;
+      y: number;
+    }[] = [];
     for (;;) {
       if (Date.now() > legEnd) {
         const at = await selfAt(page);
@@ -182,6 +189,11 @@ async function walkAndSample(page: Page, route: [number, number][]): Promise<Box
           xLast: passes[passes.length - 1]?.x ?? null,
           // distinct x values seen: few of them means the figure stopped, many means it kept going
           distinctX: new Set(passes.map((q) => q.x)).size,
+          // and y, which a leg through a gap in a wall moves along: the last passes show whether the figure was still
+          // inching (y changing a little each pass) or had stopped dead (the same y), and which key was being tapped
+          distinctY: new Set(passes.map((q) => q.y)).size,
+          last: passes.slice(-4).map((q) => `${q.x.toFixed(2)},${q.y.toFixed(2)}`),
+          want: `${tx},${ty}`,
         };
         throw new Error(
           `never reached ${tx},${ty} within 30 s; stuck at ${JSON.stringify(at)}; walk ${JSON.stringify(walk)}; page ${JSON.stringify(state)}`,
@@ -211,7 +223,7 @@ async function walkAndSample(page: Page, route: [number, number][]): Promise<Box
       else if (alongX) await press(dx > 0 ? "d" : "a");
       else await press(dy > 0 ? "s" : "w");
       const t3 = Date.now();
-      passes.push({ ms: t3 - t0, take: t1 - t0, read: t2 - t1, press: t3 - t2, x: me.x });
+      passes.push({ ms: t3 - t0, take: t1 - t0, read: t2 - t1, press: t3 - t2, x: me.x, y: me.y });
     }
     // at the waypoint, read what is drawn over a few frames (a count of samples, not a clock)
     for (let i = 0; i < 8; i++) {
