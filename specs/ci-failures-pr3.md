@@ -6,11 +6,13 @@ a draft. Do not merge it while CI is red or flaky: the `deploy` job runs on `mai
 
 ## Where it stands
 
-- Remote head is `9f43c63`, pushed. CI run 42629293965 on it passed in all four attempts (the first, then three
+- Code head is `9f43c63`; later commits are docs, and the escape-hud deletion below. CI run 42629293965 on it passed in all four attempts (the first, then three
   `gh run rerun`s), and `pnpm check:flaky 4` (2 idle, 2 under load, the app started without `INTRO_MS=0`) passed 4 of 4.
   Before it, the same branch passed 3 of 8 attempts (42579267291 passed then failed; 42586723384, 42595732106,
-  42605097983 failed; 42611330796 passed twice and failed once). Four passes in a row is the best evidence so far and
-  still not proof: one earlier commit passed twice before it failed.
+  42605097983 failed; 42611330796 passed twice and failed once). On the same code, run 42647948503 (`3f54152`, docs only) then failed once: escape-hud's "sit at the
+  frame's right" (desktop) timed out at 30 s, no message, no known cause, its phone twin passed in 808 ms; the next
+  run (`c89248b`) passed. That test measures DOM boxes, so no unit test could replace it, and it was deleted. So: 5
+  passes and 1 failure of the same code in 6 attempts, before that deletion.
 - The `pull_request` trigger did not fire for two pushes earlier (a81c081, 1c936f2), cause unknown. If a push starts
   no run after a few minutes: `gh workflow run checks.yml --ref auto/overnight` (the deploy job needs `main`, so a
   dispatch cannot deploy). Find a run by its ID: `headSha` is the full 40 characters.
@@ -45,7 +47,9 @@ Each is also in its commit message. Nothing covers these now:
 - **reveal:** the path through two real pages and the server. The hypothesis for the one failure (`send` in
   `src/client/socket.ts` drops a message while the socket is not open, and `Game.tsx` sets `ready` before sending)
   has no check and is not fixed.
-- **escape-hud:** the page showing the take after Space over a real socket; the crew row's gear chip.
+- **escape-hud:** the page showing the take after Space over a real socket; the crew row's gear chip; and, at 1280,
+  the dock's right edge, its place in the right half and its clearance from the captions and the talk bar (the desktop
+  case of "sit at the frame's right" was deleted: see below). The phone case and "the HUD at both widths" remain.
 - **game restarts:** the page dropping its prediction when the tick goes backwards (`Game.tsx` `onView`); the menu
   asking twice; the "Not restarted: Bo kept playing" message; the page walking again after a real restart.
 - **labels:** real text widths (a width per character stands in).
