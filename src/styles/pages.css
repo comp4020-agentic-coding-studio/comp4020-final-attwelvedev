@@ -44,7 +44,8 @@ input {
   min-height: var(--target);
   min-width: var(--target);
   padding: 0 var(--s-4);
-  background: var(--panel);
+  background: var(--panel-hi);
+  box-shadow: var(--sheen);
   color: var(--ui);
   border: 2px solid var(--ui-muted);
   border-radius: var(--r);
@@ -96,6 +97,17 @@ input {
   display: grid;
   grid-template-areas: "title" "desk" "feeds";
   gap: var(--s-6);
+  /* the glow stays full bleed; the content sits inside it, off its top and left edge */
+  padding: var(--s-5) var(--s-4) 0;
+  /* a still dusk glow from the north-west corner behind the hero (flat in high contrast) */
+  background: radial-gradient(
+    at 15% 0%,
+    color-mix(in srgb, var(--role-mute) 18%, transparent),
+    transparent 60%
+  );
+}
+:root[data-contrast="high"] .home {
+  background: none;
 }
 .home-hero {
   display: contents;
@@ -110,6 +122,8 @@ input {
   grid-area: desk;
 }
 .home h1 {
+  font-stretch: 125%; /* the display face: one of the four big lines (DESIGN.md) */
+  font-weight: 900;
   font-size: clamp(30px, 8.4vw, 40px);
   line-height: 1.02;
   letter-spacing: -0.01em;
@@ -147,8 +161,8 @@ input {
 .code-input {
   min-height: 64px;
   font-size: var(--t-28);
-  font-stretch: 125%;
-  font-weight: 900;
+  font-stretch: 100%;
+  font-weight: 800;
   letter-spacing: 0.3em;
   text-transform: uppercase;
 }
@@ -253,15 +267,23 @@ input {
   position: relative;
   margin: 0;
 }
+/* a feed is a window: a --panel bezel with --lift, and the canvas set into it (the recess) */
 .feed-screen {
   position: relative;
+  padding: 4px;
+  background: var(--panel);
+  border-radius: var(--r-lg);
+  box-shadow: var(--lift);
 }
 .feed canvas {
   display: block;
   width: 100%;
   height: 96px;
   background: var(--ink);
-  border-radius: var(--r);
+  border-radius: calc(var(--r-lg) - 4px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 8%),
+    inset 0 2px 8px rgb(0 0 0 / 55%);
 }
 .feed figcaption {
   display: flex;
@@ -274,8 +296,8 @@ input {
 }
 .feed figcaption b {
   color: var(--ui);
-  font-stretch: 125%;
-  font-weight: 900;
+  font-stretch: 100%;
+  font-weight: 800;
 }
 .feed-captions,
 .feed-tag {
@@ -293,7 +315,7 @@ input {
 .feed-tag {
   margin: 0;
   padding: 1px var(--s-2);
-  background: rgb(11 18 32 / 85%);
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
   border-radius: var(--r);
   font-size: var(--t-14);
   line-height: 1.4;
@@ -348,8 +370,8 @@ input {
 }
 .lobby-solo > h1.share {
   font-size: var(--t-28);
-  font-stretch: 125%;
-  font-weight: 900;
+  font-stretch: 100%;
+  font-weight: 800;
   color: var(--ui);
 }
 /* The code is as big as its column allows: the spec's clamp(72px, 22vw, 160px)
@@ -432,8 +454,34 @@ input {
   gap: var(--s-2) var(--s-3);
   min-height: var(--target);
   padding: var(--s-2) var(--s-3);
-  background: var(--panel);
+  background: var(--well);
+  box-shadow: var(--well-shadow);
   border-radius: var(--r);
+}
+/* a person just joined: an outline in --ui for a second (the picture twin of the join chime). Inset, so it
+   never reaches the row below; a still outline under reduced motion. */
+.player-row.glow {
+  outline: 2px solid var(--ui);
+  outline-offset: -2px;
+  animation: row-glow 1s ease-out;
+}
+@keyframes row-glow {
+  0% {
+    box-shadow: 0 0 0 0 var(--ui);
+    outline-color: var(--ui);
+  }
+  60% {
+    box-shadow: inset 0 0 14px 0 var(--ui);
+  }
+  100% {
+    box-shadow: inset 0 0 0 0 transparent;
+    outline-color: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .player-row.glow {
+    animation: none;
+  }
 }
 .player-row[draggable="true"] {
   cursor: grab;
@@ -441,8 +489,8 @@ input {
 .player-row .place {
   grid-area: place;
   min-width: 1.2em;
-  font-stretch: 125%;
-  font-weight: 900;
+  font-stretch: 100%;
+  font-weight: 800;
   color: var(--ui-muted);
 }
 .player-row .grip {
@@ -667,10 +715,11 @@ input {
   width: min(100%, 26rem);
   padding: var(--s-5);
   background: var(
-    --panel
+    --surface
   ); /* solid: --glass is for chips over the canvas, and text behind a modal would bleed through */
+  box-shadow: var(--sheen), var(--lift);
   border: 2px solid var(--ui-muted);
-  border-radius: var(--r);
+  border-radius: var(--r-lg);
 }
 .modal-title {
   margin: 0 0 var(--s-3);
@@ -707,6 +756,7 @@ input {
     grid-template-areas: "title desk" "feeds desk";
     gap: var(--s-5) 48px;
     align-items: start;
+    padding: var(--s-6) var(--s-6) 0;
   }
   .home h1 {
     display: flex;

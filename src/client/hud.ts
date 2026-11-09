@@ -1,6 +1,9 @@
 import { type Callout, CLIPS, type Stamp } from "../game/channels.ts";
+import type { RoleView } from "../game/perception.ts";
+import type { StationType } from "../game/sim/world.ts";
 import type { Role } from "../game/types.ts";
 import type { ChannelMessage, EntityView, SoundCue } from "../net/protocol.ts";
+import { ITEM_NAMES } from "./items.ts";
 
 export const ROLE_GLYPH: Record<Role, string> = { blind: "●", deaf: "■", mute: "▲" };
 
@@ -70,8 +73,9 @@ export function captionFor(m: ChannelMessage): Caption | null {
 
 export const CUE_WORD: Record<SoundCue["kind"], string> = {
   footsteps: "footsteps",
+  hollow: "hollow step", // a step on a cache dial's plate: named for a source with a direction, like footsteps
   hum: "hum",
-  door: "door click",
+  door: "door unlocked",
   guard: "guard footsteps",
   camera: "camera whir",
   laser: "laser hum",
@@ -91,18 +95,84 @@ export const CUE_WORD: Record<SoundCue["kind"], string> = {
   "seq-open": "sequence door unlocked",
   hide: "rustle",
   clue: "chime",
+  rest: "A gap in the tune",
   cleared: "room cleared",
+  // stations, gear and signals (escape-room phase 02, Task 9)
+  tick: "Tick",
+  tumbler: "Tumbler",
+  key: "Key",
+  snap: "Snap",
+  static: "Static",
+  tone: "Tone",
+  pip: "Pip",
+  clunk: "Clunk",
+  practice: "Practice",
+  lever: "Lever",
+  pull: "Pulled",
+  bellnote: "Bell note",
+  bell: "Bell",
+  dye: "Dye pack",
+  jam: "Jammed",
+  tap: "Plate read",
+  earpiece: "Earpiece",
+  gear: "Gear",
+  uncover: "Something opened",
+  stash: "Stash found",
+  solved: "Solved",
 };
 
 // Heard by the whole team from nowhere in particular, so no side is named.
-const EVERYWHERE = new Set<SoundCue["kind"]>(["checkpoint", "caught", "alarm", "bump", "cleared"]);
+const EVERYWHERE = new Set<SoundCue["kind"]>([
+  "checkpoint",
+  "caught",
+  "alarm",
+  "bump",
+  "cleared",
+  "dye",
+  "uncover", // a cache opened: the whole team hears it, from nowhere in particular
+  "stash",
+  "earpiece",
+  "pull", // a strain in the pair's own heads: no side to name
+]);
 
 // Some sounds carry a count: how many are at the flag or the exit, how many plates are done.
-function word(s: SoundCue): string {
+function word(s: SoundCue, names?: readonly string[]): string {
+  // a stash names whose side job it was and what waits in its vault (the cleared card names the item to all)
+  if (s.kind === "stash" && s.item && s.n !== undefined)
+    return `${names?.[s.n] ?? "Someone"}'s side job open: the ${ITEM_NAMES[s.item]}`;
+  // the take is a loot cue that carries its owner and item: who took what (ordinary loot has neither)
+  if (s.kind === "loot" && s.item && s.n !== undefined)
+    return `${names?.[s.n] ?? "Someone"} took the ${ITEM_NAMES[s.item]}`;
   if (s.kind === "flag" || s.kind === "exit") return `${CUE_WORD[s.kind]} ${s.n ?? 0}/3`;
   if (s.kind === "seq-ok") return `${CUE_WORD[s.kind]}: ${s.n ?? 0} done`;
   if (s.kind === "clue") return `${CUE_WORD[s.kind]} ×${s.n ?? 1}`;
+  // a key or a bell says which (it is on the object for all to see); a pip says how many. The
+  // earpiece's note is the puzzle itself, heard and never written
+  // and, being a group of that many chimes (chimeSound.ts), says the count a listener hears
+  if ((s.kind === "key" || s.kind === "bellnote") && s.n !== undefined)
+    return `${CUE_WORD[s.kind]} ${s.n + 1} (${s.n + 1} chimes)`;
+  if (s.kind === "pip") return `${CUE_WORD[s.kind]} ×${s.n ?? 1}`;
+  // a practice press says which note it was: the same count as the real key or bell it stands for
+  if (s.kind === "practice" && s.n !== undefined)
+    return `${CUE_WORD[s.kind]}: ${s.of === "bellnote" ? "bell" : "key"} ${s.n + 1}`;
   return CUE_WORD[s.kind];
+}
+
+// The words on the chip at the top of the map when a secret door opens or the keepsake is taken
+// (caches FR9, FR11). They come from the event, which every role gets on the same tick, so a seat
+// that cannot hear and one that cannot see read the same thing. A door opening names nobody (it
+// must not say whose riddle it is); a solve and a take name the owner and the item.
+export function cacheMoment(
+  event: RoleView["cacheEvent"],
+  names?: readonly string[],
+): string | null {
+  if (!event) return null;
+  const who = names?.[event.owner] || "Someone";
+  if (event.result === "uncover" || !event.item) return CUE_WORD.uncover;
+  const item = ITEM_NAMES[event.item];
+  return event.result === "solved"
+    ? `${who}'s side job open: the ${item}`
+    : `${who} took the ${item}`;
 }
 
 export type Dir8 = "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW";
@@ -120,12 +190,12 @@ export interface CueCaption {
 }
 
 // What the room sounds like right now, as captions: one per sound and direction.
-export function cueCaptions(sounds: SoundCue[]): CueCaption[] {
+export function cueCaptions(sounds: SoundCue[], names?: readonly string[]): CueCaption[] {
   const out = new Map<string, CueCaption>();
   for (const s of sounds) {
     if (s.kind === "step") continue; // you made it: nothing to caption
     const dir = s.kind === "hum" || EVERYWHERE.has(s.kind) || !s.dir ? null : dirOf(s.dir);
-    const text = s.kind === "hum" ? "hum" : word(s);
+    const text = s.kind === "hum" ? "hum" : word(s, names);
     out.set(`${text}|${dir}`, { text, dir });
   }
   return [...out.values()];
@@ -183,20 +253,41 @@ export function lerpEntities(prev: EntityView[], next: EntityView[], t: number):
 // The words for the team being sent back: what got whom, and where they restart. The same
 // line is shown to everyone and spoken to Can't see, so nobody has to work it out from a
 // sound, least of all in the dark where the hazards cannot be seen.
+// The dye pack's banner (spec §4.1): what was wrong, by the kind of station, then the flag.
+const WRONG: Record<StationType, string> = {
+  wires: "Wrong wire.",
+  bells: "Wrong note.",
+  dial: "Wrong code.",
+  keypad: "Wrong code.",
+  vault: "Wrong code.",
+  radio: "Wrong code.",
+  switches: "Wrong code.",
+  sync: "Wrong code.",
+};
+
 export function caughtText(
-  c: { hazard: "guard" | "camera" | "laser"; seat: number; checkpoint: number },
+  c: {
+    hazard: "guard" | "camera" | "laser" | "station";
+    seat: number;
+    checkpoint: number;
+    station?: StationType;
+  },
   crew: readonly { nickname: string }[],
   mySeat: number,
 ): string {
+  if (c.hazard === "station" && c.station) return `${WRONG[c.station]} Back to the flag.`;
   const you = c.seat === mySeat;
   const who = you ? "you" : (crew[c.seat]?.nickname ?? "someone");
   const subject = you ? "You" : who;
+  // a wrong answer is the team's, so it names nobody (the dye-pack banner itself is phase 02's)
   const what =
-    c.hazard === "laser"
-      ? `${subject} walked into a laser.`
-      : c.hazard === "guard"
-        ? `The guard saw ${who}.`
-        : `A camera saw ${who}.`;
+    c.hazard === "station"
+      ? "Wrong answer."
+      : c.hazard === "laser"
+        ? `${subject} walked into a laser.`
+        : c.hazard === "guard"
+          ? `The guard saw ${who}.`
+          : `A camera saw ${who}.`;
   return `${what} Back to ${c.checkpoint > 0 ? `checkpoint ${c.checkpoint}` : "the start"}.`;
 }
 

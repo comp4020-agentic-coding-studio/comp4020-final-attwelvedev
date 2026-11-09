@@ -83,7 +83,7 @@ describe("taking I'm ready back", () => {
     cy.send({ t: "ready" });
     await noTick(host);
     host.send({ t: "ready" });
-    await nextTick(host, 3000);
+    await nextTick(host);
     await close(five.sockets);
   });
 
@@ -91,9 +91,9 @@ describe("taking I'm ready back", () => {
     const five = await startedFive(baseUrl);
     const [host, bo, cy] = five.sockets as [Socket, Socket, Socket, Socket, Socket];
     for (const s of [host, bo, cy]) s.send({ t: "ready" });
-    await nextTick(host, 3000);
+    await nextTick(host);
     host.send({ t: "ready", on: false });
-    await nextTick(host, 3000); // still ticking: the room did not go back to waiting
+    await nextTick(host); // still ticking: the room did not go back to waiting
     await close(five.sockets);
 
     const [solo] = [await connect(baseUrl)];
@@ -133,6 +133,7 @@ describe("the reveal's sights and sounds", () => {
     const five = await startedFive(baseUrl);
     for (const [i, reveal] of (five.reveals as unknown as CuesReveal[]).entries()) {
       if (i > 2) continue;
+      // room 1 First Steps has plates and doors only: their hum and click are all there is to learn
       if (reveal.role === "blind") expect(reveal.cues).toEqual(["hum", "door"]);
       else expect(reveal.cues).toEqual([]);
     }

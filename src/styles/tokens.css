@@ -22,11 +22,12 @@
 /* Design tokens (spec §4.1; DESIGN.md names each one and its job). Dark only. Code reads these
    and never hard-codes a colour, size or duration. */
 :root {
-  --bg: #0b1220;
-  --panel: #141e36;
+  --bg: #15121f;
+  --panel: #221c30;
+  --panel-hi: #261f35; /* the lit end of a panel's north-west gradient */
   --ink: #000000; /* the Can't-see viewport */
-  --ui: #e8eef9;
-  --ui-muted: #9aa7c2;
+  --ui: #efeaf5;
+  --ui-muted: #aba1c0;
   --danger: #ff3b5c;
   --goal: #5be3a8;
   --camera-light: #ffd166; /* a camera's watched zone, always hatched: amber and yellow are close */
@@ -36,11 +37,16 @@
   --solid: #3a4d7a; /* the join button's disabled border and the code field's placeholder */
   --paper: #ffffff; /* the QR code's quiet zone: scanners need dark on light */
   /* spec §4.1 shell tokens: every chip over the world sits on --glass (--ui on it is >= 10:1) */
-  --glass: rgb(20 30 54 / 88%);
-  --scrim: rgb(11 18 32 / 62%);
+  --glass: rgb(34 28 48 / 90%);
+  --scrim: rgb(21 18 31 / 62%);
+  --sheen: inset 0 1px 0 rgb(255 255 255 / 6%);
+  --lift: 0 1px 2px rgb(0 0 0 / 30%), 0 8px 24px rgb(0 0 0 / 28%);
+  --surface: linear-gradient(135deg, var(--panel-hi), var(--panel)); /* a lit panel's body */
+  --well: color-mix(in srgb, var(--bg) 55%, var(--panel)); /* a row nested in a panel */
+  --well-shadow: inset 0 1px 2px rgb(0 0 0 / 35%);
   --hatch: repeating-linear-gradient(
     45deg,
-    rgb(154 167 194 / 35%) 0 2px,
+    rgb(171 161 192 / 35%) 0 2px,
     transparent 2px 6px
   ); /* "can't": 45-degree stripes of --ui-muted */
 
@@ -59,6 +65,22 @@
   --w-wall-top: #f4b9c3;
   --w-wall-front: #dc8fa6;
   --w-wall-shade: #b9708f;
+  /* each room's wall set by its `hue` (setHue); the unsuffixed three above are rose */
+  --w-wall-top-rose: #f4b9c3;
+  --w-wall-front-rose: #dc8fa6;
+  --w-wall-shade-rose: #b9708f;
+  --w-wall-top-teal: #a9ddd3;
+  --w-wall-front-teal: #7fbfb6;
+  --w-wall-shade-teal: #5f9c98;
+  --w-wall-top-amber: #f2cf9a;
+  --w-wall-front-amber: #d9a96e;
+  --w-wall-shade-amber: #b78653;
+  --w-wall-top-violet: #cdb9ec;
+  --w-wall-front-violet: #a991d4;
+  --w-wall-shade-violet: #8670b3;
+  --w-wall-top-indigo: #b3bde8;
+  --w-wall-front-indigo: #8a97cf;
+  --w-wall-shade-indigo: #6b77ae;
   --w-crate: #f2b57a;
   --w-crate-front: #cf8a55;
   --w-crate-brace: #a86a3d;
@@ -80,6 +102,27 @@
   --w-watch: #e9a400;
   --w-exit: #bdefd8;
   --w-exit-flag: #2fa678;
+  /* stations, gear and signals (escape-room phase 02): code colours always outlined in --w-line
+     and carry a fixed pattern (red plain, blue stripe, yellow bands, green dots, white hatch,
+     black chevrons); the UV pool is the one bold effect */
+  --w-code-red: #d7263d;
+  --w-code-blue: #2b6cd4;
+  --w-code-yellow: #f2c230;
+  --w-code-green: #2e9e5b;
+  --w-code-white: #fbfaf6;
+  --w-code-black: #1f1c2c;
+  --w-steel: #b8c0cc;
+  --w-steel-front: #8a93a3;
+  --w-brass: #c9a14a;
+  --w-lamp: #ffd75e;
+  --w-uv: #6a4cff;
+  --w-uv-ink: #c8ff3d;
+  --w-nv: #7f9a84;
+  --w-card: #fffaf0;
+  --w-dye-pink: #ff9ec7;
+  --w-dye-mint: #8fe3c0;
+  --w-dye-sky: #9cc9ff;
+  --w-sconce: #ffe9c4;
   /* the alarm's dusk set: the world blends toward these over 600 ms */
   --dusk-sky-hi: #3a2e44;
   --dusk-sky-lo: #5a2236;
@@ -88,6 +131,21 @@
   --dusk-wall-top: #4a5068;
   --dusk-wall-front: #353a4f;
   --dusk-wall-shade: #2a2e40;
+  --dusk-wall-top-rose: #4a5068;
+  --dusk-wall-front-rose: #353a4f;
+  --dusk-wall-shade-rose: #2a2e40;
+  --dusk-wall-top-teal: #3f5560;
+  --dusk-wall-front-teal: #2f4049;
+  --dusk-wall-shade-teal: #243239;
+  --dusk-wall-top-amber: #56505a;
+  --dusk-wall-front-amber: #403b45;
+  --dusk-wall-shade-amber: #312d36;
+  --dusk-wall-top-violet: #4b4568;
+  --dusk-wall-front-violet: #37324f;
+  --dusk-wall-shade-violet: #2a2640;
+  --dusk-wall-top-indigo: #3f4870;
+  --dusk-wall-front-indigo: #2f3656;
+  --dusk-wall-shade-indigo: #242a44;
   --dusk-floor: #5c6178;
   --dusk-floor-front: #474c62;
   --dusk-seam: #50556c;
@@ -105,7 +163,8 @@
   --s-4: 16px;
   --s-5: 24px;
   --s-6: 32px;
-  --r: 4px;
+  --r: 8px;
+  --r-lg: 14px;
   --target: 48px; /* touch targets are at least this */
   --ease: 150ms ease-out;
 
@@ -125,6 +184,14 @@
 :root[data-contrast="high"] {
   --bg: #000000;
   --panel: #000000;
+  --panel-hi: #000000;
+  /* a valid empty shadow, not `none`: `none` is invalid inside a box-shadow list and would drop the
+     frame's role rim with it */
+  --sheen: 0 0 0 0 transparent;
+  --lift: 0 0 0 0 transparent;
+  --surface: var(--panel);
+  --well: var(--bg);
+  --well-shadow: none;
   --ink: #000000;
   --ui: #ffffff;
   --ui-muted: #ffffff;
@@ -148,6 +215,21 @@
   --w-wall-top: #ffffff;
   --w-wall-front: #bdbdbd;
   --w-wall-shade: #7a7a7a;
+  --w-wall-top-rose: #ffffff;
+  --w-wall-front-rose: #bdbdbd;
+  --w-wall-shade-rose: #7a7a7a;
+  --w-wall-top-teal: #ffffff;
+  --w-wall-front-teal: #bdbdbd;
+  --w-wall-shade-teal: #7a7a7a;
+  --w-wall-top-amber: #ffffff;
+  --w-wall-front-amber: #bdbdbd;
+  --w-wall-shade-amber: #7a7a7a;
+  --w-wall-top-violet: #ffffff;
+  --w-wall-front-violet: #bdbdbd;
+  --w-wall-shade-violet: #7a7a7a;
+  --w-wall-top-indigo: #ffffff;
+  --w-wall-front-indigo: #bdbdbd;
+  --w-wall-shade-indigo: #7a7a7a;
   --w-crate: #ffaa00;
   --w-crate-front: #cc8800;
   --w-crate-brace: #000000;
@@ -169,6 +251,24 @@
   --w-watch: #ffff00;
   --w-exit: #00ff88;
   --w-exit-flag: #ffffff;
+  --w-code-red: #ff3b3b;
+  --w-code-blue: #4d9bff;
+  --w-code-yellow: #ffe100;
+  --w-code-green: #2bff7a;
+  --w-code-white: #ffffff;
+  --w-code-black: #000000;
+  --w-steel: #d9d9d9;
+  --w-steel-front: #8c8c8c;
+  --w-brass: #ffcc33;
+  --w-lamp: #ffff66;
+  --w-uv: #000000;
+  --w-uv-ink: #ffff00;
+  --w-nv: #000000;
+  --w-card: #000000;
+  --w-dye-pink: #ff66cc;
+  --w-dye-mint: #33ffcc;
+  --w-dye-sky: #66ccff;
+  --w-sconce: #ffffff;
   --glass: rgb(0 0 0 / 92%);
   --scrim: rgb(0 0 0 / 70%);
   --hatch: repeating-linear-gradient(45deg, rgb(255 255 255 / 55%) 0 2px, transparent 2px 6px);

@@ -1,8 +1,22 @@
 import { parseJob, rawJobs } from "../bots/jobs.ts";
+import { type RoleView, viewFor } from "../perception.ts";
+import { TUNE_MAX_TICKS } from "../sim/chimes.ts";
 import { cameraParams, laserBeam, laserParams } from "../sim/hazards.ts";
-import { patrolOf } from "../sim/world.ts";
-import type { Role } from "../types.ts";
-import { flipsOf, type Room } from "./format.ts";
+import { noteOf, numberOfText, PIP_TICKS, restOf, tilesOf } from "../sim/stations.ts";
+import { step } from "../sim/step.ts";
+import { type GearItem, patrolOf, type StationState, TICK_MS, type World } from "../sim/world.ts";
+import type { Role, Vec } from "../types.ts";
+import {
+  cacheOf,
+  flipsOf,
+  GEAR_ITEMS,
+  inRect,
+  isMotif,
+  type Room,
+  type RoomObject,
+  secretDoors,
+} from "./format.ts";
+import { worldAt } from "./mockup.ts";
 
 const SAFE_S = 2; // FR14: a cue-dependent safe window is at least this long
 
@@ -35,27 +49,47 @@ export function lintRoom(room: Room): LintIssue[] {
 
   const plateIds = new Set(room.objects.filter((o) => o.kind === "plate").map((o) => o.id));
   const doors = room.objects.filter((o) => o.kind === "door");
+  // a secret door is opened by cache state, never by plates (lintCaches checks where it stands)
+  const secret = new Set(secretDoors(room).flatMap((d) => [d.chamber.id, d.vault.id]));
   for (const door of doors) {
+    if (secret.has(door.id)) continue;
     if (!door.opensWhen || door.opensWhen.length === 0) {
       issue(`door ${door.id} has no opensWhen`);
       continue;
     }
     for (const id of door.opensWhen) {
-      if (!plateIds.has(id)) issue(`door ${door.id} opensWhen names unknown plate ${id}`);
+      const named = room.objects.find((o) => o.id === id && o.kind === "station");
+      if (!plateIds.has(id) && !named) {
+        issue(`door ${door.id} opensWhen names unknown plate ${id}`);
+      }
+      // a cache is optional (caches FR8): the room must clear without it
+      if (named && cacheOf(named)) {
+        issue(
+          `door ${door.id} opensWhen names cache ${id}: a cache is optional, so no door may wait for it`,
+        );
+      }
     }
   }
 
-  // FR10: some beat has a door that needs three plates held at once
-  const threePlate = doors.some(
-    (d) =>
-      new Set(d.opensWhen ?? []).size >= 3 &&
-      room.beats.some((b) => d.tiles.some((t) => t.x >= b.x[0] && t.x <= b.x[1])),
-  );
+  // FR10: some beat has a door that needs three plates held at once. A station room carries "every
+  // role is needed" by the presence rule instead (lintPresence), so it needs no three-plate door.
+  const stationRoom = room.objects.some((o) => o.kind === "station");
+  const threePlate =
+    stationRoom ||
+    doors.some(
+      (d) =>
+        new Set(d.opensWhen ?? []).size >= 3 &&
+        room.beats.some((b) => d.tiles.some((t) => t.x >= b.x[0] && t.x <= b.x[1])),
+    );
   if (!threePlate) issue("no beat has a door that needs three plates (three-plate beat, FR10)");
 
   lintHazards(room, issue);
   lintSight(room, issue);
   lintHints(room, issue);
+  lintPresence(room, issue);
+  lintClues(room, issue);
+  lintCaches(room, issue);
+  for (const message of lintPlates(room)) issue(message);
 
   // every exit tile must be reachable from every spawn, treating doors as open
   if (exits.length > 0 && spawns.length > 0) {
@@ -75,7 +109,15 @@ export function lintRoom(room: Room): LintIssue[] {
           const n = { x: t.x + dx, y: t.y + dy };
           const key = `${n.x},${n.y}`;
           const ch = room.grid[n.y]?.[n.x];
-          if (ch === undefined || ch === "#" || ch === "=" || ch === "%" || seen.has(key)) continue;
+          if (
+            ch === undefined ||
+            ch === "#" ||
+            ch === "=" ||
+            ch === "%" ||
+            ch === "H" ||
+            seen.has(key)
+          )
+            continue;
           seen.add(key);
           queue.push(n);
         }
@@ -174,16 +216,14 @@ function lintHazards(room: Room, issue: (message: string) => void): void {
 const ROLES: readonly Role[] = ["blind", "deaf", "mute"];
 const HOLD_APART = 3; // tiles between a sequence door's plates, Chebyshev: one body holds one
 
-// Rules that come with line of sight (plan 04): clues, dark beats with an alarm, held
-// sequences, and the lead roles.
+// Rules that come with line of sight (plan 04): clues, dark beats with an alarm, and held
+// sequences.
 function lintSight(room: Room, issue: (message: string) => void): void {
-  const beatAt = (x: number) => room.beats.find((b) => x >= b.x[0] && x <= b.x[1]);
-
-  // A clue is a sound with no picture, so a room may use one only where a beat declares a cue.
+  // A clue is a sound with no picture, so a room may use one only as a keypad's code, where the
+  // presence rule (lintPresence) checks that whoever hears it is not the one at the keys.
   for (const clue of room.objects.filter((o) => o.kind === "clue")) {
-    const beat = beatAt(clue.tiles[0]?.x ?? -1);
-    if (!beat?.cue)
-      issue(`clue ${clue.id} is not inside a beat that declares a cue (twin or split)`);
+    const named = room.objects.some((o) => o.kind === "station" && o.params?.clue === clue.id);
+    if (!named) issue(`clue ${clue.id} is not a keypad's clue, so nothing checks who hears it`);
   }
 
   // No role may be left with nothing to perceive: a beat that is dark everywhere while an
@@ -231,13 +271,6 @@ function lintSight(room: Room, issue: (message: string) => void): void {
       }
     }
   }
-
-  // A room that says `"leads": true` gives every role a beat of its own to lead.
-  if (room.meta.leads === true) {
-    for (const role of ROLES) {
-      if (!room.beats.some((b) => b.lead === role)) issue(`no beat has ${role} as its lead`);
-    }
-  }
 }
 
 // The hints the bots follow (metadata key `hints`): every job names something in
@@ -258,4 +291,745 @@ function lintHints(room: Room, issue: (message: string) => void): void {
   room.beats.forEach((b, i) => {
     if (!beats.has(i + 1)) issue(`beat ${i + 1} ("${b.name}") has no job in the hints`);
   });
+}
+
+// --- Presence (spec FR1, FR2): every station needs more than one place, sense or person ------
+
+// What one loadout (a role, standing on one tile, holding one piece of gear or none) perceives of
+// a station over a short cycle, from the game's own `viewFor`: whether it has the clue, the
+// control and the feedback. The control is standing on one of the station's parts: that is where
+// it is worked, so the linter probes only those tiles (and stays fast on large rooms).
+interface Senses {
+  clue: boolean;
+  feedback: boolean;
+}
+
+const LOADOUTS: (GearItem | undefined)[] = [undefined, ...GEAR_ITEMS];
+const STATION_SOUNDS: Record<string, string[]> = {
+  dial: ["tick"],
+  radio: ["static", "tone", "pip"],
+  wires: ["snap"],
+  keypad: ["key"],
+  bells: ["bellnote"],
+  switches: ["clunk"],
+  vault: ["clunk"],
+  sync: ["clunk", "solved"],
+};
+const CYCLE_TICKS = Math.max(TUNE_MAX_TICKS, PIP_TICKS) + 20; // long enough for any tune (the first group may start late) or a pip
+
+const at = (o: RoomObject): Vec => o.tiles[0] as Vec;
+
+// Each station's control tiles: its pads, wires, keys, bells, buttons or sockets, and its anchor
+// when Act on the anchor does something (a dial's confirm, a vault's handle).
+function controls(o: RoomObject): Vec[] {
+  const p = o.params ?? {};
+  const parts = ["pads", "wires", "keys", "bells", "buttons", "sockets"].flatMap((k) =>
+    tilesOf(p[k]),
+  );
+  return p.type === "dial" || p.type === "vault" ? [at(o), ...parts] : parts;
+}
+
+// The station's state in sight: the entity, and not just its furniture (Task 8 of the escape-room
+// client phase sends a station's parts from anywhere they are in sight, with nothing of its state).
+const readout = (view: RoleView, id: string) =>
+  view.entities.some((e) => e.id === id && !e.station?.furniture);
+
+// What the station's clue is, and whether the view (and the sounds heard over the cycle) has it.
+function hasClue(room: Room, o: RoomObject, view: RoleView, heard: Set<string>): boolean {
+  const p = o.params ?? {};
+  switch (p.type) {
+    case "dial":
+      return heard.has("tumbler");
+    case "wires":
+      return (
+        view.entities.some((e) => e.id === p.plaque && e.text) ||
+        view.entities.some((e) => e.kind === "ink" && e.id === p.plaque)
+      );
+    case "keypad": {
+      const clue = room.objects.find((c) => c.id === p.clue);
+      return clue?.kind === "gear" ? heard.has("earpiece") : heard.has("clue");
+    }
+    case "switches":
+      return readout(view, o.id); // the lamps: the pattern to match
+    case "bells":
+      return heard.has("bellnote") && readout(view, o.id);
+    case "vault": {
+      const from = Array.isArray(p.from) ? p.from : [];
+      return from.length > 0 && from.every((id) => readout(view, id));
+    }
+    default:
+      return false; // radio and sync carry no clue: their rule is below
+  }
+}
+
+// What tells the team a station took the input: its readout in sight, or its sound.
+function hasFeedback(o: RoomObject, view: RoleView, heard: Set<string>): boolean {
+  const kinds = STATION_SOUNDS[String(o.params?.type)] ?? [];
+  return readout(view, o.id) || kinds.some((k) => heard.has(k));
+}
+
+// One loadout on one tile, over a cycle: steps the world and turns the station once (a sighted
+// readout is seen at once; a click, a tumbler or a tune needs a turn or a tick to sound).
+function probe(room: Room, o: RoomObject, tile: Vec, role: Role, gear?: GearItem): Senses {
+  const world = worldAt(room, tile.x, tile.y, gear);
+  const s = world.stations[o.id];
+  if (s && s.type === "dial") s.input[0] = ((s.answer[0] as number) + 9) % 10; // one notch short
+  const first = viewFor(world, 1, role, false);
+  const heard = new Set<string>();
+  let clue = hasClue(room, o, first, heard);
+  let feedback = hasFeedback(o, first, heard);
+  // a body on a dial's or radio's ▶ pad turns it a notch (never a wrong answer), so the tumbler
+  // and the tick sound; every other station's feedback is its readout, seen from the start
+  const pad = tilesOf(o.params?.pads)[1];
+  for (let t = 0; t < CYCLE_TICKS && !(clue && feedback); t++) {
+    const turn = t === 1 && pad !== undefined;
+    if (turn) world.players[2].pos = { x: pad.x + 0.5, y: pad.y + 0.5 };
+    step(world, turn ? { 2: { seq: t, move: { x: 0, y: 0 }, act: true } } : {}, TICK_MS);
+    world.players[1].pos = { x: tile.x + 0.5, y: tile.y + 0.5 };
+    if (turn) world.players[2].pos = { x: 1.5, y: 1.5 };
+    const view = viewFor(world, 1, role, false);
+    for (const sound of view.sounds) heard.add(sound.kind);
+    clue ||= hasClue(room, o, view, heard);
+    feedback ||= hasFeedback(o, view, heard);
+  }
+  return { clue, feedback };
+}
+
+const gearName = (g?: GearItem) =>
+  g ? `holding the ${g === "uv" ? "UV torch" : g}` : "with no gear";
+
+export function lintPresence(room: Room, issue: (message: string) => void): void {
+  const stations = room.objects.filter((o) => o.kind === "station");
+  if (stations.length === 0) return;
+  for (const o of stations) {
+    const type = String(o.params?.type);
+    if (type === "radio" || type === "sync") {
+      lintSearch(room, o, issue);
+      continue;
+    }
+    hit: for (const tile of controls(o)) {
+      if (room.grid[tile.y]?.[tile.x] !== ".") continue;
+      for (const role of ROLES) {
+        for (const gear of LOADOUTS) {
+          const sense = probe(room, o, tile, role, gear);
+          if (sense.clue && sense.feedback) {
+            issue(
+              `station ${o.id} (${type}): ${role} ${gearName(gear)} at (${tile.x},${tile.y}) perceives its clue, control and feedback alone`,
+            );
+            break hit;
+          }
+        }
+      }
+    }
+  }
+  lintOpenAtOnce(
+    room,
+    stations.filter((o) => cacheOf(o) === null),
+    issue,
+  );
+}
+
+// Radio and sync carry no secret clue. A radio's digit must not be heard where the station it
+// yields to is worked; a sync lock's keys must be at least SYNC_APART tiles apart, so one body
+// cannot turn two.
+const SYNC_APART = 3;
+function lintSearch(room: Room, o: RoomObject, issue: (message: string) => void): void {
+  const p = o.params ?? {};
+  if (p.type === "sync") {
+    const keys = tilesOf(p.keys);
+    for (let i = 0; i < keys.length; i++) {
+      for (let j = i + 1; j < keys.length; j++) {
+        const a = keys[i] as Vec;
+        const b = keys[j] as Vec;
+        if (Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y)) < SYNC_APART) {
+          issue(
+            `station ${o.id} (sync): keys ${i + 1} and ${j + 1} are under ${SYNC_APART} tiles apart, so one body could turn both`,
+          );
+        }
+      }
+    }
+    return;
+  }
+  const target = room.objects.find((t) => t.id === p.yields && t.kind === "station");
+  if (!target) return;
+  for (const tile of controls(target)) {
+    for (const role of ROLES) {
+      if (role === "deaf") continue;
+      const world = worldAt(room, tile.x, tile.y);
+      const s = world.stations[o.id];
+      if (s) s.solved = true;
+      world.tick = PIP_TICKS - 1;
+      step(world, {}, TICK_MS);
+      world.players[1].pos = { x: tile.x + 0.5, y: tile.y + 0.5 };
+      if (viewFor(world, 1, role, false).sounds.some((x) => x.kind === "pip")) {
+        issue(
+          `station ${o.id} (radio): ${role} at ${target.id}'s control (${tile.x},${tile.y}) hears the digit it yields alone`,
+        );
+        return;
+      }
+    }
+  }
+}
+
+// FR2: from the start, and from each checkpoint, at least two stations can be worked without
+// solving anything first: their controls are reachable with every plate-held door open and every
+// station-locked door shut.
+function lintOpenAtOnce(
+  room: Room,
+  stations: RoomObject[],
+  issue: (message: string) => void,
+): void {
+  const ids = new Set(stations.map((s) => s.id));
+  const locked = new Set(
+    room.objects
+      .filter((d) => d.kind === "door" && (d.opensWhen ?? []).some((id) => ids.has(id)))
+      .flatMap((d) => d.tiles.map((t) => `${t.x},${t.y}`)),
+  );
+  // the team starts together, so spawn 1 stands for the start; then each checkpoint
+  const spawn = room.objects.find((o) => o.id === "s1");
+  const starts = [
+    ...(spawn ? [at(spawn)] : []),
+    ...room.objects.filter((o) => o.kind === "checkpoint").map(at),
+  ];
+  for (const start of starts) {
+    const seen = new Set([`${start.x},${start.y}`]);
+    const queue = [start];
+    while (queue.length > 0) {
+      const t = queue.shift() as Vec;
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ] as const) {
+        const n = { x: t.x + dx, y: t.y + dy };
+        const key = `${n.x},${n.y}`;
+        const ch = room.grid[n.y]?.[n.x];
+        if (ch === undefined || ch === "#" || ch === "=" || ch === "%" || ch === "H") continue;
+        if (seen.has(key) || locked.has(key)) continue;
+        seen.add(key);
+        queue.push(n);
+      }
+    }
+    const open = stations.filter((s) => controls(s).some((t) => seen.has(`${t.x},${t.y}`)));
+    if (stations.length >= 2 && open.length < 2) {
+      issue(
+        `from (${start.x},${start.y}) only ${open.length} station${open.length === 1 ? "" : "s"} can be worked: two stations should be open at once (FR2)`,
+      );
+    }
+  }
+}
+
+// Caches FR6 (spec §2.1): the uncover tile and the cache's clue must not be perceivable by one role
+// alone, so someone other than the clue's perceiver can find the tile. `clue` and `tile` are the
+// roles that perceive each. Returns the message, or null.
+export function uncoverSplitFault(id: string, clue: Set<Role>, tile: Set<Role>): string | null {
+  const all = new Set([...clue, ...tile]);
+  if (all.size !== 1) return null;
+  return `cache ${id}: only ${[...all][0]} perceives its clue and its uncover tile, so one role could do both`;
+}
+
+// A cache is a type the heist has already taught (spec §2.2): across the rooms in play order, a
+// cache's station type must have been met as an ordinary station in an earlier room, or earlier in
+// its own room. A cache never counts as having taught its type. The messages.
+export function cacheTypeFaults(rooms: Room[]): string[] {
+  const met = new Set<string>();
+  const out: string[] = [];
+  for (const room of rooms) {
+    for (const o of room.objects.filter((x) => x.kind === "station")) {
+      const type = String(o.params?.type);
+      if (cacheOf(o) === null) met.add(type);
+      else if (!met.has(type)) {
+        out.push(
+          `${room.id}: cache ${o.id} (${type}) is a type not met in an earlier room or taught first in this one`,
+        );
+      }
+    }
+  }
+  return out;
+}
+
+// Which sighted roles see the cache's motif tile `i` from some floor tile (the motif tiles are drawn
+// for both, so they are told apart only by the riddle).
+function seeTile(room: Room, id: string, i: number): Set<Role> {
+  const world = worldAt(room, 1, 1);
+  const out = new Set<Role>();
+  for (let y = 0; y < room.height; y++) {
+    for (let x = 0; x < room.width; x++) {
+      if (room.grid[y]?.[x] !== ".") continue;
+      world.players[1].pos = { x: x + 0.5, y: y + 0.5 };
+      for (const role of ["deaf", "mute"] as const) {
+        if (viewFor(world, 1, role, false).entities.some((e) => e.id === `${id}.m${i}`)) {
+          out.add(role);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+// Which roles perceive a cache's clue from somewhere: a sighted role from any floor tile (a plaque, a
+// readout; the torch only if the room has one), and any role from the cache's controls and the places
+// its clue sounds from, with each gear the room holds. One pass per cache.
+function perceiveClue(room: Room, o: RoomObject): Set<Role> {
+  const p = o.params ?? {};
+  const out = new Set<Role>();
+  const gears: (GearItem | undefined)[] = [
+    undefined,
+    ...GEAR_ITEMS.filter((g) =>
+      room.objects.some((x) => x.kind === "gear" && x.params?.item === g),
+    ),
+  ];
+  for (const gear of gears) {
+    const world = worldAt(room, 1, 1, gear);
+    for (let y = 0; y < room.height; y++) {
+      for (let x = 0; x < room.width; x++) {
+        if (room.grid[y]?.[x] !== ".") continue;
+        world.players[1].pos = { x: x + 0.5, y: y + 0.5 };
+        for (const role of ["deaf", "mute"] as const) {
+          if (!out.has(role) && hasClue(room, o, viewFor(world, 1, role, false), new Set())) {
+            out.add(role);
+          }
+        }
+      }
+    }
+  }
+  const sources = [p.back, p.tune].flatMap((t) =>
+    tilesOf(Array.isArray(t) && typeof t[0] === "number" ? [t] : t),
+  );
+  const named = room.objects.find((x) => x.id === p.clue);
+  const spots = [...controls(o), ...sources, ...(named ? [at(named)] : [])].filter(
+    (t) => room.grid[t.y]?.[t.x] === ".",
+  );
+  for (const tile of spots) {
+    for (const role of ROLES) {
+      for (const gear of gears) {
+        if (!out.has(role) && probe(room, o, tile, role, gear).clue) out.add(role);
+      }
+    }
+  }
+  return out;
+}
+
+// Caches (phase 14): the path from the riddle to the stash. The uncover tile (the one whose motif
+// matches) is floor, can be walked to and is drawn for a sighted role; the station's clue reaches some
+// role; and the clue and the tile are not one role's alone. Bots and doors never depend on it (jobs.ts,
+// the door check above, FR2 in lintPresence).
+function lintCaches(room: Room, issue: (message: string) => void): void {
+  for (const o of room.objects.filter((x) => x.kind === "station")) {
+    const cache = cacheOf(o);
+    if (!cache) continue;
+    const type = String(o.params?.type);
+    const reach = walkable(room, at(room.objects.find((s) => s.id === "s1") as RoomObject));
+    let tileRoles = new Set<Role>();
+    cache.tiles.forEach((t, i) => {
+      const matching = t.motif === cache.motif;
+      const where = `(${t.at.x},${t.at.y})`;
+      const name = `cache ${o.id}: its ${t.motif} tile ${where}${matching ? "" : " (a decoy)"}`;
+      if (room.grid[t.at.y]?.[t.at.x] !== ".") {
+        issue(`${name} is not floor`);
+      } else if (matching && !reach.has(`${t.at.x},${t.at.y}`)) {
+        issue(`${name} cannot be walked to, even with every door open`);
+      } else if (matching) {
+        tileRoles = seeTile(room, o.id, i);
+        if (tileRoles.size === 0) issue(`${name} is drawn for no sighted role from anywhere`);
+      }
+    });
+    lintChamber(room, o, cache, issue);
+    if (type === "radio" || type === "sync") continue; // no secret clue: lintPresence's rules
+    const clue = perceiveClue(room, o);
+    if (clue.size === 0) issue(`cache ${o.id} (${type}): no role can perceive its clue`);
+    else if (tileRoles.size > 0) {
+      const split = uncoverSplitFault(o.id, clue, tileRoles);
+      if (split) issue(split);
+    }
+  }
+}
+
+// A cache's chamber is a dead end behind its secret door, and holds only its own station: the door
+// borders chamber floor on one side and the main room on the other, the vault door borders the vault
+// and the rest of the chamber, nothing reaches the chamber or the vault while its door is shut, the
+// item can be reached, and no other object lies inside the rect.
+function lintChamber(
+  room: Room,
+  o: RoomObject,
+  cache: NonNullable<ReturnType<typeof cacheOf>>,
+  issue: (message: string) => void,
+): void {
+  const { chamber } = cache;
+  const name = `cache ${o.id}`;
+  const floor = (t: Vec) => room.grid[t.y]?.[t.x] === ".";
+  const DIRS = [
+    [1, 0],
+    [0, 1],
+  ] as const;
+  // some axis has a tile `a`-side and a tile `b`-side of `door`, in either order
+  const borders = (door: Vec, a: (t: Vec) => boolean, b: (t: Vec) => boolean) =>
+    DIRS.some(([dx, dy]) => {
+      const p = { x: door.x + dx, y: door.y + dy };
+      const q = { x: door.x - dx, y: door.y - dy };
+      return (a(p) && b(q)) || (a(q) && b(p));
+    });
+  const inChamber = (t: Vec) => floor(t) && inRect(chamber.rect, t);
+  const inVault = (t: Vec) => floor(t) && inRect(chamber.vault.rect, t);
+  if (!borders(chamber.door, inChamber, (t) => floor(t) && !inRect(chamber.rect, t))) {
+    issue(
+      `${name}: its chamber door does not border chamber floor on one side and the room on the other`,
+    );
+  }
+  if (
+    !borders(chamber.vault.door, inVault, (t) => inChamber(t) && !inRect(chamber.vault.rect, t))
+  ) {
+    issue(
+      `${name}: its vault door does not border the vault on one side and chamber floor outside the vault on the other`,
+    );
+  }
+  const spawn = room.objects.find((s) => s.id === "s1");
+  if (spawn) {
+    const start = at(spawn);
+    const firstIn = (reach: Set<string>, rect: [number, number, number, number]) => {
+      for (const key of reach) {
+        const [x, y] = key.split(",").map(Number) as [number, number];
+        if (inRect(rect, { x, y })) return true;
+      }
+      return false;
+    };
+    if (firstIn(walkable(room, start, [chamber.door, chamber.vault.door]), chamber.rect)) {
+      issue(`${name}: its chamber floor can be reached from a spawn with both secret doors closed`);
+    }
+    if (firstIn(walkable(room, start, [chamber.vault.door]), chamber.vault.rect)) {
+      issue(`${name}: its vault can be reached without opening the vault door (it is not sealed)`);
+    }
+    if (!walkable(room, start).has(`${chamber.vault.item.x},${chamber.vault.item.y}`)) {
+      issue(`${name}: its vault item cannot be walked to, even with every door open`);
+    }
+  }
+  const isDial = o.params?.type === "dial";
+  const vaultDoorId = secretDoors(room).find((d) => d.id === o.id)?.vault.id;
+  for (const x of room.objects) {
+    if (x.id === o.id || x.id === vaultDoorId) continue;
+    if (x.tiles.some((t) => inRect(chamber.rect, t))) {
+      issue(`${name}: ${x.kind} ${x.id} lies inside its chamber, which holds only its own station`);
+    }
+  }
+  if (isDial) lintInspectionPlate(room, o, chamber.rect, issue);
+  for (const t of controls(o)) {
+    if (!inRect(chamber.rect, t)) {
+      issue(`${name}: its control tile (${t.x},${t.y}) lies outside its chamber`);
+    }
+  }
+}
+
+// A dial cache's clue is listened for with a stethoscope at the dial's `back` tile, so that tile is
+// an inspection plate in the chamber's floor, close to the dial, and a stethoscope lies in the
+// room: the clue is reachable (Task 66). Other station types ask neither.
+const PLATE_REACH = 2.5; // tiles, centre to centre, from the dial's own tile to its plate
+function lintInspectionPlate(
+  room: Room,
+  o: RoomObject,
+  rect: [number, number, number, number],
+  issue: (message: string) => void,
+): void {
+  const name = `cache ${o.id}`;
+  const raw = o.params?.back;
+  const back =
+    Array.isArray(raw) && raw.length === 2 ? { x: Number(raw[0]), y: Number(raw[1]) } : null;
+  if (!back) {
+    issue(`${name}: its dial has no back tile, so there is no inspection plate to listen at`);
+  } else if (!inRect(rect, back)) {
+    issue(`${name}: its back tile (${back.x},${back.y}) lies outside its chamber`);
+  } else if (room.grid[back.y]?.[back.x] !== ".") {
+    issue(`${name}: its back tile (${back.x},${back.y}) is not a floor tile`);
+  } else {
+    const dial = at(o);
+    if (Math.hypot(back.x - dial.x, back.y - dial.y) > PLATE_REACH) {
+      issue(
+        `${name}: its back tile (${back.x},${back.y}) is more than ${PLATE_REACH} tiles from its dial`,
+      );
+    }
+  }
+  // the clue is listened for with a stethoscope, carried from wherever the room keeps one
+  const stethoscope = room.objects.some(
+    (g) => g.kind === "gear" && g.params?.item === "stethoscope",
+  );
+  if (!stethoscope) issue(`${name}: a dial cache needs a stethoscope somewhere in its room`);
+}
+
+// The floor tiles a body can walk to from `start` with every door open (glass, vents, hatches and
+// walls stop a body).
+function walkable(room: Room, start: Vec, shut: Vec[] = []): Set<string> {
+  const closed = new Set(shut.map((t) => `${t.x},${t.y}`));
+  const seen = new Set([`${start.x},${start.y}`]);
+  const queue = [start];
+  while (queue.length > 0) {
+    const t = queue.shift() as Vec;
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const) {
+      const n = { x: t.x + dx, y: t.y + dy };
+      const ch = room.grid[n.y]?.[n.x];
+      if (ch === undefined || "#=%H".includes(ch) || seen.has(`${n.x},${n.y}`)) continue;
+      if (closed.has(`${n.x},${n.y}`)) continue;
+      seen.add(`${n.x},${n.y}`);
+      queue.push(n);
+    }
+  }
+  return seen;
+}
+
+// Clues FR4: each station's clue reaches a person, and each link carries its motif at both ends.
+// A plaque's text and a target card must be in some sighted view from some floor tile (a plaque in
+// UV ink, with the torch); a radio's pips are heard from its pads; a vault's wings each reveal a
+// symbol and carry the motif its order clue shows; a station that yields feeds one that takes a
+// slot from it, with a motif they share.
+export function lintClues(room: Room, issue: (message: string) => void): void {
+  const byId = new Map(room.objects.map((o) => [o.id, o]));
+  const stations = room.objects.filter((o) => o.kind === "station");
+  const seenBy = (check: (view: RoleView) => boolean, gear?: GearItem) =>
+    reachesSighted(room, check, gear);
+  for (const o of stations) {
+    const p = o.params ?? {};
+    const name = `${o.id} (${String(p.type)})`;
+    if (p.type === "wires") {
+      const plaque = typeof p.plaque === "string" ? p.plaque : undefined;
+      const read = (v: RoleView) =>
+        v.entities.some((e) => e.id === plaque && (e.kind === "ink" || !!e.text));
+      if (!plaque || !byId.has(plaque)) issue(`${name} has no plaque`);
+      else if (!seenBy(read) && !seenBy(read, "uv"))
+        issue(`${name}: its plaque ${plaque} has no text any role can read`);
+    } else if (p.type === "switches") {
+      const cards = room.objects.filter((c) => c.kind === "card" && c.params?.of === o.id);
+      if (cards.length === 0) issue(`${name} has no target card`);
+      else if (
+        !seenBy((v) =>
+          v.entities.some((e) => e.kind === "card" && cards.some((c) => c.id === e.id)),
+        )
+      )
+        issue(`${name}: its target card is in no sighted role's view`);
+    } else if (p.type === "radio") {
+      if (!pipReaches(room, o)) issue(`${name}: its pips reach no role as light or sound`);
+    } else if (p.type === "vault") {
+      const from = Array.isArray(p.from) ? p.from : [];
+      if (from.length === 0) issue(`${name} is fed by no wing ("from")`);
+      for (const id of from) {
+        const wing = byId.get(String(id));
+        if (wing?.kind !== "station") issue(`${name}: ${String(id)} is not a station`);
+        else if (wing.params?.reveal !== true) issue(`${name}: ${String(id)} reveals no symbol`);
+        else if (!isMotif(wing.params?.motif))
+          issue(`${name}: ${String(id)} has no motif for the order clue`);
+      }
+      if (byId.get(String(p.symbols))?.kind !== "order") issue(`${name} has no order clue`);
+    }
+    if (typeof p.yields === "string") {
+      const fed = byId.get(p.yields);
+      const slot = fed?.params?.slot as { from?: unknown } | undefined;
+      if (fed?.kind !== "station") issue(`${o.id} yields to ${p.yields}, which is not a station`);
+      else if (slot?.from !== o.id)
+        issue(`${o.id} yields to ${p.yields}, which takes no slot from it`);
+      else if (!isMotif(p.motif) || p.motif !== fed.params?.motif)
+        issue(`${o.id} yields to ${p.yields} but they share no motif`);
+    }
+    const slot = p.slot as { from?: unknown } | undefined;
+    if (slot && byId.get(String(slot.from))?.params?.yields !== o.id)
+      issue(`${o.id} takes a slot from ${String(slot.from)}, which does not yield to it`);
+  }
+  for (const c of room.objects.filter((x) => x.kind === "card")) {
+    if (byId.get(String(c.params?.of))?.params?.type !== "switches")
+      issue(`card ${c.id} is for ${String(c.params?.of)}, which is not a switches station`);
+  }
+}
+
+// Whether a tuned radio's pip reaches some role on some floor tile: seen on its face (the sighted)
+// or heard (Can't see, Can't speak), on the tick it pips.
+function pipReaches(room: Room, o: RoomObject): boolean {
+  const world = worldAt(room, 1, 1);
+  const s = world.stations[o.id];
+  if (!s) return false;
+  s.solved = true;
+  s.input[0] = s.answer[0] as number;
+  world.tick = PIP_TICKS * 10;
+  for (let y = 0; y < room.height; y++) {
+    for (let x = 0; x < room.width; x++) {
+      if (room.grid[y]?.[x] !== ".") continue;
+      world.players[1].pos = { x: x + 0.5, y: y + 0.5 };
+      for (const role of ROLES) {
+        const v = viewFor(world, 1, role, false);
+        const seen = v.entities.some((e) => e.id === o.id && (e.station?.shows.length ?? 0) > 1);
+        if (seen || v.sounds.some((c) => c.kind === "pip")) return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Whether a sighted role (Can't hear or Can't speak), standing on some floor tile, has a view
+// that passes `check`. One world (mockup.ts: worldAt), the probe moved tile by tile.
+function reachesSighted(room: Room, check: (view: RoleView) => boolean, gear?: GearItem): boolean {
+  const world = worldAt(room, 1, 1, gear);
+  for (let y = 0; y < room.height; y++) {
+    for (let x = 0; x < room.width; x++) {
+      if (room.grid[y]?.[x] !== ".") continue;
+      world.players[1].pos = { x: x + 0.5, y: y + 0.5 };
+      for (const role of ["deaf", "mute"] as const)
+        if (check(viewFor(world, 1, role, false))) return true;
+    }
+  }
+  return false;
+}
+
+// --- Braille plates (Task 73, FR5, FR9) -------------------------------------------------------
+
+// The rooms that must carry exactly one plate. Grown room by room as each gets its plate (Tasks 74,
+// 77, 78), so `pnpm lint:rooms` stays green between them; phase 04 ends with all six.
+export const PLATE_ROOMS: readonly string[] = [
+  "04-the-safe",
+  "05-the-gallery",
+  "06-lights-out",
+  "07-night-shift",
+  "08-music-room",
+  "09-the-vault",
+];
+
+// How many pieces of its answer a station of each type offers a plate (overview §4.1).
+function plateParts(p: Record<string, unknown>): number | undefined {
+  const n = (v: unknown, d: number) => (typeof v === "number" ? v : d);
+  if (p.type === "dial") return Math.max(1, Math.min(3, n(p.digits, 1)));
+  if (p.type === "keypad") return Math.max(3, Math.min(4, n(p.length, 3)));
+  if (p.type === "radio" || p.type === "wires") return 1;
+  return undefined;
+}
+
+// Rooms 4 to 9 (those in `gated`) carry exactly one plate, rooms 1 to 3 none; a plate names a
+// station in the room that is neither teaching nor a cache, and a piece of its answer that it has;
+// and that piece reaches nobody any other way (a tumbler, a tune, a plaque).
+export function lintPlates(
+  room: Room,
+  gated: readonly string[] = PLATE_ROOMS,
+  tune: Tune = SIM_TUNE,
+): string[] {
+  const out: string[] = [];
+  const plates = room.objects.filter((o) => o.kind === "braille");
+  const number = Number(/^(\d+)-/.exec(room.id)?.[1] ?? Number.NaN);
+  if (number >= 1 && number <= 3) {
+    return plates.map((o) => `plate ${o.id}: rooms 1 to 3 have no braille plates`);
+  }
+  if (gated.includes(room.id) && plates.length !== 1) {
+    out.push(`room needs exactly one braille plate (o), has ${plates.length}`);
+  }
+  for (const plate of plates) {
+    const id = plate.id;
+    const forId = String(plate.params?.for);
+    const station = room.objects.find((o) => o.id === forId && o.kind === "station");
+    const p = station?.params ?? {};
+    const part = plate.params?.part ?? 0;
+    const parts = plateParts(p);
+    if (!station) {
+      out.push(`plate ${id} is for ${forId}, which is not a station in this room`);
+    } else if (p.teach === true) {
+      out.push(`plate ${id} is for ${forId}, a teaching station: its lamp gives the number away`);
+    } else if (cacheOf(station)) {
+      out.push(
+        `plate ${id} is for ${forId}, a cache: optional, so it cannot carry what the room needs`,
+      );
+    } else if (parts === undefined) {
+      out.push(`plate ${id} is for ${forId} (${String(p.type)}), which a plate cannot carry`);
+    } else if (typeof part !== "number" || !Number.isInteger(part) || part < 0 || part >= parts) {
+      out.push(
+        `plate ${id} carries part ${String(part)} of ${forId} (${String(p.type)}), which has ${parts}`,
+      );
+    } else {
+      const leak = plateLeak(room, station, part, tune);
+      if (leak) out.push(`plate ${id}: ${forId}'s ${leak}`);
+    }
+  }
+  return out;
+}
+
+// Whether the piece a plate carries is told some other way, from the game's own sim and views.
+// What a keypad's tune does on a tick: the note a group starting then plays, or a rest's marker.
+// The sim's own (stations.ts); the lint's tests pass a broken one to show the check can fail.
+export interface Tune {
+  note: (world: World, s: StationState) => number | undefined;
+  rest: (world: World, s: StationState) => boolean;
+}
+const SIM_TUNE: Tune = { note: noteOf, rest: restOf };
+
+function plateLeak(room: Room, station: RoomObject, part: number, tune: Tune): string | null {
+  const p = station.params ?? {};
+  if (p.type === "dial") {
+    // a stethoscope at the safe's back while the dial is turned onto the carried digit
+    const back = Array.isArray(p.back) ? { x: Number(p.back[0]), y: Number(p.back[1]) } : null;
+    const pad = tilesOf(p.pads)[1];
+    if (!back || !pad) return null;
+    const world = worldAt(room, back.x, back.y, "stethoscope");
+    const s = world.stations[station.id];
+    if (!s) return null;
+    s.input = [...s.answer.slice(0, part), ((s.answer[part] as number) + 9) % 10];
+    world.players[2].pos = { x: pad.x + 0.5, y: pad.y + 0.5 };
+    step(world, { 2: { seq: 1, move: { x: 0, y: 0 }, act: true } }, TICK_MS);
+    const heard = viewFor(world, 1, "blind", false).sounds.some((c) => c.kind === "tumbler");
+    return heard ? "tumbler sounds the digit it carries" : null;
+  }
+  if (p.type === "keypad") {
+    // its tune (a clue chime or an earpiece) must rest at the plate's key: play one whole tune as the
+    // sim plays it and see, in order, which keys sound as notes and where the rests fall
+    if (typeof p.clue !== "string") return null;
+    const world = worldAt(room, 1, 1);
+    const s = world.stations[station.id];
+    if (!s) return null;
+    // (from the tune's start, tick 0, one entry a key in the code's order: a note or a rest's marker)
+    const heard: ("note" | "rest")[] = [];
+    for (let t = 0; t < TUNE_MAX_TICKS && heard.length < s.answer.length; t++) {
+      world.tick = t;
+      if (tune.note(world, s) !== undefined) heard.push("note");
+      else if (tune.rest(world, s)) heard.push("rest");
+    }
+    return heard[part] === "rest" ? null : "tune plays the key it carries";
+  }
+  if (p.type === "wires") {
+    const world = worldAt(room, 1, 1);
+    if (p.numbered !== true) {
+      // a rule sign: its rule and the wires' colours give the cut away
+      return typeof p.plaque === "string" ? "rule sign and colours name the wire to cut" : null;
+    }
+    // a numbered panel: what a sighted reader holding the torch at the plaque is shown of it
+    const s = world.stations[station.id];
+    const ink = room.objects.find((o) => o.id === p.plaque)?.tiles[0];
+    if (!s || !ink) return null;
+    const cut = (s.answer[0] as number) + 1;
+    for (const role of ["deaf", "mute"] as const) {
+      const near = worldAt(room, ink.x, ink.y, "uv"); // seat 1 stands on it with the torch
+      const view = viewFor(near, 1, role, false);
+      const told = view.entities.some(
+        (e) => e.id === p.plaque && e.text !== undefined && numberOfText(e.text) === cut,
+      );
+      if (told) return "plaque names the wire to cut";
+    }
+    return null;
+  }
+  if (p.type === "radio") {
+    // the real band must sound and look like a decoy (FR10): turn the knob onto it and nothing may say
+    // it is the real one: no `solved` cue to any hearer, no `solved` flag on its face for the sighted
+    const pad = tilesOf(p.pads)[1];
+    if (!pad) return null;
+    const world = worldAt(room, pad.x, pad.y);
+    const s = world.stations[station.id];
+    if (!s) return null;
+    const range = typeof p.range === "number" ? p.range : 10;
+    s.input = [((s.answer[0] as number) + range - 1) % range]; // one notch below the real band
+    world.players[1].pos = { x: pad.x + 0.5, y: pad.y + 0.5 };
+    step(world, { 1: { seq: 1, move: { x: 0, y: 0 }, act: true } }, TICK_MS);
+    const told = ROLES.some((role) => {
+      const v = viewFor(world, 1, role, false);
+      return (
+        v.sounds.some((c) => c.kind === "solved") ||
+        v.entities.some((e) => e.id === station.id && e.station?.solved)
+      );
+    });
+    return told || s.solved ? "real band solves, so its chime and tick tell it from a decoy" : null;
+  }
+  return null;
 }

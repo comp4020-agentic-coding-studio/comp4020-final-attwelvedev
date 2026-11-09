@@ -90,6 +90,27 @@ describe("planSafe", () => {
     expect(plan[0]).toBe("wait");
   });
 
+  it("keeps `slack` ticks clear of a hazard window on both sides, so a late walker is still safe", () => {
+    // tile 1 is deadly from tick 20 to 39: a plan with no slack steps through at tick 10 to 15
+    const danger = (x: number, _y: number, t: number) => x === 1 && t >= 20 && t < 40;
+    const request = { ...g, from: { x: 0, y: 0 }, to: { x: 3, y: 0 }, tick: 5, danger };
+    const tight = planSafe(request) as Step[];
+    expect(tight[0]).toBe("right"); // squeezes through just before it starts
+    const roomy = planSafe({ ...request, slack: 10 }) as Step[];
+    // with 10 ticks to spare it waits out the window instead of sneaking in ahead of it
+    expect(roomy[0]).toBe("wait");
+    let x = 0;
+    roomy.forEach((s, i) => {
+      const t0 = 5 + i * STEP_TICKS;
+      const nx = s === "right" ? x + 1 : x;
+      if (x === 1 || nx === 1) {
+        expect(t0 - 10).toBeGreaterThanOrEqual(39); // after the window, by the slack
+      }
+      x = nx;
+    });
+    expect(x).toBe(3);
+  });
+
   it("is null when no safe way exists inside the horizon", () => {
     const danger = (x: number) => x === 2;
     expect(

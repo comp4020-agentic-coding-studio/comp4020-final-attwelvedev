@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getsOf, sendsOf } from "./reveal.ts";
+import { getsOf, revealOf, sendsOf } from "./reveal.ts";
 
 describe("what a role sends and gets, by wheel page", () => {
   it("Can't see sends talk and faces, and gets talk and clips", () => {
@@ -136,5 +136,33 @@ describe("readyStatus", () => {
       text: "Everyone is ready",
       waiting: false,
     });
+  });
+});
+
+describe("revealOf: the page's Reveal from the server's reveal message", () => {
+  const msg = {
+    t: "reveal",
+    room: "04-the-safe",
+    name: "The Safe",
+    index: 3,
+    role: "deaf",
+    crew: [],
+    rooms: 9,
+    sittingOut: [],
+    played: {},
+    real: { lines: [] },
+    cues: [],
+  } as unknown as Parameters<typeof revealOf>[0];
+
+  it("carries the owner's side job to the page, and nothing when the message has none", () => {
+    const cache = { motif: "moon", riddle: "Where the moon watches.", item: "watch" } as const;
+    expect(revealOf({ ...msg, cache }, null).cache).toEqual(cache);
+    expect("cache" in revealOf(msg, null)).toBe(false);
+  });
+
+  it("names the role to morph from only when the room changed", () => {
+    const old = revealOf(msg, null);
+    expect(revealOf(msg, old).from).toBeUndefined();
+    expect(revealOf({ ...msg, index: 4, role: "mute" }, old).from).toBe("deaf");
   });
 });

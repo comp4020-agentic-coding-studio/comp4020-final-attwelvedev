@@ -1,0 +1,282 @@
+import { describe, expect, it } from "vitest";
+import type { EntityView } from "../game/perception.ts";
+import { ESCAPE_KINDS, LABEL_CAP, LABEL_COPY, LABEL_RANGE, labelsFor } from "./labels.ts";
+
+const plate: EntityView = { id: "p1", kind: "plate", pos: { x: 3.5, y: 4.5 } };
+const cratePlate: EntityView = {
+  id: "p1",
+  kind: "plate",
+  pos: { x: 3.5, y: 4.5 },
+  crateOnly: true,
+};
+const plate2: EntityView = { id: "p2", kind: "plate", pos: { x: 9.5, y: 4.5 } };
+const crate: EntityView = { id: "B1", kind: "crate", pos: { x: 5.5, y: 4.5 } };
+const door: EntityView = { id: "D1", kind: "door", pos: { x: 8.5, y: 4.5 }, state: "closed" };
+const me = { x: 2.5, y: 4.5 };
+const secretDoor: EntityView = {
+  id: "D9",
+  kind: "door",
+  pos: { x: 8.5, y: 4.5 },
+  state: "open",
+  secret: true,
+};
+
+// Labels are a reference (FR15): a kind's chip is there whenever one of it is in sight.
+describe("labelsFor", () => {
+  it("labels every kind in sight, and is the same on every frame (nothing times out)", () => {
+    const first = labelsFor([plate, crate, door], undefined, me, true);
+    expect(first.map((l) => l.kind).sort()).toEqual(["crate", "door", "plate"]);
+    expect(first.find((l) => l.kind === "plate")?.text).toBe(LABEL_COPY.plate);
+    expect(labelsFor([plate, crate, door], undefined, me, true)).toEqual(first);
+  });
+
+  // The user: "opens while its plates are held" is wrong for a door that a solved station opens.
+  it("says how a door opens: plates, a solved station, or a sequence, each its own chip", () => {
+    const byStation: EntityView = { ...door, id: "D2", opens: "stations" };
+    const bySequence: EntityView = { ...door, id: "D3", opens: "sequence" };
+    const byPlates: EntityView = door; // plates are the default and carry no field
+    const text = (e: EntityView) => labelsFor([e], undefined, me, true)[0]?.text;
+    expect(text(byPlates)).toMatch(/plates/);
+    expect(text(byStation)).toMatch(/solv/i);
+    expect(text(byStation)).not.toMatch(/plates/);
+    expect(text(bySequence)).toMatch(/order/i);
+    expect(text(bySequence)).not.toMatch(/held/);
+    // a door whose way is unknown keeps the plates line, and a room's doors of two kinds each get a chip
+    expect(text(door)).toBe(LABEL_COPY.door);
+    expect(
+      labelsFor([byPlates, byStation], undefined, me, true)
+        .map((l) => l.kind)
+        .sort(),
+    ).toEqual(["door", "stationdoor"]);
+  });
+
+  it("labels a secret door as its own kind, never with the ordinary door's plates line", () => {
+    const got = labelsFor([secretDoor], undefined, me, true);
+    expect(got.map((l) => l.kind)).toEqual(["secretdoor"]);
+    expect(got[0]?.text).toBe(LABEL_COPY.secretdoor);
+    expect(got[0]?.text).not.toMatch(/plates/);
+    expect(LABEL_COPY.secretdoor).not.toBe(LABEL_COPY.door);
+    // an ordinary door beside it keeps its own chip: one per kind
+    expect(
+      labelsFor([secretDoor, door], undefined, me, true)
+        .map((l) => l.kind)
+        .sort(),
+    ).toEqual(["door", "secretdoor"]);
+  });
+
+  it("labels a crate-only plate as its own kind, apart from a person's plate (Task 33)", () => {
+    const got = labelsFor([cratePlate, plate2], undefined, me, true);
+    expect(got.map((l) => l.kind).sort()).toEqual(["cratePlate", "plate"]);
+    expect(got.find((l) => l.kind === "cratePlate")?.text).toBe(
+      "Crate plate: only a crate's weight holds it",
+    );
+  });
+
+  it("gives one chip per kind, on the nearest one in sight", () => {
+    const got = labelsFor([plate2, plate], undefined, me, true);
+    expect(got).toHaveLength(1);
+    expect(got[0]?.at).toEqual({ x: 3.5, y: 4.5 });
+  });
+
+  it("points at the middle of a door that spans several tiles, not at one tile of it", () => {
+    const tile = (y: number): EntityView => ({
+      id: "D1",
+      kind: "door",
+      pos: { x: 8.5, y },
+      state: "closed",
+    });
+    const got = labelsFor([tile(4.5), tile(5.5), tile(6.5)], undefined, { x: 2.5, y: 6.5 }, true);
+    expect(got).toHaveLength(1);
+    expect(got[0]?.at).toEqual({ x: 8.5, y: 5.5 });
+  });
+
+  it("drops a kind when none of it is in sight, and brings it back when one is", () => {
+    const seesNone = () => false;
+    expect(labelsFor([plate], undefined, me, true, seesNone)).toEqual([]);
+    expect(labelsFor([plate], undefined, me, true)).toHaveLength(1);
+  });
+
+  it("gives none when labels are off", () => {
+    expect(labelsFor([plate], undefined, me, false)).toEqual([]);
+  });
+
+  it("labels glass and vents from the tiles in sight", () => {
+    const tiles = ["#####", "#.=%#", "#####"];
+    const got = labelsFor([], tiles, { x: 1.5, y: 1.5 }, true);
+    expect(got.map((l) => l.kind).sort()).toEqual(["glass", "vent"]);
+    expect(got.find((l) => l.kind === "glass")?.at).toEqual({ x: 2.5, y: 1.5 });
+  });
+
+  it("labels no tiles when none are given", () => {
+    expect(labelsFor([], undefined, me, true)).toEqual([]);
+  });
+});
+
+// Escape-room objects (phase 02 Task 10): each new thing names itself and what to do with it.
+describe("labelsFor: stations, gear and signals", () => {
+  const st = (id: string, type: NonNullable<EntityView["station"]>["type"]): EntityView => ({
+    id,
+    kind: "station",
+    pos: { x: 4.5, y: 4.5 },
+    station: { type, shows: [], solved: false, parts: [{ key: "anchor", at: [{ x: 4, y: 4 }] }] },
+  });
+
+  it("labels a dial station as the safe, with what to do", () => {
+    const [l] = labelsFor([st("Q1", "dial")], undefined, me, true);
+    expect(l?.text).toBe("Safe: stand on an arrow and press Act to turn the dial");
+  });
+
+  it("has the spec's line for every station type, gear, the hatch, bell, lamp and ink", () => {
+    const types = [
+      "dial",
+      "wires",
+      "keypad",
+      "radio",
+      "switches",
+      "bells",
+      "vault",
+      "sync",
+    ] as const;
+    const texts = labelsFor(
+      [
+        ...types.map((t, i) => ({ ...st(`Q${i}`, t), pos: { x: 3 + i, y: 4.5 } })),
+        { id: "g1", kind: "gear", pos: { x: 3.5, y: 5.5 }, item: "uv" },
+        { id: "H1", kind: "hatch", pos: { x: 4.5, y: 5.5 } },
+        { id: "b1", kind: "bell", pos: { x: 5.5, y: 5.5 } },
+        { id: "l1", kind: "lamp", pos: { x: 6.5, y: 5.5 } },
+        { id: "u1", kind: "ink", pos: { x: 7.5, y: 5.5 }, text: "7 3" },
+      ] as EntityView[],
+      undefined,
+      me,
+      true,
+    ).map((l) => l.text);
+    for (const line of [
+      "Safe: stand on an arrow and press Act to turn the dial",
+      "Wires: stand under one and press Act to cut it",
+      "Keypad: each key has its own note and light",
+      "Radio: turn until the static clears, then count the pips",
+      "Switches: each one flips lamps in another room",
+      "Music box: strike the bells in the tune's order",
+      "Vault: one symbol from each wing",
+      "Keys: two of you turn them at the same moment",
+      "Gear: walk over it and press Act to pick it up",
+      "Hatch: gear and crates go through, people don't",
+      "Bell: pull the rope; everyone who can hear, hears it",
+      "Lamp: flips a light on every sighted teammate's screen",
+      "Plaque: a rule or a number for another room. Some are only in UV ink",
+    ])
+      expect(texts).toContain(line);
+  });
+
+  it("labels holding hands on a figure who is holding a hand", () => {
+    const leader: EntityView = {
+      id: "P0",
+      kind: "player",
+      seat: 0,
+      pos: { x: 3.5, y: 4.5 },
+      holding: 1,
+    };
+    const texts = labelsFor([leader], undefined, me, true).map((l) => l.text);
+    expect(texts).toContain("Hold hands: press Act next to a teammate");
+  });
+});
+
+describe("labelsFor: where a station's chip points", () => {
+  it("points at the station's own parts, not at an anchor out of sight (the music box's bells)", () => {
+    const box: EntityView = {
+      id: "Q7",
+      kind: "station",
+      pos: { x: 13.5, y: 11.5 }, // the tune box, behind glass
+      station: {
+        type: "bells",
+        shows: [],
+        solved: false,
+        parts: [
+          { key: "anchor", at: [{ x: 13, y: 11 }] },
+          {
+            key: "bells",
+            at: [
+              { x: 7, y: 10 },
+              { x: 9, y: 10 },
+            ],
+          },
+          { key: "tune", at: [{ x: 13, y: 11 }] },
+        ],
+      },
+    };
+    const [l] = labelsFor([box], undefined, { x: 8, y: 8 }, true);
+    expect(l?.at).toEqual({ x: 8.5, y: 10.5 });
+  });
+});
+
+// Label cap (clues FR12): three chips on desktop, two on a phone, the nearest first.
+describe("labelsFor: the cap", () => {
+  const five: EntityView[] = [
+    { ...plate, pos: { x: 3.5, y: 4.5 } },
+    { ...crate, pos: { x: 4.5, y: 4.5 } },
+    { ...door, pos: { x: 6.5, y: 4.5 } },
+    { id: "g1", kind: "gear", pos: { x: 8.5, y: 4.5 }, item: "uv" },
+    { id: "b1", kind: "bell", pos: { x: 10.5, y: 4.5 } },
+  ];
+  it("keeps the three nearest kinds on desktop", () => {
+    const got = labelsFor(five, undefined, me, true, () => true, undefined, LABEL_CAP.desktop);
+    expect(got.map((l) => l.kind).sort()).toEqual(["crate", "door", "plate"]);
+  });
+  it("keeps the two nearest kinds on a phone", () => {
+    const got = labelsFor(five, undefined, me, true, () => true, undefined, LABEL_CAP.phone);
+    expect(got.map((l) => l.kind).sort()).toEqual(["crate", "plate"]);
+  });
+  it("has no cap unless asked", () => {
+    expect(labelsFor(five, undefined, me, true)).toHaveLength(5);
+  });
+});
+
+// Task 34: a kind never labelled before comes first, and nothing far away is labelled.
+describe("labelsFor: a new kind first, and a range", () => {
+  const camera: EntityView = { id: "C1", kind: "camera", pos: { x: 9.5, y: 4.5 } };
+  const known = new Set(["plate", "crate", "door"]);
+  const near = [plate, crate, door];
+  const all = () => true;
+
+  it("gives a kind never met a chip ahead of nearer known kinds, under the cap", () => {
+    const got = labelsFor([...near, camera], undefined, me, true, all, undefined, 3, known);
+    expect(got.map((l) => l.kind)).toContain("camera");
+    expect(got).toHaveLength(3);
+    expect(got[0]?.kind).toBe("camera"); // the new kind leads
+  });
+
+  it("labels a new kind past the first room's filter (camera, glass and vent are not escape kinds)", () => {
+    const got = labelsFor([camera], undefined, me, true, all, ESCAPE_KINDS, 3, known);
+    expect(got.map((l) => l.kind)).toEqual(["camera"]);
+    const glass = labelsFor(
+      [],
+      ["#####", "#.=.#", "#####"],
+      { x: 1.5, y: 1.5 },
+      true,
+      all,
+      ESCAPE_KINDS,
+      3,
+      known,
+    );
+    expect(glass.map((l) => l.kind)).toEqual(["glass"]);
+  });
+
+  it("goes back to the filter once a kind has been met", () => {
+    const met = new Set([...known, "camera"]);
+    expect(labelsFor([camera], undefined, me, true, all, ESCAPE_KINDS, 3, met)).toEqual([]);
+  });
+
+  it("is the nearest first among kinds that are all new, or all known", () => {
+    const got = labelsFor(near, undefined, me, true, all, undefined, 2, new Set());
+    expect(got.map((l) => l.kind)).toEqual(["plate", "crate"]);
+    const again = labelsFor(near, undefined, me, true, all, undefined, 2, known);
+    expect(again.map((l) => l.kind)).toEqual(["plate", "crate"]);
+  });
+
+  it("drops what is beyond the range, however new", () => {
+    const far: EntityView = { ...camera, pos: { x: me.x + LABEL_RANGE + 0.5, y: me.y } };
+    expect(labelsFor([far], undefined, me, true, all, undefined, 3, known)).toEqual([]);
+    const edge: EntityView = { ...camera, pos: { x: me.x + LABEL_RANGE - 0.5, y: me.y } };
+    expect(labelsFor([edge], undefined, me, true, all, undefined, 3, known)).toHaveLength(1);
+  });
+});

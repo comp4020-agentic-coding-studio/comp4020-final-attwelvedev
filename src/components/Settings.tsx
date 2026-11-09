@@ -1,5 +1,5 @@
 import { useState } from "preact/hooks";
-import type { Settings as SettingsState } from "../client/settings.ts";
+import type { MaskBed, Settings as SettingsState } from "../client/settings.ts";
 import type { Role } from "../game/types.ts";
 
 // The few things a person may turn on or off. Kept to a button and a small
@@ -12,6 +12,7 @@ export function Settings({
   settings,
   onChange,
   maskNoiseAvailable,
+  maskNoiseDefault = true,
   othersSoundOff,
   voiceOn,
 }: {
@@ -21,6 +22,8 @@ export function Settings({
   // Whether this person's setup says they have headphones, so Can't hear's masking noise can play;
   // they can still choose not to use it, but can't turn on what their setup rules out.
   maskNoiseAvailable: boolean;
+  // Whether masking noise starts on before they choose: off for someone remote, on in the room.
+  maskNoiseDefault?: boolean;
   // This person's setup says they have no headphones (Can't see, Can't speak): captions carry
   // the game's sound instead, so the checkboxes say so rather than show a choice that isn't one.
   othersSoundOff: boolean;
@@ -31,6 +34,7 @@ export function Settings({
   const [open, setOpen] = useState(false);
   const deaf = role === "deaf";
   const forcedCaptions = !deaf && othersSoundOff;
+  const maskNoiseOn = settings.maskNoiseOn ?? maskNoiseDefault;
   const toggle = (key: keyof SettingsState) => (e: Event) =>
     onChange({ ...settings, [key]: (e.target as HTMLInputElement).checked });
   return (
@@ -123,13 +127,21 @@ export function Settings({
             />
             High contrast
           </label>
+          <label>
+            <input type="checkbox" checked={settings.labels} onChange={toggle("labels")} />
+            Labels
+          </label>
+          <label>
+            <input type="checkbox" checked={settings.menuSounds} onChange={toggle("menuSounds")} />
+            Menu sounds
+          </label>
           {deaf && (
             <>
               <label>
                 <input
                   type="checkbox"
                   name="mask-noise"
-                  checked={maskNoiseAvailable && settings.maskNoiseOn}
+                  checked={maskNoiseAvailable && maskNoiseOn}
                   disabled={!maskNoiseAvailable}
                   aria-describedby={maskNoiseAvailable ? undefined : "mask-noise-note"}
                   onChange={toggle("maskNoiseOn")}
@@ -144,7 +156,7 @@ export function Settings({
                   max={1}
                   step={0.05}
                   value={settings.volume}
-                  disabled={!maskNoiseAvailable || !settings.maskNoiseOn}
+                  disabled={!maskNoiseAvailable || !maskNoiseOn}
                   aria-describedby={maskNoiseAvailable ? undefined : "mask-noise-note"}
                   onInput={(e) =>
                     onChange({
@@ -153,6 +165,24 @@ export function Settings({
                     })
                   }
                 />
+              </label>
+              <label>
+                Masking noise sound
+                <select
+                  value={settings.maskNoise}
+                  disabled={!maskNoiseAvailable || !maskNoiseOn}
+                  aria-describedby={maskNoiseAvailable ? undefined : "mask-noise-note"}
+                  onChange={(e) =>
+                    onChange({
+                      ...settings,
+                      maskNoise: (e.target as HTMLSelectElement).value as MaskBed,
+                    })
+                  }
+                >
+                  <option value="brown">Brown</option>
+                  <option value="rain">Rain</option>
+                  <option value="cafe">Café</option>
+                </select>
               </label>
               {!maskNoiseAvailable && (
                 <p class="mask-noise-note" id="mask-noise-note">

@@ -1,8 +1,10 @@
 import type { Browser, Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
-import { axeViolations, DESKTOP, horizontalOverflow, launch } from "../browser.ts";
+import { axeViolations, DESKTOP, horizontalOverflow, launch, PHONE } from "../browser.ts";
+import { clearRoomOne } from "../heistPlay.ts";
 import { joinAsWatcher, lobbyCodeOf } from "../lobbyUi.ts";
-import { playRoom, settledHash, type Table } from "../playUi.ts";
+import { closeAll as closeSockets, type Player, ready, startedGame } from "../play.ts";
+import { openAs, playRoom, settledHash, type Table } from "../playUi.ts";
 
 const baseUrl = inject("baseUrl");
 let browser: Browser;
@@ -27,6 +29,36 @@ async function proposeFrom(page: Page, what: "room" | "heist" = "room") {
     .click();
 }
 const card = (page: Page) => page.getByRole("alertdialog").filter({ hasText: /wants to restart/ });
+
+// Five tests that only read a live room share ONE table: seating three players costs about 6 s here (12 s on a
+// CI runner) and each of the five paid it. Room 1 has no hazard, so nothing catches the table, and a lobby only
+// expires after ten minutes empty. Each test puts back what it changed (reduced motion, the phone's width, the
+// Labels setting, a closed menu), so the order does not matter. Tests that add a watcher, vote, restart or leave
+// keep a table each.
+let shared: Table;
+const sharedTable = async (): Promise<Table> => {
+  shared ??= await playRoom(browser, baseUrl);
+  return shared;
+};
+afterAll(async () => {
+  if (shared) await closeAll(shared.pages);
+});
+// Closes the menu on a page whatever state it is in. Escape closes it only once the page has attached its key
+// listener, a frame after the menu draws, so a key pressed inside that frame is lost: press until it is shut.
+// A fresh table never noticed (nobody opened the menu twice); a shared one is read by the next test.
+const menuShut = async (page: Page) => {
+  const menu = page.getByRole("button", { name: "Menu" });
+  await expect
+    .poll(
+      async () => {
+        if ((await menu.getAttribute("aria-expanded")) === "true")
+          await page.keyboard.press("Escape");
+        return menu.getAttribute("aria-expanded");
+      },
+      { timeout: 3000, message: "the menu shuts" },
+    )
+    .toBe("false");
+};
 
 describe("the top bar", () => {
   it("lists every crew member with their role shape and name, and how many are watching", async () => {
@@ -68,17 +100,16 @@ describe("the top bar", () => {
   });
 
   it("shows the loot and the clock, and says Live", async () => {
-    const table = await playRoom(browser, baseUrl);
+    const table = await sharedTable();
     for (const page of table.pages) {
       expect(await page.locator(".hud-top .hud-clock").innerText()).toMatch(/^\d+:\d\d$/);
       expect(await page.locator(".hud-top .hud-loot").innerText()).toMatch(/^◆\s*\d+$/);
       expect(await page.locator(".hud-top .conn").innerText()).toContain("Live");
     }
-    await closeAll(table.pages);
   });
 
   it("pulses the live light once a second, and holds it still under reduced motion", async () => {
-    const table = await playRoom(browser, baseUrl);
+    const table = await sharedTable();
     const page = table.byRole.blind;
     const dot = page.locator(".hud-top .conn-dot");
     await dot.waitFor();
@@ -90,21 +121,82 @@ describe("the top bar", () => {
     expect((await style()).name).not.toBe("none");
     expect((await style()).duration).toBe("1s");
     await page.emulateMedia({ reducedMotion: "reduce" });
-    expect((await style()).name).toBe("none");
-    await closeAll(table.pages);
+    try {
+      expect((await style()).name).toBe("none");
+    } finally {
+      await page.emulateMedia({ reducedMotion: "no-preference" }); // the next test shares this page
+    }
+  });
+
+  it("names the room: its number and name on desktop, the number of the total on a phone, in full in the menu", async () => {
+    const table = await sharedTable();
+    const room = (page: Page) => page.locator(".hud-top .hud-room");
+    for (const page of table.pages.filter((p) => p !== table.phone))
+      expect(await room(page).innerText()).toBe("1 · First Steps");
+    // the phone seat: the short form in the same bar, nothing in the bar overflowing or clipped
+    expect(await room(table.phone).innerText()).toBe("1/9");
+    const fits = await table.phone.evaluate(() => {
+      const bar = document.querySelector(".hud-top") as HTMLElement;
+      const r = bar.getBoundingClientRect();
+      const out = [...bar.children]
+        .filter((el) => (el as HTMLElement).offsetParent !== null)
+        .filter((el) => {
+          const b = el.getBoundingClientRect();
+          return b.left < r.left - 0.5 || b.right > r.right + 0.5 || b.top < r.top - 0.5;
+        })
+        .map((el) => el.className);
+      const label = bar.querySelector(".hud-room") as HTMLElement;
+      return {
+        bar: bar.scrollWidth <= bar.clientWidth,
+        out,
+        clipped: label.scrollWidth > label.clientWidth + 1,
+      };
+    });
+    expect(fits).toEqual({ bar: true, out: [], clipped: false });
+    // the menu names it in full, on the phone and on desktop
+    for (const page of [table.phone, table.byRole.mute]) {
+      await page.getByRole("button", { name: "Menu" }).click();
+      await page
+        .locator("#hud-menu")
+        .getByText("Room 1 of 9: First Steps", { exact: true })
+        .waitFor();
+      await menuShut(page);
+    }
+    // the phone's seat at desktop width shows the long form too, so every role is covered at 1280
+    await table.phone.setViewportSize(DESKTOP);
+    await expect.poll(() => room(table.phone).innerText()).toBe("1 · First Steps");
+    await table.phone.setViewportSize(PHONE); // the next test reads the phone as a phone
   });
 
   it("keeps the menu a 48 px target on a phone, and opens settings from it", async () => {
-    const table = await playRoom(browser, baseUrl);
+    const table = await sharedTable();
+    await menuShut(table.phone);
     const box = await table.phone.getByRole("button", { name: "Menu" }).boundingBox();
     expect(box?.width).toBeGreaterThanOrEqual(48);
     expect(box?.height).toBeGreaterThanOrEqual(48);
     await table.phone.getByRole("button", { name: "Menu" }).click();
     await table.phone.getByRole("button", { name: "Settings" }).click();
     await table.phone.getByLabel("High contrast").waitFor();
-    await table.phone.keyboard.press("Escape");
+    await menuShut(table.phone);
     expect(await table.phone.getByRole("button", { name: "Restart room" }).count()).toBe(0);
-    await closeAll(table.pages);
+  });
+});
+
+describe("room one's labels", () => {
+  it("shows the nearest chips, at most three, and the Labels toggle hides them", async () => {
+    const table = await sharedTable();
+    const page = table.byRole.deaf;
+    await menuShut(page);
+    const canvas = page.locator("canvas[data-camera]");
+    await expect.poll(() => canvas.getAttribute("data-labels"), { timeout: 5000 }).not.toBe("");
+    const chips = (await canvas.getAttribute("data-labels"))?.split(" ").filter(Boolean) ?? [];
+    expect(chips.length).toBeLessThanOrEqual(3);
+    await page.getByRole("button", { name: "Menu" }).click();
+    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByLabel("Labels").uncheck();
+    await expect.poll(() => canvas.getAttribute("data-labels"), { timeout: 3000 }).toBe("");
+    await page.getByLabel("Labels").check(); // the setting is the page's: put it back for whoever reads next
+    await menuShut(page);
   });
 });
 
@@ -144,6 +236,34 @@ describe("restart votes", () => {
     }
     await closeAll(table.pages);
   });
+
+  it("a restart after a vote resumes every time, on the page: the intro plays to done, the clock runs and a seat moves (playtest fixes, Task 6)", async () => {
+    const table: Table = await playRoom(browser, baseUrl);
+    const { blind: ana, deaf: bo, mute: cy } = table.byRole;
+    const clock = (page: Page) => page.locator(".hud-clock").innerText();
+    for (let run = 1; run <= 4; run++) {
+      // the room runs a moment first, so the clock has gone past 0:00
+      await expect.poll(() => clock(bo), { timeout: 5000 }).not.toBe("0:00");
+      const proposer = [ana, bo, cy][run % 3] as Page;
+      await proposeFrom(proposer);
+      for (const page of [ana, bo, cy]) {
+        if (page === proposer) continue;
+        await card(page).getByRole("button", { name: "Restart room" }).click();
+      }
+      for (const page of table.pages) {
+        await page.getByText("Restarting the room.").waitFor({ timeout: 3000 });
+        // the restarted room's intro plays (with INTRO_MS=0 it is over at once) and ends in done
+        await page.locator('.game[data-intro="done"]').waitFor({ timeout: 5000 });
+      }
+      // the clock runs from the restart
+      await expect.poll(() => clock(bo), { timeout: 5000 }).toMatch(/^0:0[1-9]$/);
+      // and a seat can move: Can't hear walks and its canvas changes
+      const before = await settledHash(bo);
+      await move(bo);
+      expect(await settledHash(bo), `run ${run}: Bo moves`).not.toBe(before);
+    }
+    await closeAll(table.pages);
+  }, 120_000); // four restarts, each holding the real intro (2.4 s, as CI runs): 27 s alone, so not the default 30
 
   it("one No shows 'Not restarted: <name> kept playing.' to everyone, then it goes", async () => {
     const table = await playRoom(browser, baseUrl);
@@ -259,4 +379,45 @@ describe("the HUD with the vote card open", () => {
     }
     await closeAll(table.pages);
   });
+});
+
+describe.each([
+  ["phone", PHONE],
+  ["desktop", DESKTOP],
+])("the comms map on the cleared card at %s width", (name, viewport) => {
+  it("shows the crew's triangle, its summary names the busiest direction, and it is axe clean", async () => {
+    const { players, code } = await startedGame(baseUrl);
+    ready(players);
+    const deaf = players.find((p) => p.role === "deaf") as Player;
+    const mute = players.find((p) => p.role === "mute") as Player;
+    const page = await openAs(browser, baseUrl, deaf, "Bo", code, viewport);
+    // Can't hear's callouts reach the other two: the busiest direction is theirs
+    for (const callout of ["wait", "go", "wait"] as const) {
+      deaf.socket.send({ t: "send", msg: { method: "callout", callout } });
+      await mute.socket.next("msg", 2000);
+    }
+    await clearRoomOne(players);
+    const map = page.locator(".comms-map");
+    await map.waitFor();
+    expect(await map.locator(".comms-edge").count()).toBe(6);
+    const nick = (p: Player) => ["Ana", "Bo", "Cy"][p.seat];
+    const busiest = map.locator(".comms-summary");
+    expect(await busiest.innerText()).toMatch(new RegExp(`^Most went ${nick(deaf)} → (Ana|Cy)\\.`));
+    // an arrow is its own stop: no separate buttons, and pointing at it says what it carried
+    expect(await map.locator("button").count()).toBe(0);
+    const arrow = map.locator(`[data-edge="${deaf.seat}>${mute.seat}"]`);
+    await arrow.focus();
+    expect(await map.locator(".comms-detail").innerText()).toBe(
+      `${nick(deaf)} → ${nick(mute)}: callout 3`,
+    );
+    await arrow.hover({ force: true });
+    expect(await map.locator(".comms-detail").innerText()).toContain("callout 3");
+    const box = await map.boundingBox();
+    expect(box?.width ?? 0).toBeGreaterThan(200);
+    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
+    expect(await axeViolations(page, ".overlay")).toEqual([]);
+    await page.screenshot({ path: `/tmp/comms-map-${name}.png`, fullPage: true });
+    await page.context().close();
+    await closeSockets(players);
+  }, 120_000);
 });

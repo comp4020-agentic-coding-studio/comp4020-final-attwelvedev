@@ -1,4 +1,8 @@
 import type { SoundCue } from "../net/protocol.ts";
+import { chimePlan, isChimeCue, practiceChimes } from "./chimeSound.ts";
+import { hollowPlan, tumblerPlan } from "./hollowSound.ts";
+import { bedSamples } from "./maskBeds.ts";
+import type { MaskBed } from "./settings.ts";
 
 export interface GameAudio {
   resume(): Promise<void>; // call from a tap or key press: browsers keep audio off until then
@@ -6,7 +10,7 @@ export interface GameAudio {
   playClip(id: string): void; // a soundboard clip, from public/sounds/
   // Masking noise for an in-person Can't-hear seat, so their own headphones
   // stop them catching speech over the table. No asset: generated here.
-  setMaskNoise(on: boolean, volume: number): void;
+  setMaskNoise(on: boolean, volume: number, bed?: MaskBed): void;
   dispose(): void;
 }
 
@@ -14,33 +18,28 @@ const STEP_GAP_MS = 260;
 const OWN_STEP_GAP_MS = 290; // slower and deeper than other players' ticks, so it never merges with them
 const BUMP_GAP_MS = 380;
 const HUM_HZ = 110;
+const RADIO_GAP_MS = 250; // static and a tuned tone are sent every tick in range: played four times a second
 
 // The cues are made here rather than loaded, so there is nothing to download
-// or credit: a soft tick for footsteps, a steady hum on a plate, a click for a
-// door, and for the heist a lower tick for guards, a whir for a camera, a
+// or credit: a soft tick for footsteps, a steady hum on a plate, a bolt and
+// thunk for a door, and for the heist a lower tick for guards, a whir for a camera, a
 // buzz for a laser, chimes, a siren and an alarm. Each is panned and scaled
 // by the cue the server computed. Nothing flashes or flickers: a steady cue is
 // a steady tone.
-// A few seconds of brown noise, looped: a leaky running sum of white noise,
-// which weights it toward the low end the way a hum or distant chatter is,
-// rather than the hiss of plain white noise.
-function brownNoiseBuffer(c: AudioContext): AudioBuffer {
-  const frames = Math.floor(c.sampleRate * 3);
-  const buffer = c.createBuffer(1, frames, c.sampleRate);
-  const data = buffer.getChannelData(0);
-  let last = 0;
-  for (let i = 0; i < frames; i++) {
-    const white = Math.random() * 2 - 1;
-    last = (last + 0.02 * white) / 1.02;
-    data[i] = last * 3.5; // the leak keeps it quiet; this brings it back up
-  }
+// The masking beds (brown, rain, café) are sample data from maskBeds.ts: six seconds, looped.
+function bedBuffer(c: AudioContext, bed: MaskBed): AudioBuffer {
+  const data = bedSamples(bed, c.sampleRate, Math.floor(Math.random() * 1e9));
+  const buffer = c.createBuffer(1, data.length, c.sampleRate);
+  buffer.getChannelData(0).set(data);
   return buffer;
 }
+
+const BED_FADE_S = 0.3;
 
 export function createAudio(): GameAudio {
   let ctx: AudioContext | null = null;
   let hum: { osc: OscillatorNode; gain: GainNode } | null = null;
-  let mask: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
+  let mask: { src: AudioBufferSourceNode; gain: GainNode; bed: MaskBed } | null = null;
   let noise: AudioBuffer | null = null;
   let lastStep = 0;
   let lastOwnStep = 0;
@@ -48,6 +47,7 @@ export function createAudio(): GameAudio {
   let lastGuard = 0;
   let lastLaser = 0;
   let lastAlarm = 0;
+  let lastRadio = 0;
 
   const ensure = (): AudioContext | null => {
     if (ctx) return ctx;
@@ -101,18 +101,6 @@ export function createAudio(): GameAudio {
     src.start();
   };
 
-  const click = (c: AudioContext, cue: SoundCue) => {
-    const osc = c.createOscillator();
-    osc.type = "square";
-    osc.frequency.value = 1400;
-    const gain = c.createGain();
-    gain.gain.setValueAtTime(0.25 * cue.gain, c.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.06);
-    osc.connect(gain).connect(panner(c, cue.pan));
-    osc.start();
-    osc.stop(c.currentTime + 0.07);
-  };
-
   // One short tone, optionally sliding from `from` to `to` Hz over `secs`.
   const tone = (
     c: AudioContext,
@@ -152,11 +140,54 @@ export function createAudio(): GameAudio {
   };
 
   // The families, so they can be learned instead of memorised one by one:
-  //   object clicks     plate, plate-up, door              short, dry
+  //   object clicks     plate, plate-up                    short, dry
   //   things moving     crate, hide                        scrapes and rustles
-  //   team progress     flag, exit, seq-ok                 a tone that rises with how many
+  //   team progress     flag, exit, seq-ok, door           a tone that rises with how many; a door is a heavy unlock
   //   mistakes          seq-wrong                          low and buzzy
   //   successes         seq-open, cleared, loot, checkpoint   bright arpeggios and chimes
+  // a burst of the short noise through a filter: a wire's snap, the radio's static, the dye's pomf
+  const burst = (
+    c: AudioContext,
+    cue: SoundCue,
+    type: BiquadFilterType,
+    hz: number,
+    level: number,
+    q = 1,
+  ) => {
+    if (!noise) return;
+    const src = c.createBufferSource();
+    src.buffer = noise;
+    const filter = c.createBiquadFilter();
+    filter.type = type;
+    filter.frequency.value = hz;
+    filter.Q.value = q;
+    const gain = c.createGain();
+    gain.gain.value = level * cue.gain;
+    src.connect(filter).connect(gain).connect(panner(c, cue.pan));
+    src.start();
+  };
+
+  // a struck bell: a sine and two inharmonic partials, ringing out
+  const bellTone = (
+    c: AudioContext,
+    cue: SoundCue,
+    hz: number,
+    secs: number,
+    level: number,
+    delay = 0,
+  ) => {
+    tone(c, cue, "sine", hz, hz, secs, level, delay);
+    tone(c, cue, "sine", hz * 2.76, hz * 2.76, secs * 0.5, level * 0.35, delay);
+    tone(c, cue, "sine", hz * 5.4, hz * 5.4, secs * 0.25, level * 0.15, delay);
+  };
+
+  // A door unlocking, heard by the whole team from anywhere (ADR 0025): a bolt (a short band-passed
+  // noise burst), then a low thunk (a sine at about 90 Hz over 180 ms), both panned toward the door.
+  const unlock = (c: AudioContext, cue: SoundCue) => {
+    burst(c, cue, "bandpass", 1100, 0.9, 4);
+    tone(c, cue, "sine", 95, 80, 0.18, 0.9, 0.12);
+  };
+
   const progress = (
     c: AudioContext,
     cue: SoundCue,
@@ -189,21 +220,33 @@ export function createAudio(): GameAudio {
       // a plain element: the clips are short, and a blocked autoplay just stays silent
       void new Audio(`/sounds/${encodeURIComponent(id)}.mp3`).play().catch(() => undefined);
     },
-    setMaskNoise(on, volume) {
+    setMaskNoise(on, volume, bed = "brown") {
       const c = ensure();
       if (!c) return;
-      if (on && !mask) {
+      const start = (): NonNullable<typeof mask> => {
         const src = c.createBufferSource();
-        src.buffer = brownNoiseBuffer(c);
+        src.buffer = bedBuffer(c, bed);
         src.loop = true;
         const gain = c.createGain();
-        gain.gain.value = volume;
+        gain.gain.value = 0;
         src.connect(gain).connect(c.destination);
         src.start();
-        mask = { src, gain };
+        gain.gain.setTargetAtTime(volume, c.currentTime, BED_FADE_S / 3);
+        return { src, gain, bed };
+      };
+      if (on && !mask) {
+        mask = start();
+        mask.gain.gain.cancelScheduledValues(c.currentTime);
+        mask.gain.gain.value = volume;
       } else if (!on && mask) {
         mask.src.stop();
         mask = null;
+      } else if (mask && mask.bed !== bed) {
+        // a changed bed cross-fades: the old one fades out and stops, the new one fades in
+        const old = mask;
+        old.gain.gain.setTargetAtTime(0, c.currentTime, BED_FADE_S / 3);
+        old.src.stop(c.currentTime + BED_FADE_S + 0.1);
+        mask = start();
       } else if (mask) {
         mask.gain.gain.setTargetAtTime(volume, c.currentTime, 0.1);
       }
@@ -228,13 +271,73 @@ export function createAudio(): GameAudio {
           [523, 659, 784].forEach((hz, i) => {
             tone(c, s, "triangle", hz, hz, 0.22, 0.3, i * 0.09);
           });
-        } else if (s.kind === "clue") {
-          // n soft bells, so the count is something you hear and can count
-          for (let i = 0; i < Math.max(1, Math.min(3, s.n ?? 1)); i++) {
-            tone(c, s, "sine", 880, 880, 0.35, 0.2, i * 0.28);
-          }
         } else if (s.kind === "hide") rustle(c, s);
-        else if (s.kind === "cleared") {
+        // stations, gear and signals: each a sound of its own, synthesised, no speech
+        else if (s.kind === "tick")
+          tone(c, s, "square", 2200, 2200, 0.025, 0.22); // a dial's notch
+        else if (s.kind === "tumbler") {
+          // a pin dropping: long enough to carry over the dial's own tick (hollowSound.ts)
+          for (const t of tumblerPlan()) tone(c, s, t.type, t.from, t.to, t.secs, t.level, t.at);
+        } else if (isChimeCue(s)) {
+          // a group of chimes, n + 1 of them rising: the note is the count (chimeSound.ts)
+          const cue = s.kind === "earpiece" ? { ...s, pan: 0 } : s; // the earpiece is in the holder's head
+          // a vent's `n` is a count (a key's note + 1, or a plain clue's 1 to 3); the others send the note
+          const note = s.kind === "clue" ? (s.n ?? 1) - 1 : s.n;
+          for (const ch of chimePlan(s.kind, note)) {
+            if (ch.voice === "bell") bellTone(c, cue, ch.hz, ch.secs, ch.level, ch.at);
+            else tone(c, cue, ch.voice, ch.hz, ch.hz, ch.secs, ch.level, ch.at);
+          }
+        } else if (s.kind === "snap")
+          burst(c, s, "highpass", 3000, 0.9); // a wire cut
+        else if (s.kind === "pip") {
+          // n blips, so the digit is something you count
+          for (let i = 0; i < Math.max(1, Math.min(9, s.n ?? 1)); i++)
+            tone(c, s, "sine", 880, 880, 0.08, 0.25, i * 0.16);
+        } else if (s.kind === "clunk") tone(c, s, "square", 150, 110, 0.1, 0.25);
+        else if (s.kind === "practice") {
+          // the real chime of the key or bell pressed, quieter (chimeSound.ts), behind a short low tick
+          // that no real note has, so a practice press is never taken for a note of the real tune
+          tone(c, s, "sine", 110, 80, 0.07, 0.3);
+          const at = 0.1; // the tick, then a beat, then the chime
+          for (const ch of practiceChimes(s.of ?? "key", s.n)) {
+            if (ch.voice === "bell") bellTone(c, s, ch.hz, ch.secs, ch.level, at + ch.at);
+            else tone(c, s, ch.voice, ch.hz, ch.hz, ch.secs, ch.level, at + ch.at);
+          }
+        } else if (s.kind === "lever") {
+          // a heavy two-part clunk: the handle thrown, then the stop (lower and longer than a switch)
+          tone(c, s, "square", 90, 60, 0.12, 0.3);
+          tone(c, s, "square", 70, 45, 0.1, 0.3, 0.09);
+        } else if (s.kind === "bell")
+          bellTone(c, s, 330, 1.4, 0.35); // the rope: long, low, room-wide
+        else if (s.kind === "dye") {
+          // a soft pomf: low filtered noise and a falling thump, a toy and never a siren
+          burst(c, s, "lowpass", 500, 1.2);
+          tone(c, s, "sine", 180, 70, 0.25, 0.4);
+        } else if (s.kind === "jam") {
+          // a short low buzz, two sawtooth pulses: the mistakes family, a lock refusing for a moment
+          tone(c, s, "sawtooth", 110, 100, 0.09, 0.22);
+          tone(c, s, "sawtooth", 110, 100, 0.09, 0.22, 0.13);
+        } else if (s.kind === "tap") {
+          // a fingertip on a metal plate: two soft, short, high taps, quieter than a step
+          tone(c, s, "sine", 1800, 1600, 0.03, 0.12);
+          tone(c, s, "sine", 1700, 1500, 0.03, 0.1, 0.08);
+        } else if (s.kind === "gear") {
+          tone(c, s, "square", 1200, 1200, 0.02, 0.18);
+          tone(c, s, "square", 900, 900, 0.02, 0.18, 0.07);
+        } else if (s.kind === "solved") {
+          [523, 659, 784].forEach((hz, i) => {
+            tone(c, s, "sine", hz, hz, 0.3, 0.3, i * 0.1);
+          });
+        } else if (s.kind === "uncover") {
+          // a panel sliding aside: one soft low thunk, a sine falling a little, with a brief dull knock
+          tone(c, s, "sine", 150, 90, 0.18, 0.4);
+          burst(c, s, "lowpass", 300, 0.5);
+        } else if (s.kind === "stash") {
+          // two soft rising notes, about half a second: a fifth apart, triangle, gentler than the
+          // solved arpeggio (three sines) and nothing like the dye's low pomf
+          tone(c, s, "triangle", 587, 587, 0.22, 0.28);
+          tone(c, s, "triangle", 880, 880, 0.3, 0.28, 0.2);
+        } else if (s.kind === "cleared") {
           [523, 659, 784, 1047].forEach((hz, i) => {
             tone(c, s, "sine", hz, hz, 0.45, 0.3, i * 0.12);
           });
@@ -244,6 +347,22 @@ export function createAudio(): GameAudio {
       if (own && now - lastOwnStep >= OWN_STEP_GAP_MS) {
         lastOwnStep = now;
         ownStep(c, own);
+      }
+      // a step on a cache dial's plate replaces the step it stands in for, at the same pace: your own
+      // (centred) at the own-step gap, someone else's (panned) at the footsteps gap
+      const ownHollow = sounds.find((s) => s.kind === "hollow" && s.dir === undefined);
+      if (ownHollow && now - lastOwnStep >= OWN_STEP_GAP_MS) {
+        lastOwnStep = now;
+        for (const t of hollowPlan())
+          tone(c, ownHollow, t.type, t.from, t.to, t.secs, t.level, t.at);
+      }
+      const otherHollow = sounds
+        .filter((s) => s.kind === "hollow" && s.dir !== undefined)
+        .sort((a, b) => b.gain - a.gain)[0];
+      if (otherHollow && now - lastStep >= STEP_GAP_MS) {
+        lastStep = now;
+        for (const t of hollowPlan())
+          tone(c, otherHollow, t.type, t.from, t.to, t.secs, t.level, t.at);
       }
       const bump = sounds.find((s) => s.kind === "bump");
       if (bump && now - lastBump >= BUMP_GAP_MS) {
@@ -256,7 +375,7 @@ export function createAudio(): GameAudio {
         lastStep = now;
         tick(c, loudest);
       }
-      for (const s of sounds) if (s.kind === "door") click(c, s);
+      for (const s of sounds) if (s.kind === "door") unlock(c, s);
       for (const s of sounds) {
         if (s.kind === "camera") tone(c, s, "sawtooth", 500, 900, 0.35, 0.18);
         else if (s.kind === "loot") tone(c, s, "sine", 988, 1318, 0.25, 0.3);
@@ -278,6 +397,13 @@ export function createAudio(): GameAudio {
       if (alarm && now - lastAlarm >= 500) {
         lastAlarm = now;
         tone(c, alarm, "square", 740, 740, 0.22, 0.2);
+      }
+      // the radio: hiss until tuned, then a steady tone; a few times a second, never per frame
+      const radio = sounds.find((s) => s.kind === "static" || s.kind === "tone");
+      if (radio && now - lastRadio >= RADIO_GAP_MS) {
+        lastRadio = now;
+        if (radio.kind === "static") burst(c, radio, "bandpass", 1800, 0.6, 0.7);
+        else tone(c, radio, "sine", 600, 600, 0.24, 0.15);
       }
       const h = sounds.find((s) => s.kind === "hum");
       if (h || hum) setHum(c, h ? 0.12 * h.gain : 0);

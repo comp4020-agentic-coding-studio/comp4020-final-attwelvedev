@@ -1,0 +1,11 @@
+{"id":"01-walk","name":"Walk 1","version":1,
+ "beats":[
+  {"name":"Out","x":[0,7],"intent":{"blind":"walks east to the exit","deaf":"walks east to the exit","mute":"walks east to the exit"}}
+ ],
+ "hints":{"jobs":[{"beat":1,"goTo":"E","all":true}]}}
+---
+########
+#1...EE#
+#2...EE#
+#3..$EE#
+########

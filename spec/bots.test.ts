@@ -27,8 +27,8 @@ describe("bots fill the empty seats", () => {
     expect(reveal.crew.filter((c) => c.bot)).toHaveLength(2);
     expect(reveal.crew.filter((c) => !c.bot)).toHaveLength(1);
     expect(reveal.crew.filter((c) => c.bot).map((c) => c.nickname)).toEqual([
-      "Bot square",
-      "Bot triangle",
+      "Bot Jinx",
+      "Bot Moss",
     ]);
     await host.close();
   });
@@ -43,7 +43,7 @@ describe("bots fill the empty seats", () => {
     host.send({ t: "ready" });
     const msg = await host.next<MsgMsg>("msg", 5000);
     expect(msg).toMatchObject({ method: "callout" });
-    expect(msg.from).toMatchObject({ role: "deaf", nickname: "Bot square" });
+    expect(msg.from).toMatchObject({ role: "deaf", nickname: "Bot Jinx" });
     await host.close();
   });
 

@@ -25,6 +25,18 @@ describe.each([
     await leaveAndClose(page);
   });
 
+  it("uses the 125 % display face only on the hero on the home page", async () => {
+    const page = await openPage(browser, baseUrl, viewport);
+    await page.getByRole("button", { name: "Start a new team" }).waitFor();
+    const stretched = await page.evaluate(() =>
+      [...document.querySelectorAll("h1, h2, h3, h4")]
+        .filter((el) => getComputedStyle(el).fontStretch === "125%")
+        .map((el) => `${el.tagName.toLowerCase()}#${el.id}`),
+    );
+    expect(stretched).toEqual(["h1#home-title"]);
+    await leaveAndClose(page);
+  });
+
   it("keeps the Join button's label on one line next to the code field", async () => {
     // a squeezed button wraps "Join" to "Joi/n", which no overflow or axe check notices
     const page = await openPage(browser, baseUrl, viewport);
@@ -79,9 +91,63 @@ describe("the home page's hero", () => {
       }),
     );
     expect(lit).toHaveLength(3);
-    expect(lit[0]).toBeLessThan(0.05); // a dim ring and nothing else
+    expect(lit[0]).toBeLessThan(0.05); // a dim figure and nothing else
     expect(lit[1]).toBeGreaterThan(0.9);
     expect(lit[2]).toBeGreaterThan(0.9);
+    await leaveAndClose(page);
+  });
+
+  it("a sighted home feed draws room 1's decor, and Can't see's draws none", async () => {
+    const page = await openPage(browser, baseUrl, DESKTOP);
+    await page.locator(".feed canvas").first().waitFor();
+    await page.waitForTimeout(500);
+    // Feeds.tsx tells the count it drew: the picture alone cannot be asked
+    const counts = await page.$$eval(".feed canvas", (cs) =>
+      cs.map((c) => Number((c as HTMLCanvasElement).dataset.decor ?? "-1")),
+    );
+    expect(counts).toHaveLength(3);
+    expect(counts[0]).toBe(0);
+    expect(counts[1]).toBeGreaterThan(0);
+    expect(counts[2]).toBeGreaterThan(0);
+    await leaveAndClose(page);
+  });
+
+  it("the Can't see feed draws its figure, not the ring", async () => {
+    const page = await openPage(browser, baseUrl, DESKTOP);
+    const blind = page.locator(".feed canvas").first();
+    await blind.waitFor();
+    // Can't see's figure stands in the middle of the black (drawOwnBlind): its pill, 0.95 tiles of
+    // MAP.phoneTilePx × 2 tall, covers the canvas centre. The old ring had radius blindRingTiles ×
+    // phoneTilePx (33.6 css px) about the centre, clear of the pill to its left and right.
+    const probe = () =>
+      blind.evaluate((el) => {
+        const c = el as HTMLCanvasElement;
+        const ctx = c.getContext("2d");
+        if (!ctx) return null;
+        const k = c.width / c.clientWidth; // device pixels per css pixel
+        const lit = (cx: number, cy: number, half: number) => {
+          const d = ctx.getImageData(
+            Math.round(cx - half * k),
+            Math.round(cy - half * k),
+            Math.round(2 * half * k),
+            Math.round(2 * half * k),
+          ).data;
+          let on = 0;
+          for (let i = 0; i < d.length; i += 4) if (d[i] || d[i + 1] || d[i + 2]) on++;
+          return on;
+        };
+        const cx = c.width / 2;
+        const cy = c.height / 2;
+        const r = 1.2 * 28 * k; // MAP.blindRingTiles × MAP.phoneTilePx
+        return {
+          figure: lit(cx, cy, 20),
+          ring: lit(cx - r, cy, 3) + lit(cx + r, cy, 3),
+        };
+      });
+    await expect
+      .poll(async () => (await probe())?.figure ?? 0, { timeout: 5000 })
+      .toBeGreaterThan(0);
+    expect((await probe())?.ring).toBe(0);
     await leaveAndClose(page);
   });
 
@@ -91,9 +157,37 @@ describe("the home page's hero", () => {
     await page.reload();
     await page.getByRole("button", { name: "Play feeds" }).waitFor();
     const frame = () => page.locator(".feed canvas").nth(1).screenshot();
+    // what the page looked like when each frame was taken: a feed repaints when its box is resized (the
+    // page lays out again when a web font arrives), so two frames that differ may only be two layouts
+    const look = () =>
+      page.evaluate(() => {
+        const c = document.querySelectorAll<HTMLCanvasElement>(".feed canvas")[1];
+        const box = c?.getBoundingClientRect();
+        return {
+          canvas: c ? `${c.width}x${c.height}` : null,
+          box: box
+            ? `${box.width.toFixed(1)}x${box.height.toFixed(1)}@${box.x.toFixed(1)},${box.y.toFixed(1)}`
+            : null,
+          fonts: document.fonts.status,
+          scrollY: Math.round(window.scrollY),
+          calm: matchMedia("(prefers-reduced-motion: reduce)").matches,
+        };
+      });
+    const lookBefore = await look();
     const before = await frame();
     await page.waitForTimeout(400);
-    expect((await frame()).equals(before)).toBe(true);
+    const lookAfter = await look();
+    const after = await frame();
+    if (!after.equals(before)) {
+      // moving or only late? a third frame after another wait says whether it has settled
+      await page.waitForTimeout(400);
+      const third = await frame();
+      const size = (b: Buffer) => `${b.length} bytes`;
+      throw new Error(
+        `the still feed changed: ${size(before)} then ${size(after)}; settled again by the third frame: ${third.equals(after)}; ` +
+          `before ${JSON.stringify(lookBefore)}; after ${JSON.stringify(lookAfter)}; now ${JSON.stringify(await look())}`,
+      );
+    }
     await leaveAndClose(page);
   });
 
@@ -112,6 +206,14 @@ describe("the home page's hero", () => {
 });
 
 describe("the home page's join panel", () => {
+  it("says up to six can join a team and take turns", async () => {
+    const page = await openPage(browser, baseUrl, DESKTOP);
+    await page
+      .locator(".desk-new", { hasText: "Up to six can join and take turns." })
+      .waitFor({ timeout: 5000 });
+    await leaveAndClose(page);
+  });
+
   it("takes only code letters, and asks for all 4 before joining", async () => {
     const page = await openPage(browser, baseUrl, DESKTOP);
     await page.getByLabel("Nickname").fill("Ana");

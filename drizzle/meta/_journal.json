@@ -71,6 +71,13 @@
       "when": 1791533255333,
       "tag": "0009_rich_wind_dancer",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1793201614673,
+      "tag": "0010_long_sleeper",
+      "breakpoints": true
     }
   ]
 }

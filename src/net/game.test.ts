@@ -1,24 +1,33 @@
 import { describe, expect, it } from "vitest";
 import { botRef, rolesFor } from "../game/crew.ts";
+import { secretDoors } from "../game/rooms/format.ts";
 import { loadRooms } from "../game/rooms/load.ts";
+import { syncCacheDoors } from "../game/sim/cache.ts";
 import type { Seat } from "../game/types.ts";
 import {
   advanceRoom,
   applyInput,
+  autopilotOn,
   castVote,
   chooserFor,
+  commsEdges,
+  countComms,
+  countVoice,
   crewOf,
   finishVote,
   giveSeatBack,
   markPlayed,
   PAUSE_MS,
   pauseFor,
+  playedBy,
   proposeVote,
   readyAgain,
   relay,
   restartGame,
   resumeIfBack,
+  setAutopilot,
   settleVote,
+  stalledRestart,
   startGame,
   swapPeople,
   takeOverWithBot,
@@ -31,6 +40,15 @@ import {
 import { type LobbyState, newPerson } from "./lobbies.ts";
 
 const rooms = loadRooms();
+// room 1 until escape-room phase 04: a crate, and spawns in rows 4 to 6, which the restart test uses
+const firstJob = loadRooms("./spec/fixtures/first-job");
+// Don't Blink, a room until escape-room phase 10: lasers, which the caught test uses
+const oldRooms = loadRooms("./spec/fixtures/old-rooms");
+const roomById = (id: string) => {
+  const found = [...rooms, ...oldRooms].find((r) => r.id === id);
+  if (!found) throw new Error(`no room ${id}`);
+  return found;
+};
 
 const seat = (n: string | null, person: number | null = n === null ? null : 0) => ({
   who: n,
@@ -40,9 +58,9 @@ const seat = (n: string | null, person: number | null = n === null ? null : 0) =
   person,
 });
 // A seat that is a bot: what startLobby leaves in an empty seat
-const bot = (shape: string) => ({
+const bot = (name: string) => ({
   who: null,
-  nickname: `Bot ${shape}`,
+  nickname: `Bot ${name}`,
   connected: true,
   bot: true,
   person: null,
@@ -63,7 +81,7 @@ const lobby = (...who: (string | null)[]): LobbyState => ({
 });
 const withBots = (human: string, ...bots: number[]): LobbyState => {
   const l = lobby(human);
-  for (const i of bots) l.seats[i] = bot(["circle", "square", "triangle"][i] as string);
+  for (const i of bots) l.seats[i] = bot(["Ace", "Jinx", "Moss"][i] as string);
   return l;
 };
 
@@ -74,8 +92,8 @@ describe("startGame", () => {
     expect([...game.ready].sort()).toEqual([1, 2]); // a bot is always ready
     expect(crewOf(withBots("a", 1, 2), game)).toEqual([
       { seat: 0, nickname: "A", role: "blind", bot: false },
-      { seat: 1, nickname: "Bot square", role: "deaf", bot: true },
-      { seat: 2, nickname: "Bot triangle", role: "mute", bot: true },
+      { seat: 1, nickname: "Bot Jinx", role: "deaf", bot: true },
+      { seat: 2, nickname: "Bot Moss", role: "mute", bot: true },
     ]);
   });
 
@@ -86,7 +104,7 @@ describe("startGame", () => {
   it("starts room 01 with distinct roles and nobody ready", () => {
     const game = startGame(lobby("a", "b", "c"), rooms);
     expect(game).toMatchObject({ lobby: "ABCD", roomIndex: 0 });
-    expect(game.world.room.id).toBe("01-loading-dock");
+    expect(game.world.room.id).toBe("01-first-steps");
     expect(game.ready.size).toBe(0);
     expect(new Set(game.roles).size).toBe(3);
     expect(crewOf(lobby("a", "b", "c"), game)).toEqual([
@@ -115,7 +133,7 @@ describe("inputs and views", () => {
     for (let i = 0; i < 9; i++) views = tickGame(game).views;
     const deaf = views.get(1);
     expect(deaf?.ack).toBe(4);
-    expect(deaf?.you.pos?.x).toBeCloseTo(2.5 + 2, 3);
+    expect(deaf?.you.pos?.x).toBeCloseTo(1.5 + 2, 3);
     expect(views.get(0)?.ack).toBe(0);
   });
 
@@ -129,6 +147,68 @@ describe("inputs and views", () => {
     const next = tickGame(game).views;
     expect(next.get(1)?.tiles).toBeUndefined();
     expect(next.get(1)?.full).toBe(false);
+  });
+
+  // Task 64 (h): a secret door opening changes the map, so the sighted get it the tick it happens,
+  // even when no seat was owed a full view; an ordinary tick sends none.
+  it("sends tiles to every seat the tick a chamber door or a vault door opens, and not otherwise", () => {
+    const cacheRooms = loadRooms("./spec/fixtures/rooms-cache");
+    const game = startGame(lobby("a", "b", "c"), cacheRooms);
+    const w = game.world;
+    const moon = { x: 2.5, y: 4.5 };
+    const anchor = { x: 5.5, y: 8.5 };
+    tickGame(game); // an ordinary tick
+    expect([0, 1, 2].map((i) => tickGame(game).views.get(i as Seat)?.tiles)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ]);
+    let seq = 100;
+    const actAt = (seatNo: Seat, at: { x: number; y: number }) => {
+      w.players[seatNo].pos = { ...at };
+      applyInput(game, seatNo, { seq: ++seq, move: { x: 0, y: 0 }, act: true });
+      const views = tickGame(game).views;
+      applyInput(game, seatNo, { seq: ++seq, move: { x: 0, y: 0 }, act: false });
+      return views;
+    };
+    const uncover = actAt(0, moon);
+    expect(w.cacheUncovered).toEqual(["Q1"]);
+    for (const i of [1, 2] as const)
+      expect(uncover.get(i)?.tiles, `uncover, seat ${i}`).toBeDefined();
+    expect(uncover.get(0)?.tiles).toBeUndefined(); // Can't see has no map
+    const station = w.stations.Q1 as NonNullable<(typeof w.stations)[string]>;
+    station.answer = [3, 4];
+    station.input = [3, 4];
+    const solved = actAt(1, anchor);
+    expect(w.cacheBy.Q1).toBe(1);
+    for (const i of [1, 2] as const) expect(solved.get(i)?.tiles, `solve, seat ${i}`).toBeDefined();
+    const after = tickGame(game).views;
+    expect(after.get(1)?.tiles).toBeUndefined();
+    expect(after.get(2)?.tiles).toBeUndefined();
+  });
+
+  // A send-back shuts a chamber that was open, so the sighted must be sent the map again that tick:
+  // otherwise their client keeps the open chamber drawn and predicts it walkable while the server
+  // treats it as wall (the user saw a door that stayed open on screen and could not be walked through).
+  it("sends tiles to the sighted seats the tick a send-back shuts an open chamber", () => {
+    const room4 = loadRooms("./rooms").find((r) => r.id === "04-the-safe");
+    if (!room4) throw new Error("no room 4");
+    const g = startGame(lobby("a", "b", "c"), [room4]);
+    const world = g.world;
+    world.cacheUncovered.push("Q3");
+    syncCacheDoors(world);
+    tickGame(g, new Set<Seat>([0, 1, 2])); // everyone holds the open map
+    expect(world.doorOpen[secretDoors(world.room)[0]?.chamber.id as string]).toBe(true);
+    // a wrong answer on the ordinary dial Q2 sends the team back to the spawns
+    const q2 = world.stations.Q2 as NonNullable<(typeof world.stations)[string]>;
+    q2.answer = [3, 3];
+    q2.input = [5];
+    world.players[1].pos = { x: 20.5, y: 1.5 }; // Q2's anchor tile
+    applyInput(g, 1, { seq: 900, move: { x: 0, y: 0 }, act: true });
+    const views = tickGame(g).views;
+    expect(world.attempt, "the wrong answer sent the team back").toBe(1);
+    expect(world.doorOpen[secretDoors(world.room)[0]?.chamber.id as string]).toBe(false);
+    for (const i of [1, 2] as const) expect(views.get(i)?.tiles, `seat ${i}`).toBeDefined();
   });
 
   it("keeps a view of room 01 under 2 KB unless it is a full view", () => {
@@ -147,9 +227,48 @@ describe("inputs and views", () => {
   });
 });
 
+describe("stalledRestart: the guard for a restarted room that never ticks (playtest fixes, Task 6)", () => {
+  // The playtest's freeze was not reproduced (20 restarts in spec/restart-resume.test.ts, 4 on the
+  // page in spec/layout/hud.test.ts); this is the guard the plan asks for in that case.
+  const restarted = () => {
+    const game = startGame(lobby("a", "b", "c"), firstJob);
+    for (const s of [0, 1, 2] as const) game.ready.add(s);
+    restartGame(game);
+    return game;
+  };
+  const idle = { ticking: false, holding: false };
+
+  it("a restarted room with no tick loop and no hold, still at tick 0, has stalled", () => {
+    expect(stalledRestart(restarted(), idle)).toBe(true);
+  });
+
+  it("a room that ticks, or is still in its hold, has not", () => {
+    const game = restarted();
+    expect(stalledRestart(game, { ticking: true, holding: false })).toBe(false);
+    expect(stalledRestart(game, { ticking: false, holding: true })).toBe(false);
+    tickGame(game);
+    expect(stalledRestart(game, idle)).toBe(false);
+  });
+
+  it("a room held for a reason is not stalled: paused, a vote open, not all ready, or cleared", () => {
+    const paused = restarted();
+    pauseFor(paused, 1, Date.now(), PAUSE_MS);
+    expect(stalledRestart(paused, idle)).toBe(false);
+    const voting = restarted();
+    proposeVote(voting, lobby("a", "b", "c"), 0, "room", Date.now());
+    expect(stalledRestart(voting, idle)).toBe(false);
+    const unready = restarted();
+    unready.ready.delete(2);
+    expect(stalledRestart(unready, idle)).toBe(false);
+    const cleared = restarted();
+    cleared.world.status = "cleared";
+    expect(stalledRestart(cleared, idle)).toBe(false);
+  });
+});
+
 describe("restartGame", () => {
   it("puts everyone back at spawn with crates and doors reset, keeping roles and ready", () => {
-    const game = startGame(lobby("a", "b", "c"), rooms);
+    const game = startGame(lobby("a", "b", "c"), firstJob);
     game.ready.add(0);
     const roles = [...game.roles];
     const crate = game.world.crates[0]?.tile;
@@ -164,12 +283,40 @@ describe("restartGame", () => {
     expect(game.world.status).toBe("playing");
     expect(game.world.doorOpen.D1).toBe(false);
     expect(game.world.crates[0]?.tile).toEqual(crate);
-    expect(game.world.players[1].pos).toEqual({ x: 2.5, y: 4.5 });
+    expect(game.world.players[1].pos).toEqual({ x: 1.5, y: 5.5 });
     expect(game.inputs).toEqual({});
     expect(game.roles).toEqual(roles);
     expect([...game.ready]).toEqual([0]);
     // a seq lower than the old one is accepted again
     expect(applyInput(game, 1, { seq: 1, move: { x: 0, y: 0 }, act: false })).toBe(true);
+  });
+
+  it("a restart forgets the old room's held input, and a seat then walks on its next one", () => {
+    // Replaces the browser test "lets a player move again after a restart": it held D on two pages and compared
+    // canvas hashes inside 800 ms. What it guards: the old room's held input must not carry into the new room (a
+    // seat walking east would drift off the spawn by itself), and the new room takes the seat's next input. (The
+    // page's seq keeps counting across a restart, so a lower seq is a case of this test's own making, not a page's.)
+    const game = startGame(lobby("a", "b", "c"), firstJob);
+    applyInput(game, 1, { seq: 50, move: { x: 1, y: 0 }, act: false });
+    for (let i = 0; i < 10; i++) tickGame(game);
+    restartGame(game);
+    const spawn = { ...game.world.players[1].pos };
+    for (let i = 0; i < 10; i++) tickGame(game);
+    expect(game.world.players[1].pos, "no input, so it stays on the spawn").toEqual(spawn);
+    expect(applyInput(game, 1, { seq: 51, move: { x: 1, y: 0 }, act: false })).toBe(true);
+    for (let i = 0; i < 10; i++) tickGame(game);
+    expect(game.world.players[1].pos.x).toBeGreaterThan(spawn.x + 1);
+  });
+
+  it("seeds each new world afresh, so a restart draws new station answers (FR5)", () => {
+    const game = startGame(lobby("a", "b", "c"), rooms);
+    const seeds = new Set([game.world.seed]);
+    for (let i = 0; i < 5; i++) {
+      restartGame(game);
+      seeds.add(game.world.seed);
+    }
+    expect(seeds.size).toBe(6);
+    for (const s of seeds) expect(Number.isInteger(s) && s >= 0).toBe(true);
   });
 });
 
@@ -180,8 +327,18 @@ describe("advanceRoom", () => {
     return startGame(l, rooms);
   };
 
-  it("has three rooms to play", () => {
-    expect(rooms.map((r) => r.id)).toEqual(["01-loading-dock", "02-cameras-lasers", "03-vault"]);
+  it("has ten rooms to play: the basics, The Safe, The Gallery, Lights Out, Night Shift, Music Room, then the old rooms until phase 10 replaces them", () => {
+    expect(rooms.map((r) => r.id)).toEqual([
+      "01-first-steps",
+      "02-three-hands",
+      "03-watchers",
+      "04-the-safe",
+      "05-the-gallery",
+      "06-lights-out",
+      "07-night-shift",
+      "08-music-room",
+      "09-the-vault",
+    ]);
   });
 
   it("moves to the next room: new world, roles rotated, nobody ready, inputs and cooldowns cleared", () => {
@@ -193,7 +350,7 @@ describe("advanceRoom", () => {
     game.world.status = "cleared";
     expect(advanceRoom(game, l, rooms)).toBe("next");
     expect(game.roomIndex).toBe(1);
-    expect(game.world.room.id).toBe("02-cameras-lasers");
+    expect(game.world.room.id).toBe("02-three-hands");
     expect(game.world.status).toBe("playing");
     expect(game.world.tick).toBe(0);
     expect(game.roles).toEqual(rolesFor(1));
@@ -202,7 +359,7 @@ describe("advanceRoom", () => {
     expect(game.cooldowns.until).toEqual({});
   });
 
-  it("gives every seat every role once across the three rooms, then reports done", () => {
+  it("gives every seat every role once across any three rooms in a row, then reports done", () => {
     const game = started();
     const played: string[][] = [[], [], []];
     const record = () => {
@@ -211,14 +368,17 @@ describe("advanceRoom", () => {
       });
     };
     record();
-    expect(advanceRoom(game, l, rooms)).toBe("next");
-    record();
-    expect(advanceRoom(game, l, rooms)).toBe("next");
-    record();
-    for (const roles of played) expect(new Set(roles).size).toBe(3);
-    expect(game.world.room.id).toBe("03-vault");
+    for (let i = 1; i < rooms.length; i++) {
+      expect(advanceRoom(game, l, rooms)).toBe("next");
+      record();
+    }
+    for (const roles of played) {
+      for (let i = 0; i + 3 <= roles.length; i++)
+        expect(new Set(roles.slice(i, i + 3)).size).toBe(3);
+    }
+    expect(game.world.room.id).toBe(rooms.at(-1)?.id);
     expect(advanceRoom(game, l, rooms)).toBe("done");
-    expect(game.roomIndex).toBe(2);
+    expect(game.roomIndex).toBe(rooms.length - 1);
   });
 });
 
@@ -279,6 +439,41 @@ describe("bots in a game", () => {
     expect(game.bots[2]?.memory).not.toBe(first);
     expect(game.bots[2]?.memory.seq).toBe(0);
     expect(game.ready.has(1) && game.ready.has(2)).toBe(true);
+  });
+});
+
+// A mark a person sends lands in the world, where Can't hear and Can't speak see it drawn (relay).
+// A bot's mark goes through the same router, so it must be drawn too: a mark nobody can see is
+// not a message. Room 7's torch carrier marks the wire its ink names.
+describe("a bot's mark is drawn on the wall like a person's", () => {
+  it("room 7: the Can't-speak bot at the ink marks the wire, and a stamp lands in the world", () => {
+    const l = withBots("a", 1, 2); // seat 0 a person, seats 1 and 2 bots
+    const game = startGame(l, rooms);
+    // walk to room 7 the way the server does: each cleared room advances the game
+    while (game.roomIndex < 6) {
+      game.world.status = "cleared";
+      advanceRoom(game, l, rooms);
+    }
+    expect(game.world.room.id).toBe("07-night-shift");
+    game.ready.add(0);
+    const marks: number[] = [];
+    for (let i = 0; i < 1500 && game.world.stamps.length === 0; i++) {
+      const said = tickGame(game, new Set(), i * 50).sent;
+      if (said.some((s) => s.message.method === "mark")) marks.push(i);
+    }
+    expect(marks.length, "a bot sent a mark").toBeGreaterThan(0);
+    expect(game.world.stamps.length, "and it is drawn in the world").toBeGreaterThan(0);
+    // a seat that is neither the bot that marked nor Can't see is shown it: the sighted roles that
+    // receive marks (ADR 0011). Whoever the room's rotation made the other sighted seat, by role.
+    const views = tickGame(game, new Set(), 99_999).views;
+    const sighted = ([0, 1, 2] as const).filter((x) => game.roles[x] !== "blind");
+    expect(sighted.length).toBe(2);
+    for (const x of sighted) {
+      expect(
+        views.get(x)?.entities.some((e) => e.kind === "stamp"),
+        `${game.roles[x]} (seat ${x}) is shown the stamp`,
+      ).toBe(true);
+    }
   });
 });
 
@@ -382,7 +577,7 @@ describe("pausing for a dropped seat", () => {
       who: null,
       bot: true,
       connected: true,
-      nickname: "Bot square",
+      nickname: "Bot Jinx",
     });
     expect(game.bots[1]?.memory.seat).toBe(1);
     expect(game.ready.has(1)).toBe(true);
@@ -407,6 +602,17 @@ describe("a person's messages reach the bots they are sent to", () => {
     expect(sent).toMatchObject({ ok: true });
     for (let i = 0; i < 10; i++) tickGame(game, new Set(), 1_000 + i * 50);
     expect(game.world.players[2].pos.x).toBeGreaterThan(before.x);
+  });
+});
+
+describe("the crew can still talk once a room is cleared", () => {
+  it("relays a text from Can't see (to Can't speak, its only reader) while the room is cleared", () => {
+    const l = withBots("a", 1, 2);
+    const game = startGame(l, rooms);
+    game.world.status = "cleared";
+    const blind = game.roles.indexOf("blind") as Seat;
+    const sent = relay(game, l, blind, { method: "text", text: "nice one" }, 1_000);
+    expect(sent).toMatchObject({ ok: true });
   });
 });
 
@@ -435,7 +641,7 @@ describe("a mark must be on a tile the sender can see", () => {
 
 describe("being caught", () => {
   it("is reported by tickGame: what, which player, and the checkpoint the team goes back to", () => {
-    const game = startGame(lobby("a", "b", "c"), [rooms[1] as (typeof rooms)[0]]);
+    const game = startGame(lobby("a", "b", "c"), [roomById("09-cameras-lasers")]);
     game.ready.add(0);
     game.world.checkpoint = 1;
     game.world.players[1].pos = { x: 23.5, y: 4.5 }; // in L1's column (a laser column at x = 23)
@@ -443,6 +649,21 @@ describe("being caught", () => {
     const caught = tickGame(game).caught;
     expect(caught).toEqual([{ hazard: "laser", seat: 1, checkpoint: 1 }]);
     expect(tickGame(game).caught).toEqual([]);
+  });
+
+  it("names the station type for a wrong answer, so the banner can say what was wrong", () => {
+    const [draft] = loadRooms("./spec/fixtures/drafts");
+    const game = startGame(lobby("a", "b", "c"), [draft as (typeof rooms)[0]]);
+    game.ready.add(0);
+    const wires = game.world.stations.Q4;
+    if (!wires) throw new Error("no Q4");
+    const wrong = [0, 1, 2, 3].find((i) => i !== wires.answer[0]) as number;
+    const tile = draft?.objects.find((o) => o.id === "Q4")?.params?.wires as number[][];
+    const [x, y] = tile[wrong] as [number, number];
+    game.world.players[1].pos = { x: x + 0.5, y: y + 0.5 };
+    game.inputs[1] = { seq: 1, move: { x: 0, y: 0 }, act: true };
+    const caught = tickGame(game).caught;
+    expect(caught).toEqual([{ hazard: "station", seat: 1, checkpoint: 0, station: "wires" }]);
   });
 });
 
@@ -507,6 +728,19 @@ describe("a lobby of five", () => {
     expect(l.people.map((p) => p.played)).toEqual([["blind"], ["deaf"], ["mute"], [], []]);
     expect(markPlayed(game, l)).toBe(false); // a restart of the same room is not a second play
     expect(l.people[0]?.played).toEqual(["blind"]);
+  });
+
+  it("keeps a bot's roles too, under its own name, for the reveal's Played row (the user, Task 81 review)", () => {
+    const l = withBots("a", 1, 2);
+    const game = startGame(l, rooms);
+    expect(playedBy(l, game)).toEqual({ A: [], "Bot Jinx": [], "Bot Moss": [] }); // nothing yet: nothing shown
+    markPlayed(game, l);
+    expect(markPlayed(game, l)).toBe(false); // a restart is not a second play
+    expect(playedBy(l, game)).toEqual({
+      A: [game.roles[0]],
+      "Bot Jinx": [game.roles[1]],
+      "Bot Moss": [game.roles[2]],
+    });
   });
 
   it("seats the others next, and moves the first three to sit out", () => {
@@ -584,7 +818,7 @@ describe("a lobby of five", () => {
 });
 
 function withSeatsOf(l: LobbyState): LobbyState {
-  l.seats = [seat(l.people[0]?.who ?? null, 0), seat(l.people[1]?.who ?? null, 1), bot("triangle")];
+  l.seats = [seat(l.people[0]?.who ?? null, 0), seat(l.people[1]?.who ?? null, 1), bot("Moss")];
   return l;
 }
 
@@ -658,7 +892,7 @@ describe("a restart vote", () => {
     const { l, game } = three();
     proposeVote(game, l, 0, "room", 0);
     castVote(game, l, 1, true, 1);
-    l.seats[2] = bot("triangle");
+    l.seats[2] = bot("Moss");
     expect(settleVote(game, l)).toBe("passed");
   });
 
@@ -805,7 +1039,7 @@ describe("takeOverWithPerson", () => {
 
   it("starts the bots afresh: who is a person has changed", () => {
     const l = lobby("a", "b", "c", "d", "e");
-    l.seats = [seat("a", 0), bot("square"), seat("c", 2)];
+    l.seats = [seat("a", 0), bot("Jinx"), seat("c", 2)];
     l.sittingOut = ["d", "e"];
     const game = startGame(l, rooms);
     const before = game.bots[1]?.memory;
@@ -843,5 +1077,134 @@ describe("unready", () => {
   it("does nothing for a seat that was not ready", () => {
     const game = startGame(lobby("a", "b", "c"), rooms);
     expect(unready(game, 2)).toBe(false);
+  });
+});
+
+describe("the comms map's counts", () => {
+  it("counts a message once on each direction it reached: two callouts from seat 1 reach 0 and 2", () => {
+    const comms = {};
+    countComms(comms, 1, [0, 2], "callout");
+    countComms(comms, 1, [0, 2], "callout");
+    expect(comms).toEqual({ "1>0": { callout: 2 }, "1>2": { callout: 2 } });
+    expect(commsEdges(comms)).toEqual([
+      { from: 1, to: 0, count: 2, by: { callout: 2 } },
+      { from: 1, to: 2, count: 2, by: { callout: 2 } },
+    ]);
+  });
+
+  it("counts voice as time: each frame is 60 ms, however the person talks (toggle or push)", () => {
+    const game = startGame(lobby("a", "b", "c"), rooms);
+    for (let i = 0; i < 50; i++) countVoice(game, 1, [2]); // 50 frames: 3 s, with no gap to tell spurts apart
+    expect(commsEdges(game.comms)).toEqual([{ from: 1, to: 2, count: 0, by: {}, voiceMs: 3000 }]);
+    countComms(game.comms, 1, [2], "text");
+    expect(commsEdges(game.comms)).toEqual([
+      { from: 1, to: 2, count: 1, by: { text: 1 }, voiceMs: 3000 },
+    ]);
+  });
+
+  it("counts what a person sends through relay, and only to the seats it reached", () => {
+    const l = lobby("a", "b", "c");
+    const game = startGame(l, rooms);
+    const deaf = game.roles.indexOf("deaf") as Seat;
+    const blind = game.roles.indexOf("blind") as Seat;
+    const mute = game.roles.indexOf("mute") as Seat;
+    relay(game, l, deaf, { method: "callout", callout: "wait" }, 1_000);
+    // a refused send is not a delivery
+    relay(game, l, mute, { method: "callout", callout: "wait" }, 1_000);
+    expect(game.comms).toEqual({
+      [`${deaf}>${blind}`]: { callout: 1 },
+      [`${deaf}>${mute}`]: { callout: 1 },
+    });
+  });
+
+  it("counts what the bots send, the same as a person's", () => {
+    const l = withBots("a", 1, 2);
+    const game = startGame(l, rooms);
+    let sent = 0;
+    for (let i = 0; i < 400 && sent === 0; i++) {
+      sent += tickGame(game, new Set(), 1_000 + i * 50).sent.length;
+    }
+    expect(sent).toBeGreaterThan(0);
+    expect(commsEdges(game.comms).reduce((n, e) => n + e.count, 0)).toBeGreaterThan(0);
+    for (const edge of commsEdges(game.comms)) expect([1, 2]).toContain(edge.from);
+  });
+
+  it("starts again from nothing in the next room, and on a restart", () => {
+    const l = lobby("a", "b", "c");
+    const game = startGame(l, rooms);
+    countComms(game.comms, 0, [1], "text");
+    countVoice(game, 1, [2]);
+    game.world.status = "cleared";
+    advanceRoom(game, l, rooms);
+    expect(game.comms).toEqual({});
+    countVoice(game, 1, [2]); // a new room counts from nothing
+    expect(commsEdges(game.comms)).toEqual([{ from: 1, to: 2, count: 0, by: {}, voiceMs: 60 }]);
+    restartGame(game);
+    expect(game.comms).toEqual({});
+  });
+});
+
+describe("autopilot (playtest only, ADR 0027)", () => {
+  let l: LobbyState;
+  const started = () => {
+    l = lobby("a", "b", "c");
+    const game = startGame(l, rooms);
+    for (const s of [0, 1, 2] as const) game.ready.add(s);
+    return game;
+  };
+
+  it("hands a person's seat to a bot: it walks with no input from outside, and everyone stays ready", () => {
+    const game = started();
+    const before = { ...game.world.players[1].pos };
+    expect(setAutopilot(game, l, 1, true)).toBe(true);
+    expect(autopilotOn(game, 1)).toBe(true);
+    for (let i = 0; i < 40; i++) tickGame(game, new Set(), i * 50);
+    expect(game.world.players[1].pos).not.toEqual(before);
+    expect([...game.ready].sort()).toEqual([0, 1, 2]);
+  });
+
+  it("drops the held key, and a second toggle the same way is no change", () => {
+    const game = started();
+    applyInput(game, 1, { seq: 4, move: { x: 1, y: 0 }, act: false });
+    setAutopilot(game, l, 1, true);
+    expect(game.inputs[1]).toBeUndefined();
+    expect(setAutopilot(game, l, 1, true)).toBe(false);
+  });
+
+  it("gives the seat back when switched off", () => {
+    const game = started();
+    setAutopilot(game, l, 1, true);
+    expect(setAutopilot(game, l, 1, false)).toBe(true);
+    expect(game.bots[1]).toBeUndefined();
+    expect(autopilotOn(game, 1)).toBe(false);
+  });
+
+  it("ends when the room advances", () => {
+    const game = started();
+    setAutopilot(game, l, 1, true);
+    game.world.status = "cleared";
+    advanceRoom(game, l, rooms);
+    expect(game.autopilot.size).toBe(0);
+    expect(game.bots).toEqual({});
+  });
+
+  it("ends on a restart, and the lobby's own bots stay", () => {
+    const bl = withBots("a", 2); // seat 2 a lobby bot
+    const game = startGame(bl, rooms);
+    for (const s of [0, 1, 2] as const) game.ready.add(s);
+    setAutopilot(game, bl, 1, true);
+    restartGame(game);
+    expect(game.bots[1]).toBeUndefined();
+    expect(autopilotOn(game, 1)).toBe(false);
+    expect(game.bots[2]).toBeDefined();
+    expect(setAutopilot(game, bl, 1, true)).toBe(true);
+  });
+
+  it("an autopilot seat is not a person to the other bots", () => {
+    const game = started();
+    setAutopilot(game, l, 1, true);
+    setAutopilot(game, l, 2, true);
+    expect(game.bots[2]?.memory.humans.has(1)).toBe(false);
+    expect(game.bots[1]?.memory.humans.has(0)).toBe(true);
   });
 });

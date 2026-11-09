@@ -3,7 +3,7 @@ import { canSend, type Role } from "../game/types.ts";
 import type { Voice } from "./useVoice.ts";
 
 const VOICE_NOTE: Partial<Record<Voice["status"], string>> = {
-  blocked: "Microphone blocked: voice is off. Callouts and text still work.",
+  blocked: "Voice off (optional). Callouts and text still work.",
   "no-encoder":
     "This browser can't do voice (it has no audio encoder): voice is off. Callouts and text still work.",
   insecure:
@@ -23,7 +23,6 @@ export function TalkBar({
   onText,
   onFocus,
   onComms,
-  commsDisabled,
 }: {
   role: Role;
   voice: Voice;
@@ -35,7 +34,6 @@ export function TalkBar({
   // The Comms button sits with the other talk buttons, for a mouse and keyboard player who
   // would rather click than hold Q. Absent on a phone, whose wheel button does the same.
   onComms?: () => void;
-  commsDisabled?: boolean;
 }) {
   const text = canSend(role, "text");
   const speaks = canSend(role, "voice");
@@ -72,9 +70,9 @@ export function TalkBar({
           <button
             type="button"
             class="btn talk-comms"
+            data-no-ui-sound
             aria-keyshortcuts="Q"
             aria-label="Comms, key Q"
-            disabled={commsDisabled}
             onClick={onComms}
           >
             <kbd>Q</kbd> Comms
@@ -84,6 +82,7 @@ export function TalkBar({
           <button
             type="button"
             class="btn talk-write"
+            data-no-ui-sound
             aria-label="Write a message"
             aria-keyshortcuts="Enter"
             onClick={onWrite}
@@ -95,6 +94,7 @@ export function TalkBar({
           <button
             type="button"
             class={voice.talking ? "btn talk-mic is-talking" : "btn talk-mic"}
+            data-no-ui-sound
             aria-pressed={voice.talking}
             aria-keyshortcuts="V"
             onPointerDown={(e) => {

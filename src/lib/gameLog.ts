@@ -1,3 +1,4 @@
+import type { WorldEvent } from "../game/sim/world.ts";
 import { type Detail, redact, stdoutSink } from "./log.ts";
 import { anon } from "./requestLog.ts";
 import { sharedStats } from "./stats.ts";
@@ -22,13 +23,22 @@ export type GameEvent =
   | "game.start"
   | "room.start"
   | "room.clear"
+  | "room.stall" // a restarted room had not ticked after its hold, so the server started its ticks (detail room)
   | "channel.send"
   | "channel.refused"
   | "caught"
   | "pause" // a person's connection dropped mid-room and the game paused for them
   | "bot.takeover" // the host let a bot take a dropped seat
   | "run.saved" // a room or heist run was written to the leaderboard
-  | "voice.latency"; // a receiver's voice latency over the last few seconds (numbers only)
+  | "voice.latency" // a receiver's voice latency over the last few seconds (numbers only)
+  | "station" // a station solved, answered wrong or jammed, or a braille plate read (detail kind only: never the answer)
+  | "gear" // gear taken, given, dropped or put on a sill (detail kind)
+  | "hold" // two players took or let go of hands (detail kind: on/off)
+  | "signal" // the bell rung or the lamp flashed (detail kind: bell/lamp)
+  | "practice" // a practice lever flipped (detail kind: on/off; never which lever)
+  | "cache" // a side job's hidden station uncovered or solved (detail kind only: never the item, motif or riddle)
+  | "pull" // a tug of war began between two hand-holders (no detail: who is never logged)
+  | "autopilot"; // playtest only (ADR 0027): a seat handed to a bot or back; detail.kind "on" or "off"
 
 // One line per discrete thing a player did: never per tick. `who` is a device
 // hash and `lobby` a hash of the lobby's code and age, so neither leads back to
@@ -69,4 +79,33 @@ export function logGame(input: Parameters<typeof describeGame>[0]): void {
   const line = describeGame(input);
   sharedStats().recordGame(line);
   stdoutSink(line);
+}
+
+// The game lines a tick's world events make: one per discrete thing done, with the kind of
+// thing only. A station's turns and presses are not logged (one line per press would be a
+// line per tick when someone mashes Act); its result is.
+export interface EventLine {
+  event: GameEvent;
+  detail: { kind: string };
+}
+
+export function gameLinesFor(events: readonly WorldEvent[]): EventLine[] {
+  return events.flatMap((e): EventLine[] => {
+    if (
+      e.kind === "station" &&
+      (e.result === "solved" || e.result === "wrong" || e.result === "jam")
+    ) {
+      return [{ event: "station", detail: { kind: e.result } }];
+    }
+    if (e.kind === "braille") return [{ event: "station", detail: { kind: "braille" } }];
+    if (e.kind === "gear") return [{ event: "gear", detail: { kind: e.action } }];
+    if (e.kind === "hold")
+      return [{ event: "hold", detail: { kind: e.leader === null ? "off" : "on" } }];
+    if (e.kind === "bell" || e.kind === "lamp")
+      return [{ event: "signal", detail: { kind: e.kind } }];
+    if (e.kind === "cache") return [{ event: "cache", detail: { kind: e.result } }];
+    if (e.kind === "pull") return [{ event: "pull", detail: { kind: "tug" } }];
+    if (e.kind === "lever") return [{ event: "practice", detail: { kind: e.on ? "on" : "off" } }];
+    return [];
+  });
 }

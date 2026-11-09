@@ -1,19 +1,33 @@
 import { formatTime } from "../client/hud.ts";
+import type { ItemId } from "../game/rooms/format.ts";
+import type { CommsEdge, CrewMember } from "../net/protocol.ts";
+import { CommsMap } from "./CommsMap.tsx";
+import { KeepsakeShelf } from "./KeepsakeShelf.tsx";
 
 // Shown over the map once the third room is cleared: the heist is over. There
 // is no Next here (there is no fourth room) and no Restart (restarting room 3
 // alone would not redo the heist), just the result and the board it landed
-// on. Leave is still under Settings, same as every other room.
+// on, opened in the game as a panel. Leave is still under Settings, same as every other room.
 export function HeistComplete({
   ms,
   loot,
   lootTotal,
   rank,
+  onBoard,
+  caches,
+  comms,
+  crew,
 }: {
   ms: number;
   loot: number;
   lootTotal: number;
   rank: number;
+  onBoard: () => void; // open the leaderboard panel on the full-heist tab
+  caches?: { room: string; name: string; found: boolean; item: ItemId }[]; // one per room with a side job
+  // the last room's comms map: this card takes the place of that room's cleared card. Only that
+  // room's, since the crew and their seats change from room to room.
+  comms?: CommsEdge[];
+  crew: readonly CrewMember[];
 }) {
   return (
     <div class="overlay" role="status">
@@ -24,13 +38,15 @@ export function HeistComplete({
           Loot {loot} of {lootTotal}
         </p>
       )}
+      {caches && <KeepsakeShelf caches={caches} />}
       <p>
         Rank <strong>#{rank}</strong> on the board
       </p>
+      {comms && <CommsMap edges={comms} crew={crew} title="Comms in the last room" />}
       <div class="overlay-actions">
-        <a class="btn primary" href="/leaderboard">
+        <button type="button" class="btn primary" onClick={onBoard}>
           See the leaderboard
-        </a>
+        </button>
       </div>
     </div>
   );

@@ -1,13 +1,46 @@
-import type { Callout, ChannelMessage, Outgoing } from "../channels.ts";
-import type { EntityView, RoleView, SoundCue } from "../perception.ts";
-import type { Room } from "../rooms/format.ts";
+import {
+  type Callout,
+  type ChannelMessage,
+  COOLDOWN_MS,
+  type Outgoing,
+  STAMP_LIFE_MS,
+} from "../channels.ts";
+import { type EntityView, ITEM_WORDS, type RoleView, type SoundCue } from "../perception.ts";
+import { cacheOf, type Room, secretDoors } from "../rooms/format.ts";
+import { platePart } from "../sim/braille.ts";
 import { blockedAt } from "../sim/collide.ts";
 import { laserBeam } from "../sim/hazards.ts";
-import { createWorld, SPEED_TPS, TICK_MS, type World } from "../sim/world.ts";
-import { type PlayerInput, ROLES, type Role, type Seat, type Vec } from "../types.ts";
+import { stationParts, tilesOf } from "../sim/stations.ts";
+import { decodeSeen } from "../sim/visibility.ts";
+import { createWorld, SPEED_TPS, type StationType, TICK_MS, type World } from "../sim/world.ts";
+import { canSend, type PlayerInput, ROLES, type Role, type Seat, type Vec } from "../types.ts";
+import {
+  beliefFrom,
+  bellsStep,
+  bellToMark,
+  type Count,
+  countStep,
+  DECODERS,
+  dialStep,
+  type Ear,
+  earStep,
+  emptyBelief,
+  emptyEar,
+  keypadStep,
+  linkedFrom,
+  radioPad,
+  radioToTell,
+  readBraille,
+  type StationBelief,
+  switchesLeft,
+  syncGo,
+  TURN_WAIT_TICKS,
+  vaultStep,
+} from "./decode.ts";
 import { type AlarmWindow, forecastFor } from "./forecast.ts";
 import {
   claimJobs,
+  clueTarget,
   exitTile,
   hintsOf,
   isDone,
@@ -21,8 +54,10 @@ import { pickPhrase, type Situation } from "./phrases.ts";
 
 // A bot thinks once per tick from its own role's view and the messages its role
 // received, and answers with an input and at most one message. It reads nothing
-// else about the live world (ADR 0007). What it also holds is the room's static
-// plan: the grid, the hints, and the hazards' timing (FR24).
+// else about the live world (ADR 0007): a station is solved from what it perceives
+// and what teammates send (clues FR5, ADR 0018), through its type's decoder
+// (decode.ts). What it also holds is the room's static plan: the grid, the hints,
+// and the hazards' timing (FR24).
 export interface BotMemory {
   seat: Seat;
   tiles: string[] | null;
@@ -39,6 +74,9 @@ export interface BotMemory {
   humTicks: number; // ticks in a row it has heard a hum
   known: Known | null;
   ptr: [number, number, number]; // how far along each seat's job queue
+  cacheDone: Set<string>; // cache jobs finished (`seat:index`): a job done by standing somewhere stays done
+  cacheSince: Record<string, number>; // tick each open, unsolved cache was first perceived open and in play
+  cacheGaveUp: Set<string>; // caches whose jobs this bot has given up: nobody finished them in time
   queues: Record<Seat, Job[]> | null;
   exec: Exec | null;
   nav: Nav;
@@ -50,6 +88,17 @@ export interface BotMemory {
   celebrated: boolean;
   model: World | null;
   lastPos: Vec | null; // where the bot was last tick: a jump is the team being sent back
+  bodies: Partial<Record<Seat, Vec>>; // where it last saw each player
+  actWas: boolean; // pressed Act last tick: a press needs a release before the next
+  gearWas: boolean;
+  markedFor: string | null; // a switches watcher: the station and lamps (as seen) it last marked a button for
+  lastMarkAt: number; // when it last sent a mark (game ms): marks have a cooldown
+  wireMarkedAt: Record<string, number>; // when it last marked a wire panel's answer, by station
+  postSince: number | null; // when it got to the ink it is lighting (game ms), or null
+  ear: Ear; // Can't see holding the earpiece: the tune heard, and the code last told
+  toTell: number[]; // digits of the earpiece's code (or a braille plate's number) still to text, one a turn
+  toldPlate: string | null; // a Can't-see bot: the braille cells it last texted (read again after a send-back)
+  count: Count | null; // a sync lock's counter: the digit it last texted, and when
 }
 export interface BotTurn {
   input: PlayerInput;
@@ -86,11 +135,40 @@ interface Guide {
   tapAt: number; // when the guide last asked a person for a tap
 }
 
+// Jobs a seat works where it stands (Act on a part, the gear, a hand): a guide on one parks the
+// Can't-see seat rather than steering it.
+const WORK_KINDS = new Set<Job["target"]["kind"]>([
+  "station",
+  "keepsake",
+  "watch",
+  "take",
+  "give",
+  "sill",
+  "tow",
+]);
+
+// A cache needs every seat's part (ADR 0024): a person may never do theirs, so a bot gives a cache's
+// jobs up once it has been open this long without being solved, and goes back to its beat (FR1 of
+// review fixes A: an uncovered cache never blocks a room for good)
+export const CACHE_GIVE_UP_TICKS = 1200;
+const PERCEIVED_TICKS = 40; // a hazard seen or heard in the last 2 s is planned around (A3)
+
+// The hazards this bot has seen or heard lately: all it may plan around, since a role that
+// has perceived nothing of a hazard knows nothing of it.
+function perceivedHazards(known: Known, tick: number): ReadonlySet<string> {
+  const out = new Set<string>();
+  for (const [id, seen] of Object.entries(known.seenHazards)) {
+    if (tick - seen.lastTick <= PERCEIVED_TICKS) out.add(id);
+  }
+  return out;
+}
+
 const newNav = (): Nav => ({ key: "", plan: [], i: 0, expect: null });
 const ZERO: Vec = { x: 0, y: 0 };
 const STEP_LEN = (SPEED_TPS * TICK_MS) / 1000;
 const REPEAT_MS = 1500; // a callout is repeated, not spammed
 const FLAVOUR_MS = 10_000;
+const MARK_AFTER_MS = 20_000; // a torch carrier at the ink gives the others this long to read it first
 const IDLE_MS = 5000; // a blind bot with nothing heard for this long stays put
 const CLIP_MS = 10_000;
 const HUM_TICKS = 3;
@@ -148,10 +226,27 @@ export function createBotMemory(
     celebrated: false,
     model: null,
     lastPos: null,
+    cacheDone: new Set(),
+    cacheSince: {},
+    cacheGaveUp: new Set(),
+    bodies: {},
+    actWas: false,
+    gearWas: false,
+    markedFor: null,
+    lastMarkAt: Number.NEGATIVE_INFINITY,
+    wireMarkedAt: {},
+    postSince: null,
+    ear: emptyEar(),
+    toTell: [],
+    toldPlate: null,
+    count: null,
   };
 }
 
 const idle = (m: BotMemory, move: Vec = ZERO): PlayerInput => ({ seq: m.seq, move, act: false });
+// A bot led by another's hand walks nowhere of its own: the leader walks for both (ADR 0019).
+const towedWalk = (led: boolean, walk: PlayerInput): PlayerInput =>
+  led ? { ...walk, move: ZERO } : walk;
 const tileOf = (p: Vec): Vec => ({ x: Math.floor(p.x), y: Math.floor(p.y) });
 const centreOf = (t: Vec): Vec => ({ x: t.x + 0.5, y: t.y + 0.5 });
 const key = (t: Vec) => `${t.x},${t.y}`;
@@ -174,7 +269,7 @@ export function think(
   memory.seq++;
   if (view.tiles) memory.tiles = view.tiles;
   if (view.role === "blind") return thinkBlind(view, inbox, memory, now);
-  return thinkSighted(room, view, memory, now);
+  return thinkSighted(room, view, inbox, memory, now);
 }
 
 // --- Can't see: acts on what it is told, and on what it hears -------------------
@@ -184,6 +279,7 @@ function thinkBlind(view: RoleView, inbox: ChannelMessage[], m: BotMemory, now: 
     // sent back to the start: whatever it was told before is about somewhere else
     m.holding = true;
     m.heading = { ...ZERO };
+    m.toldPlate = null; // every answer is drawn again: the plate says something new
   }
   for (const msg of inbox) {
     if (msg.method !== "callout") continue; // never parses free text
@@ -207,7 +303,35 @@ function thinkBlind(view: RoleView, inbox: ChannelMessage[], m: BotMemory, now: 
   if (moving && view.tick >= m.ignoreHumUntil && m.humTicks >= HUM_TICKS) m.holding = true;
   if (moving && now - m.lastCalloutAt > IDLE_MS) m.holding = true; // nobody is steering
   if (view.status === "cleared") m.holding = true;
-  return { input: idle(m, m.holding ? ZERO : m.heading), send: null };
+  // the stethoscope at a safe's back: the tumbler means the dial is on the number now (decode.ts)
+  const tumbler = view.gear === "stethoscope" && view.sounds.some((s) => s.kind === "tumbler");
+  // the earpiece: the code it plays, heard the same twice, is texted a digit a key (decode.ts)
+  m.toTell.push(...earStep(view, m.ear));
+  // a braille plate under its hand: Act once to read it, then text its number a digit a turn
+  // (or its own cache's keepsake, once the vault is open and the hint says it can be taken: ADR 0024)
+  // (its keepsake's own hint only: towed over floor gear it hears "Take the <gear>", and leaves it)
+  const take =
+    view.cache?.state === "vault" && view.act === `Take the ${ITEM_WORDS[view.cache.item]}`;
+  const want = (view.act === "Read the plate" && !view.braille) || take;
+  const read = want && !m.actWas;
+  m.actWas = read;
+  const cells = view.braille ? JSON.stringify(view.braille.cells) : null;
+  const plate = view.braille ? readBraille(view.braille.cells) : null;
+  if (cells && plate !== null && cells !== m.toldPlate) {
+    m.toldPlate = cells;
+    m.toTell.push(...String(plate).split("").map(Number));
+  }
+  const digit = tumbler ? undefined : m.toTell.shift();
+  const send: Outgoing | null = tumbler
+    ? { method: "callout", callout: "stop" }
+    : digit !== undefined
+      ? { method: "text", text: String(digit) }
+      : null;
+  // Led by the hand (a Can't-see bot never takes one: that is a sighted bot's `tow` job), the person
+  // leading walks for both and both steer (ADR 0019): the heading it was last told would only pull
+  // against them, so it adds nothing while it holds a hand, and keeps the heading for after.
+  const led = view.you.hand !== undefined;
+  return { input: { ...idle(m, m.holding || led ? ZERO : m.heading), act: read }, send };
 }
 
 // --- Seeing roles ------------------------------------------------------------
@@ -222,14 +346,97 @@ function ensureKnown(room: Room, m: BotMemory): Known {
     seenHazards: {},
     clues: {},
     checkpoint: 0,
+    stations: {},
+    gear: {},
+    holding: {},
   };
   for (const o of room.objects) {
+    if (o.kind === "station") known.stations[o.id] = emptyBelief();
+    else if (o.kind === "gear" && o.tiles[0])
+      known.gear[o.id] = { at: { ...o.tiles[0] }, heldBy: null, sill: null };
     if (o.kind === "door") known.doorOpen[o.id] = false;
     else if (o.kind === "plate") known.pressed[o.id] = false;
     else if (o.kind === "crate" && o.tiles[0]) known.crates[o.id] = { ...o.tiles[0] };
   }
   m.known = known;
   return known;
+}
+
+// What the bot believes of each station, where the gear is and who holds whose hand, from its own
+// view and inbox (clues FR5): gear on the floor or a sill where it is seen, gear on a figure in
+// sight (or its own slot) as held, a hand held as the figures show it. What is out of sight
+// keeps its last belief.
+function readStations(
+  room: Room,
+  view: RoleView,
+  inbox: ChannelMessage[],
+  m: BotMemory,
+  known: Known,
+): void {
+  known.roles = rolesOf(m, view.role);
+  const stations = room.objects.filter((o) => o.kind === "station");
+  for (const o of stations)
+    known.stations[o.id] = beliefFrom(view, inbox, o, known.stations[o.id] ?? emptyBelief());
+  linkedFrom(room, view, known.stations);
+  for (const o of stations) {
+    const b = known.stations[o.id] as StationBelief;
+    // While a cache is open and unsolved, a "stop" is about the cache's safe (its listener is at the
+    // back of that one): the room's own dial does not take it as its number (ADR 0024)
+    const aside =
+      !cacheOf(o) &&
+      Object.keys(known.cachesOpen ?? {}).some(
+        (id) => known.stations[id]?.solved !== true && !m.cacheGaveUp.has(id),
+      );
+    const heard = aside
+      ? inbox.filter((m) => !(m.method === "callout" && m.callout === "stop"))
+      : inbox;
+    // a keypad takes only the chimes of its own clue: another keypad's (a cache's, heard from the same
+    // vent) names a different clue by its bearing and would spoil its code (ADR 0024)
+    const own = o.params?.clue;
+    const seen =
+      o.params?.type === "keypad" && typeof own === "string" && view.you.pos
+        ? {
+            ...view,
+            sounds: view.sounds.filter((c) => {
+              if (c.kind !== "clue" || !c.dir || !view.you.pos) return true;
+              const from = alongBearing(room, "clue", view.you.pos, c.dir);
+              return from === null || from === own;
+            }),
+          }
+        : view;
+    DECODERS[o.params?.type as StationType]?.(seen, heard, b, o, view.tick, platePart(room, o.id));
+  }
+  linkedFrom(room, view, known.stations);
+  if (view.sounds.some((c) => c.kind === "caught")) known.holding = {};
+  const figures = view.entities.filter((e) => e.kind === "player" && e.seat !== undefined);
+  for (const f of figures) {
+    const seat = f.seat as Seat;
+    if (f.heldBy !== undefined) known.holding[seat] = f.heldBy;
+    else if (f.holding === undefined) delete known.holding[seat];
+  }
+  const hatchAt = (t: Vec) =>
+    room.objects.find((o) => o.kind === "hatch" && o.tiles.some((h) => key(h) === key(t)))?.id;
+  for (const [id, g] of Object.entries(known.gear)) {
+    const item = room.objects.find((o) => o.id === id)?.params?.item;
+    const lying = view.entities.find((e) => e.kind === "gear" && e.id === id);
+    const holder =
+      view.gear === item ? m.seat : figures.find((f) => f.item === item && f.seat !== m.seat)?.seat;
+    if (lying) {
+      const t = tileOf(lying.pos);
+      const sill = hatchAt(t) ?? null;
+      known.gear[id] = { at: sill ? null : t, heldBy: null, sill };
+    } else if (holder !== undefined) {
+      known.gear[id] = { at: null, heldBy: holder, sill: null };
+    } else if (g.at && seenTile(view, g.at)) {
+      // where it last lay is in sight and it is gone: someone out of sight has it
+      known.gear[id] = { at: null, heldBy: null, sill: null };
+    }
+  }
+}
+
+// Whether a tile is in the view's line of sight (perception.ts: encodeSeen).
+function seenTile(view: RoleView, t: Vec): boolean {
+  return view.seen !== undefined && decodeSeen(view.seen).has(key(t));
 }
 
 const HEARD_KIND: Partial<Record<SoundCue["kind"], "guard" | "camera" | "laser">> = {
@@ -287,12 +494,14 @@ function hearHazards(room: Room, view: RoleView, known: Known): void {
   }
 }
 
-function observe(room: Room, view: RoleView, m: BotMemory): Known {
+function observe(room: Room, view: RoleView, inbox: ChannelMessage[], m: BotMemory): Known {
   const known = ensureKnown(room, m);
+  readStations(room, view, inbox, m, known);
   hearHazards(room, view, known);
   for (const e of view.entities) {
     if (e.kind === "door") known.doorOpen[e.id] = e.state === "open";
     else if (e.kind === "plate") known.pressed[e.id] = e.state === "pressed";
+    else if (e.kind === "braille" && e.state === "on") known.read = { ...known.read, [e.id]: true };
     else if (e.kind === "crate") known.crates[e.id] = tileOf(e.pos);
     else if (e.kind === "checkpoint" && e.state === "reached") {
       known.checkpoint = Math.max(known.checkpoint, Number(e.id.slice(1)));
@@ -301,6 +510,8 @@ function observe(room: Room, view: RoleView, m: BotMemory): Known {
       known.seenHazards[e.id] = { lastTick: view.tick }; // in line of sight right now
     }
   }
+  perceiveCaches(room, view, known);
+  giveUpCaches(room, view, known, m);
   // an alarm speeds the guards up and holds the cameras on: the forecast needs its windows
   if (view.alarm && m.alarmFrom === null) m.alarmFrom = view.tick;
   if (!view.alarm && m.alarmFrom !== null) {
@@ -310,6 +521,113 @@ function observe(room: Room, view: RoleView, m: BotMemory): Known {
     m.guide.nav = newNav();
   }
   return known;
+}
+
+// What a bot has perceived of each cache (ADR 0024), never read from the simulation: the team-wide
+// `cacheEvent` (its `at` is a door's centre, or the item's tile), a secret door seen open, and the
+// owner's own `view.cache`. An uncover opens the chamber door in its belief, a solve the vault door.
+function perceiveCaches(room: Room, view: RoleView, known: Known): void {
+  const same = (a: Vec, b: Vec) => Math.floor(a.x) === b.x && Math.floor(a.y) === b.y;
+  const open = (id: string) => {
+    known.cachesOpen = { ...known.cachesOpen, [id]: true };
+  };
+  const taken = (id: string) => {
+    known.cachesTaken = { ...known.cachesTaken, [id]: true };
+  };
+  const doors = secretDoors(room);
+  const ev = view.cacheEvent;
+  for (const d of doors) {
+    const spec = room.objects.find((o) => o.id === d.id);
+    const c = spec ? cacheOf(spec) : null;
+    if (!c) continue;
+    if (ev?.result === "uncover" && same(ev.at, c.chamber.door)) {
+      open(d.id);
+      known.doorOpen[d.chamber.id] = true;
+    }
+    if (ev?.result === "solved" && same(ev.at, c.chamber.vault.door)) {
+      open(d.id);
+      known.doorOpen[d.chamber.id] = true;
+      known.doorOpen[d.vault.id] = true;
+      const b = known.stations[d.id];
+      if (b) b.solved = true;
+    }
+    if (ev?.result === "taken" && same(ev.at, c.chamber.vault.item)) taken(d.id);
+    if (view.entities.some((e) => e.kind === "door" && e.secret && e.id === d.chamber.id)) {
+      open(d.id);
+    }
+    if (view.cache?.id === d.id) {
+      if (view.cache.state === "open" || view.cache.state === "vault") open(d.id);
+      if (view.cache.state === "vault" || view.cache.state === "taken") {
+        // solved: its vault is open too
+        known.doorOpen[d.vault.id] = true;
+        const b = known.stations[d.id];
+        if (b) b.solved = true;
+      }
+      if (view.cache.state === "taken") taken(d.id);
+    }
+  }
+}
+
+// An open cache left unsolved for CACHE_GIVE_UP_TICKS once it is in play is given up: its jobs end for
+// this bot and the room's own stations take every callout again. In play: the seat's beat has reached
+// the last beat any of the cache's jobs waits for (`currentJob`), since before that nobody is meant to
+// be working it. It reads only the bot's own view and the static job plan (ADR 0018).
+function giveUpCaches(room: Room, view: RoleView, known: Known, m: BotMemory): void {
+  const queues = queuesOf(room, m, view.role);
+  const beat =
+    queues[m.seat].slice(m.ptr[m.seat]).find((j) => j.cache === undefined)?.beat ?? Infinity;
+  for (const id of Object.keys(known.cachesOpen ?? {})) {
+    if (known.stations[id]?.solved === true || m.cacheGaveUp.has(id)) continue;
+    const jobs = [0, 1, 2].flatMap((s) => queues[s as Seat].filter((j) => j.cache === id));
+    const last = Math.max(0, ...jobs.map((j) => j.beat));
+    if (beat < last) continue;
+    const since = m.cacheSince[id] ?? view.tick;
+    m.cacheSince[id] = since;
+    if (view.tick - since >= CACHE_GIVE_UP_TICKS) m.cacheGaveUp.add(id);
+  }
+}
+
+// A send-back shuts every chamber again: what was perceived of them is forgotten, and re-learned
+// from the door (if seen) or the owner's view.
+function forgetCaches(room: Room, view: RoleView, known: Known, m: BotMemory): void {
+  m.cacheDone.clear();
+  m.cacheSince = {};
+  m.cacheGaveUp.clear();
+  known.cachesOpen = {};
+  known.cachesTaken = {};
+  for (const d of secretDoors(room)) {
+    known.doorOpen[d.chamber.id] = false;
+    known.doorOpen[d.vault.id] = false;
+  }
+  perceiveCaches(room, view, known);
+}
+
+// The job a seat is on: a cache job that is active (its cache perceived open, not taken, not done)
+// comes first; otherwise the first beat job from the pointer on. The beat job is parked, not lost:
+// when the cache jobs end it is current again.
+function currentJob(
+  room: Room,
+  m: BotMemory,
+  known: Known,
+  own: Role,
+  seat: Seat,
+  at?: Vec,
+): Job | null {
+  const queue = queuesOf(room, m, own)[seat];
+  // a cache job waits for its beat: a cache uncovered early is worked when the seat gets there, since
+  // what it needs (a door, a teammate, the gear) may not be in play before
+  const beat = queue.slice(m.ptr[seat]).find((j) => j.cache === undefined)?.beat ?? Infinity;
+  const active = queue.find((j) => {
+    if (j.cache === undefined || m.cacheDone.has(`${seat}:${j.index}`) || j.beat > beat)
+      return false;
+    if (m.cacheGaveUp.has(j.cache)) return false;
+    if (known.cachesOpen?.[j.cache] !== true || known.cachesTaken?.[j.cache] === true) return false;
+    if (j.target.kind === "keepsake" && known.stations[j.cache]?.solved !== true) return false;
+    if (!isDone(room, j, known, at, seat)) return true;
+    m.cacheDone.add(`${seat}:${j.index}`); // done by being there: leaving does not undo it
+    return false;
+  });
+  return active ?? queue.slice(m.ptr[seat]).find((j) => j.cache === undefined) ?? null;
 }
 
 function rolesOf(m: BotMemory, own: Role): readonly [Role, Role, Role] {
@@ -376,7 +694,7 @@ function blockedFor(room: Room, known: Known, goal: Vec) {
   const crates = new Set(Object.values(known.crates).map(key));
   return (x: number, y: number): boolean => {
     const ch = room.grid[y]?.[x];
-    if (ch === undefined || ch === "#" || ch === "=" || ch === "%") return true;
+    if (ch === undefined || ch === "#" || ch === "=" || ch === "%" || ch === "H") return true;
     const k = `${x},${y}`;
     if (ch === "D" && known.doorOpen[doorAt.get(k) ?? ""] !== true) return true;
     if (crates.has(k)) return true;
@@ -403,7 +721,8 @@ function decide(
     .join();
   const crates = Object.values(known.crates).map(key).join(";");
   const alarms = m.alarms.map((a) => `${a.from}-${a.to}`).join();
-  const planKey = `${key(goal)}|${open}|${crates}|${alarms}`;
+  const perceived = perceivedHazards(known, stepTick - 1);
+  const planKey = `${key(goal)}|${open}|${crates}|${alarms}|${[...perceived].sort().join()}`;
   if (
     nav.key === planKey &&
     nav.i < nav.plan.length &&
@@ -421,7 +740,7 @@ function decide(
     blocked: blockedFor(room, known, goal),
   };
   const target = findPath(grid, tile, goal) ? goal : nearestReachable(grid, tile, goal);
-  const forecast = forecastFor(room, m.alarms);
+  const forecast = forecastFor(room, m.alarms, perceived);
   const plan = planSafe({
     ...grid,
     from: tile,
@@ -430,6 +749,14 @@ function decide(
     danger: (x, y, t) => forecast.danger(Math.max(0, t))[y * room.width + x] === 1,
     rest: (x, y, t) => forecast.rest(Math.max(0, t))[y * room.width + x] === 1,
   });
+  // Waiting on a hazard keeps it in mind: standing still short of it hides it, and a bot that
+  // forgot it after 2 s would walk into what it is waiting for.
+  if (perceived.size > 0 && (plan === null || plan[0] === "wait")) {
+    for (const id of perceived) {
+      const seen = known.seenHazards[id];
+      if (seen) seen.lastTick = Math.max(seen.lastTick, stepTick - 1);
+    }
+  }
   nav.key = planKey;
   nav.plan = plan ?? [];
   nav.i = 0;
@@ -495,13 +822,53 @@ function goalFor(
   // a job is behind a seat once it is done, or once a later one is (a bot that takes over
   // late has no business walking back to a waypoint the team passed long ago)
   const behind = (i: number) =>
-    isDone(room, queue[i] as Job, known, at) ||
+    isDone(room, queue[i] as Job, known, at, seat) ||
     (queue[i]?.target.kind === "tile" &&
-      queue.slice(i + 1).some((j) => j.target.kind !== "exit" && isDone(room, j, known, at)));
-  while (m.ptr[seat] < queue.length && behind(m.ptr[seat])) m.ptr[seat]++;
-  const job = queue[m.ptr[seat]] ?? null;
-  if (!job) return { goal: exitTile(room, seat), job };
-  const goal = jobTile(room, job, seat);
+      queue
+        .slice(i + 1)
+        .some(
+          (j) =>
+            j.cache === undefined && j.target.kind !== "exit" && isDone(room, j, known, at, seat),
+        ));
+  while (
+    m.ptr[seat] < queue.length &&
+    (queue[m.ptr[seat]]?.cache !== undefined || behind(m.ptr[seat]))
+  )
+    m.ptr[seat]++;
+  const queued = currentJob(room, m, known, own, seat, at);
+  // A torch only lights what is in its pool, so a seat carrying one whose ink has not yet been cut
+  // stands at that ink and lights it for the others (a teammate who has no reading job of its own).
+  // (Only for the bot's own seat: the same function works out where the Can't-see seat it guides goes.
+  // A seat whose own job is to work a wire panel reads the ink in doing it, so it keeps that job.)
+  const readsInk = queue
+    .slice(m.ptr[seat])
+    .some(
+      (j) =>
+        j.target.kind === "station" &&
+        known.stations[j.target.id]?.answer !== undefined &&
+        room.objects.find((o) => o.id === (j.target as { id: string }).id)?.params?.numbered ===
+          true,
+    );
+  const post = seat === m.seat && view.gear === "uv" && !readsInk ? inkPost(room, known) : null;
+  if (post) return { goal: post, job: null };
+  if (!queued) return { goal: lookAtDoor(room, known, from, exitTile(room, seat)), job: queued };
+  // gear passes hand to hand in the hints' order: a gear job waits for every earlier one to be done
+  if (GEAR_KINDS.has(queued.target.kind) && !gearTurn(room, m, queued, known, own)) {
+    return { goal: from, job: null };
+  }
+  const worked = workGoal(room, m, queued, known, seat);
+  if (worked) return { goal: worked, job: queued };
+  let job: Job = queued;
+  if (queued.target.kind === "plate" && queued.target.clue) {
+    // a clue job's plate is the one the chime heard names; until one is heard, stay put and listen
+    const heard = clueTarget(queued, known);
+    if (!heard) return { goal: from, job: queued };
+    job = { ...queued, target: { kind: "plate", id: heard.id, tile: heard.tile } };
+  }
+  const goal =
+    job.target.kind === "exit"
+      ? lookAtDoor(room, known, from, jobTile(room, job, seat))
+      : jobTile(room, job, seat);
   const turn = job.target.kind === "plate" ? sequenceTurn(room, m, job, known, view) : null;
   if (job.target.kind === "plate" && turn) {
     // A sequence door counts presses, in order, each within 5 s of the last. Stand off
@@ -537,6 +904,198 @@ function goalFor(
   return { goal, job };
 }
 
+// A door that opens out of the bot's sight and hearing is never reported, so it goes on believing
+// it shut. Where the way to `goal` is blocked only by doors it believes closed, it goes and looks:
+// the tile before the first of them, from which the door is in view and what it sees stands.
+function lookAtDoor(room: Room, known: Known, from: Vec, goal: Vec): Vec {
+  const grid = { width: room.width, height: room.height };
+  const believed = blockedFor(room, known, goal);
+  if (findPath({ ...grid, blocked: believed }, from, goal)) return goal;
+  const { doorAt } = mapsOf(room);
+  const ignoringDoors = (x: number, y: number) =>
+    believed(x, y) && !(room.grid[y]?.[x] === "D" && doorAt.has(`${x},${y}`));
+  const path = findPath({ ...grid, blocked: ignoringDoors }, from, goal);
+  // the first door it believes shut (one it believes open, such as a cache's vault door, is no reason to stop)
+  const door =
+    path?.findIndex(
+      (t) => room.grid[t.y]?.[t.x] === "D" && known.doorOpen[doorAt.get(key(t)) ?? ""] !== true,
+    ) ?? -1;
+  return path && door > 0 ? (path[door - 1] as Vec) : goal;
+}
+
+// The floor tile in front of the nearest ink sign of a numbered wire panel that is not yet cut, or
+// null. "Cut" is seen in the one place a seat can see it from the corridor: the door that panel
+// opens, believed open (a sign's own wire panel is out of sight from the post).
+function inkPost(room: Room, known: Known): Vec | null {
+  for (const o of room.objects) {
+    if (o.kind !== "station" || o.params?.type !== "wires" || o.params.numbered !== true) continue;
+    if (cacheOf(o)) continue; // bots ignore caches: nobody opens one, so its ink is never worth a post
+    if (platePart(room, o.id) !== undefined) continue; // a plated panel's ink is blank: the plate tells
+    if (known.stations[o.id]?.solved) continue;
+    const doors = room.objects.filter((d) => d.kind === "door" && d.opensWhen?.includes(o.id));
+    if (doors.length > 0 && doors.every((d) => known.doorOpen[d.id] === true)) continue;
+    const sign = room.objects.find((x) => x.id === o.params?.plaque)?.tiles[0];
+    if (!sign) continue;
+    const below = { x: sign.x, y: sign.y + 1 };
+    const above = { x: sign.x, y: sign.y - 1 };
+    const open = (t: Vec) => room.grid[t.y]?.[t.x] === ".";
+    const front = [above, below].find(open);
+    if (front) return front;
+  }
+  return null;
+}
+
+const GEAR_KINDS = new Set<Job["target"]["kind"]>(["take", "give", "sill"]);
+
+// Is it this gear job's turn? Gear passes hand to hand in the hints' order: a job on an item waits
+// until the one before it on the same item has happened (a take, once the item has left where
+// it lay; a give or a sill, once it is where that job put it).
+function gearTurn(room: Room, m: BotMemory, job: Job, known: Known, own: Role): boolean {
+  const item = (j: Job) =>
+    GEAR_KINDS.has(j.target.kind) ? (j.target as { gear: string }).gear : null;
+  const before = ([0, 1, 2] as const)
+    .flatMap((s) => queuesOf(room, m, own)[s].map((j) => ({ j, s })))
+    .filter(({ j }) => j.index < job.index && item(j) === item(job))
+    .sort((a, b) => b.j.index - a.j.index)[0];
+  if (!before) return true;
+  if (before.j.target.kind !== "take") return isDone(room, before.j, known, undefined, before.s);
+  const g = known.gear?.[item(job) as string];
+  const start = room.objects.find((o) => o.id === item(job))?.tiles[0];
+  return g !== undefined && !(g.at && start && g.at.x === start.x && g.at.y === start.y);
+}
+
+// Where a station, gear or tow job sends its seat: the tile of the part to press next, the gear
+// (or its holder, or the sill), the teammate to take by the hand, or the tow's end.
+function workGoal(room: Room, m: BotMemory, job: Job, known: Known, seat: Seat): Vec | null {
+  const t = job.target;
+  if (t.kind === "station") return stationStep(room, m, known, t.id)?.tile ?? null;
+  if (t.kind === "listen") return t.tile;
+  if (t.kind === "keepsake") {
+    const vault = secretDoors(room).find((d) => d.id === t.cache)?.vault.id;
+    return known.stations[t.cache]?.solved && vault && known.doorOpen[vault] ? t.tile : null;
+  }
+  if (t.kind === "watch") return known.stations[t.station]?.card ? t.tile : (t.read ?? t.tile);
+  if (t.kind === "take" || t.kind === "give" || t.kind === "sill") {
+    const g = known.gear?.[t.gear];
+    if (!g) return null;
+    if (g.heldBy !== null && g.heldBy !== seat) return m.lastPos ? tileOf(m.lastPos) : null; // wait for it
+    if (g.heldBy !== seat || t.kind === "take") {
+      if (g.at) return g.at;
+      const hatch = g.sill ? room.objects.find((o) => o.id === g.sill)?.tiles[0] : undefined;
+      return hatch ? besideOf(room, known, hatch, m.lastPos) : null;
+    }
+    if (t.kind === "give") {
+      const to = known.roles?.indexOf(t.to) ?? -1;
+      const p = to >= 0 ? m.bodies[to as Seat] : undefined;
+      if (!p) return null;
+      // beside them, on the side away from the others: G hands it to whoever is nearest
+      const others = ([0, 1, 2] as const)
+        .filter((s) => s !== seat && s !== to)
+        .flatMap((s) => (m.bodies[s] ? [m.bodies[s] as Vec] : []));
+      return besideOf(room, known, tileOf(p), m.lastPos, others);
+    }
+    const hatch = room.objects.find((o) => o.id === t.hatch)?.tiles[0];
+    return hatch ? besideOf(room, known, hatch, m.lastPos) : null;
+  }
+  if (t.kind === "tow") {
+    const towed = known.roles?.indexOf(t.role) ?? -1;
+    if (towed < 0) return null;
+    if (known.holding?.[towed as Seat] === seat) return t.to;
+    const p = m.bodies[towed as Seat];
+    return p ? besideOf(room, known, tileOf(p), m.lastPos) : null;
+  }
+  return null;
+}
+
+// The floor tile next to `tile` nearest `from` (west first on a tie): where to stand to reach it.
+// Tiles where one of `avoid` would be as near as `tile` itself are left out while others remain.
+function besideOf(
+  room: Room,
+  known: Known,
+  tile: Vec,
+  from: Vec | null,
+  avoid: Vec[] = [],
+): Vec | null {
+  const blocked = blockedFor(room, known, tile);
+  const free = [
+    { x: tile.x - 1, y: tile.y },
+    { x: tile.x, y: tile.y - 1 },
+    { x: tile.x, y: tile.y + 1 },
+    { x: tile.x + 1, y: tile.y },
+  ].filter((t) => !blocked(t.x, t.y));
+  const clear = free.filter((t) =>
+    avoid.every((a) => Math.hypot(a.x - (t.x + 0.5), a.y - (t.y + 0.5)) > 1.01),
+  );
+  // never a cache's motif or decoy tile: an Act there (a hand taken, gear lifted) would uncover it, and
+  // uncovering is for the people (ADR 0024, FR1)
+  const motifs = new Set(
+    room.objects.flatMap((o) => cacheOf(o)?.tiles.map((t) => key(t.at)) ?? []),
+  );
+  const plain = (clear.length > 0 ? clear : free).filter((t) => !motifs.has(key(t)));
+  const options = plain.length > 0 ? plain : clear.length > 0 ? clear : free;
+  if (!from) return options[0] ?? null;
+  const d = (t: Vec) => Math.hypot(t.x + 0.5 - from.x, t.y + 0.5 - from.y);
+  return options.reduce<Vec | null>((a, b) => (a === null || d(b) < d(a) ? b : a), null);
+}
+
+// The next press a station needs, from the bot's belief (clues FR5): which tile to stand on. Only
+// a station type with a decoder (decode.ts: DECODERS) is worked; the decoder fills the belief's
+// answer, and the part to press is a tile a teammate marked, or the part its answer names next. A
+// sync lock is turned by every seat that has a key (one each): it has no secret, only a moment.
+interface Press {
+  tile: Vec;
+}
+function stationStep(room: Room, m: BotMemory, known: Known, id: string): Press | null {
+  const b = known.stations[id];
+  const o = room.objects.find((x) => x.id === id);
+  if (!b || !o || b.solved) return null;
+  const p = o.params ?? {};
+  const type = p.type as StationType;
+  if (type === "vault") {
+    const t = vaultStep(o, b);
+    return t ? { tile: t } : null;
+  }
+  if (type === "sync") {
+    const order = (m.roles ?? ["blind", "deaf", "mute"])
+      .map((role, seat) => ({ role, seat }))
+      .filter((x) => x.role !== "blind");
+    const mine = order.findIndex((x) => x.seat === m.seat);
+    const t = mine >= 0 ? tilesOf(p.keys)[mine] : undefined;
+    return t ? { tile: t } : null;
+  }
+  if (!DECODERS[type]) return null;
+  if (type === "dial" || type === "keypad" || type === "bells") {
+    const t =
+      type === "dial" ? dialStep(o, b) : type === "keypad" ? keypadStep(o, b) : bellsStep(o, b);
+    return t ? { tile: t } : null;
+  }
+  // a radio is turned on its right-hand pad until it is tuned; then its digit is watched for
+  if (type === "radio") {
+    if (platePart(room, id) !== undefined) {
+      const t = radioPad(o, b); // the band is on the plate: wait for it, then turn toward it
+      return t ? { tile: t } : null;
+    }
+    const t = tilesOf(p.pads)[1];
+    return t ? { tile: t } : null;
+  }
+  // switches: the button its own reading names (the lamps and the card both known), else the next
+  // button a watcher marked
+  if (type === "switches") {
+    const own = b.answer[0];
+    const t = own !== null && own !== undefined ? tilesOf(p.buttons)[own] : b.marked[b.used];
+    return t ? { tile: t } : null;
+  }
+  const marked = b.marked[0];
+  if (marked) return { tile: marked };
+  // the plaque read but the wires not yet seen: the panel's anchor, where an Act cuts nothing
+  if (type === "wires" && b.rule !== null && b.shows.length === 0)
+    return { tile: o.tiles[0] as Vec };
+  const next = b.answer.find((v) => v !== null);
+  const parts = stationParts(o).filter((x) => x.key !== "anchor" && x.key !== "back");
+  const t = next === undefined || next === null ? undefined : parts[0]?.at[next];
+  return t ? { tile: t } : null;
+}
+
 // The team was caught and sent back: every plan, step under way and belief about where
 // the Can't-see seat is, is about a place nobody is in any more.
 function forgetPlans(m: BotMemory): void {
@@ -555,11 +1114,42 @@ function forgetPlans(m: BotMemory): void {
   g.stopFrom = null;
 }
 
-function thinkSighted(room: Room, view: RoleView, m: BotMemory, now: number): BotTurn {
-  const known = observe(room, view, m);
+function thinkSighted(
+  room: Room,
+  view: RoleView,
+  inbox: ChannelMessage[],
+  m: BotMemory,
+  now: number,
+): BotTurn {
+  const known = observe(room, view, inbox, m);
   if (view.you.pos) {
     const last = m.lastPos;
-    if (last && Math.hypot(view.you.pos.x - last.x, view.you.pos.y - last.y) > 1.5) forgetPlans(m);
+    if (last && Math.hypot(view.you.pos.x - last.x, view.you.pos.y - last.y) > 1.5) {
+      forgetPlans(m);
+      m.markedFor = null;
+      known.read = {}; // a plate read before says something else now
+      forgetCaches(room, view, known, m); // every chamber is shut again
+      // sent back: every unsolved station has a fresh answer, so what was heard of it is stale
+      for (const [id, b] of Object.entries(known.stations)) {
+        if (b.solved) continue;
+        // an earpiece's keypad: the digits told were the old code (a radio's digit is kept)
+        const clue = room.objects.find((o) => o.id === id)?.params?.clue;
+        if (String(clue ?? "").startsWith("g")) {
+          b.numbers = [];
+          b.plateFrom = null;
+        }
+        b.told = new Set();
+        b.answer = [];
+        b.heard = [];
+        b.rule = null;
+        b.wire = null;
+        b.shows = [];
+        b.card = null; // switches are drawn again with a new card, from dark
+        b.marked = [];
+        b.used = 0;
+        b.plate = null;
+      }
+    }
     m.lastPos = view.you.pos;
   }
   const pos =
@@ -578,10 +1168,208 @@ function thinkSighted(room: Room, view: RoleView, m: BotMemory, now: number): Bo
     return { input: idle(m), send: stamp(m, send, now) };
   }
 
-  const input = view.alarm ? idle(m) : moveSelf(room, view, m, known, pos);
+  for (const e of view.entities)
+    if (e.kind === "player" && e.seat !== undefined) m.bodies[e.seat] = e.pos;
+  // Led by another's hand (a person took it: a bot only ever leads, in a `tow` job), the leader
+  // walks for both and both steer (ADR 0019): a bot's own walk would only pull against them, so it
+  // adds nothing to the pair's step. It presses no Act (that would let go: see `press`).
+  const led = view.you.hand !== undefined && known.holding[view.you.seat] !== undefined;
+  const input = view.alarm
+    ? idle(m)
+    : press(room, view, m, known, pos, towedWalk(led, moveSelf(room, view, m, known, pos)));
+  send = workSend(room, view, m, known, pos);
+  if (send) return { input, send: stamp(m, send, now) };
   if (view.role === "deaf") send = guideBlind(room, view, m, known, now);
   else if (view.role === "mute") send = muteClip(room, view, m, now);
   return { input, send: stamp(m, send, now) };
+}
+
+// What a seat's work has it tell the others (P3): a radio's digit, as text, once (a radio that
+// feeds a station; Can't speak, who cannot text, keeps it); a switches watcher's next button, an
+// `x` on it, each time the lamps it sees have changed since its last mark; and a music box's
+// watcher the tune's bells, an `x` each, in order.
+function workSend(
+  room: Room,
+  view: RoleView,
+  m: BotMemory,
+  known: Known,
+  pos: Vec,
+): Outgoing | null {
+  const count = syncCount(room, view, m, known, pos);
+  if (count !== null) return { method: "text", text: String(count) };
+  if (canSend(view.role, "text")) {
+    for (const o of room.objects) {
+      const b = known.stations[o.id];
+      const d = o.kind === "station" && b ? radioToTell(o, b) : null;
+      if (d === null || !b) continue;
+      b.told.add(0);
+      return { method: "text", text: String(d) };
+    }
+  }
+  const job = currentJob(room, m, known, view.role, m.seat, pos);
+  // A wire panel whose answer this bot read from ink or a plaque that only it can read (room 7's ink
+  // needs the torch it holds): it marks that wire whatever its job is, so a teammate who has no way
+  // to read it cuts the right one, and marks it again each time the last mark has faded, until it
+  // is cut. A mark is a message Can't speak may send.
+  const now = view.tick * TICK_MS;
+  if (canSend(view.role, "mark") && now - m.lastMarkAt >= COOLDOWN_MS.mark) {
+    for (const w of room.objects) {
+      const wb = known.stations[w.id];
+      const want = w.params?.type === "wires" && wb ? wb.answer[0] : null;
+      const at = want == null ? undefined : tilesOf(w.params?.wires)[want];
+      if (!wb || wb.solved || !at || w.params?.numbered !== true) continue;
+      // standing at the ink lights it for the others first; the answer is only handed over once
+      // they have had a while to read it, and again each time the last mark has faded
+      if (m.postSince === null || now - m.postSince < MARK_AFTER_MS) continue;
+      if (now - (m.wireMarkedAt[w.id] ?? Number.NEGATIVE_INFINITY) < STAMP_LIFE_MS) continue;
+      m.wireMarkedAt[w.id] = now;
+      m.lastMarkAt = now;
+      return { method: "mark", id: "x", at: centreOf(at) };
+    }
+  }
+  if (job?.target.kind !== "watch" || !canSend(view.role, "mark")) return null;
+  const o = room.objects.find((x) => x.id === (job.target as { station: string }).station);
+  const b = o && known.stations[o.id];
+  if (!o || !b || b.solved) return null;
+  const tile = tileOf(pos);
+  if (tile.x !== job.target.tile.x || tile.y !== job.target.tile.y) return null;
+  const cool = view.tick * TICK_MS - m.lastMarkAt < COOLDOWN_MS.mark;
+  if (o.params?.type === "bells") {
+    // a music box's watcher at its tune box: the tune's bells, an x each, in order
+    const next = bellToMark(o, b);
+    if (!next || cool) return null;
+    b.told.add(next.i);
+    m.lastMarkAt = view.tick * TICK_MS;
+    return { method: "mark", id: "x", at: centreOf(next.at) };
+  }
+  const left = switchesLeft(o, b, view.tick);
+  const next = left?.[0];
+  const lamps = `${o.id}:${b.shows.join()}`; // per station: two watchers' lamps may read alike
+  if (next === undefined || m.markedFor === lamps) return null;
+  const at = tilesOf(o.params?.buttons)[next];
+  if (!at || cool) return null;
+  m.markedFor = lamps;
+  m.lastMarkAt = view.tick * TICK_MS;
+  return { method: "mark", id: "x", at: centreOf(at) };
+}
+
+// A sync lock's counter (a key holder who can text) counts the turn down, "3", "2", "1", once it
+// sees every key stood on (decode.ts: countStep). Returns the digit to text this tick.
+function syncCount(
+  room: Room,
+  view: RoleView,
+  m: BotMemory,
+  known: Known,
+  pos: Vec,
+): number | null {
+  const job = currentJob(room, m, known, view.role, m.seat, pos);
+  const o =
+    job?.target.kind === "station"
+      ? room.objects.find((x) => x.id === (job.target as { id: string }).id)
+      : undefined;
+  if (o?.params?.type !== "sync" || !canSend(view.role, "text") || known.stations[o.id]?.solved) {
+    m.count = null;
+    return null;
+  }
+  const mine = stationStep(room, m, known, o.id)?.tile;
+  const tile = tileOf(pos);
+  const on = mine !== undefined && mine.x === tile.x && mine.y === tile.y;
+  const keys = tilesOf(o.params.keys);
+  const stood =
+    on &&
+    keys.every((k) =>
+      Object.values(m.bodies).some((b) => b && tileOf(b).x === k.x && tileOf(b).y === k.y),
+    );
+  const next = countStep(m.count, stood, view.tick);
+  m.count = next.count;
+  return next.say;
+}
+
+// Act or G, pressed once a seat stands where its station, gear or tow job wants it, and let go
+// the tick after (the simulation acts on the press). A sync key is turned on the count's "1".
+function press(
+  room: Room,
+  view: RoleView,
+  m: BotMemory,
+  known: Known,
+  pos: Vec,
+  input: PlayerInput,
+): PlayerInput {
+  const job = currentJob(room, m, known, view.role, m.seat, pos);
+  const tile = tileOf(pos);
+  const centred = Math.hypot(pos.x - (tile.x + 0.5), pos.y - (tile.y + 0.5)) < 0.15;
+  const goal = job ? workGoal(room, m, job, known, m.seat) : null;
+  const here = centred && goal !== null && goal.x === tile.x && goal.y === tile.y;
+  // a station seen jammed (FR13) ignores every press: the bot waits the jam out on its tile
+  const jammed =
+    job?.target.kind === "station" &&
+    view.entities.some((e) => e.id === (job.target as { id: string }).id && e.station?.jammed);
+  const pressed = job && here ? (jammed ? "wait" : pressFor(room, m, known, job, view.tick)) : null;
+  // An Act from a towed seat lets go of the hand that leads it (sim/gear.ts: actOn), so a bot a
+  // person is leading never presses one: it waits, and works once they let go. G is unaffected.
+  const towed = view.you.hand !== undefined && known.holding[view.you.seat] !== undefined;
+  const button = pressed === "act" && towed ? "wait" : pressed;
+  const was = button === "act" ? m.actWas : button === "gear" ? m.gearWas : false;
+  m.actWas = button === "act" && !was;
+  m.gearWas = button === "gear" && !was;
+  if (m.actWas && job?.target.kind === "station") {
+    // a switches button pressed for a watcher's mark: that mark is used
+    const b = known.stations[job.target.id];
+    const mark = b?.marked[b.used];
+    if (b && mark && mark.x === tile.x && mark.y === tile.y && b.answer[0] == null) b.used++;
+  }
+  if (button === "wait") return idle(m);
+  if (!button) return input;
+  return was ? idle(m) : { ...idle(m), [button]: true };
+}
+
+// Which button a job wants pressed by a seat standing where it should: "wait" holds still.
+function pressFor(
+  room: Room,
+  m: BotMemory,
+  known: Known,
+  job: Job,
+  tick: number,
+): "act" | "gear" | "wait" | null {
+  const t = job.target;
+  if (t.kind === "station") {
+    const o = room.objects.find((x) => x.id === t.id);
+    // a real safe's turner gives the listener at its back time to hear each notch
+    const b = known.stations[t.id];
+    if (o?.params?.type === "dial" && o.params.teach !== true && b) {
+      return tick - b.changedAt < TURN_WAIT_TICKS ? "wait" : "act";
+    }
+    if (o?.params?.type !== "sync") return "act";
+    // the counter turns on its own "1"; the others when they read it (decode.ts: syncGo)
+    const own = m.count?.n === 1 && tick - m.count.at <= 2;
+    return own || (b !== undefined && syncGo(b, tick)) ? "act" : "wait";
+  }
+  if (t.kind === "take" || t.kind === "give" || t.kind === "sill") {
+    const g = known.gear?.[t.gear];
+    if (!g) return null;
+    if (g.heldBy === null) return "act"; // take it: it lies here, or on the sill beside
+    if (g.heldBy !== m.seat) return "wait"; // someone else has it
+    if (t.kind === "give") return nearestIs(m, known.roles?.indexOf(t.to) ?? -1) ? "gear" : "wait";
+    return t.kind === "sill" ? "act" : null;
+  }
+  if (t.kind === "keepsake") return "act";
+  if (t.kind === "tow") return "act"; // take their hand beside them, or let go at the end
+  return null;
+}
+
+// Is `to` the teammate G would hand gear to: the nearest one seen beside this bot? (A teammate
+// holding gear of their own is passed over by G too, but bots carry one item between them.)
+function nearestIs(m: BotMemory, to: number): boolean {
+  const me = m.lastPos;
+  if (!me || to < 0) return false;
+  const d = (s: Seat) => {
+    const b = m.bodies[s];
+    return b ? Math.hypot(b.x - me.x, b.y - me.y) : Number.POSITIVE_INFINITY;
+  };
+  const mine = d(to as Seat);
+  return (
+    mine <= 1.5 && ([0, 1, 2] as const).every((s) => s === m.seat || s === to || d(s) > mine + 0.01)
+  );
 }
 
 function stamp(m: BotMemory, send: Outgoing | null, now: number): Outgoing | null {
@@ -595,10 +1383,17 @@ function moveSelf(room: Room, view: RoleView, m: BotMemory, known: Known, pos: V
   const seat = m.seat;
   const tile = tileOf(pos);
   const { goal, job } = goalFor(room, m, seat, view.role, pos, known, tile, view);
+  // how long it has stood at the ink it is lighting (the mark waits on this, see workSend)
+  const post = view.gear === "uv" && job === null ? inkPost(room, known) : null;
+  const atPost = post !== null && post.x === tile.x && post.y === tile.y;
+  if (!atPost) m.postSince = null;
+  else m.postSince ??= view.tick * TICK_MS;
 
   // The guide steers by sight: when the Can't-see seat drops out of view it goes back to
-  // where it last reckoned them to be, before doing anything of its own.
-  const lost = view.role === "deaf" && m.guide.est ? blindOutOfSight(view, m) : null;
+  // where it last reckoned them to be, before doing anything of its own, unless its own job is a
+  // station or gear job (it parks the Can't-see seat while it works one: guideBlind).
+  const busy = job !== null && WORK_KINDS.has(job.target.kind);
+  const lost = view.role === "deaf" && m.guide.est && !busy ? blindOutOfSight(view, m) : null;
   if (lost) return follow(room, view, m, known, pos, centreOf(tileOf(lost)));
 
   // pushing: stand behind the crate and walk into it until it is where it belongs
@@ -695,12 +1490,18 @@ function guideBlind(
   let p: Vec;
   if (seen) {
     p = seen.pos;
-    if (g.last && Math.hypot(p.x - g.last.x, p.y - g.last.y) > 1.5) forgetPlans(m); // sent back
+    // sent back; a hand taken in front swings them round behind, which is no reason to forget
+    const towing = known.holding[b as Seat] === m.seat;
+    // (against where it was reckoned to be, which is where it was last seen while it stays in sight:
+    // a seat that walked out of sight and is seen again further on has not been sent back)
+    const was = g.est ?? g.last;
+    if (was && !towing && Math.hypot(p.x - was.x, p.y - was.y) > 1.5) forgetPlans(m);
     g.est = p;
     if (g.last && Math.hypot(p.x - g.last.x, p.y - g.last.y) < 0.01) g.still++;
     else g.still = 0;
     g.last = p;
-    if (g.moving && g.still >= 2 && blindIsBot) g.moving = false; // it stopped on its own: a hum, or a wall
+    // it stopped on its own: a hum, or a wall
+    if (g.moving && g.still >= 2 && blindIsBot && onPlate(room, p)) g.moving = false; // a hum
     if (g.bumped && Math.hypot(p.x - g.bumped.x, p.y - g.bumped.y) > 0.9) g.bumped = null; // clear of it
     if (g.stopFrom && !g.moving && g.still >= 3) {
       // they have come to rest: that far is how long a person takes to react, in tiles
@@ -717,7 +1518,12 @@ function guideBlind(
   }
 
   const tile = tileOf(p);
-  const { goal, job } = goalFor(room, m, b as Seat, "blind", p, known, tile, view);
+  // while the guide works a station or gear job of its own, the Can't-see seat waits where it is
+  const mine = currentJob(room, m, known, view.role, m.seat, p) ?? undefined;
+  const parked = mine !== undefined && WORK_KINDS.has(mine.target.kind);
+  const { goal, job } = parked
+    ? { goal: tile, job: null }
+    : goalFor(room, m, b as Seat, "blind", p, known, tile, view);
   let callout: Callout | null = null;
   let tap: string | null = null;
 
@@ -734,12 +1540,7 @@ function guideBlind(
       callout = "wait";
       g.moving = false;
     }
-  } else if (
-    !blindIsBot &&
-    g.moving &&
-    g.still >= STUCK_TICKS &&
-    !mapsOf(room).plateAt.has(key(tile))
-  ) {
+  } else if (g.moving && g.still >= STUCK_TICKS && !mapsOf(room).plateAt.has(key(tile))) {
     // A person pushing at something and getting nowhere: say so and stop them, rather than
     // calling the same direction again. Line them up with the lane before going on.
     callout = "stop";
@@ -853,6 +1654,11 @@ function approach(
   return { tap: `Tap ${word}.` };
 }
 
+// Whether a body stands on a plate: it stops there on its own when it hears the hum.
+function onPlate(room: Room, p: Vec): boolean {
+  return mapsOf(room).plateAt.has(key(tileOf(p)));
+}
+
 // How far a person is from the middle of their lane, across the way they are headed.
 function offLane(p: Vec, tile: Vec, step: Step): number {
   return step === "left" || step === "right" ? p.y - (tile.y + 0.5) : p.x - (tile.x + 0.5);
@@ -864,7 +1670,7 @@ function tight(room: Room, tile: Vec, step: Step): boolean {
   const side = step === "left" || step === "right" ? { x: 0, y: 1 } : { x: 1, y: 0 };
   const wall = (t: Vec) => {
     const ch = room.grid[t.y]?.[t.x];
-    return ch === undefined || ch === "#" || ch === "D" || ch === "=" || ch === "%";
+    return ch === undefined || ch === "#" || ch === "D" || ch === "=" || ch === "%" || ch === "H";
   };
   return [tile, next].some(
     (t) => wall({ x: t.x + side.x, y: t.y + side.y }) || wall({ x: t.x - side.x, y: t.y - side.y }),

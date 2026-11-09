@@ -4,6 +4,7 @@ import type { Role } from "../game/types.ts";
 import {
   CUE_HOLD_MS,
   CUE_WORD,
+  cacheMoment,
   captionFor,
   caughtText,
   crewChangeText,
@@ -114,6 +115,12 @@ describe("cueCaptions", () => {
   const east = { x: 1, y: 0 };
   const west = { x: -1, y: 0 };
 
+  it("a door cue is captioned 'door unlocked' with its direction", () => {
+    expect(cueCaptions([{ kind: "door", pan: -0.6, gain: 1, dir: { x: -1, y: 0 } }])).toEqual([
+      { text: "door unlocked", dir: "W" },
+    ]);
+  });
+
   it("describes each sound once per direction, with the direction as data", () => {
     const cues = [
       { kind: "footsteps", pan: -0.8, gain: 0.5, dir: west },
@@ -126,8 +133,17 @@ describe("cueCaptions", () => {
       { text: "footsteps", dir: "W" },
       { text: "footsteps", dir: "E" },
       { text: "hum", dir: null },
-      { text: "door click", dir: "N" },
+      { text: "door unlocked", dir: "N" },
     ]);
+  });
+
+  it("names the note of a practice press, key or bell, as the count it stands for (Task 42)", () => {
+    expect(
+      cueCaptions([
+        { kind: "practice", pan: 0, gain: 0.5, n: 4, of: "key" },
+        { kind: "practice", pan: 0, gain: 0.5, n: 2, of: "bellnote", dir: west },
+      ]).map((c) => c.text),
+    ).toEqual(["Practice: key 5", "Practice: bell 3"]);
   });
 
   it("gives team-wide sounds, the hum and a sound with no direction dir null", () => {
@@ -149,6 +165,57 @@ describe("cueCaptions", () => {
       { text: "hum", dir: null },
       { text: "guard footsteps", dir: "S" },
     ]);
+  });
+
+  it("names every station, gear and signal sound in a plain word, with no direction in it", () => {
+    expect({
+      tick: CUE_WORD.tick,
+      tumbler: CUE_WORD.tumbler,
+      key: CUE_WORD.key,
+      snap: CUE_WORD.snap,
+      static: CUE_WORD.static,
+      tone: CUE_WORD.tone,
+      pip: CUE_WORD.pip,
+      clunk: CUE_WORD.clunk,
+      bellnote: CUE_WORD.bellnote,
+      bell: CUE_WORD.bell,
+      dye: CUE_WORD.dye,
+      earpiece: CUE_WORD.earpiece,
+      gear: CUE_WORD.gear,
+      solved: CUE_WORD.solved,
+    }).toEqual({
+      tick: "Tick",
+      tumbler: "Tumbler",
+      key: "Key",
+      snap: "Snap",
+      static: "Static",
+      tone: "Tone",
+      pip: "Pip",
+      clunk: "Clunk",
+      bellnote: "Bell note",
+      bell: "Bell",
+      dye: "Dye pack",
+      earpiece: "Earpiece",
+      gear: "Gear",
+      solved: "Solved",
+    });
+    // a key, a note and a pip carry which one: the caption says it, as data (not a direction)
+    const said = cueCaptions([
+      { kind: "key", n: 4, pan: 0, gain: 1 },
+      { kind: "bellnote", n: 2, pan: 0, gain: 1 },
+      { kind: "pip", n: 3, pan: 0, gain: 1 },
+    ]).map((c) => c.text);
+    expect(said).toEqual(["Key 5 (5 chimes)", "Bell note 3 (3 chimes)", "Pip ×3"]);
+    // a note is a group of that many chimes, rising: the caption says the count too (Task 36)
+    const counted = cueCaptions([
+      { kind: "key", n: 4, pan: 0, gain: 1 },
+      { kind: "bellnote", n: 2, pan: 0, gain: 1 },
+      { kind: "earpiece", n: 7, pan: 0, gain: 1 },
+    ]).map((c) => c.text);
+    expect(counted[0]).toBe("Key 5 (5 chimes)");
+    expect(counted[1]).toBe("Bell note 3 (3 chimes)");
+    // the earpiece's note is the puzzle: heard by its holder, never written, so no count either
+    expect(counted[2]).toBe("Earpiece");
   });
 
   it("never writes left, right or ahead", () => {
@@ -246,6 +313,25 @@ describe("caughtText", () => {
       "The guard saw you. Back to the start.",
     );
   });
+
+  it("says a wrong answer at a station sent the team back, naming nobody (FR15)", () => {
+    expect(caughtText({ hazard: "station", seat: 2, checkpoint: 1 }, crew, 0)).toBe(
+      "Wrong answer. Back to checkpoint 1.",
+    );
+  });
+
+  it("says what was wrong, by the station's type: a wire, a code, a note (the dye-pack banner)", () => {
+    const say = (station: Parameters<typeof caughtText>[0]["station"]) =>
+      caughtText({ hazard: "station", seat: 2, checkpoint: 0, station }, crew, 0);
+    expect(say("wires")).toBe("Wrong wire. Back to the flag.");
+    expect(say("keypad")).toBe("Wrong code. Back to the flag.");
+    expect(say("dial")).toBe("Wrong code. Back to the flag.");
+    expect(say("vault")).toBe("Wrong code. Back to the flag.");
+    expect(say("bells")).toBe("Wrong note. Back to the flag.");
+    expect(
+      caughtText({ hazard: "station", seat: 2, checkpoint: 2, station: "wires" }, crew, 0),
+    ).toBe("Wrong wire. Back to the flag.");
+  });
 });
 
 describe("hostChangeText", () => {
@@ -298,5 +384,61 @@ describe("crewChangeText", () => {
   it("says nothing when the crew is the same", () => {
     const crew = [person(0, "Ana"), person(1, "Bo"), bot(2)];
     expect(crewChangeText(crew, crew)).toBeNull();
+  });
+});
+
+describe("cacheMoment: the words on the chip at the top of the map", () => {
+  const cue = (kind: "uncover" | "stash", extra = {}): SoundCue => ({
+    kind,
+    pan: 0,
+    gain: 1,
+    ...extra,
+  });
+  const NAMES = ["Ana", "Bo", "Cy"];
+
+  it("reads cacheEvent: a door opening names nobody, a solve names the owner and the item, a take the taker", () => {
+    expect(cacheMoment({ result: "uncover", at: { x: 1, y: 1 }, owner: 1 }, NAMES)).toBe(
+      "Something opened",
+    );
+    expect(
+      cacheMoment({ result: "solved", at: { x: 1, y: 1 }, owner: 1, item: "watch" }, NAMES),
+    ).toBe("Bo's side job open: the gold watch");
+    expect(
+      cacheMoment({ result: "taken", at: { x: 1, y: 1 }, owner: 1, item: "watch" }, NAMES),
+    ).toBe("Bo took the gold watch");
+  });
+
+  it("is the same words whatever the role hears, since it reads the event and not the sounds", () => {
+    const ev = { result: "solved", at: { x: 1, y: 1 }, owner: 2, item: "ring" } as const;
+    expect(cacheMoment(ev, NAMES)).toBe("Cy's side job open: the signet ring");
+  });
+
+  it("falls back to 'Someone' for a seat with no name, which seatNames gives as an empty string", () => {
+    const taken = { result: "taken", at: { x: 0, y: 0 }, owner: 1, item: "watch" } as const;
+    expect(cacheMoment(taken, [])).toBe("Someone took the gold watch");
+    expect(cacheMoment(taken, ["Ana", "", "Cy"])).toBe("Someone took the gold watch");
+  });
+
+  // Task 64 (i): the new words. A stash says whose side job opened and what is in it; a take is a loot
+  // cue that says who took what; an uncover still says nothing of whose.
+  it("the stash cue reads 'side job open: the item' and a take reads 'took the item'", () => {
+    expect(cueCaptions([cue("stash", { n: 1, item: "watch" })], NAMES).map((c) => c.text)).toEqual([
+      "Bo's side job open: the gold watch",
+    ]);
+    const take: SoundCue = { kind: "loot", pan: 0, gain: 1, n: 1, item: "watch" };
+    expect(cueCaptions([take], NAMES).map((c) => c.text)).toEqual(["Bo took the gold watch"]);
+    expect(cueCaptions([cue("uncover", { n: 1 })], NAMES).map((c) => c.text)).toEqual([
+      "Something opened",
+    ]);
+  });
+
+  it("a loot cue with no owner or item (ordinary loot) keeps its plain word", () => {
+    expect(cueCaptions([{ kind: "loot", pan: 0, gain: 1 }], NAMES).map((c) => c.text)).toEqual([
+      "loot chime",
+    ]);
+  });
+
+  it("is null when there was no event", () => {
+    expect(cacheMoment(undefined, NAMES)).toBeNull();
   });
 });

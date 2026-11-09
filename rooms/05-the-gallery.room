@@ -1,0 +1,45 @@
+{"id":"05-the-gallery","name":"The Gallery","version":1,"hue":"teal","budgetS":240,
+ "beats":[
+  {"name":"The plaque","x":[0,11],"intent":{"blind":"hears the snip and the chime of the code from the corridor","deaf":"reads the little plaque round the corner and cuts the wire it names","mute":"reads the plaque too and checks the wire before the cut"}},
+  {"name":"The far plaque","x":[12,31],"intent":{"blind":"waits in the hall","deaf":"reads the plaque in the keypad room and marks the wire to cut","mute":"cuts the marked wire"}},
+  {"name":"The braille plate","x":[12,31],"intent":{"blind":"is led to the braille plate and reads the keypad's second digit","deaf":"leads Can't see to the braille plate","mute":"waits at the flag"}},
+  {"name":"The keypad","x":[12,31],"intent":{"blind":"listens at the vent, finds the gap in the tune, and says the code's numbers, with the plate's digit, to Can't speak","deaf":"waits","mute":"presses the keys in the order Can't see reads out"}},
+  {"name":"Out","x":[32,35],"intent":{"blind":"walks out","deaf":"walks out","mute":"walks out"}}
+ ],
+ "objects":{
+  "Q1":{"type":"wires","wires":[[6,1],[7,1],[8,1]],"plaque":"S2","teach":true},
+  "Q2":{"type":"wires","wires":[[15,1],[16,1],[17,1],[18,1]],"plaque":"S1"},
+  "Q3":{"type":"keypad","keys":[[26,1],[27,1],[28,1],[26,2],[27,2],[28,2],[26,3],[27,3],[28,3]],"clue":"c2","length":3},
+  "Q4":{"type":"keypad","keys":[[6,7],[7,7],[8,7],[6,8],[7,8],[8,8],[6,9],[7,9],[8,9]],"clue":"c1","length":3,
+   "cache":{"owner":2,"motif":"moon","riddle":"Beneath the moon, listen for the vent that sings.","item":"ledger",
+    "tiles":[{"at":[13,5],"motif":"moon"},{"at":[22,5],"motif":"star"}],
+    "chamber":{"rect":[6,7,14,10],"door":[9,6],"vault":{"rect":[13,10,14,10],"door":[12,10],"item":[14,10]}}}},
+  "c2":{},
+  "o1":{"for":"Q3","part":1},
+  "c1":{},
+  "D1":{"opensWhen":["Q1","Q2","Q3"]}},
+ "hints":{"jobs":[
+  {"beat":1,"station":"Q1","at":[4,5],"prefer":"deaf"},
+  {"beat":1,"goTo":"K1","all":true},
+  {"beat":2,"station":"Q2","at":[29,2],"prefer":"deaf"},
+  {"beat":3,"tow":"blind","to":[23,5],"prefer":"deaf"},
+  {"beat":3,"read":"o1","prefer":"blind"},
+  {"beat":4,"station":"Q3","at":[17,5],"prefer":"mute"},
+  {"beat":4,"listen":"Q3","at":[18,5],"prefer":"blind"},
+  {"beat":4,"cache":"Q4","station":"Q4","at":[2,5],"prefer":"mute"},
+  {"beat":4,"cache":"Q4","listen":"Q4","at":[3,5],"prefer":"blind"},
+  {"beat":4,"cache":"Q4","keepsake":"Q4"},
+  {"beat":5,"goTo":"E","all":true}]}}
+---
+#############################S######
+#1...Q.....#..Q........#.Q.....#..E#
+#2.........#...........#.......D..E#
+#3.........#...........#.......#.$E#
+#########.###.###########.##########
+#...................K...o......#####
+##%#S####D#######%##################
+##c###.........#.c..################
+######.......#######################
+######....Q..#######################
+######......D..#####################
+####################################

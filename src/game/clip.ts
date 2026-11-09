@@ -58,3 +58,42 @@ export function subtractRects(poly: readonly Vec[], rects: readonly Rect[]): Vec
   for (const r of rects) pieces = pieces.flatMap((p) => subtractRect(p, r));
   return pieces;
 }
+
+// The part of a shape that is in the light. The light is star-shaped round the one who casts it, so it is the
+// union of the triangles (`from`, one corner, the next): each is convex, and the shape is cut to each in turn
+// (Sutherland-Hodgman). The triangles meet only along the rays from `from`, so the pieces do not overlap.
+export function intersectLight(shape: readonly Vec[], light: readonly Vec[], from: Vec): Vec[][] {
+  const pieces: Vec[][] = [];
+  // a triangle that lies beside the shape's own bounding box cuts nothing out of it: skipped without a clip
+  // (a light has hundreds of corners and a camera's cone covers a small patch of them)
+  const near = {
+    x0: Math.min(...shape.map((p) => p.x)),
+    x1: Math.max(...shape.map((p) => p.x)),
+    y0: Math.min(...shape.map((p) => p.y)),
+    y1: Math.max(...shape.map((p) => p.y)),
+  };
+  for (let i = 0; i < light.length; i++) {
+    const a = light[i] as Vec;
+    const b = light[(i + 1) % light.length] as Vec;
+    if (
+      Math.max(from.x, a.x, b.x) < near.x0 ||
+      Math.min(from.x, a.x, b.x) > near.x1 ||
+      Math.max(from.y, a.y, b.y) < near.y0 ||
+      Math.min(from.y, a.y, b.y) > near.y1
+    )
+      continue;
+    const turn = (b.x - from.x) * (a.y - from.y) - (b.y - from.y) * (a.x - from.x);
+    if (Math.abs(turn) < EPS) continue; // a corner in line with the caster: no triangle
+    const flip = turn > 0 ? 1 : -1;
+    // keep the side of each of the triangle's three edges that the triangle is on
+    const edge = (p: Vec, q: Vec) => (r: Vec) =>
+      flip * ((q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x)) * -1;
+    let cut: Vec[] = [...shape];
+    for (const side of [edge(from, a), edge(a, b), edge(b, from)]) {
+      cut = keep(cut, side);
+      if (cut.length < 3) break;
+    }
+    pieces.push(...worth(cut));
+  }
+  return pieces;
+}

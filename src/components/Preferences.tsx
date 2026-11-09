@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { readNickname, saveNickname } from "../client/nickname.ts";
 import { loadSetup, saveSetup } from "../client/preferences.ts";
-import { loadSettings, type Settings, saveSettings } from "../client/settings.ts";
+import { loadSettings, type MaskBed, type Settings, saveSettings } from "../client/settings.ts";
+import { installUiSounds, savedSettings } from "../client/uiSound.ts";
 import type { Setup } from "../net/protocol.ts";
 import { YourSetup } from "./YourSetup.tsx";
 
@@ -24,6 +25,7 @@ export function PreferencesForm({
     setNickname(readNickname());
     setSetup(loadSetup());
     setSettings(loadSettings("blind"));
+    installUiSounds(savedSettings);
   }, []);
 
   function said(what: string) {
@@ -45,8 +47,9 @@ export function PreferencesForm({
     said("playing");
   }
 
-  const toggle = (key: "captions" | "sound" | "speech" | "highContrast") => (e: Event) =>
-    settings && changeSettings({ ...settings, [key]: (e.target as HTMLInputElement).checked });
+  const toggle =
+    (key: "captions" | "sound" | "speech" | "highContrast" | "menuSounds") => (e: Event) =>
+      settings && changeSettings({ ...settings, [key]: (e.target as HTMLInputElement).checked });
 
   return (
     <div class="prefs stack">
@@ -99,6 +102,14 @@ export function PreferencesForm({
             <label class="tick">
               <input
                 type="checkbox"
+                checked={settings.menuSounds}
+                onChange={toggle("menuSounds")}
+              />
+              Menu sounds
+            </label>
+            <label class="tick">
+              <input
+                type="checkbox"
                 checked={settings.voiceMode === "toggle"}
                 onChange={(e) =>
                   changeSettings({
@@ -129,6 +140,19 @@ export function PreferencesForm({
                   changeSettings({ ...settings, volume: Number(e.currentTarget.value) })
                 }
               />
+            </label>
+            <label class="volume">
+              Masking noise sound
+              <select
+                value={settings.maskNoise}
+                onChange={(e) =>
+                  changeSettings({ ...settings, maskNoise: e.currentTarget.value as MaskBed })
+                }
+              >
+                <option value="brown">Brown</option>
+                <option value="rain">Rain</option>
+                <option value="cafe">Café</option>
+              </select>
             </label>
           </form>
         )}

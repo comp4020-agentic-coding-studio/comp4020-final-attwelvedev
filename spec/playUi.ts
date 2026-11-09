@@ -1,8 +1,9 @@
 // Shared by the layout specs: three people in a started room, through the real screens.
 import type { Browser, Page } from "playwright";
 import type { Role } from "../src/game/types.ts";
-import { DESKTOP, openPage, PHONE } from "./browser.ts";
+import { DESKTOP, openPage, PHONE, type Viewport } from "./browser.ts";
 import { createLobbyAs } from "./lobbyUi.ts";
+import type { Player } from "./play.ts";
 
 export interface Table {
   pages: Page[];
@@ -12,7 +13,12 @@ export interface Table {
 
 // Host and a third player on desktop, one touch phone in between, all through
 // the real screens: create, join, Start, reveal, Ready.
-export async function playRoom(browser: Browser, baseUrl: string): Promise<Table> {
+// `beforeReady`: anything to do at the reveal, before the three press I'm ready.
+export async function playRoom(
+  browser: Browser,
+  baseUrl: string,
+  beforeReady?: (byRole: Record<Role, Page>) => Promise<void>,
+): Promise<Table> {
   const { page: host, code } = await createLobbyAs(browser, baseUrl, "Ana", DESKTOP);
   const phoneContext = await browser.newContext({
     viewport: PHONE,
@@ -30,7 +36,7 @@ export async function playRoom(browser: Browser, baseUrl: string): Promise<Table
     await page.getByLabel("Lobby code").fill(code);
     await page.getByRole("button", { name: "Join", exact: true }).click();
     await page.waitForURL(new RegExp(`/lobby/${code}$`));
-    await page.getByRole("heading", { name: /^Players \d of 6/ }).waitFor();
+    await page.getByRole("heading", { name: /^\d here · 3 play each room/ }).waitFor();
   }
   // The button reads plain "Start" only once all three are seated; before that it
   // reads "Start (n bots fill)" and would start a game with bots. click waits for the
@@ -39,10 +45,39 @@ export async function playRoom(browser: Browser, baseUrl: string): Promise<Table
   const start = host.getByRole("button", { name: "Start", exact: true });
   await start.click({ timeout: 5000 });
   const pages = [host, phone, third];
+  // seats rotate by room: room 1 is seat 0 blind, seat 1 deaf, seat 2 mute
+  const byRole = { blind: host, deaf: phone, mute: third };
+  if (beforeReady) {
+    for (const page of pages) await page.locator(".reveal").waitFor();
+    await beforeReady(byRole);
+  }
   for (const page of pages) await page.getByRole("button", { name: "I'm ready" }).click();
   for (const page of pages) await page.locator(".frame canvas").waitFor();
-  // seats rotate by room: room 1 is seat 0 blind, seat 1 deaf, seat 2 mute
-  return { pages, phone, byRole: { blind: host, deaf: phone, mute: third } };
+  // the start of the room has played: from here input moves you (FR14)
+  for (const page of pages) await page.locator('.game[data-intro="done"]').waitFor();
+  return { pages, phone, byRole };
+}
+
+// A player's own device opened on a game sockets started: their cookie and saved nickname, so the
+// lobby page rejoins their seat.
+export async function openAs(
+  browser: Browser,
+  baseUrl: string,
+  player: Player,
+  nickname: string,
+  code: string,
+  viewport: Viewport,
+): Promise<Page> {
+  const eq = player.cookie.indexOf("=");
+  const context = await browser.newContext({ viewport });
+  await context.addCookies([
+    { name: player.cookie.slice(0, eq), value: player.cookie.slice(eq + 1), url: baseUrl },
+  ]);
+  await context.addInitScript((n) => localStorage.setItem("heist.nickname", n), nickname);
+  const page: Page = await context.newPage();
+  await page.goto(new URL(`/lobby/${code}`, baseUrl).href);
+  await page.locator(".frame canvas").waitFor();
+  return page;
 }
 
 export const canvasHash = (page: Page) =>

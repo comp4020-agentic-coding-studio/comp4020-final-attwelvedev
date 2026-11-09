@@ -1,0 +1,12 @@
+{"id":"01-cache-a","name":"Cache a","version":1,"beats":[{"name":"Three hands","x":[0,14],"intent":{"blind":"holds a plate and hears the hum","deaf":"sees which plate is free","mute":"signals the moment to step in"}},{"name":"Out","x":[15,19],"intent":{"blind":"follows the footsteps to the exit","deaf":"guides the others onto the exit","mute":"confirms everyone is on it"}}],"objects":{"D1":{"opensWhen":["p1","p2","p3"]},"Q1":{"type":"dial","pads":[[4,8],[6,8]],"digits":2,"range":10,"cache":{"owner":1,"motif":"moon","riddle":"Where the moon watches, listen twice.","item":"watch","tiles":[{"at":[2,4],"motif":"moon"},{"at":[4,4],"motif":"star"}],"chamber":{"rect":[1,6,9,8],"door":[3,5],"vault":{"rect":[8,8,9,8],"door":[7,8],"item":[9,8]}}},"back":[5,6]},"g1":{"item":"stethoscope"}},"hints":{"jobs":[{"beat":1,"goTo":"p2","prefer":"blind"},{"beat":1,"goTo":"p1","prefer":"deaf"},{"beat":1,"goTo":"p3","prefer":"mute"},{"beat":2,"goTo":"E","all":true}]}}
+---
+####################
+#1.......p....D..E.#
+#2.......p....D....#
+#3.......p....D..$.#
+#.....g.......#....#
+###D################
+#.........##########
+#.......############
+#....Q.D..##########
+####################

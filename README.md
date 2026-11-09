@@ -30,6 +30,15 @@ I considered special abilities per role, such as only Can't see pushing crates, 
 
 I also considered drawing, inspired by Gartic Phone, and GIFs. With them the channels felt bloated, and would dilute the humour of the existing ones.
 
+## Playtests
+
+Two commands check the game across layers. Neither is in `pnpm check`, and each needs the app built (`pnpm build`).
+
+- `pnpm playtest [--room NN] [--width 1280|375] [--rotations all]` is free. It starts a throwaway server and plays three real browser tabs through every room (or one with `--room 01`, about 30 seconds): an input check on each seat, then the server's bots drive while frame and room-end invariants are checked. It writes screenshots, each role's perceived text and `report.html` under `review/playtest/<run>/` (git-ignored) and exits non-zero if anything failed.
+- `pnpm playtest:review <run> [--room NN] [--model ID] [--yes]` reads that run offline and asks a model, for each role at each beat, what a first-time player could not read, would be misled by or would not know to do next. It writes `review.html`, with each answer beside the beat's designed intent. It prints an estimate first and does nothing without `--yes`. It spends the course proxy's budget (about $2 a heist, 132 calls; room 01 is about $0.07) and uses `ANTHROPIC_BASE_URL` and `ANTHROPIC_MODEL` from the environment.
+
+The run finds bugs between layers (something drawn that was never sent, a sound not played, a menu action that does nothing). The review finds legibility leads. Both are blind to comms gaps and to whether it is fun: those stay with people, and the review's findings are leads to check, not verdicts. The run needs `PLAYTEST_AUTOPILOT=1`, which the command sets for its own server; it must never be set on Fly, where the server refuses to start ([ADR 0027](doc/adr/0027-a-test-only-autopilot-for-a-persons-seat.md), [ADR 0028](doc/adr/0028-a-screenshot-review-from-what-a-player-perceives.md)).
+
 ## The pantry, archived
 
 The shared-pantry app is preserved at the git tag [`archive/pantry-2026-10-08`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-attwelvedev/releases/tag/archive%2Fpantry-2026-10-08).

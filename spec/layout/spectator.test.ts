@@ -177,6 +177,43 @@ describe("the spectator panel", () => {
     await closeAll([...players, di, phone]);
   });
 
+  it("never paints the site header around the map, not even for the first frame", async () => {
+    // the page used to add body.playing in an effect, after the first paint: for one frame the
+    // header band and footer stood around the map, then the map jumped up. A spec reading two
+    // boxes either side of that jump saw a frame and a panel from different layouts.
+    const { players, di, code } = await started();
+    const context = await browser.newContext({ viewport: PHONE, hasTouch: true, isMobile: true });
+    await context.addInitScript(() => {
+      const w = window as unknown as { __shown: number; __frames: number };
+      w.__shown = 0;
+      w.__frames = 0;
+      const tick = () => {
+        if (document.querySelector(".spectator-frame")) {
+          w.__frames++;
+          const band = document.querySelector(".band");
+          if (band && getComputedStyle(band).display !== "none") w.__shown++;
+        }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    const page = await context.newPage();
+    await page.goto(baseUrl, { waitUntil: "networkidle" });
+    await page.getByLabel("Nickname").fill("Pia");
+    await page.getByLabel("Lobby code").fill(code);
+    await page.getByRole("button", { name: "Join", exact: true }).click();
+    await page.getByRole("button", { name: "Watch" }).click();
+    await page.locator(".spectator-frame canvas").waitFor();
+    await page.waitForFunction(() => (window as unknown as { __frames: number }).__frames > 10);
+    const seen = await page.evaluate(() => {
+      const w = window as unknown as { __shown: number; __frames: number };
+      return { shown: w.__shown, frames: w.__frames };
+    });
+    expect(seen.frames, "the page ran").toBeGreaterThan(10);
+    expect(seen.shown, "frames with the site header showing beside the map").toBe(0);
+    await closeAll([...players, di, page]);
+  });
+
   it("has no overflow and no axe violations, at both widths, with chat lines and the vote bar's absence", async () => {
     const { players, di, code } = await started();
     const phone = await joinAsWatcher(browser, baseUrl, code, "Pia", PHONE, { hasTouch: true });

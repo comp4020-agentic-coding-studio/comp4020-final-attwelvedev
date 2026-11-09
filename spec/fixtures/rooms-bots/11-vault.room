@@ -1,0 +1,22 @@
+{"id":"11-vault","name":"Vault fed by its wings (bots fixture)","version":1,"budgetS":240,
+ "beats":[
+  {"name":"Wings","x":[0,21],"intent":{"blind":"hears the dials tick","deaf":"opens the star safe","mute":"opens the wave safe"}},
+  {"name":"Vault","x":[0,21],"intent":{"blind":"hears the sockets clunk","deaf":"reads the order and turns each socket to its wing's symbol","mute":"watches"}},
+  {"name":"Out","x":[0,21],"intent":{"blind":"walks out","deaf":"walks out","mute":"walks out"}}
+ ],
+ "objects":{
+  "Q1":{"type":"dial","pads":[[3,1],[5,1]],"back":[4,2],"teach":true,"range":10,"reveal":true,"motif":"star"},
+  "Q2":{"type":"dial","pads":[[9,1],[11,1]],"back":[10,2],"teach":true,"range":10,"reveal":true,"motif":"wave"},
+  "Q3":{"type":"vault","sockets":[[10,3],[11,3]],"from":["Q2","Q1"],"symbols":"Y1"},
+  "D1":{"opensWhen":["Q3"]}},
+ "hints":{"jobs":[
+  {"beat":1,"station":"Q1","prefer":"deaf"},
+  {"beat":1,"station":"Q2","prefer":"mute"},
+  {"beat":2,"station":"Q3","prefer":"deaf"},
+  {"beat":3,"goTo":"E","all":true}]}}
+---
+######################
+#1..Q.....Q.......D.E#
+#2................D.E#
+#3......Q....Y....D.E#
+######################

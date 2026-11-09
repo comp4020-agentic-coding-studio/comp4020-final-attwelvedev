@@ -12,9 +12,12 @@ import {
 } from "../game/channels.ts";
 import type { BriefingCue } from "../game/cues.ts";
 import type { EntityView, RoleView, SoundCue } from "../game/perception.ts";
+import type { ItemId, Motif } from "../game/rooms/format.ts";
 import { parseSetup, type Setup } from "../game/setup.ts";
+import type { StationType } from "../game/sim/world.ts";
 import type { Method, PlayerInput, Role, Seat, Vec } from "../game/types.ts";
-import type { CrewMember, SendRequest, VoteKind } from "./game.ts";
+import type { BoardRow, RoomBoard } from "../lib/runs.ts";
+import type { CommsEdge, CrewMember, SendRequest, VoteKind } from "./game.ts";
 import type { ErrorCode, LobbyState, LobbySummary, Person } from "./lobbies.ts";
 import type { RealLife } from "./realLife.ts";
 
@@ -22,8 +25,10 @@ import type { RealLife } from "./realLife.ts";
 // at runtime: it pulls in ./codes.ts for node:crypto, which has no business
 // in the browser bundle).
 export type {
+  BoardRow,
   Callout,
   ChannelMessage,
+  CommsEdge,
   CrewMember,
   EntityView,
   ErrorCode,
@@ -32,6 +37,7 @@ export type {
   Person,
   RealLife,
   RoleView,
+  RoomBoard,
   SendRequest,
   Setup,
   SoundCue,
@@ -62,10 +68,11 @@ export type ClientMsg =
   | { t: "send"; msg: SendRequest }
   | { t: "spectate"; seat: Seat | null } // a watcher: follow this seat, or null for the whole room with no sound
   | { t: "spec.say"; text: string } // a watcher (a spectator, or someone sitting this room out): to the other watchers
-  | { t: "voice.stats"; p50: number; p95: number; dropped: number }; // a receiver's voice latency, ms
+  | { t: "voice.stats"; p50: number; p95: number; dropped: number } // a receiver's voice latency, ms
+  | { t: "autopilot"; on: boolean }; // playtest only (ADR 0027): a bot plays my seat; refused unless PLAYTEST_AUTOPILOT=1
 
 export type ServerMsg =
-  | { t: "welcome"; who: string }
+  | { t: "welcome"; who: string; autopilot?: true } // autopilot: the server runs with PLAYTEST_AUTOPILOT=1
   | { t: "pong"; at: number; serverAt: number } // serverAt: the server's clock, for the voice clock offset
   | { t: "lobbies"; list: LobbySummary[] }
   | {
@@ -89,10 +96,37 @@ export type ServerMsg =
       played: Record<string, Role[]>; // by nickname: the roles each person has played so far
       real: RealLife; // what this person's setup means for them in this room
       cues: BriefingCue[]; // Can't see only: the sounds of this room to learn; empty for the others
+      hue?: string; // the room's wall hue (room meta `hue`), for the wall tints (FR1)
+      cache?: { motif: Motif; riddle: string; item: ItemId }; // your own seat's cache, if this room has one for it (never sent to the others)
     }
   | { t: "ready"; seats: Seat[] } // the seats that pressed I'm ready (bots count): sent on every change, to players and watchers
+  // all three are ready: the room starts, and its first tick is held `ms` while the start plays (FR14)
+  | { t: "intro"; ms: number }
   | { t: "view"; view: RoleView }
-  | { t: "cleared"; room: string; ms: number; loot: number; lootTotal: number }
+  // `board`: the room's top 5 with this run marked, and its rank alone if it is outside them. Team
+  // names are public on the board already (FR32); never log them.
+  | {
+      t: "cleared";
+      room: string;
+      ms: number;
+      loot: number;
+      lootTotal: number;
+      board: RoomBoard;
+      // who did what, in fixed words: a teammate is a `{seat}` token the page fills in (never a name here)
+      credits: { seat: Seat; lines: string[] }[];
+      // the room's side job: taken, opened and left, or not found (absent in a room with none). Seats, never names; the
+      // riddle is shown to the whole team here because the room is over
+      cache?: {
+        room: string;
+        found: boolean; // the item was taken by its owner
+        opened: boolean; // the vault door was opened (the station was solved)
+        item: ItemId;
+        owner: Seat;
+        by?: Seat; // who solved it
+        riddle: string;
+      };
+      comms: CommsEdge[]; // the comms map: deliveries per direction and method, never content
+    }
   | ({ t: "msg" } & ChannelMessage) // only ever sent to a seat whose role receives the method
   | { t: "cooldown"; method: Method; until: number }
   // The game is paused for a dropped seat. `left` is the ms to go as the server counts them
@@ -106,7 +140,15 @@ export type ServerMsg =
       forReady?: boolean; // someone was pulled in and the game waits for their Ready, not a connection
       gone?: boolean; // the person pressed Leave: nothing to wait for, so the host chooses at once
     }
-  | { t: "caught"; hazard: "guard" | "camera" | "laser"; seat: Seat; checkpoint: number } // the team was sent back
+  | {
+      t: "caught";
+      hazard: "guard" | "camera" | "laser" | "station";
+      seat: Seat;
+      checkpoint: number;
+      // a wrong answer: which kind of station, so the dye banner can say "Wrong wire." The whole team
+      // is splattered and sees (or is told by the Act hint) what the station is: nothing new
+      station?: StationType;
+    } // the team was sent back
   | {
       t: "vote"; // a restart is being voted on: sent to every player when it opens and each time it changes
       kind: VoteKind;
@@ -119,7 +161,15 @@ export type ServerMsg =
   | { t: "spec.msg"; nickname: string; text: string; at: number } // watchers' chat: never sent to a player
   | { t: "vote.end"; kind: VoteKind; result: "passed" | "declined" | "timeout"; by?: string } // by: who declined
   | { t: "resume"; back: string | null } // the person is back, or null when a bot took the seat
-  | { t: "heist"; ms: number; loot: number; lootTotal: number; rank: number }; // the whole heist is done
+  // the whole heist is done; `caches` has one row per room that had a side job, in room order
+  | {
+      t: "heist";
+      ms: number;
+      loot: number;
+      lootTotal: number;
+      rank: number;
+      caches: { room: string; name: string; found: boolean; item: ItemId }[];
+    };
 
 const MAX_FRAME = 8 * 1024;
 
@@ -131,6 +181,12 @@ export const LOBBY_CODE_LENGTH = 4;
 
 // Anything malformed, unknown or oversized is null: the caller drops it and
 // keeps the socket open, so one bad frame never ends a game.
+// What the sim needs from an input message: every field the client sent (G was once dropped here).
+export function inputOf(msg: { t: "input" } & PlayerInput): PlayerInput {
+  const { t: _t, ...input } = msg;
+  return input;
+}
+
 export function parseClientMsg(raw: string): ClientMsg | null {
   if (raw.length > MAX_FRAME) return null;
   let body: unknown;
@@ -196,6 +252,8 @@ export function parseClientMsg(raw: string): ClientMsg | null {
       return typeof m.yes === "boolean" ? { t: "vote.cast", yes: m.yes } : null;
     case "next":
       return { t: "next" };
+    case "autopilot":
+      return typeof m.on === "boolean" ? { t: "autopilot", on: m.on } : null;
     case "host.choice":
       if (m.choice === "bot" || m.choice === "lobby") return { t: "host.choice", choice: m.choice };
       if (m.choice === "pull") {
@@ -218,8 +276,15 @@ export function parseClientMsg(raw: string): ClientMsg | null {
       if (!Number.isInteger(m.seq) || (m.seq as number) < 0) return null;
       if (typeof x !== "number" || typeof y !== "number") return null;
       if (!Number.isFinite(x) || !Number.isFinite(y) || typeof m.act !== "boolean") return null;
+      if (m.gear !== undefined && typeof m.gear !== "boolean") return null;
       const clamp = (n: number) => Math.max(-1, Math.min(1, n));
-      return { t: "input", seq: m.seq as number, move: { x: clamp(x), y: clamp(y) }, act: m.act };
+      return {
+        t: "input",
+        seq: m.seq as number,
+        move: { x: clamp(x), y: clamp(y) },
+        act: m.act,
+        ...(m.gear === undefined ? {} : { gear: m.gear }),
+      };
     }
     case "send": {
       const msg = parseSendRequest(m.msg);

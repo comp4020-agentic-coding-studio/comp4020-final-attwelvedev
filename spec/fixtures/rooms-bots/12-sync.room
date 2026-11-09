@@ -1,0 +1,18 @@
+{"id":"12-sync","name":"Sync lock on a count (bots fixture)","version":1,"budgetS":240,
+ "beats":[
+  {"name":"Keys","x":[0,17],"intent":{"blind":"hears the keys clunk","deaf":"stands at a key and texts 3, 2, 1, turning on 1","mute":"stands at the other key and turns on the 1"}},
+  {"name":"Out","x":[0,17],"intent":{"blind":"walks out","deaf":"walks out","mute":"walks out"}}
+ ],
+ "objects":{
+  "Q1":{"type":"sync","keys":[[3,3],[9,3]],"windowMs":500},
+  "D1":{"opensWhen":["Q1"]}},
+ "hints":{"jobs":[
+  {"beat":1,"station":"Q1","prefer":"deaf"},
+  {"beat":1,"station":"Q1","prefer":"mute"},
+  {"beat":2,"goTo":"E","all":true}]}}
+---
+##################
+#1....Q......D..E#
+#2...........D..E#
+#3...........D..E#
+##################

@@ -115,4 +115,17 @@ describe("createPredictor: glass and vents", () => {
       expect(pos.x).toBeLessThanOrEqual(5 - 0.4 + 1e-9);
     });
   }
+
+  it("walks into a chamber once setTiles gives it the opened map (the predictor is built once)", () => {
+    const sealed = ["#########", "#1......#", "#2......#", "#3......#", "#########", "#########"];
+    const opened = ["#########", "#1......#", "#2......#", "#3......#", "#.......#", "#########"];
+    const predictor = createPredictor({ x: 1.5, y: 3.5 }, sealed);
+    const down: PlayerInput = { seq: 1, move: { x: 0, y: 1 }, act: false };
+    for (let i = 0; i < 6; i++) predictor.apply(down, 100);
+    expect(predictor.apply(down, 0).y).toBeLessThan(4); // wall stops it at the room's edge
+    predictor.setTiles(opened);
+    let p = predictor.apply(down, 0);
+    for (let i = 0; i < 4; i++) p = predictor.apply({ ...down, seq: 2 + i }, 100);
+    expect(p.y).toBeGreaterThan(4);
+  });
 });

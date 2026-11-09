@@ -745,3 +745,949 @@ server; I didn't get to try the 45 s config. I skipped it so the crit sweep
 doesn't hit it. To do: make the leave spec not depend on `PAUSE_MS` (or start
 CI and `check:flaky` with `PAUSE_MS=3000`), reproduce the view flake against a
 45 s server with neighbouring spec files in parallel, then unskip both.
+
+## 2026-10-28 — Landing the overhaul WIP: red tests sorted into load, data and real, and only the real ones ruled on
+
+c326813
+
+The first `pnpm check` on the overhaul work in progress failed 123 tests in 27
+files. The obvious move was to start fixing tests, or to retry until it went
+green. Instead the agent separated them by cause before touching anything.
+The machine's load average had reached 300–485 on 12 cores, and the browser
+specs that timed out at 30 s passed when run alone on a fresh server, or at two
+workers (11 of 12 files). One failure was data: the leaderboard's empty-state
+spec read my own full-heist run from 2026-10-20 in `./.data/app.db`, and it
+passes on a throwaway `DATABASE_PATH`. Eight were real, and all of them came
+from the overhaul's unfinished state: a lead-beat describe with no lead rooms
+left, an unfinished airlock draft, and the old room 3 whose dark the
+perception-only bots can't survive. I ruled on those: the describe removal and
+draft deletion were pulled forward from Tasks 4 and 5, and `03-vault` was
+skipped behind a dated `NOT_YET` note naming the phase that rewrites it,
+rather than the bots being widened to know what their role can't. The load
+problem went to the backlog instead of being fixed mid-task. Checked by
+typecheck, biome, `lint:rooms` and 1054 unit tests green, and every spec file
+green alone, at two workers, or on a fresh database.
+
+## 2026-10-28 — A spec that read my own play: fixed the spec and the way the check server starts
+
+32b609c
+
+The leaderboard's empty-state spec failed only because the shared check server
+ran on my real `./.data/app.db`, which holds a heist I played. Rather than
+delete my data or skip the spec, the spec now checks the empty board on its own
+empty-database app (as its sibling already did), and `pnpm start:check` runs
+the server on a throwaway database, written into CLAUDE.md so the next local
+check doesn't fill the real one with test runs. Checked: the moved spec passes
+against a server on the real database, the case that failed before.
+
+## 2026-10-28 — Lead beats still made passengers: balance by presence, and four corrections to the design
+
+367098f, c8c2df8..e062047; [ADR 0017](doc/adr/0017-balance-by-presence-stations-and-gear.md)
+
+Two playtests and the `02-blackout` draft showed that a beat one role leads
+still leaves the other two following. The obvious next step was a better lead
+beat; the call I made instead was to stop leading at all. In the escape-room
+heist brainstorm each puzzle (a station) splits what tells you the answer,
+where you act and how you know it worked across places and senses, and gear
+changes what a person perceives. That way "every role is needed" becomes a
+property a linter can check, not something a bot test only approximates.
+
+I corrected the design four times after seeing it: a cartoon dog as the comic
+failure was out of place, so it became a dye pack; "just in-world clues" was
+ambiguous, so there is no recorded speech anywhere, only tones; a wrong answer
+costs the whole team the checkpoint, not a heat meter; and the rooms grow
+larger where the puzzles need it, not smaller (the spec's probe table, rows 2,
+6, 7 and 13).
+
+How I knew it held: the presence linter flags each of the plan's four
+one-loadout cases (stethoscope at the dial, plaque in sight of the wires,
+earpiece worn at the keypad, lamps seen from the buttons). It flagged the
+fixture's own music box too, whose tune stood beside the bells; the tune moved
+behind glass. Bots still clear the fixture in every rotation, reading answers
+from the sim (FR3), so the bot test proves a room can be cleared and the
+linter proves no role is a passenger.
+
+## 2026-10-28 — A check that could pass against the wrong build
+
+resolved by 13b873c
+
+Starting phase 02, the agent found a `pnpm start:check` server left over from
+an earlier session still holding :8080. CLAUDE.md says to restart the server
+between check runs, but the agent wasn't allowed to: auto mode refused to kill
+the process. So `pnpm check` ran against the previous commit's build. That was
+harmless for Task 7, which changed no server or client code, but Tasks 8–10
+change the client, and a green check against stale code would be a false pass.
+
+The agent stopped and said so instead of reporting green. The obvious fix was
+to restart the server by hand each time. I chose to put it in the harness, so
+the rule CLAUDE.md states can actually be followed: the project allow list now
+covers `pkill -f "node server.ts"`, `pnpm build` and `pnpm start:check`. Auto
+mode also judges actions with its own check, separate from the allow list,
+which still refused. It also refused to let the agent edit auto mode's own
+rules, which is correct, so I added the allow rule to my user settings myself.
+
+How I knew it held: with both in place, the agent stopped the stale servers,
+the ports came free, and a fresh `start:check` answered 200 on :8080 on the
+current build.
+
+## 2026-10-28 — Bots that read the answers hid puzzles no person could solve
+
+resolved by 73cd110 (spec and ADR 0018 proposed; built in phases 03 to 10)
+
+Phase 02 drew, voiced and labelled every station, and `pnpm check` was green, with bots clearing
+the stations draft in every rotation. When I played it I could not solve a single station: the
+safe's clicks sounded alike, the music box never said which bell was which note, and nothing told
+me which wire, code or switches. Tracing it, most clues never reached a person (the plaque's rule
+was never drawn, the switches had no target, the vault's answer was random), and the bots cleared
+it because they read answers from the simulation. The room also asked me to learn every station
+type at once, and even room 1 shows about eleven kinds of object with no cap on labels.
+
+The obvious fix was to patch the missing clues on the client. I stopped the phase instead: the
+test meant to prove a room could be cleared was proving only that the simulation had an answer,
+so the same miss would recur in every room. The decision lands in the harness: bots now solve
+only from what their role perceives (ADR 0018), a clue-path linter fails a room whose clue cannot
+reach a person, links between stations are implicit but carry a matching motif at both ends, and
+the heist becomes nine short rooms that each introduce at most two new things, taught before
+tested, with label chips capped at three (two on a phone).
+
+How I'll know: the draft's faults each fail the new linter rule, perception-only bots clear each
+new room, and I play each room before it ships.
+
+## 2026-10-31 — Human reviews batched to the end of the phase, and a dev server that passed for the app
+
+(commit cited at the next phase close)
+
+Phase 12 has seven tasks with a `Human review:` line. The skill stops after each one. After the first (the crate
+plate) I asked for the rest to be deferred and done at once at the end of the phase: a review needs
+me looking at the build, and seven separate stops is seven context switches for the same build.
+The cost is that a rejection comes later, so a fix is a follow-up commit.
+
+Separately, `pnpm check` went red twice for reasons that were not the code: a leftover `astro dev` server
+held :8080, so `pnpm start:check` died with EADDRINUSE and the specs ran against the dev server (no
+long-cache headers, slower); then a reused server hit its 40-lobby cap. The fix to the method: run
+the check server on its own port (`PORT=8099`, `APP_URL`) and restart it between runs. Candidate
+sensor, not yet built: `spec/global-setup.ts` could refuse a server that is not the built one.
+
+## 2026-11-01 — A cycle that only shows when a file loads first, and a check launched on unread output
+
+(commit cited at the next phase close)
+
+Task 36 (chimes you can count) replaced a fixed 60-tick tune with groups of chimes whose length is
+the note. The new `chimes.ts` read `TICK_MS` from `world.ts`, which imports `stations.ts`, which now
+imports `chimes.ts`: a cycle. Nothing failed in the sim, because `world.ts` loads first there. It
+failed only in a test file that imported `chimes.ts` before `world.ts`, where `TICK_MS` was undefined
+and every tick count was `NaN` (`tick: null` in the printed array, `period: null`). I did not guess:
+I printed the values from inside the failing test, which showed `NaN`, then traced it to the load
+order. The fix keeps a local constant and adds a test that it equals `TICK_MS`, so a change to either
+fails loudly.
+
+The same task showed a second kind of miss: tests with a magic number from the old design (a 200-tick
+listen window, `tick = 59` for "the tick before a tune") passed or failed for the wrong reason once
+the schedule changed. They now derive the number from the schedule (`3 * TUNE_MAX_TICKS`,
+`tuneGroups(code).period - 1`).
+
+And one of mine: I started a 5-minute full check straight after running `pnpm lint` without reading
+its output, and it failed on a lint error in the test I had just written. Read the cheap gate's
+result before launching the expensive one.
+
+## 2026-11-01 — Phase 12: a plan's premises checked against the code, and a test that could not fail
+
+(commits cited at the phase close)
+
+Nine tasks, and in five of them the plan's description of the code was wrong in a way that would
+have shipped a different thing: "Cut wire n" was the Act hint and not the ink (shortening the ink
+would have given the puzzle's answer away); the HUD never touched the chat box; the wires had no
+wall route in two rooms; a keypad's `clue` is a chime id and not a tile; and the door I proposed for
+room 7 broke the linter's two-open-stations rule. Each time the decision was handed back with the
+data (a route search, a measured layout, a linter run), not made silently, and the ruling went into
+the plan's corrections log.
+
+The sensory-split note the phase's Definition of Done asks for: no visual pip anywhere; the practice
+lever's dimming has a sound twin (`practice`, `lever`) and the sounds have pictures; a tug of war is
+heard by the two holders only and drawn on both figures; Can't see gets the sound and no flag
+(`station.practice` is gated by sight, so it never reaches that role).
+
+The method lesson, from Task 40: a test passes for the wrong reason more easily than it fails for
+the right one. A bot test sent a callout, "west", that does not exist; the bot ignored it and the
+test passed. It only became a test when I printed what the bot actually sent (a move of zero), fixed
+the name ("left"), and watched it fail with the person moving 0 tiles of 40 ticks: a real bug (a bot
+told left and then taken by the hand held a person still), which every room spec had missed because
+in those rooms a bot only ever leads. The same afternoon: a spec I wrote whose assertions could not
+fail (deleted), a search-and-replace that matched nothing after the formatter reflowed the text
+(twice), and two doors numbered the wrong way round. The sensor that would have caught most of them
+is "break it and watch it go red", which I did for each test from Task 34 on; making that a rule
+for a test written after the code is the candidate for CLAUDE.md, left for you to decide.
+
+
+## 2026-11-01 — A plan step that read like copy was a puzzle mechanic
+
+e1968b3 (the render half; the number half is planned in `plans/2026-11-01-escape-room-heist-13-02-render.md`, not yet built)
+
+Phase 13's Task 43 said to shorten room 7's UV ink to "Wire 2". The agent read it against the code before
+building and found the ink text was not copy: it is the `WIRE_RULES` sentence players read to decide which wire to cut,
+and the one bots match in `decode.ts`. A bare number would turn a clue into the answer and leave bots unable to read room 7.
+It stopped and asked instead of building.
+
+The obvious move was to shorten the sentence, or to ship the number and let the bots fail the room spec. I chose to
+split the task: the render half (no ring, ink kept on the wall's face, clip unchanged) went ahead and was committed, because
+it did not depend on the ruling, and the text half went back to `plan-feature`. I then ruled that the ink is only the
+number, for room 7 only, with the colours kept as decoys, and that rooms 5 and 9 keep their rules. The digit decoder
+moved into the same task as the number so no commit leaves the bots unable to clear room 7. I also noted that plaques as
+riddles is the better idea but a different one, so it went to `specs/backlog.md` rather than into this phase.
+
+How I knew the call was right: the open-question count in the plan went to zero, and the next tasks' interface lists
+(45, 48) now name what Task 43 produces. The first test for the number will be `plaqueText`'s digit; `spec/rooms.test.ts`
+(bots clear room 7 in every rotation) is the evidence the bots still read it.
+
+## 2026-11-01 — A stray formatter rewrote 60 files; the rule went into CLAUDE.md
+
+Task 43's ink number. After writing the red tests I ran `prettier --write src/game` out of habit; the project formats with
+Biome at width 100, so it rewrote about 60 files outside the task and the tree was no longer a single unit of work. I caught it
+when `pnpm check` failed on formatting, and `git status` showed 64 changed files against a clean start. I did not restore them on
+my own: the restore was a destructive `git checkout`, so I stopped and asked, and the user approved it for the 28 files outside
+the task. Five files I had also changed were rebuilt from HEAD plus only my edits, so the diff came back to 126 lines in 10 files.
+
+The call: ask before discarding, and add a harness rule rather than just fix the instance (CLAUDE.md, Hygiene: format only with
+`pnpm format`, check `git status` after a formatter). Checked by `pnpm lint` clean, `git diff --stat` showing only the task's
+files, and a green `pnpm check` (125 files, 1769 tests).
+
+## 2026-11-01 — A flaky wheel that was one failure and three bystanders
+
+resolved by the commit that adds this entry
+
+Task 49 asked for the root cause of the flaky wheel and reveal specs. `pnpm check:flaky 6` on a fresh
+server was clean, 6 of 6 (3 idle, 3 under its four busy loops), so there was nothing to read yet.
+I raised the load to eight busy loops on the 12-core machine and ran `spec/layout/` whole. Then
+wheel failed four cases in one run: the axe case with the wheel open, and the three phone cases after
+it. The axe message was `expected [ Array(1) ] to deeply equal []`, which names nothing.
+
+The obvious fix was a longer timeout on the three phone cases. I did not make it: they failed in the
+same run, in order, right after the axe case, and the file shares one `table`. I read the axe case
+and found it returns on a failed assertion before it presses Escape and releases Q, so the wheel stays
+open for the next case. To check that reading I broke the axe case on purpose, twice. With the
+cleanup removed, one forced failure failed exactly four cases (the same four); with the cleanup in a
+`finally`, it failed one and passed 24. The case now cleans up in a `finally` and joins the axe
+violations into its message.
+
+What I have not found: why axe reports a violation under load at all. That needs the next occurrence,
+which will now say which rule and element. `reveal.test.ts` failed only twice, by 30 s timeouts in a
+run where eight other files were failing too; it builds a real lobby through three browsers per case
+and never failed alone or in `check:flaky`. I left it, and did not raise its timeout.
+
+## 2026-11-01 — A bot that "wandered after release" was wandering before it, and I could not see it from the plan
+
+resolved by the commit that adds this entry
+
+The plan for Task 48 said bots wander after a hand-hold is released, and named stale `led` and
+`known.holding` as suspects. I wrote cases for rooms 5 to 8, all rotations: lead a bot for 40 ticks,
+release, check it walks on. All 36 passed, so the plan's story did not reproduce, and I stopped and
+asked rather than fix a guess. The user's answer was what the plan did not have: room 8, a Can't-hear
+or Can't-speak bot, "wandered before and after hand release".
+
+"Before" was the clue. I added a case that fails if a bot lets go of the hand itself, and it went red
+in room 8 (`tick 15: the bot let go`). A towed seat's Act releases the leader's hand
+(`sim/gear.ts: actOn`), and a bot at its station or gear job pressed Act, so it dropped the hand and
+walked off. The first version of my fix suppressed Act whenever `view.you.hand` was set; reading it
+again I saw that is also true while a bot is leading, which would stop a `tow` job letting go at the
+end, so it uses the towed test (`known.holding`) instead.
+
+Checked by breaking the mark decoder to see the mark case go red, and by `pnpm check` (126 files,
+1839 tests, 4 min 56 s, the baseline for this phase). Rule for next time: when the plan's reproduction
+passes, ask the user what they saw before changing code.
+
+## 2026-11-01 — Two review findings that every green spec had passed
+
+resolved by the commit that adds this entry
+
+In the human review of phase 13 the user found two things by playing room 4: the second safe has no
+wire to its audio box, and a Can't-speak bot takes the stethoscope, plays the air horn over and over
+and stands in a corner. `pnpm check` had been green throughout.
+
+The wire: commit `f57ba8d` drew it correctly, but in the floor pass, before every wall block, and
+room 4's second safe's wire runs along the top wall, so the wall painted over it. My render tests drew
+synthetic grids with no wall beside the wire. I only found it by drawing the real room on a real
+canvas in Chrome and looking at the screenshot: no wire. The new test draws the real room, and goes
+red when the wire is put back before its row's walls (checked by doing it).
+
+The bot: I had asked the user for the setup instead of guessing, and the answer (they controlled both
+other seats) was the missing fact. With two people, they claim the plan's "give the stethoscope" job
+first, so the bot that took it never had a job to hand it on, and later sounded the air horn at a
+closed door from the exit. A bot that takes gear now carries the give a person claimed. Three of the
+four layouts go red without it.
+
+Lesson for the harness: both findings came from a spec that checked a stand-in (a synthetic grid; a
+room cleared by three bots) and not the thing the user did (read the real room's picture; play with
+people in two seats). The rooms spec clears every room with three bots and no people.
+
+## 2026-11-02 — Four review findings that were each one layer below where my tests looked
+
+resolved by the commit that adds this entry
+
+The review of phase 13 went on, and every finding sat one layer below a green test.
+
+The plaque: I had reworded "Otherwise" to "None of the rules above", and a test that passed it.
+A plaque shows one rule, so "above" points at nothing, exactly as "Otherwise" did. The test checked
+the sentence's shape and even asserted the exact text, so it could only pass what I had just chosen.
+The new test reads each rule's own words and checks the claim against all 1,472 colour sets that
+reach the last rule, and I broke it two ways ("exactly two red", the old text) to see it go red.
+The first version of the test could not fail on a false sentence (its table was a copy of the
+rules): I found that by breaking it and watching it stay green, then made it read the text.
+
+The marks: the user did not see the bot's marks escalate. In the simulation they did: 27 s, then
+every 8 s. In the real server they were never drawn, because `addStamp` is called only from the
+path for people. The bot's mark arrived as a message and nothing was on the wall. That gap was
+there since bots first marked a switch. A test through the server's own path to room 7 (not the
+bot's brain, which was fine) found it.
+
+The torch: my first room 7 test teleported the bot onto the ink, so it proved the mark worked and
+never asked whether the bot got there. From the real start it never did. The user's "what if the
+bot just stands at the ink so the others notice" was better than my two options, and the
+agreed behaviour is: stand there, then mark after 20 s, repeating until the door opens.
+
+The glass: a pane flickered at a shallow angle (26 flips over 0.9 tile). A first test with only the
+flicker case would have accepted a fix that never veils glass, so there is a second one that
+needs a hidden pane veiled. My guess at a hidden spot was wrong until I printed the map.
+
+Lesson for the harness: three of the four came from a stand-in (a teleport, a copy of a table,
+the bot's brain instead of the server). Break the fix to red is not enough; break it the way a
+lazy fix would, too.
+
+## 2026-11-02 — A flaky layout failure I could not reproduce, and what I did with it
+
+resolved by the commit that adds this entry
+
+One `pnpm check` failed in `escape-hud.test.ts` (phone) with "not laid out", from the spec's own
+`box()` helper. I was told to find the root cause if I could. I could not: the file passed in the
+next full check, in `check:flaky 6` three times (18 runs of the suite in all), and in six runs of
+the file alone under eight busy loops. I wrote down two causes I had reasoned out and tested each
+against the code: the dock vanishing during a resize (the app renders it whenever the room is not
+`cleared`) and an earlier test clearing the shared room (nothing in the file can; the draft room
+needs three people on plates). Neither held, so neither is in the commit as the cause.
+
+What I did instead is the project's own rule for this shape: `box()` waits for the element to be
+laid out (3 s, with the locator in the message) and does not read once after a resize. I checked it
+by pointing a read at a selector that does not exist: it still fails, after the wait, with the
+locator named. The commit says it may not have been the race. The failure was first seen when I had
+leftover busy loops of my own running (load 9 to 11 on 12 cores), which is the likeliest reason it
+appeared at all, and I killed those; since then 3 full `check:flaky` runs and 1 full check are clean.
+
+A smaller lesson: my load test first leaked its busy loops (26 of them, load 71) because I killed a
+subshell's pid and not its group. The second time they ran in one process group, were killed with
+it, and the script printed how many remained.
+
+## 2026-11-02 — Two flaky layout specs, both a measurement taken in the middle of something moving
+
+resolved by the commit that adds this entry
+
+Task 55's full `pnpm check` failed one wheel case, and `pnpm check:flaky 4` then failed a different
+spec once. I did not retry either. The wheel case passed 25/25 alone, with and without my change, so I
+first asked the user whether to commit past it; they said to fix both properly, and to stop leaving them.
+
+Spectator panel (`expected 507.19 to be >= 600.19`): sampling the phone watcher's boxes every 50 ms
+found one stable layout, so the spec was not wrong at rest. Recording the frame's height on every
+animation frame from the first paint found two: for one frame the site header stood around the map
+(frame bottom 601, panel at 605) and then the map jumped (bottom 503, panel at 507). `Spectator.tsx`
+added `body.playing` in a `useEffect`, after the first paint. The spec read the frame's box, then the
+panel's, and under load a frame boundary fell between the two reads. The fix is a `useLayoutEffect`,
+so the header is gone before anything paints. The new spec counts frames with the header showing and
+failed with 1 before the fix and 0 after.
+
+Wheel `color-contrast` on `.is-centre > .wheel-label` (the open item from Task 49's entry): looping the
+axe case 40 times under 12 busy loops reproduced it twice, and the message with the colours showed
+4.11 on foreground `#3a404c`, background `#9fa3aa`. That grey is the aimed slot's text blended with its
+background: the wheel fades in over 100 ms (`animation: fade 100ms`), and axe blends opacity into the
+colours it checks. At full opacity it passes. `axeViolations` in `spec/browser.ts` now waits for every
+animation that will end (capped at 5 s, so a pulse that never ends cannot hang it). `spec/layout/axe.test.ts`
+shows it on a page that fades: it failed before, passes after, and a real low-contrast page still fails.
+The same loop of 160 runs under the same load then found nothing.
+
+The lesson for the harness is the same as `settledHash`'s: a reading of a moving thing is a flake
+waiting for load. This one applies to every spec that calls `axeViolations`, not just the wheel's.
+
+## 2026-11-02 — Task 56 rejected on a local build: the cache should be a place and an object
+
+(not yet committed; cite the commit that lands the replacement)
+
+Task 56 drew a cache as a station with a steel panel sliding aside and its item as a picture on a plate.
+Every check was green: 1954 tests, layout specs measured, screenshots read at 1280 and 375. I rejected it on
+looking at the real game: a panel "hides a whole safe", and a picture is not something you take in a heist.
+I asked for a side room that branches up or down behind a hidden door that animates, the item in it as a
+real object picked up like gear, and loot counted only on pickup.
+
+The call that beat the obvious one was the order: the agent did not patch the drawing. A rejection that
+changes the approach goes back to the plan (and the spec, and ADR 0020 which is still proposed) before any
+code, so the work is not built twice. The review itself caught what no test could: the checks measured
+that the panel and plate were drawn well, not whether a panel was the right thing to draw.
+
+## 2026-11-02 — A plan whose format rule and its own example could not both hold
+
+(cite the Task 62 commit once it exists)
+
+Task 62 required every tile of a cache's `chamber.rect` to be floor, and its example put the vault's door inside
+that rect with no wall to seal the vault. Executing it showed no layout satisfies both: an all-floor rectangle
+cannot hold a sealed alcove behind a one-tile door, and nothing in the lints would have caught a vault anyone could
+walk into. The agent stopped before writing the tests, I ruled that the rect is a bounding box (floor, interior
+walls, the vault's own door) and the vault itself is all floor, and a lint now fails any vault reachable with its
+door shut.
+
+The call that beat the obvious one was making the seal a lint, not an authoring habit: six chambers are about to be
+written by hand in Task 58, and each is one misplaced wall from a free item. It was checked by breaking each chamber
+rule on purpose (the border check, the open-to-spawn check, the object-in-rect check, the control-tile check, the
+door-rule exemption, the jobs rule, and the seal) and watching its test go red, then restoring the code.
+
+## 2026-11-03 — Derive an event from state only when state can't change for another reason
+
+dd4d657
+
+Task 56's plan had the client work out "a secret door slid open" and "the item was taken" by diffing entities between
+two views. Writing the red tests showed why that fails: a door or the keepsake also appears and vanishes whenever it
+enters or leaves line of sight, and a closed secret door is no entity at all, so an opening out of sight would make
+nothing. The agent stopped before building it and put the choice to me.
+
+The obvious path was to follow the plan and add a `secret` flag to the door entity so the diff could tell. I chose to
+drive both effects from `view.cacheEvent` instead, the team-wide signal the server already sends on exactly the tick of
+the event, through a pure `fxOfCacheEvent`. It adds nothing to the wire and works for a seat that cannot see the door.
+
+What caught the rest was looking, not testing. A throwaway harness played the fixture chamber in three real browsers at
+1280 and 375, in normal, reduced-motion and high contrast, and showed the item hidden behind the chamber's south wall,
+which every unit test of `drawKeepsake` had passed. Playing it myself found a secret door wearing the ordinary door's
+"plates" chip, and a stethoscope clue no player would find (a bare tile four steps from the safe); I settled on a floor
+plate as the object, since a merely different tile has no believable link to a safe. Breaking twelve guarded lines on
+purpose found one test that could not fail (the empty-name fallback). Corrections are in 14-03 §9.
+
+## 2026-11-03 — The shelf label was a sentence; a cell in a grid of peers needs a fixed shape
+
+c1d8064
+
+Task 57's heist shelf first said "Room 7, not found". Looking at it, I asked for the room's name as well, because
+people remember "Night Shift" better than a number. The agent did not guess the title from the room id (a slug and a
+file title can differ); the server now sends `name` on each heist row, which is public and never logged.
+
+The first version of the name was one sentence, "Night Shift (Room 7), not found". I rejected it on sight: it wrapped
+wherever the column ran out, so no two slots looked alike. The obvious fix was a max-width or a shorter string. I asked
+for a layout instead: every slot is the same three lines (title, "Room N", item or "Not found"), so a taken slot and a
+missed one line up and nothing depends on how long a title is.
+
+The result was checked by looking, at 1280 and 375, and by a test that reads the three lines of all six slots in order.
+Breaking the room-number line turned it red. Pattern for the harness: a repeated cell should be built as fixed rows,
+not as a string that the browser wraps.
+
+## 2026-11-05 — A day of edge-case rules, replaced by one geometric model the user named
+
+The agent's plan (14-07, 14-08) and the sheet of numbered screenshots
+
+Phase 14's mist veil had been fixed screenshot by screenshot for a day: each report (74 to 85) got a rule, each rule
+broke a neighbour (82's fix broke 59, 60 and the wire tests), and I was the one noticing. The agent kept proposing the
+next rule, and twice stopped after two failed oracles and asked, which is what the plan says to do. I stopped the
+chase myself: "I want a set of rules that are general enough to encompass all cases … I don't want to add some small
+rule that some edge case will later manage to get around."
+
+The obvious call was one more rule for the tile in 82. I asked instead for the geometry. Two answers came from looking,
+not from the code: a wall's top is never seen by anyone on the floor, so it is never veiled; and a shadow edge is a
+vertical plane, so on a wall's front it is a vertical line from where the light meets the wall's foot. Each is one rule
+that deletes several. Tops stopped being a case at all, and the diagonal carried across a tile seam (the cause of 83 and
+84) is gone from walls.
+
+How I knew: each rule got an oracle built from the light polygon alone (`inLight` on the foot line), and each was shown
+red by breaking the guarded line (wall fronts always dark: three tests red; always lit: two). The pattern for the
+harness: when a visual fix needs a second exception, stop and ask for the model.
+
+## 2026-11-05 — A station cut that was right on paper and shelved by me when it spread
+
+Screenshots 94 to 104
+
+I first asked for stations to be cut the way walls are: faces vertical, tops lifted by the part's height. It worked for
+the safe and then needed a special foot for the camera, per-part heights, a veil over the dark part's outline and a
+face-only mode, and I could see it growing the same chase. I shelved it in favour of the plain diagonal, "straight
+across, without any regard to its geometry", keeping only the one seam that matters: where a station overlaps the wall
+behind it, the wall's vertical cut carries on (`wallBehind`). A visual overhaul is planned, so a cut tied to the
+current shapes would be thrown away.
+
+The agent restored the planar code from its own backups for the camera and then I reversed it again for stations; the
+correction log (14-07) records each turn. Checked by: a test of the seam against `inLight` on the wall's foot line (red
+with the rule off), and the camera's wall-column test (red with the old cut back).
+
+## 2026-11-05 — A wire that vanished because the thing that drew it was not sent
+
+Screenshots 105 to 107; a vacuous break check caught before it counted
+
+A safe's wire showed from near and disappeared a step away. The agent's first fix (send the station when any tile of
+its wire is lit) passed its own test and did nothing in my game, because room 4's second safe's wire runs on the outer
+wall, where no tile is ever lit from the corridor. It reproduced that on the real room instead of arguing, then put the
+choice to me: send the wire from anywhere (it shows where the dial and back box are before anyone has seen them) or
+keep it local. I chose to send it, as layout, because a wall top is always shown. It is now its own `wire` entity
+(a route, nothing of the station's state), for every sighted seat.
+
+The test that proves it nearly did not: its first break check passed with the code broken, because the oracle counted
+other dashed strokes and one `sed` silently did not apply. Both were fixed before the test counted; the final check
+turns red with the wire push removed. Rule for the harness: a break check names the line it broke and asserts the edit
+landed. Edits go through a script that asserts the text it replaces, never a bare `sed`.
+
+## 2026-11-02 — A plan with two requirements that contradicted, and my ruling on which one gives
+
+resolved by 8144a79
+
+Phase 11's Task 28 put a side job in room 4, and `pacing.test.ts` failed: a side job was a third
+new thing in a room that already brought two. The plan never mentioned the conflict between clues
+FR11 (side jobs from room 4) and FR9/FR10 (at most two new things a room). The agent stopped and
+asked instead of moving the side job to a later room or loosening the pacing limit.
+
+The obvious fix was to start side jobs at room 5, which keeps both rules on paper but breaks the
+spec's promise of something every role can own from room 4 on. I ruled that a side job is loot with
+an owner, not a new mechanic for the team to learn, so `sidejob` joined the kinds that are allowed
+`EVERYWHERE` in the pacing test. The cap stays where it was for real mechanics. I knew the cap still held
+because the pacing test still fails a room that brings a third station type. Phase 14 later replaced side
+jobs with caches (ADR 0020), whose pacing follows the same reasoning.
+
+## 2026-11-06 — Review findings sent back as redrafts, and a defect I would not have found by looking
+
+c020151, 62cbf54, 5de387e, b8069f5
+
+I reviewed phase 03's braille card and three earlier tasks in one sitting. Two of my findings were really bugs
+(the landing feed's Can't see figure always faced down, and a figure standing against a wall was cut on the
+cone's diagonal where a station there is cut on the wall's vertical line); the agent gave each a failing test
+first. The feed bug was not in the drawing: Can't see's own view has no entity for their own seat, so the
+fallback `{x: 0, y: 1}` always won. The test compared the figure's facing with the bot world's, which is what made
+the cause plain. For the card, the agent redrafted instead of reopening the approach, because I had only
+questioned spacing and placement.
+
+The miss behind the card overlapping the side-job chip was a sensor gap: the layout spec checked the card against
+the wheel and the captions, never against the chip beside it. The spec now measures that, and the row gap too.
+Rule for the harness: when a new overlay shares a corner of the frame with an existing one, its layout spec names
+that neighbour.
+
+## 2026-11-07 — A figure's cut is a vertical plane, and I measured the wrong op for an hour
+
+(the commit that follows 65859a4)
+
+You reported a figure standing in the hallway with its head cut though it was in line of sight. I could not reproduce
+it three times: each of my probes measured the figure's shadow ellipse, which is drawn under the floor's clip and so
+says nothing about the body. Every fix I tried on that evidence broke an older test and fixed nothing. What cracked it
+was drawing the real scene on a real canvas and looking, then recording the arc the hat draws at the crown. The cause
+was the cone edge carried up the screen as a diagonal: a thin edge that only crossed the figure's head cut the whole
+upper body while its feet were lit.
+
+Your answer to my question settled the rule better than either of my options: a figure is a flat sprite at one depth
+and a shadow edge is a vertical plane, so it is whole where its feet are lit and cut by a vertical line where the edge
+crosses its depth, "like in real life". That superseded screenshot 48's hat cut, which had the identical geometry.
+Rules for the harness: measure the op that carries the symptom, not a neighbour of it; when a render bug will not
+reproduce from the model, render the real scene and look before writing another fix; and run pnpm check, not only the
+tests near the change (b7d221e shipped a lint error I would have caught).
+
+## 2026-11-07 — The dial bug was the bots, not Can't see
+
+(not yet committed: `specs/2026-11-07-bots-help-caches.md` and ADR 0024, proposed, go in with the work they govern)
+
+The backlog line for room 4's cache dial blamed the method table: Can't see "has no way to say now",
+so the tumbler heard through the stethoscope could not reach the turner. Sorting the backlog, I told
+the agent that framing was missing information: the dial is only unplayable with bots. A person
+playing Can't see just says "now". The real cause is caches FR8 and ADR 0020: bots never work a
+cache. One person with two bots is therefore alone at a station that needs two seats, one at the
+safe's back and one at the dial.
+
+The obvious fix from the backlog's framing was a new message method or a visible cue for the tick.
+That would have changed perception and parity for a problem humans do not have. Reframed, the fix is
+to lift an accepted rule. So it is Architecture: ADR 0024 supersedes 0020's bots clause, which 0020
+itself had predicted ("a relay skill for bots would lift it"). I chose all six caches, bots starting
+straight away, and a bot owner taking its keepsake. Uncovering stays human, so a crew of only bots
+still never finds a cache. How the result will be checked: per room, one person scripted to uncover
+and nothing else, with two perception-only bots, must take the keepsake; shown red first by removing
+a room's cache jobs.
+
+## 2026-11-07 — A "playtest" that could not fail the way a person does
+
+(not yet committed: `specs/2026-11-07-playtests.md`, ADRs 0027 and 0028, proposed, go in with the work they govern)
+
+Brainstorming the automated playtest, the agent proposed bots driving real browser seats with
+invariants read off each frame. It was cheap, deterministic, and caught the phase 14 bugs that lived
+between layers. I asked how that could be authentic, like real people playtesting. It could not be:
+the bots read the server's view data rather than the screen, carry a hand-written decoder for every
+puzzle, and coordinate perfectly. A clue sent correctly but drawn unreadably would still be solved,
+and the run would pass. The agent had also drifted from the backlog line, which asked for an agent
+playing in a browser, toward what was easy to make deterministic.
+
+The obvious move was to ship the bot run as "the playtest". That would have given a green check that
+looked like evidence about players and was not. I split it into two deliverables, each named for what
+it is. A regression run (bots, frame invariants) catches the gap between what the server sends and
+what the client draws. An agent playtest (one Claude agent per seat) plays only from that seat's
+screenshot and page text: no view data, no decoders, comms only through the game. It finds unreadable
+clues and comms that do not carry what a role needs. Human playtests still decide fun. How I'll know it
+worked: the agent run's stuck points are leads I replay by hand, and the plan's first task proves the
+course proxy accepts screenshots before anything else is built.
+
+## 2026-11-07 — The agent playtest dropped for a $2 review, once the plan put a price on it
+
+(not yet committed: `specs/2026-11-07-playtests.md` revised, ADR 0028 rewritten while still proposed, the plan re-cut to three phases)
+
+The approved spec made the agent playtest first-class: three Claude agents playing a heist from their
+own pages. Planning it priced one heist at about $55 on Sonnet, plus six tasks to build. I judged that
+budget better spent on devising and building new ideas, and asked for alternatives. The agent laid out
+four: the regression run alone ($0), a one-shot review of the run's screenshots (~$2), the agent loop on
+Haiku (~$3, noisier), or the plan as written ($55).
+
+The obvious move was to keep the loop and swap in a cheaper model. That keeps the build cost and makes
+every lead less trustworthy. I chose the review: the regression run already reaches every beat, so a
+model only has to look at what each role perceived there and say what a first-time player could not
+read or would misread. It keeps the finding I most wanted (unreadable clues, misleading labels) at
+about 4% of the cost and three tasks instead of six. What it gives up, comms gaps, is what my human
+playtests already catch. How I'll know it was right: the plan's last task reviews room 01 for real and
+I judge whether its findings are leads or noise before any full heist is reviewed.
+
+## 2026-11-07 — Four rulings from an investigation, and the corrections the reviews of phases 02 and 03 left unlogged
+
+a110515, 3bd4745, b7d221e
+
+Before the blind-purpose plan was cut, the agent investigated the spec against the code and came back with four
+facts the spec had got wrong; I ruled on each (the spec's A1 to A4). A1: keypad clues are chime tunes, not text, so
+riddles apply to wire plaques only. A2: an ordinary station's wrong answer already dyes the team and sends it
+back, so the 3 s jam applies only to teaching stations and caches. A3: room 9's plate carries a digit of keypad Q7,
+not the wire, whose plaque becomes a riddle. A4: a person who has played nothing shows no Played group, which keeps
+the role screen's rule "nothing to say is nothing drawn". The obvious move was to build the spec as written and
+patch each mismatch in the phase that hit it; ruling first kept four phases from each rediscovering one.
+
+Corrections after seeing a result, not logged where they happened: the braille card's second round (it still
+overlapped the side-job chip, and the gap I had read as vertical was between cells; fixed in `3bd4745` by putting
+the card in the chip's column and widening the cell gap, a spec for each), and the Played row for bots (a bot is
+not a person, so nothing recorded its roles; fixed in `b7d221e` with a socket spec that fails on the old server).
+Both share a cause: the check measured a stand-in (the wheel, the people) and not the neighbour or the case a real
+player meets. How I knew each was right: the new spec is red on the old code.
+
+## 2026-11-07 — Prove bots help a cache with a harness that does the uncover, not a scripted person
+
+542f479, 17df77d
+
+The spec asked for one person scripted to uncover a cache and nothing else, with two bots doing the rest. Planning
+found it cannot work: `claimJobs` gives people their beat jobs first, so a do-nothing person stalls the room. I ruled
+that the proof is three bots plus a harness that performs the same world change `uncover()` makes (a shared
+`forceUncover`), so the bots meet exactly the event a person's Act gives them. People-first claiming of cache jobs is
+a unit test of `claimJobs`. I also planned against today's motif-tile uncover, not ADR 0021's reveals, which are
+accepted but unbuilt.
+
+Proving the rooms found five real faults a plan could not have named: a keypad taking another keypad's chimes as its
+own code, a watcher that never marked a second time, a guide that jittered at an open door, a guide that took its
+Can't-see seat walking out of sight and back for a send-back, and a bot that stood on a motif tile to hand gear on and
+uncovered a cache by accident. The last is the one FR1 exists for; its guard is a case that is red when the fix is
+removed. How I knew each was right: a headless case per room and rotation, red before and green after.
+
+## 2026-11-07 — Menu sounds: a separate toggle, a picture twin for each, synthesised beds before recordings
+
+(commit cited when the plan closes)
+
+Three rulings shaped the menu-sounds slice. Menu sounds get their own `menuSounds` switch rather than riding on `sound`:
+Can't hear and anyone on a muted phone must be able to keep the game's cues and drop the ticks (or the reverse), and a
+gate on game sound would silence the reveal sting for exactly the people who need to know a teammate is ready. Every
+menu sound has a picture twin (the press itself, the error text, a row glow, a ready pulse, the rise), because the
+parity rule says a sound alone tells the hearing something the rest cannot see; the glow is the twin that had to be
+invented. The masking beds are synthesised first, with recordings the fallback only if the beds fail review, since a
+bundled asset needs a credit and a download and the point is to learn whether a few lines of DSP is pleasant enough.
+How I knew it was right: `spec/layout/lobby-people.test.ts` shows the glow is on the joiner's row only, stays clear of
+the row above, is gone after 1.5 s and is a still outline under reduced motion; `__uiSounds` shows the kinds played, and
+none when Menu sounds is off. The seam test for the beds goes red when the loop crossfade is removed.
+
+
+## 2026-11-08 — Auto fixes 1: four review findings, each reproduced red before it was fixed
+
+b812f71, 2d4c882, 491b36a, be92118, f1e2574
+
+An overnight unit (agent, not a correction of mine) worked through the findings a verifier had
+marked CONFIRMED. Each began by reproducing the finding as a failing test, and each was shown red by
+a scripted break that asserted the text it replaced.
+
+- **The restart gap the hold opened** (b812f71). Task 110's 2.4 s hold meant a restarted room sent
+  only `intro`, so the start played over the old room's last frame. The spec takes the first view
+  whose tick falls (what the client itself treats as a restart) and requires it to be tick 0 at spawn.
+- **The bench bundle that bypassed ADR 0007** (2d4c882). A request-time 404 does not stop Astro
+  bundling a page's script, so every production build served room 09 in full. The obvious fix (a
+  better runtime gate) cannot work; the page is now not in the build at all without `BENCH=1`, and a
+  spec reads every file in `dist/client` for a room row.
+- **The bench compare** (491b36a, be92118). Making the bench pan vertically turned the existing
+  baseline red on every row, so the 1.11× the review measured was real, not noise; the glow fix
+  brought it back under on a quiet machine. The baseline was not re-recorded: it is the line.
+- **The test that could not fail** (f1e2574). It filtered to string fills and then asserted none was
+  a gradient. The replacement names each station type's swatches; under a gradient break the old
+  half stayed green and the new one went red.
+
+## 2026-11-07 — The diorama look: three planning rulings and what the checks caught (overnight run)
+
+7ef5f1d..f71b757 (plans/2026-11-07-diorama-look-*; phase 8 is 4484348, 0e796f2, f71b757)
+
+- **R1, the ring is reserved, doors included.** A door opening was about to ring "wherever it is" (Task
+  89); the plan gave the door its own motion instead and left the ring to a solved station and a
+  landing. `src/client/render/ring.test.ts` fails on any other ring, so the rule is a sensor, not a
+  memory.
+- **R2, decor reads layout only.** Decor cannot know where a station stands, so it must never be able to
+  hide or imitate one. The test walks every shipped room and asserts no item lies within a tile of a
+  station part, plaque, camera, bell, lamp, lever or ink; a failing room gets its seed nudged (04, 06
+  and 07 needed 1, 4 and 12). Cache state is not an argument, so a cache opening cannot move decor.
+- **R3, `INTRO_MS` is an env seam.** The 2.4 s hold would make every spec slow, but CI is course-fixed
+  and starts the app without the seam; so specs wait with a default that covers the hold, and one spec
+  runs its own app. Checked by the full run in both settings.
+- **A test that could be satisfied by the wrong picture.** The first no-floor-pixel spec asked "is the
+  changed pixel on some wall"; on the atlas path a tile's own canvas already clips, so a glow leaving
+  its face could never fail it. It now asks "on the face of a wall that carries an item", and went red
+  with the clip removed. Extending it to nine rooms found one-pixel edge differences from the atlas's
+  half-pixel blit; those got a 2 px ring around the tile, not a looser face test.
+- **The unlit sconce.** The break check lit the watch-house sconce and two cases went red.
+
+(Nobody corrected anything overnight: no Corrections-log entries.)
+
+## 2026-11-08 — A bell that rang for one tick (auto fixes 2, Task 220)
+
+c11d0a3
+
+A verified review said a rung bell swung for 50 ms: the server sends `state: "on"`
+for the pull tick only, and `drawBell` zeroed the swing whenever the state was not
+"on", which also hid the reduced-motion tilt. The obvious patch was to hold the
+state on the server for longer, which would change the view's contract for every
+role. The bell's own 1.2 s fx already carries the ring to every sighted seat, so
+the fx now drives the motion. A test with no `state` and a live fx went red at
+250 ms first, and a scripted break that put the state gate back turned it red
+again. A bench still shows the bell mid-swing (queued for review).
+
+## 2026-11-08 — A door's opening drawn over everyone south of it (auto fixes 2, Task 221)
+
+72ffe43
+
+Ordinary door openings were drawn after the whole row loop, so ADR 0025 FR5's
+"wherever the door is" had become "over everything". FR5 asks only that the
+opening is not cut by sight or light. The opening now draws in its own row,
+unclipped. An op-order test measured the figure's body (its pill), not its
+shadow, against the last leaf: 687 against 740 before the fix, and the break
+check reproduced exactly those numbers.
+
+## 2026-11-08 — Decor that differed between seats (auto fixes 2, Task 222)
+
+9ab08c6
+
+One seeded stream in reading order meant any masked cell (night for a sighted seat,
+not for a spectator) shifted every later item: room 08's spectator saw extra
+pictures far from the night. Each wall face now rolls its own dice. The plan's own
+pure test could not fail on the old code, because a floor cell far from a wall
+changes no eligibility; it was moved beside a wall, with a 3-tile reach
+(NEAR + APART - 1) instead of the plan's 2, and shown red before it was trusted.
+The running cap became a test over the shipped rooms, and seven salts were
+re-picked against R2.
+
+## 2026-11-08 — A sweep that only placed figures at tile centres could not tell two send rules apart
+
+resolved by 02788a4
+
+The playtest fix for L1 sent a partly lit figure from the server, but the gate
+still asked whether the figure's own tile was lit. The regression test swept
+every spot in rooms 6 and 8, yet stood each figure at its tile's centre, where
+its 0.36-wide feet never leave that tile, so "own tile lit" and "any tile under
+the feet lit" gave the same answer every time. The sweep now also stands the
+figure near each edge of its tile. It went red on the old gate (6 figures lost,
+e.g. room 8, viewer 3.3,1.6, figure 3.15,5.5) and is green with the gate over
+every tile the footprint overlaps. A break script that put the own-tile gate
+back turned it red again. Lesson for sweeps: place the subject where the two
+rules disagree, not only where it is convenient.
+
+## 2026-11-08 — Decor that obeyed a ban on shapes still read as noise; the rule became "a real thing with a job"
+
+fbb0f3e..fd7f7a0
+
+In a playthrough I found room 1's pots standing on a wall's top made no sense,
+room 7's rectangles were unreadable, and room 8's wall shapes and notes were
+unclear. Every one of them passed the old guard: DESIGN.md §4.9 banned shapes
+(no circle over 0.15 of a face, at most two lines across one, no lantern, no
+window), so the painters drew abstractions that met the letter of it. A shape
+nobody can name is exactly what a player may take for a signal, which is what
+the ban was for.
+
+The obvious fix was to tune the shapes. Instead I changed the rule: every item
+is a real thing with a job or the room's theme, never a clue, never a game
+object, light quiet and clipped, windows opaque, no outline, and a wall's top
+carries only flush things (ADR 0029, proposed). The guards moved with it: the
+shape-size tests were replaced by rule tests over every painter (no text, no
+`WORLD.line`, no glass colour, nothing translucent but the glow, the glow clipped
+at 35 %), plus a word-by-word check of kind names, a flush-top test, a manuscript
+that may never draw a note head, and no lit item beside a dark zone. Each went
+red on a deliberate break first. A contact sheet (`pnpm decor:sheet`) draws every
+look through the real renderer, so the judgement "can you name it" is made on
+the render, and it caught three things the tests could not (a trellis that read
+as a gate, a conduit as a rail, a swag as a bridge).
+
+## 2026-11-08 — Tests that passed only because they built states the game never reaches
+
+64ce6fd, 8f68e9b, 16b9f2e, 57290a9, db34908
+
+A cold review of the overnight units found guards that were green for the wrong
+reason. The wire snip had hand-built unit tests (`cut: [1]` on an unsolved panel),
+but in play a right cut solves the panel in the same act and a wrong cut is
+redrawn away in the same step, so the snip never fired. The fix started from
+tests that drive the cut through `step` and feed the real `viewFor` to the
+client; they went red on the old code, and removing the fix turned them red
+while the hand-built cases stayed green, which is exactly the gap. The same
+shape recurred: the intro spec checked only tile (0, 0), so a 2 % scale error
+drifted the far corner 7.5 px on a phone and passed; the decor colour test
+matched four exact strings on one painter, so a 70 % code red beside a wire
+panel passed. Each guard now measures the promise itself (the far corner, the
+colour's real strength fitted against every code colour, bands and circles
+over every painter), and each was shown to fail on a scripted break before it
+counted. The thresholds were drawn from printed data (code-made fills leave
+under 1 RGB unit, materials 2.1 or more), not guessed.
+
+## 2026-11-08 — Glass is veiled by the floor under it, not by a rule about tops
+
+9b31770, 65a2982, 30c79cf
+
+The overnight run parked Task 3 with a red test for L2 (glass veiled before the
+corner) that required every pane's top to stay clear, like a wall's top. I asked
+why it was parked, and the answer was that it ran out of budget on L7 and never
+attempted L2. When the first fix made that test pass it broke an older one, the
+2026-11-05 room 3 test that holds my rule "all wall materials should use this
+new dynamic veiling, including vents and glass": there a pane's pixel is veiled
+exactly where the floor under it is dark, top included.
+
+The obvious move was to keep the parked test and loosen room 3's. I chose the
+other way and told the agent the rule: a pane's top is veiled when it lies after
+a corner that blocks line of sight (room 3), and room 6's glass is before the
+corner, so veiling it makes no sense. The parked test's "every top clear" clause
+was the part that was wrong, so it became room 3's own per-pixel oracle measured
+in room 6, and the fix samples the floor each pixel belongs to (a 5 by 10 grid
+carried down the screen), not nine points on the pane's own tile.
+
+How I knew it was right: the new test went from 751 points wrong to 0, and a
+break that put the samples back on the pane's own tile turned it red again
+(742 wrong). Room 3's tests stayed green, and I looked at room 6 at 1280 and
+375 wide and said it looked good.
+
+## 2026-11-08 — Two tests were measuring a picture the game never draws
+
+141f20d, 5be7db8
+
+The parked L7 test (a music box in front of glass cut vertically) stayed red at
+70 points with and without the candidate fix, and the overnight note guessed a
+stray clip was in force. It was the test. `draw()` rebuilds its camera from the
+figures `litEntities` leaves, and the test built its own camera from the whole
+scene, about 70 px apart vertically, so it sampled one place and the renderer
+drew another. The game passes its own eased camera as `scene.cam`, so play was
+never affected. Pinning `sc.cam` in the test fixed it, and the fix the overnight
+run had already tried turned out to be right.
+
+Two misreadings of mine on the way: I first read a box's top a lift too low,
+which made the right fix look useless, and I withdrew that when the oracle
+turned out wrong. The L6 count moved from 8 to 22 once the camera was pinned and
+L4 stayed at 97, so the pinned tests are the honest reproduction.
+
+How I knew: with the camera pinned the L7 test is red on the old rule (90
+points wrong, mostly on the box's top face) and green on the new, and L4 and L6
+still reproduce. Not yet in the harness: a render test that draws through
+`draw()` should pin `scene.cam`, and nothing enforces it.
+
+## 2026-11-08 — Two fixes that merged cleanly and broke each other
+
+1713441, 76e564a
+
+I asked for Task 4 (bells) first and the merge after. The glass fix and the bell
+fix were on separate branches and cherry-picked with only a plan-file and a
+test-file conflict, but together the L7 test failed (90 points wrong): Task 4
+draws each bell and the music box through its own `Part`, built with `isBlock()`,
+so a music box under a pane took the glass's vertical cut again. It now uses
+`opaque()`. A break putting `isBlock()` back turned the test red.
+
+My conflict resolution also dropped two closing lines from the first `describe`
+(the file did not parse), and the Task 4 branch carried a Biome error I had
+never linted. What caught them: Biome on the whole changed file, and checking
+that every test name from all three sources is present once (63, no duplicates).
+My own before/after screenshots were byte-identical because my shell was in the
+wrong worktree; `cmp` is what showed it, and the redone pair differs.
+
+Outside the code: I had symlinked three worktrees' `node_modules` to
+`wt-night`, and a pnpm run through one rewrote `.modules.yaml` and stopped the
+overnight unit's `pnpm` scripts at 16:08. Each now has its own install.
+
+## 2026-11-08 — A ticked task whose guard had no test
+
+0043fd7
+
+The review of unit pf01 found Task 6 ticked although its plan asked for the
+restart watchdog to have its own test, and none did: the timer and its
+`room.stall` log line could be deleted with every check green. The rule that
+every guard is shown to fail first already exists in CLAUDE.md, so no new rule
+was added; it was skipped, not missing. This unit (overnight, auto fixes 5)
+adds the missing sensor: a `STALL_RESTART=1` seam that leaves a restarted room
+stalled on purpose, and `spec/restart-stall.test.ts` on its own app. It went
+red before the seam (first restarted tick at 353 ms, expected at least 2050),
+and red under each break: no watchdog interval (no view within 6.3 s) and no
+`room.stall` record (zero lines).
+
+## 2026-11-09 — Ticked boxes that said "not met", turned into a check
+
+cfcfd89
+
+The review of the playtest units found phase 02 ticked while its own
+Definition of Done read "A full `pnpm playtest` run completed: NOT MET", and
+two human reviews ticked "accepted by the user (review queued)" that nobody
+had given. It was the same mistake as the pf01 review's ticked guard (above):
+a box read as done that was not. The obvious fix was to untick them and move
+on; a repeated mistake is a missing sensor, so this unit (overnight, auto
+fixes 6) adds `spec/plans.test.ts`, which fails on a ticked box that says
+"not met", a ticked acceptance that is only queued, and a ticked phase under
+an open Definition of Done item. Run on the tree before any untick, it listed
+exactly the four lines the review named; re-ticking one turns it red again.
+The gaps stay written beside the unticked boxes.
+
+## 2026-11-09 — The radio's plate was optional, and the lint skipped radios
+
+The final whole-branch review found that turning a plated radio onto its real band
+solved it at once: the `solved` chime and the tick told the band from the two
+decoys, so the braille plate (and Can't see's job in room 6) could be skipped by
+spinning the knob. The user had seen the same in play. The phase 04 plan had
+decided "a decoy does not solve; the real band does", which contradicted the
+spec's FR10 ("all three sound and look the same to every role").
+
+The obvious fix was a one-line change to the solve. I weighed three: make the
+solve silent, solve only when the keypad accepts the digit, or drop FR10's
+sameness. The user chose the first, calling the radio a hint to be used on the
+keypad rather than something to solve. That moved more than one line: the
+keypad feed, the send-back redraw, the bot decoder (which told the real band by
+`solved`) and the bot job's done rule all read the flag. `lintPlates` returned
+null for a radio ("pips carry its digit, never its band"), so no check could see
+the leak; it now turns the knob onto the real band and fails on any `solved` cue
+or tick. Each new guard was shown red by breaking the code it guards (the solve,
+the feed, the redraw guard, the decoder, the job rule, the lint on the real
+room 6). F2 of the same review (a wire-cut spark sent into a dark zone) got the
+same treatment.
+
+## 2026-11-10 — Flaky browser tests replaced, not fixed, and the rest left until they fail
+
+351e71a..9f43c63
+
+A day of fixing PR 3's flaky specs had not held: five of eight CI attempts failed with nearly the same code, each fix
+exposing a new failure on the runner. I changed the question. Instead of making a walk-and-poll test less racy, replace
+it with a test that has no clock, over the same logic, and delete it if a replacement is not cheap and clearly
+red-to-green. The agent had been patching the same shape (a held key, a late key-up, a canvas picture across a 2.4 s
+hold); the logic each guarded already lived in pure code a unit test reaches with a tick count.
+
+Five went: door-pill, spectator's follow, reveal's "I'm ready", escape-hud's gear, game's restarts. Each commit says
+what was broken to turn the new test red and what the replacement gives up. One red check could not fail (a null check
+on a value that is never null) and the commit says so. One comment the agent wrote claimed the page's input counter
+restarts with a room; checking the code showed it does not, so the test and comment were corrected before commit.
+
+The call that beat the obvious one: the agent offered to replace seven more specs that had failed in the past. I asked
+whether past failures mean future ones, and we measured instead: `pnpm check:flaky 4` (4 of 4) and four CI attempts on
+the same commit (4 of 4). The rest stay until one fails and the log names it. Replacing on a guess gives up coverage for
+no gain shown.
+
+## 2026-11-10 — A playtest's length was mine, not the game's, and touch without a name
+
+1c2d58c
+
+A product review of the build after playtest 3 read the session's 1.5–2 hours as the game's length and
+called the pitch's "party game" unearned, raising the short-heist preset's confidence and score on it. I
+corrected it: much of that time was me writing notes and asking Hanna questions mid-session, so it was not a
+play time. The review put the short heist back to low confidence, dropped it from the deadline's must-haves,
+and replaced the claim with a measurement the deployed app already makes (`room.clear`'s `ms`). The obvious
+move was to take the number in my own write-up at face value; the correction came from knowing how the
+session was run, which no log records.
+
+The second call shaped the touch design. Hanna's idea for showing Can't see a held hand was a blurred figure
+of the teammate. I accepted the need but not the picture: touch tells you a hand is held and which way it
+pulls, never whose it is, so who it is should be found by communicating. That ruled out the figure and a
+caption (captions are for sounds, and easily missed), and settled on reusing the link the sighted already
+see, drawn from Can't see's own figure, plus a sound only the pair hears ([ADR 0030](doc/adr/0030-holding-hands-is-felt-not-seen.md), proposed).
+Checking the code for it found the server already sends every role its partner's seat (`you.hand`), unread by
+any client: the planned fix replaces it with a direction, and a perception test will fail if a seat leaks
+back in. Both corrections are in `product/2026-11-10-review.md`'s challenge round and in the spec.

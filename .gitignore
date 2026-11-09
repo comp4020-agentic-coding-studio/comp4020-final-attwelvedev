@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# the frame bench's build (BENCH=1): build output only
+dist-bench/
 *.log
 
 # editor and OS junk
@@ -27,3 +29,5 @@ mise.local.toml
 # copies in public/ (see CREDITS.md), and the clips are never redistributed as-is
 src/assets/bluemojis/
 src/assets/soundboard/
+.vitest/
+review/playtest/

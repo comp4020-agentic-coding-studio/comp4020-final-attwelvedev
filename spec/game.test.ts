@@ -54,7 +54,7 @@ describe("starting and playing a game", () => {
     // the test runner's own latency decides where a window's edge falls, and one view lost off
     // the end of a 1 s window is 5% of the count. So time 30 views from the first to the last.
     const arrivals: number[] = [];
-    await nextTick(deaf.socket, 3000); // the first tick marks the start
+    await nextTick(deaf.socket); // the first tick marks the start
     arrivals.push(performance.now());
     while (arrivals.length < 30) {
       await nextTick(deaf.socket, 2000);
@@ -80,7 +80,7 @@ describe("starting and playing a game", () => {
     const { players } = await startedGame(baseUrl);
     ready(players);
     const deaf = byRole(players, "deaf");
-    const first = await nextView(deaf);
+    const first = await nextTick(deaf.socket); // a running game, not the reveal's tick 0
     const x0 = first.you.pos?.x ?? Number.NaN;
     deaf.socket.send({ t: "input", seq: 1, move: { x: 1, y: 0 }, act: false });
     const deadline = Date.now() + 500;

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { codeLetters } from "../client/lobbyCode.ts";
 import { readNickname, saveNickname } from "../client/nickname.ts";
+import { installUiSounds, savedSettings, uiSound } from "../client/uiSound.ts";
 import { ROLE_LABEL } from "../game/types.ts";
 import { LOBBY_CODE_LENGTH, type LobbySummary } from "../net/protocol.ts";
 import { Connection } from "./Connection.tsx";
@@ -32,6 +33,13 @@ export function Home() {
   const [showAll, setShowAll] = useState(false);
 
   useEffect(() => setNickname(readNickname()), []);
+  useEffect(() => installUiSounds(savedSettings), []);
+
+  // an error shows as text and blips low (its sound twin)
+  function fail(next: Errors) {
+    setErrors(next);
+    uiSound("error", savedSettings());
+  }
 
   useEffect(() => {
     if (!socket) return;
@@ -46,9 +54,9 @@ export function Home() {
         going.current = false;
         // a full lobby is not an error here: its page offers Watch or Start a new team
         if (m.code === "lobby-full" && target.current) location.assign(`/lobby/${target.current}`);
-        else if (m.code === "server-full") setErrors({ create: m.message });
-        else if (m.code === "bad-nickname") setErrors({ nickname: m.message });
-        else setErrors({ join: m.message });
+        else if (m.code === "server-full") fail({ create: m.message });
+        else if (m.code === "bad-nickname") fail({ nickname: m.message });
+        else fail({ join: m.message });
       }),
     ];
     return () => {
@@ -64,12 +72,12 @@ export function Home() {
   function ready(slot: "create" | "join"): string | null {
     const name = nickname.trim();
     if (!name) {
-      setErrors({ nickname: "Pick a nickname first." });
+      fail({ nickname: "Pick a nickname first." });
       nicknameField.current?.focus();
       return null;
     }
     if (!socket || !online) {
-      setErrors({ [slot]: "Not connected yet. Try again in a moment." });
+      fail({ [slot]: "Not connected yet. Try again in a moment." });
       return null;
     }
     saveNickname(name);
@@ -131,7 +139,7 @@ export function Home() {
           onSubmit={(e) => {
             e.preventDefault();
             if (code.length < LOBBY_CODE_LENGTH) {
-              setErrors({ join: `A code is ${LOBBY_CODE_LENGTH} letters.` });
+              fail({ join: `A code is ${LOBBY_CODE_LENGTH} letters.` });
               codeField.current?.focus();
               return;
             }
@@ -218,7 +226,10 @@ export function Home() {
         )}
 
         <form class="desk-new" onSubmit={create}>
-          <p>No code? Start a team and send its code to two friends.</p>
+          <p>
+            No code? Start a team and send its code to two friends. Up to six can join and take
+            turns.
+          </p>
           <button type="submit" class="btn">
             Start a new team
           </button>

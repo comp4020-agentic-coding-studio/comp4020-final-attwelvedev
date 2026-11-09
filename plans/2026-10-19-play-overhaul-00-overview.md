@@ -264,7 +264,7 @@ like `--glass` stay CSS-only and the canvas uses `globalAlpha`).
 | 03 | `…-03-lobby-screens.md` | 10–12 | 02 | new lobby, reveal and HUD screens, a /preferences page; **human review** of each | [x] |
 | 04 | `…-04-line-of-sight.md` | 13–16 | 01 | glass/vents, line-of-sight views, sound occlusion, held sequences, clue sounds, new linter rules, bots that regain sight of Can't see, the lead-role harness, clue jobs (A3 and the tolerant guide moved to Task 28, phase 06) | [x] |
 | 05 | `…-05-world-renderer.md` | 17–21 | 04 | `DESIGN.md` and its rule; the tilted 3/4 world, moving figures, mist, edge pills, the world rising; **human review** | [x] |
-| 06 | `…-06-rooms-results.md` | 22–25, 28 | 03, 04, 05 | four new rooms with lead beats, room-1 labels, bots that plan only around what their role perceived (A3, Task 28), comms map, versioned leaderboard; **human review** of each room; **playtest 4** | [ ] |
+| 06 | `…-06-rooms-results.md` | 22–25, 28 | 03, 04, 05 | (2026-10-28: Task 23 cancelled and Tasks 24–25 moved to the escape-room heist plan, `plans/2026-10-28-escape-room-heist-00-overview.md`; Tasks 22 and 28 stay here) four new rooms with lead beats, room-1 labels, bots that plan only around what their role perceived (A3, Task 28), comms map, versioned leaderboard; **human review** of each room; **playtest 4** | [ ] |
 | 07 | `…-07-sound-wrapup.md` | 26–27 | 06 | ambience and music (cuttable), README/backlog/CLAUDE.md/process wrap-up | [ ] |
 
 Phase 04 needs only 01, so it may run before 02–03 if that suits the user.

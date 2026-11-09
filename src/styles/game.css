@@ -18,6 +18,12 @@ body.playing main {
   position: relative;
   min-height: 100dvh;
   overflow: hidden;
+  /* what shows until the room's first view is drawn over it (a late or missed view): the dusk sky,
+     never black. Can't see's reveal and high contrast stay ink. */
+  background: linear-gradient(var(--dusk-sky-hi), var(--dusk-sky-lo));
+}
+.reveal-frame.blind,
+:root[data-contrast="high"] .reveal-frame:not(.covering) {
   background: var(--ink);
 }
 .reveal-canvas {
@@ -25,7 +31,7 @@ body.playing main {
   inset: 0;
   width: 100%;
   height: 100%;
-  filter: blur(6px); /* blur is not motion, so it stays under reduced motion */
+  filter: blur(3px); /* blur is not motion, so it stays under reduced motion */
 }
 .reveal-canvas canvas {
   display: block;
@@ -49,12 +55,12 @@ body.playing main {
   pointer-events: none;
 }
 .reveal-frame.covering .reveal-canvas {
-  animation: reveal-clear 900ms ease-out both;
+  animation: reveal-clear var(--intro-cover, 900ms) ease-out var(--intro-delay, 0ms) both;
 }
 .reveal-frame.covering .reveal-scrim,
 .reveal-frame.covering .reveal-stage,
 .reveal-frame.covering .reveal-gone {
-  animation: reveal-out 900ms ease-out both;
+  animation: reveal-out var(--intro-cover, 900ms) ease-out var(--intro-delay, 0ms) both;
 }
 @keyframes reveal-clear {
   to {
@@ -74,7 +80,42 @@ body.playing main {
   .reveal-frame.covering .reveal-scrim,
   .reveal-frame.covering .reveal-stage,
   .reveal-frame.covering .reveal-gone {
-    animation: reveal-out 300ms linear both;
+    animation: reveal-out var(--intro-cover, 300ms) linear var(--intro-delay, 0ms) both;
+  }
+}
+/* ...and the HUD fades in under it on the same timing, as a window opening on the room (R2): the
+   bars, the bezel and the overlays come in while the room itself stays (the game canvas draws what
+   the backdrop drew, in the same place), so the card going and the HUD coming add to one and are
+   never both at full strength. Can't see's black screen has only the HUD to come in. */
+.game.intro-window > :not(.frame),
+.game.intro-window .frame > :not(.recess),
+.game.intro-window .frame::after,
+.game.intro-window .recess > :not(canvas) {
+  animation: hud-in var(--intro-cover, 900ms) ease-out var(--intro-delay, 0ms) both;
+}
+.game.intro-window .frame {
+  animation: bezel-in var(--intro-cover, 900ms) ease-out var(--intro-delay, 0ms) both;
+}
+@keyframes hud-in {
+  from {
+    opacity: 0;
+  }
+}
+/* only the bezel's fill: its role-colour rim stays, so the role frame is there from the first frame */
+@keyframes bezel-in {
+  from {
+    background-color: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .game.intro-window > :not(.frame),
+  .game.intro-window .frame > :not(.recess),
+  .game.intro-window .frame::after,
+  .game.intro-window .recess > :not(canvas) {
+    animation: hud-in var(--intro-cover, 300ms) linear var(--intro-delay, 0ms) both;
+  }
+  .game.intro-window .frame {
+    animation: bezel-in var(--intro-cover, 300ms) linear var(--intro-delay, 0ms) both;
   }
 }
 .reveal-stage {
@@ -97,10 +138,9 @@ body.playing main {
   gap: var(--s-4);
   justify-items: start;
   padding: var(--s-5);
-  background: var(
-    --glass
-  ); /* text over the canvas sits on --glass, and the room shows through it */
-  border-radius: var(--r);
+  background: var(--surface); /* a lit panel over the dusk room */
+  box-shadow: var(--sheen), var(--lift);
+  border-radius: var(--r-lg);
 }
 .reveal-crew-panel {
   justify-items: stretch;
@@ -181,6 +221,27 @@ body.playing main {
     opacity: 0;
   }
 }
+/* the room's goal: a sentence between the role line and the facts, not a heading */
+.reveal-goal {
+  margin: 0;
+  font-size: var(--t-18);
+  font-weight: 700;
+}
+.reveal-role-line {
+  margin: 0;
+}
+/* "Who perceives what": a disclosure, folded the first time; the arrow says which way it is */
+.reveal-more::before {
+  content: "▸" / "";
+  margin-right: var(--s-2);
+}
+.reveal-more[aria-expanded="true"]::before {
+  content: "▾" / "";
+}
+.reveal-more-body:not([hidden]) {
+  display: grid;
+  gap: var(--s-4);
+}
 .reveal-facts {
   margin: 0;
   display: grid;
@@ -211,7 +272,8 @@ body.playing main {
   align-items: center;
   gap: var(--s-2) var(--s-3);
   padding: var(--s-2) var(--s-3);
-  background: var(--bg);
+  background: var(--well);
+  box-shadow: var(--well-shadow);
   border-radius: var(--r);
 }
 .reveal-crew .crew-who {
@@ -231,11 +293,35 @@ body.playing main {
   font-size: var(--t-14);
   font-weight: 700;
 }
-.reveal-crew .pips {
+/* a teammate just got ready: the mark pulses once (the picture twin of the ready chime) */
+.reveal-crew .crew-state.pulse {
+  animation: ready-pulse 1s ease-out;
+}
+@keyframes ready-pulse {
+  0% {
+    color: var(--ui);
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal-crew .crew-state.pulse {
+    animation: none;
+    outline: 2px solid var(--ui);
+    outline-offset: 2px;
+  }
+}
+.reveal-crew .played {
+  /* inside the name column: the history in hollow shapes, the coloured shape is now */
   display: inline-flex;
-  gap: 3px;
+  flex-wrap: wrap;
   align-items: center;
+  gap: var(--s-1);
+  min-width: 0;
   color: var(--ui-muted);
+  font-size: var(--t-14);
 }
 .reveal-crew .no-shape {
   width: 20px;
@@ -362,8 +448,9 @@ body.playing main {
   min-height: var(--target);
   margin: var(--s-1) var(--s-3) 0;
   padding: var(--s-1) var(--s-2);
-  background: var(--glass);
-  border-radius: var(--r);
+  background: var(--surface);
+  box-shadow: var(--sheen), var(--lift);
+  border-radius: var(--r-lg);
   font-stretch: 75%;
   font-weight: 700;
 }
@@ -373,6 +460,24 @@ body.playing main {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* the game's room label beside the clock: it shares the watcher's ellipsis but takes only its own
+   width, so the crew keeps the spare room. "4 · The Safe" from 720 px, "4/9" below */
+.hud-room-game {
+  flex: 0 1 auto;
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+}
+.hud-room-long {
+  display: none;
+}
+@media (min-width: 720px) {
+  .hud-room-long {
+    display: inline;
+  }
+  .hud-room-short {
+    display: none;
+  }
 }
 .hud-clock,
 .hud-loot {
@@ -385,7 +490,8 @@ body.playing main {
   min-height: var(--target);
   min-width: var(--target);
   padding: 0 var(--s-2);
-  background: transparent;
+  background: var(--panel-hi);
+  box-shadow: var(--sheen);
   color: var(--ui);
   border: 2px solid var(--ui-muted);
   border-radius: var(--r);
@@ -414,7 +520,7 @@ body.playing main {
   gap: var(--s-1);
   padding: var(--s-1) var(--s-2);
   border: 2px solid transparent;
-  border-radius: var(--r);
+  border-radius: 999px;
 }
 .hud-crew li.you {
   border-color: var(--ui-muted);
@@ -423,7 +529,7 @@ body.playing main {
   padding: 0 var(--s-1);
   background: var(--ui);
   color: var(--bg);
-  border-radius: var(--r);
+  border-radius: 999px;
   font-size: 12px;
 }
 .hud-hint {
@@ -503,8 +609,9 @@ body.playing main {
   flex: 0 0 calc(60dvh - var(--target)); /* 60% of the screen, less the bar above it */
   min-height: 0;
   margin: var(--s-1) var(--s-3);
-  border: 4px dashed var(--ui-muted);
-  background: var(--ink);
+  outline: 2px dashed var(--ui-muted);
+  outline-offset: -2px;
+  box-shadow: var(--lift);
 }
 .spectator-frame canvas {
   display: block;
@@ -591,14 +698,33 @@ body.playing main {
   }
 }
 
-/* the role frame: 4 px in the role colour, the role's shape notched in the corner */
+/* the role frame: a recessed bezel with a 1 px rim in the role colour all round, a 36 px role tab at
+   its top-left and a short role line along its top edge (DESIGN.md 4.7). The canvas and its overlays
+   live in .recess, inset 6 px. */
 .frame {
   position: relative;
   flex: 1;
   min-height: 0;
+  display: flex;
   margin: var(--s-1) var(--s-3);
-  border: 4px solid var(--frame);
+  padding: 6px;
+  background: var(--panel);
+  border-radius: var(--r-lg);
+  box-shadow:
+    var(--lift),
+    0 0 0 1px var(--frame);
+}
+.recess {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   background: var(--ink);
+  border-radius: calc(var(--r-lg) - 6px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 8%),
+    inset 0 2px 8px rgb(0 0 0 / 55%);
 }
 .frame canvas {
   display: block;
@@ -607,23 +733,41 @@ body.playing main {
 }
 .notch {
   position: absolute;
-  top: -4px;
-  left: -4px;
+  top: 0;
+  left: 0;
+  z-index: 1; /* over the canvas, under every overlay (the top stack and the vote prompt are 3) */
+  pointer-events: none; /* decorative: a tap on the canvas corner still reaches the canvas */
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   background: var(--frame);
   color: var(--bg);
+  border-radius: var(--r-lg) 0 var(--r) 0;
+}
+.frame:not(.spectator-frame)::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 36px;
+  width: 64px;
+  height: 2px;
+  background: var(--frame);
+  pointer-events: none;
 }
 .overlay {
   position: absolute;
   inset: 0;
   display: grid;
-  place-content: center;
+  /* centred while it fits; taller than the frame (the cleared card's board on a phone), it scrolls
+     from its top instead of being cut off at both ends */
+  place-content: safe center;
+  grid-template-columns: minmax(0, 1fr);
+  overflow: auto;
+  padding: var(--s-3) var(--s-2);
   gap: var(--s-2);
   text-align: center;
-  background: rgb(11 18 32 / 85%);
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
 }
 .overlay h2 {
   font-size: var(--t-28);
@@ -650,6 +794,10 @@ body.playing main {
   .keys {
     text-align: center;
   }
+}
+/* the phone's hint is centred under the stick and the big button; the desktop line stays left */
+.keys-touch {
+  text-align: center;
 }
 /* touch: joystick bottom-left, Act bottom-right; the tray never overlaps them */
 .touch-zone {
@@ -706,8 +854,14 @@ body.playing main {
   color: var(--bg);
 }
 
+/* a long cue (a stash names its owner and item) wraps as a whole, on its own line, and never squeezes
+   the short ones beside it into a letter a line */
+.captions p.cue {
+  flex-wrap: wrap;
+}
 .cue-item {
   display: inline-flex;
+  max-width: 100%;
   align-items: center;
   gap: var(--s-1);
   margin-right: var(--s-3);
@@ -730,7 +884,7 @@ body.playing main {
 .captions p {
   margin: 0;
   padding: 2px var(--s-2);
-  background: rgb(11 18 32 / 85%);
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
   color: var(--ui);
   border-radius: var(--r);
   font-size: var(--t-18);
@@ -837,11 +991,17 @@ fieldset.settings {
   max-width: calc(100vw - var(--s-5));
   margin-top: var(--s-1);
   padding: var(--s-3);
-  background: var(--panel);
+  background: var(--surface);
+  box-shadow: var(--sheen), var(--lift);
   border: 2px solid var(--ui);
-  border-radius: var(--r);
+  border-radius: var(--r-lg);
   font-stretch: 100%;
   font-weight: 400;
+}
+.hud-menu-title {
+  margin: 0;
+  color: var(--ui-muted);
+  font-size: var(--t-14);
 }
 .hud-menu-panel > .hud-btn,
 .hud-menu-panel > .hud-btn.danger {
@@ -868,6 +1028,102 @@ fieldset.settings {
   gap: var(--s-2);
   justify-items: center;
   margin-top: var(--s-2);
+}
+
+/* the room-end card: one centred column, so the title, the credits, the buttons and the board share
+   a middle and a width. Credits are a card per player, side by side while they fit */
+.cleared {
+  display: grid;
+  gap: var(--s-4);
+  justify-items: center;
+  /* the overlay's one column is the frame's width (minmax(0, 1fr)), so this is 44rem or the frame */
+  width: 44rem;
+  max-width: 100%;
+  margin-inline: auto;
+}
+.cleared-head {
+  display: grid;
+  gap: var(--s-2);
+  justify-items: center;
+}
+.cleared-head h2 {
+  margin: 0;
+  font-stretch: 125%; /* the display face: the cleared title and time */
+  font-weight: 900;
+}
+.cleared-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s-2) var(--s-5);
+  margin: 0;
+}
+.cleared-stats div {
+  display: grid;
+  gap: var(--s-1);
+}
+.cleared-stats dt {
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+}
+.cleared-stats div:first-child dd {
+  font-stretch: 125%;
+  font-weight: 900;
+}
+.cleared-stats dd {
+  margin: 0;
+  font-size: var(--t-18);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.credits {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: var(--s-3);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.credits > li {
+  display: grid;
+  align-content: start;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  background: var(--well);
+  box-shadow: var(--well-shadow);
+  border-radius: var(--r);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.credits h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+  font-size: var(--t-18);
+}
+.credits h3 .role-shape {
+  flex: none;
+}
+.credits ul {
+  display: grid;
+  gap: var(--s-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--t-14);
+}
+.cleared-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s-2);
+}
+.cleared .room-board {
+  width: 100%;
+  max-width: none;
+  margin-top: 0;
 }
 
 /* why the team was just sent back: over the top of the map, for everyone */
@@ -915,7 +1171,7 @@ fieldset.settings {
   box-sizing: border-box;
   border: 2px solid var(--ui);
   border-radius: 28px;
-  background: rgb(11 18 32 / 30%); /* the field is 70% transparent */
+  background: color-mix(in srgb, var(--bg) 30%, transparent); /* the field is 70% transparent */
 }
 .wheel-outline.is-circle {
   border-radius: 50%;
@@ -1414,4 +1670,627 @@ fieldset.settings {
 }
 .watch-chat .talk-mic {
   justify-self: start;
+}
+
+/* escape-room HUD (DESIGN.md Components: GearSlot, ActHint, LampLight, SideJob, GearGlyph). Glass over
+   the world, condensed 700 like the other chips; out of the way of the world's middle. */
+.hud-gear {
+  display: inline-flex;
+  align-items: center;
+}
+.lamp-light {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--ui);
+}
+/* gear at the world's bottom right and the Act hint to its left, above the captions (the side job
+   and the notch are at the top left; the touch controls and the chat box are below the frame) */
+.hud-dock {
+  position: absolute;
+  bottom: calc(var(--s-2) + 2.4em);
+  right: var(--s-2);
+  z-index: 3;
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: flex-end;
+  gap: var(--s-3);
+  pointer-events: none;
+}
+.hud-dock .gear-btn {
+  pointer-events: auto; /* the phone's slot is a button over the world */
+}
+.gear-slot {
+  display: grid;
+  gap: 2px;
+  padding: var(--s-1) var(--s-2);
+  background: var(--glass);
+  border-radius: var(--r);
+  color: var(--ui);
+  font-stretch: 75%;
+  font-weight: 700;
+}
+.gear-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+.gear-key {
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+}
+.gear-empty {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px dashed var(--ui-muted);
+  border-radius: 50%;
+}
+.act-hint {
+  margin: 0;
+  padding: var(--s-1) var(--s-3);
+  background: var(--glass);
+  border-radius: var(--r);
+  color: var(--ui);
+  font-stretch: 75%;
+  font-weight: 700;
+  font-size: var(--t-18);
+}
+.act-hint kbd {
+  margin-right: var(--s-1);
+  padding: 0 var(--s-1);
+  border: 1px solid var(--ui-muted);
+  border-radius: var(--r);
+  font: inherit;
+  font-size: var(--t-14);
+}
+/* the side job: a chip at the frame's top-left, past the notch; tap for the whole line. Unsolved it
+   is the motif and the riddle; in the vault it is the keepsake on its plate and "Waiting in the
+   vault"; taken it adds a tick and "Taken by you". Shape and words carry it, never colour alone. */
+/* one column at the frame's top: the side-job chip, then Can't see's open plate under it, whatever height the chip is */
+.top-stack {
+  position: absolute;
+  top: var(--s-2);
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s-2);
+  pointer-events: none;
+}
+.top-stack > * {
+  pointer-events: auto;
+}
+.side-job {
+  position: relative;
+  align-self: flex-start;
+  margin-left: calc(var(--s-2) + 36px);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  max-width: min(22rem, 70%);
+  min-height: var(--target);
+  padding: var(--s-1) var(--s-2);
+  background: var(--glass);
+  border: 0;
+  border-radius: var(--r);
+  color: var(--ui);
+  font: inherit;
+  font-stretch: 75%;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.side-job.is-found {
+  cursor: default;
+}
+.side-job .motif-glyph {
+  flex: none;
+}
+.side-job-lines,
+.side-job-found {
+  display: grid;
+  min-width: 0;
+}
+.side-job-name {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  overflow-wrap: anywhere;
+}
+.side-job-tick {
+  flex: none;
+}
+.side-job-text {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-weight: 400;
+}
+/* the riddle is shown whole; the chevron says a click hides it, and points up when it is shown */
+.side-job-chevron {
+  flex: none;
+  margin-left: var(--s-1);
+  opacity: 0.7;
+}
+.side-job-chevron[data-open="true"] {
+  transform: rotate(180deg);
+}
+/* the taken chip lands with one pulse (not under reduced motion, nor on a page that loads it taken) */
+@media (prefers-reduced-motion: no-preference) {
+  .side-job.is-taken {
+    animation: side-job-pulse 600ms ease-out 1;
+  }
+}
+@keyframes side-job-pulse {
+  0% {
+    transform: scale(0.94);
+  }
+  60% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+/* the reveal's side-job row: the motif at 48 px beside the riddle, for its owner alone */
+.reveal-cache {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3);
+  border: 2px solid var(--ui-muted);
+  border-radius: var(--r);
+}
+.reveal-cache .motif-glyph {
+  flex: none;
+}
+.reveal-cache p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.reveal-cache-title {
+  font-weight: 700;
+}
+/* what a cache's opening or stash says, at the top centre of the map for a few seconds, like a vote
+   card: it never blocks play */
+.cache-moment {
+  position: absolute;
+  top: var(--s-2);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: max-content;
+  max-width: min(calc(100% - var(--s-4)), 26rem);
+  min-height: var(--target);
+  padding: var(--s-2) var(--s-3);
+  border: 2px solid var(--ui);
+  border-radius: var(--r);
+  background: var(--glass);
+  color: var(--ui);
+  font-weight: 700;
+  pointer-events: none;
+}
+.cache-moment p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+/* a phone's frame is too narrow for the chip and the card side by side: the card goes under the chip */
+@media (max-width: 719px) {
+  .cache-moment {
+    top: calc(var(--s-2) + 4.5rem);
+  }
+}
+/* phone: the gear slot is a 48 px button at the world's bottom right, clear of the touch controls */
+.gear-btn {
+  display: grid;
+  place-items: center;
+  width: var(--target);
+  height: var(--target);
+  padding: 0;
+  border: 2px solid var(--ui-muted);
+  background: var(--panel);
+  touch-action: none;
+  cursor: pointer;
+}
+.gear-btn:disabled {
+  opacity: 0.6;
+}
+/* the Act button says what it will do: smaller type so a short line fits the circle */
+.act.has-hint {
+  padding: 0 var(--s-1);
+  font-size: var(--t-14);
+  font-stretch: 75%;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+/* the room's top 5 on the cleared card; this team's row is outlined, not coloured alone */
+.room-board {
+  display: grid;
+  gap: var(--s-2);
+  justify-items: center;
+  margin-top: var(--s-3);
+  max-width: min(100%, 26rem);
+}
+.room-board h3 {
+  margin: 0;
+  font-size: var(--t-18);
+}
+.room-board table,
+.board-panel table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--t-14);
+  font-variant-numeric: tabular-nums;
+}
+.room-board th,
+.room-board td,
+.board-panel th,
+.board-panel td {
+  padding: var(--s-1) var(--s-2);
+  text-align: left;
+}
+.room-board th,
+.board-panel th {
+  color: var(--ui-muted);
+  font-weight: 700;
+}
+.room-board .team {
+  overflow-wrap: anywhere;
+}
+.room-board tr.mine td {
+  font-weight: 700;
+  border-block: 2px solid var(--goal);
+}
+
+/* the comms map on the cleared card: a triangle of the crew, an arrow each way, thicker the more
+   went that way; an arrow is a focus stop with its breakdown in the line under the map */
+.comms-map {
+  display: grid;
+  gap: var(--s-1);
+  justify-items: center;
+  width: min(100%, 22rem);
+  margin-inline: auto;
+}
+.comms-map h3 {
+  margin: 0;
+  font-size: var(--t-18);
+}
+.comms-map svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.comms-arrow {
+  stroke: var(--ui);
+  stroke-linecap: round;
+}
+.comms-arrow.none {
+  stroke: var(--ui-muted);
+  stroke-dasharray: 3 5;
+}
+.comms-hit {
+  stroke: transparent;
+  stroke-width: 20;
+}
+.comms-head {
+  fill: var(--ui);
+}
+.comms-edge.active .comms-arrow {
+  stroke: var(--goal);
+}
+.comms-edge.active .comms-head {
+  fill: var(--goal);
+}
+/* each arrow is a stop of its own (tab, point, tap): lit while it is the one under the line below. The hit
+   stroke under it is 20 units wide in a 320-unit map, so a thin arrow is still easy to land on. Keyboard
+   focus takes the app's own ring (shell.css), the same as every other control. */
+.comms-edge {
+  cursor: pointer;
+}
+.comms-count {
+  fill: var(--ui);
+  font-size: 15px;
+  font-weight: 700;
+  text-anchor: middle;
+  font-variant-numeric: tabular-nums;
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 4px;
+}
+.comms-name {
+  fill: var(--ui);
+  font-size: 15px;
+  text-anchor: middle;
+}
+.comms-detail {
+  min-height: 1.5em;
+  color: var(--ui-muted);
+  font-size: var(--t-14);
+}
+.comms-summary {
+  max-width: 22rem;
+}
+
+/* the leaderboard inside the game: a wide modal that scrolls inside itself, never the page (its
+   Close and tabs are focusable, so a keyboard can scroll it) */
+.board-panel {
+  width: min(100%, 40rem);
+  max-height: calc(100dvh - 2 * var(--s-4));
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  text-align: left;
+}
+.board-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+.board-panel-head .modal-title {
+  margin: 0;
+}
+.board-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.board-tabs [role="tab"] {
+  min-height: var(--target);
+  padding: 0 var(--s-3);
+  background: none;
+  color: var(--ui);
+  border: 2px solid var(--ui-muted);
+  border-radius: var(--r);
+  font: inherit;
+  cursor: pointer;
+}
+.board-tabs [role="tab"][aria-selected="true"] {
+  border-color: var(--ui);
+  font-weight: 700;
+  text-decoration: underline;
+}
+/* headers and numbers never break mid-word; only the team and crew wrap */
+.room-board th,
+.board-panel th,
+.board-panel td {
+  white-space: nowrap;
+}
+.board-panel td:nth-child(2),
+.board-panel td:nth-child(3) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* a keepsake on its plate (DESIGN.md Components: KeepsakePlate): card face, brass rim, line outline;
+   missed is the same plate empty and dashed in --ui-muted */
+/* the keepsakes' light: 1 mixes each body toward white and black as items.ts says, 0 (high contrast)
+   leaves the plain tokens, and hides the drop shadow and the lights */
+:root {
+  --item-shade: 1;
+}
+:root[data-contrast="high"] {
+  --item-shade: 0;
+}
+:root[data-contrast="high"] .item-shadow,
+:root[data-contrast="high"] .item-light {
+  display: none;
+}
+.keepsake {
+  box-sizing: content-box;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--keep, 48px);
+  height: var(--keep, 48px);
+  padding: var(--s-1);
+  background: var(--w-card);
+  border: 3px solid var(--w-brass);
+  outline: 2px solid var(--w-line);
+  outline-offset: 0;
+  border-radius: var(--r);
+}
+.keepsake.is-missed {
+  background: transparent;
+  border: 3px dashed var(--ui-muted);
+  outline: none;
+}
+
+/* the cleared card's side-job tile: one box for all three states (taken solid; left behind and not
+   found dashed in --ui-muted), so the card never changes height with the result */
+.side-job-tile {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: calc(var(--keep, 32px) + 2 * var(--s-3) + 10px);
+  padding: var(--s-3);
+  background: var(--panel);
+  border: 2px solid var(--ui);
+  border-radius: var(--r);
+  text-align: left;
+}
+.side-job-tile.is-left,
+.side-job-tile.is-unfound {
+  border-style: dashed;
+  border-color: var(--ui-muted);
+}
+.side-job-tile-text {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--t-14);
+}
+.side-job-tile-text .side-job-tick {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: var(--s-1);
+}
+
+/* the heist-complete shelf: a plate per side job, in room order */
+.keepsake-shelf {
+  display: grid;
+  gap: var(--s-2);
+  justify-items: center;
+  width: 100%;
+}
+.keepsake-shelf h3 {
+  margin: 0;
+  font-size: var(--t-18);
+}
+.keepsake-shelf ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: var(--s-2);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.keepsake-shelf li {
+  display: grid;
+  justify-items: center;
+  gap: var(--s-1);
+  padding: var(--s-2);
+  text-align: center;
+  font-size: var(--t-14);
+  overflow-wrap: anywhere;
+}
+.keepsake-shelf li.is-missed {
+  color: var(--ui-muted);
+}
+
+/* a shelf slot is always three lines: the room's title, its number, then the item or "Not found" */
+.keepsake-label {
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+}
+.keepsake-room {
+  font-weight: 700;
+}
+.keepsake-num {
+  color: var(--ui-muted);
+}
+.keepsake-shelf li.is-missed .keepsake-what {
+  font-style: italic;
+}
+/* Can't see's open braille plate, "felt, not lit" (spec §4.1 A, DESIGN.md: BrailleCard): a thin
+   outline straight on black, top-centre just under the side-job chip, no fill and no Close button. Raised
+   dots are filled discs, flat positions small rings: shape, never colour alone. On a phone it lets
+   touches through, and the comms wheel draws above it. */
+.braille-card {
+  position: relative;
+  align-self: center;
+  z-index: 4;
+  width: max-content;
+  min-width: 0;
+  margin: 0;
+  max-width: calc(100% - 2 * var(--s-2));
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--ui);
+  border-radius: var(--r);
+  color: var(--ui);
+  font-stretch: 75%;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.braille-title,
+.braille-teach {
+  margin: 0 0 var(--s-1);
+}
+.braille-teach {
+  max-width: 28rem;
+  font-weight: 400;
+  font-size: var(--t-14);
+}
+.braille-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--s-3);
+}
+.braille-cells {
+  display: flex;
+  gap: var(--s-3);
+}
+.braille-dot {
+  fill: var(--ui);
+}
+.braille-flat {
+  fill: none;
+  stroke: var(--ui);
+  stroke-width: 1;
+}
+.braille-at {
+  animation: braille-in 120ms ease-out both;
+  animation-delay: calc(var(--i) * 60ms);
+}
+@keyframes braille-in {
+  from {
+    opacity: 0;
+  }
+}
+.braille-key {
+  display: flex;
+  flex-wrap: wrap;
+  /* the empty gap between two cells must read as wider than the pitch of the dots inside one (11 px at this size),
+     or a row of cells reads as one even row of dots */
+  gap: var(--s-2) var(--s-4);
+  margin: 0;
+  padding: 0 0 0 var(--s-3);
+  border-left: 1px solid var(--ui-muted);
+  list-style: none;
+}
+.braille-key li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.braille-label {
+  font-size: var(--t-14);
+}
+@media (pointer: coarse) {
+  .braille-card {
+    pointer-events: none;
+  }
+}
+@media (max-width: 600px) {
+  .braille-card {
+    padding: var(--s-1) var(--s-2);
+    font-size: var(--t-14);
+  }
+  .braille-teach {
+    font-size: 12px;
+  }
+  .braille-body {
+    gap: var(--s-2);
+  }
+  .braille-cells {
+    gap: var(--s-2);
+  }
+  .braille-key {
+    display: grid;
+    grid-template-columns: repeat(6, auto);
+    gap: var(--s-2) var(--s-4);
+    padding-left: var(--s-2);
+  }
+  .braille-label {
+    font-size: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .braille-at {
+    animation: none;
+  }
 }

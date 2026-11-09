@@ -19,7 +19,7 @@ beforeAll(async () => {
   ).join("\n");
   page = await browser.newPage();
   await page.setContent(
-    `<body style="margin:0;padding:24px;background:#0b1220;color:#e8eef9">${CLASSES.map(
+    `<body style="margin:0;padding:24px;background:#15121f;color:#efeaf5">${CLASSES.map(
       (c, i) => `<p><button id="b${i}" type="button" class="${c}">Sure? Restart room</button></p>`,
     ).join("")}</body>`,
   );
@@ -81,4 +81,97 @@ describe("every button's text can be read, resting and on hover", () => {
       });
     }
   }
+});
+
+describe("the lit buttons and panels (diorama FR3, FR4)", () => {
+  for (const width of [1280, 375]) {
+    it(`a secondary button has a 2 px outline and a lit body; a primary has a --ui fill at ${width}`, async () => {
+      await page.setViewportSize({ width, height: 800 });
+      const read = (i: number) =>
+        page.$eval(`#b${i}`, (el) => {
+          const s = getComputedStyle(el);
+          return {
+            width: s.borderTopWidth,
+            color: s.borderTopColor,
+            bg: s.backgroundColor,
+            image: s.backgroundImage,
+          };
+        });
+      const secondary = await read(0);
+      expect(secondary.width).toBe("2px");
+      expect(secondary.color).toBe("rgb(171, 161, 192)"); // --ui-muted
+      expect(secondary.bg).toBe("rgb(38, 31, 53)"); // --panel-hi
+      const primary = await read(1);
+      expect(primary.bg).toBe("rgb(239, 234, 245)"); // --ui
+    });
+  }
+
+  it("in high contrast no panel has a box-shadow or gradient", async () => {
+    const probe = async (high: boolean) => {
+      await page.evaluate((h) => {
+        if (h) document.documentElement.dataset.contrast = "high";
+        else delete document.documentElement.dataset.contrast;
+        document.getElementById("panels")?.remove();
+        const box = document.createElement("div");
+        box.id = "panels";
+        box.innerHTML =
+          '<div id="p-reveal" class="reveal"></div><div id="p-lobby" class="modal"></div><header id="p-hud" class="hud-top"></header>';
+        document.body.append(box);
+      }, high);
+      return page.evaluate(() =>
+        ["p-reveal", "p-lobby", "p-hud"].map((id) => {
+          const s = getComputedStyle(document.getElementById(id) as Element);
+          return { id, shadow: s.boxShadow, image: s.backgroundImage };
+        }),
+      );
+    };
+    const normal = await probe(false);
+    // sanity: in the normal look the panels are lit (a shadow and a gradient)
+    for (const p of normal) {
+      expect(p.shadow, `${p.id} lit`).not.toBe("none");
+      expect(p.image, `${p.id} gradient`).toContain("gradient");
+    }
+    for (const p of await probe(true)) {
+      // --sheen and --lift are a valid empty shadow (not `none`, which is invalid inside a list and
+      // would drop the frame's rim): every layer is transparent and has no offset, blur or spread.
+      expect(p.shadow, `${p.id} box-shadow in HC`).toMatch(
+        /^(none|(rgba\(0, 0, 0, 0\) 0px 0px 0px 0px(, )?)+)$/,
+      );
+      expect(p.image, `${p.id} gradient in HC`).toBe("none");
+    }
+    await page.evaluate(() => delete document.documentElement.dataset.contrast);
+  });
+
+  it("in high contrast the frame keeps its 1 px role rim", async () => {
+    const shadow = async (high: boolean) =>
+      page.evaluate((h) => {
+        if (h) document.documentElement.dataset.contrast = "high";
+        else delete document.documentElement.dataset.contrast;
+        document.getElementById("rim")?.remove();
+        const el = document.createElement("div");
+        el.id = "rim";
+        el.className = "frame";
+        el.style.setProperty("--frame", "rgb(242, 169, 59)");
+        document.body.append(el);
+        return getComputedStyle(el).boxShadow;
+      }, high);
+    expect(await shadow(false)).toContain("rgb(242, 169, 59) 0px 0px 0px 1px");
+    expect(await shadow(true)).toContain("rgb(242, 169, 59) 0px 0px 0px 1px");
+    await page.evaluate(() => delete document.documentElement.dataset.contrast);
+  });
+
+  it("in high contrast the rising reveal is transparent, not an opaque sheet over the game", async () => {
+    const bg = await page.evaluate(() => {
+      document.documentElement.dataset.contrast = "high";
+      document.getElementById("cover")?.remove();
+      const el = document.createElement("div");
+      el.id = "cover";
+      el.className = "reveal-frame covering";
+      document.body.append(el);
+      const out = getComputedStyle(el).backgroundColor;
+      delete document.documentElement.dataset.contrast;
+      return out;
+    });
+    expect(bg).toBe("rgba(0, 0, 0, 0)");
+  });
 });

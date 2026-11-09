@@ -1,7 +1,13 @@
 import type { Browser, Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 import { axeViolations, DESKTOP, horizontalOverflow, launch, openPage, PHONE } from "../browser.ts";
-import { createLobbyAs, joinWithCode, leaveAndClose, leaveGameAndClose } from "../lobbyUi.ts";
+import {
+  createLobbyAs,
+  joinWithCode,
+  leaveAndClose,
+  leaveGameAndClose,
+  lobbyCodeOf,
+} from "../lobbyUi.ts";
 
 const baseUrl = inject("baseUrl");
 let browser: Browser;
@@ -317,5 +323,83 @@ describe("preferences", () => {
     await page.getByRole("link", { name: "Preferences" }).click();
     await page.waitForURL(/\/preferences$/);
     await page.context().close();
+  });
+});
+
+describe("the lobby's menu sounds and the join glow", () => {
+  type Box = { top: number; bottom: number };
+  const boxOf = (page: Page, name: string) =>
+    row(page, name).evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      const out = Math.max(
+        0,
+        Number.parseFloat(cs.outlineWidth) + Number.parseFloat(cs.outlineOffset),
+      );
+      return { top: r.top - out, bottom: r.bottom + out } as Box;
+    });
+
+  for (const viewport of [DESKTOP, PHONE]) {
+    it(`a person joining makes their row glow in the others' lobby, and it is gone after 1.5 s (${viewport.width})`, async () => {
+      const { host, guests } = await lobbyOf(["Ana", "Bo"], viewport);
+      await host.evaluate(() => {
+        (window as unknown as { __uiSounds: string[] }).__uiSounds = [];
+      });
+      await host.waitForTimeout(1200); // Bo's own glow is over, so only Cy's can be seen
+      const third = await joinWithCode(browser, baseUrl, lobbyCodeOf(host), "Cy", viewport);
+      await row(host, "Cy").waitFor({ timeout: 3000 });
+      expect(await row(host, "Cy").getAttribute("class")).toContain("glow");
+      expect(await row(host, "Bo").getAttribute("class")).not.toContain("glow");
+      // the glow's outline stays inside its own row: it never reaches the row above (Bo)
+      const cy = await boxOf(host, "Cy");
+      const bo = await boxOf(host, "Bo");
+      expect(bo.bottom).toBeLessThanOrEqual(cy.top);
+      expect(
+        await host.evaluate(() => (window as unknown as { __uiSounds: string[] }).__uiSounds),
+      ).toContain("join");
+      await host.waitForTimeout(1500);
+      expect(await row(host, "Cy").getAttribute("class")).not.toContain("glow");
+      // leaving plays the leave chime in the lobby that stays
+      await leaveAndClose(third);
+      await host.waitForFunction(() =>
+        (window as unknown as { __uiSounds: string[] }).__uiSounds.includes("leave"),
+      );
+      await closeAll(host, ...guests);
+    });
+  }
+
+  it("with reduced motion, the glow has no animation", async () => {
+    const { host, guests } = await lobbyOf(["Ana", "Bo"]);
+    await host.emulateMedia({ reducedMotion: "reduce" });
+    const third = await joinWithCode(browser, baseUrl, lobbyCodeOf(host), "Cy", DESKTOP);
+    await row(host, "Cy").waitFor({ timeout: 3000 });
+    const cy = row(host, "Cy");
+    expect(await cy.getAttribute("class")).toContain("glow");
+    expect(await cy.evaluate((el) => getComputedStyle(el).animationName)).toBe("none");
+    expect(await cy.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe("solid");
+    await closeAll(third, host, ...guests);
+  });
+
+  it("with Menu sounds off, a join plays nothing, and a press plays nothing", async () => {
+    const { host, guests } = await lobbyOf(["Ana", "Bo"]);
+    await host.evaluate(() => {
+      const w = window as unknown as { __uiSounds: string[] };
+      w.__uiSounds = [];
+      localStorage.setItem("heist.settings", JSON.stringify({ menuSounds: false }));
+    });
+    const third = await joinWithCode(browser, baseUrl, lobbyCodeOf(host), "Cy", DESKTOP);
+    await row(host, "Cy").waitFor({ timeout: 3000 });
+    await host.getByRole("button", { name: "Preferences" }).click();
+    await host.waitForTimeout(300);
+    expect(
+      await host.evaluate(() => (window as unknown as { __uiSounds: string[] }).__uiSounds),
+    ).toEqual([]);
+    // with it on again, the same press ticks
+    await host.evaluate(() => localStorage.setItem("heist.settings", JSON.stringify({})));
+    await host.getByRole("button", { name: "Done" }).click();
+    expect(
+      await host.evaluate(() => (window as unknown as { __uiSounds: string[] }).__uiSounds),
+    ).toContain("press");
+    await closeAll(third, host, ...guests);
   });
 });

@@ -1,7 +1,9 @@
 import { visiblePolygon } from "../../game/cone.ts";
 import type { EntityView } from "../../net/protocol.ts";
+import { motionT } from "../fx.ts";
 import { COLOR, WORLD } from "../tokens.ts";
 import type { Scene } from "./index.ts";
+import { ease } from "./motion.ts";
 import { type Camera, LIVE, toScreen } from "./project.ts";
 import { diamond, floorRing, hatch } from "./shared.ts";
 
@@ -104,9 +106,84 @@ export function drawCone(
 // hazard itself or where it stands.
 export function drawSight(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera) {
   const color = e.state === "watching" ? WORLD.watch : WORLD.laser;
-  for (const poly of e.polys ?? []) {
-    paintCone(ctx, coneShape(poly, cam), color, true);
-  }
+  const cones = (e.polys ?? []).map((poly) => coneShape(poly, cam));
+  // an idle camera's cone is only an outline, as up close (drawHazardFloor), so it never rests on colour alone
+  if (e.state === "idle") paintOutline(ctx, cones);
+  else paintPieces(ctx, cones, color);
+}
+
+// The pieces of an idle sight as a dashed outline round the region they make: the clip of the lit one, without
+// the fill and the hatch, so the seams between pieces do not show.
+function paintOutline(ctx: CanvasRenderingContext2D, cones: Cone[]) {
+  if (cones.length === 0) return;
+  const all = cones.flatMap((c) => c.pts);
+  const xs = all.map((p) => p.x);
+  const ys = all.map((p) => p.y);
+  const [x0, y0] = [Math.min(...xs), Math.min(...ys)];
+  const [w, h] = [Math.max(...xs) - x0, Math.max(...ys) - y0];
+  const traceAll = (c: CanvasRenderingContext2D) => {
+    c.beginPath();
+    for (const { pts } of cones)
+      pts.forEach((p, i) => {
+        if (i === 0) c.moveTo(p.x, p.y);
+        else c.lineTo(p.x, p.y);
+      });
+  };
+  ctx.save();
+  traceAll(ctx);
+  ctx.rect(x0 - 8, y0 - 8, w + 16, h + 16);
+  ctx.clip("evenodd");
+  traceAll(ctx);
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = WORLD.line;
+  ctx.globalAlpha = 0.6;
+  ctx.setLineDash([4, 4]);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// The pieces of one sight, painted as the one shape they make. A sight is the part of a cone that the light
+// covers, cut along every ray of that light, so it can be a hundred pieces that tile the region without
+// overlap; each filled, hatched and outlined alone showed its seams as stacked bands. So: one clip to all of
+// them for the fill and the hatch (one coverage mask, so no gap between two pieces), and one outline, stroked
+// double width under a clip to the outside of the region (the pieces tile it, so the even-odd rule leaves out
+// exactly the inside), which keeps the outer half of the stroke and none of the seams.
+function paintPieces(ctx: CanvasRenderingContext2D, cones: Cone[], color: string) {
+  if (cones.length === 0) return;
+  const all = cones.flatMap((c) => c.pts);
+  const xs = all.map((p) => p.x);
+  const ys = all.map((p) => p.y);
+  const [x0, y0] = [Math.min(...xs), Math.min(...ys)];
+  const [w, h] = [Math.max(...xs) - x0, Math.max(...ys) - y0];
+  const traceAll = (c: CanvasRenderingContext2D) => {
+    c.beginPath();
+    for (const { pts } of cones)
+      pts.forEach((p, i) => {
+        if (i === 0) c.moveTo(p.x, p.y);
+        else c.lineTo(p.x, p.y);
+      });
+  };
+  ctx.save();
+  ctx.save();
+  traceAll(ctx);
+  ctx.clip("nonzero");
+  ctx.globalAlpha = 0.18;
+  ctx.fillStyle = color;
+  ctx.fillRect(x0, y0, w, h);
+  ctx.globalAlpha = 0.55;
+  hatch(ctx, x0, y0, w, h, color);
+  ctx.restore();
+  ctx.save();
+  traceAll(ctx);
+  ctx.rect(x0 - 8, y0 - 8, w + 16, h + 16);
+  ctx.clip("evenodd");
+  traceAll(ctx);
+  ctx.globalAlpha = 0.75;
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = color;
+  ctx.stroke();
+  ctx.restore();
+  ctx.restore();
 }
 
 // A security camera on its wall bracket, turned the way it looks. Watching, the lens is open
@@ -163,10 +240,14 @@ function drawCamera(
 
 // A beam is a steady line at 0.6 of a tile up while on (with a shadow on the floor) and a faint
 // dotted one while off: it never flickers, so nothing here can flash.
-function drawBeam(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera) {
+// Switched on (150 ms), the beam draws out from the emitter to its end.
+function drawBeam(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera, scene: Scene) {
   const beam = e.beam ?? [];
-  const last = beam[beam.length - 1];
-  if (!last) return;
+  const end = beam[beam.length - 1];
+  if (!end) return;
+  const grow = motionT(scene, e.id, "laser");
+  const k = grow === undefined ? 1 : ease.out(grow);
+  const last = { x: e.pos.x + (end.x - e.pos.x) * k, y: e.pos.y + (end.y - e.pos.y) * k };
   const lift = 0.6;
   const from = toScreen(cam, e.pos.x, e.pos.y, lift);
   const to = toScreen(cam, last.x, last.y, lift);
@@ -199,6 +280,22 @@ function drawBeam(ctx: CanvasRenderingContext2D, e: EntityView, cam: Camera) {
   ctx.restore();
 }
 
+// What a hazard lays on the floor: a camera's or a guard's cone, a laser's beam. Drawn in the floor layer
+// (cut by the light like a plate), apart from the hazard's body, so the cone is still there, cut cleanly
+// by the light, when the body stands on a tile the light does not reach.
+export function drawHazardFloor(
+  ctx: CanvasRenderingContext2D,
+  e: EntityView,
+  cam: Camera,
+  scene: Scene,
+) {
+  if (e.kind === "camera") drawCone(ctx, e, cam, scene, WORLD.watch, e.state === "watching");
+  else if (e.kind === "laser") drawBeam(ctx, e, cam, scene);
+  else if (e.kind === "guard") drawCone(ctx, e, cam, scene, WORLD.laser, true);
+}
+
+// A hazard's body: the camera on its bracket, the laser's post, the guard. Its cone and beam are
+// `drawHazardFloor`'s.
 export function drawHazard(
   ctx: CanvasRenderingContext2D,
   e: EntityView,
@@ -207,10 +304,12 @@ export function drawHazard(
 ) {
   const s = cam.scale;
   if (e.kind === "camera") {
-    drawCone(ctx, e, cam, scene, WORLD.watch, e.state === "watching");
-    drawCamera(ctx, e, toScreen(cam, e.pos.x, e.pos.y, 0.7), s * 1.25);
+    // waking (250 ms): it nods down and back up as its lens opens
+    const wake = motionT(scene, e.id, "camera");
+    const nod = wake === undefined ? 0 : Math.sin(wake * Math.PI) * s * 0.12;
+    const at = toScreen(cam, e.pos.x, e.pos.y, 0.7);
+    drawCamera(ctx, e, { x: at.x, y: at.y + nod }, s * 1.25);
   } else if (e.kind === "laser") {
-    drawBeam(ctx, e, cam);
     // the emitter: a small post with a lit lens
     const foot = toScreen(cam, e.pos.x, e.pos.y);
     const top = toScreen(cam, e.pos.x, e.pos.y, 0.8);
@@ -221,12 +320,33 @@ export function drawHazard(
     ctx.roundRect(foot.x - s * 0.18, top.y, s * 0.36, foot.y - top.y, 3);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = WORLD.laser;
-    ctx.beginPath();
-    ctx.arc(foot.x, toScreen(cam, e.pos.x, e.pos.y, 0.6).y, s * 0.07, 0, Math.PI * 2);
-    ctx.fill();
+    // The lens is the laser's state where the beam is not drawn: a beam in a dark zone is kept
+    // from the sighted, so a seat outside the dark reads on and off from this alone. Lit, with a
+    // glow, while on; a dim, empty ring while off.
+    const lens = toScreen(cam, e.pos.x, e.pos.y, 0.6);
+    if (e.state === "on") {
+      ctx.save();
+      ctx.globalAlpha = 0.3;
+      ctx.fillStyle = WORLD.laser;
+      ctx.beginPath();
+      ctx.arc(foot.x, lens.y, s * 0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = WORLD.laser;
+      ctx.beginPath();
+      ctx.arc(foot.x, lens.y, s * 0.09, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      ctx.strokeStyle = WORLD.line;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(foot.x, lens.y, s * 0.07, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
   } else if (e.kind === "guard") {
-    drawCone(ctx, e, cam, scene, WORLD.laser, true);
     // a larger slate figure: a shadow, a body, and a diamond cap
     const foot = toScreen(cam, e.pos.x, e.pos.y);
     ctx.fillStyle = WORLD.line;

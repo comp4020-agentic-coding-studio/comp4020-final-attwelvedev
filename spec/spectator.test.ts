@@ -1,7 +1,7 @@
 import { describe, expect, inject, it } from "vitest";
 import { MAX_TEXT } from "../src/game/channels.ts";
 import type { RoleView } from "../src/game/perception.ts";
-import { closeAll, FIVE, ready, startedFive, startedGame } from "./play.ts";
+import { closeAll, FIVE, nextTick, type Player, ready, startedFive, startedGame } from "./play.ts";
 import { connect, type Socket } from "./ws.ts";
 
 const baseUrl = inject("baseUrl");
@@ -35,7 +35,7 @@ describe("a spectator follows a running game", () => {
   it("receives views at 10 Hz or more, defaulting to seat 0", async () => {
     const { players, code } = await startedGame(baseUrl);
     ready(players);
-    await players[0]?.socket.next("view"); // the game is actually ticking
+    await nextTick((players[0] as Player).socket); // the game is actually ticking (after the start's hold)
 
     const spectator = await joinAsSpectator(code);
     const first = await spectator.next<{ view: RoleView }>("view");
@@ -71,24 +71,21 @@ describe("a spectator follows a running game", () => {
     await closeAll(players);
   });
 
-  it("receives the msgs the followed seat receives, but can't send", async () => {
+  it("can't send", async () => {
     const { players, code } = await startedGame(baseUrl);
     ready(players);
     await players[0]?.socket.next("view");
 
     const blind = players.find((p) => p.role === "blind");
-    const deaf = players.find((p) => p.role === "deaf");
-    if (!blind || !deaf) throw new Error("expected a blind and a deaf seat");
+    if (!blind) throw new Error("expected a blind seat");
 
     const spectator = await joinAsSpectator(code);
     spectator.send({ t: "spectate", seat: blind.seat });
     await spectator.next<{ view: RoleView }>("view");
 
-    // say: deaf sends, blind and mute receive — the spectator is following blind
-    deaf.socket.send({ t: "send", msg: { method: "callout", callout: "wait" } });
-    const msg = await spectator.next<{ method: string }>("msg", 2000);
-    expect(msg.method).toBe("callout");
-
+    // Who receives a callout is src/net/follow.test.ts: sent from here it raced the server handling `spectate`
+    // (a callout sent a moment early reaches nobody and is lost, CI run 42605097983). What is checked here needs
+    // no timing: a spectator's attempts to send are refused.
     for (const attempt of [
       { t: "send", msg: { method: "callout", callout: "wait" } },
       { t: "send", msg: { method: "clip", clip: "airhorn" } },

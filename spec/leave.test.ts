@@ -404,7 +404,7 @@ describe("a person leaves while others sit out", () => {
       (typeof five.sockets)[number],
     ];
     for (const s of [host, bo, cy]) s.send({ t: "ready" });
-    await nextTick(host, 3000);
+    await nextTick(host);
     const boRole = five.reveals[1]?.role;
     bo.send({ t: "lobby.leave" });
     await host.next<PauseMsg>("pause", 3000);
@@ -422,8 +422,8 @@ describe("a person leaves while others sit out", () => {
 
     di.send({ t: "ready" });
     expect((await host.next<{ t: "resume" }>("resume", 3000)).t).toBe("resume");
-    await nextTick(host, 3000); // and it ticks again
-    await nextTick(ed, 3000); // the one still sitting out is still watching
+    await nextTick(host); // and it ticks again
+    await nextTick(ed); // the one still sitting out is still watching
     await closeAll(five.sockets.map((socket) => ({ socket }) as Player));
     void cy;
   });
@@ -619,7 +619,7 @@ describe("the host fills an empty seat from the watchers", () => {
     const five = await startedFive(baseUrl);
     const [ana, bo, cy] = five.sockets as [Socket, Socket, Socket, Socket, Socket];
     for (const s of [ana, bo, cy]) s.send({ t: "ready" });
-    await nextTick(ana, 3000);
+    await nextTick(ana);
     const res = await fetch(new URL("/", baseUrl));
     const wes = await connect(baseUrl, res.headers.getSetCookie()[0]?.split(";")[0] ?? "");
     wes.send({ t: "lobby.join", code: five.code, nickname: "Wes", as: "spectator" });
@@ -636,7 +636,7 @@ describe("the host fills an empty seat from the watchers", () => {
     expect(reveal.crew.map((c) => c.nickname)).toEqual(["Ana", "Wes", "Cy"]);
     wes.send({ t: "ready" });
     expect((await ana.next<{ t: string }>("resume", 3000)).t).toBe("resume");
-    await nextTick(ana, 3000);
+    await nextTick(ana);
     await closeAll(five.sockets.map((socket) => ({ socket }) as Player));
     await wes.close();
   });
@@ -645,7 +645,7 @@ describe("the host fills an empty seat from the watchers", () => {
     const five = await startedFive(baseUrl);
     const [ana, bo, cy] = five.sockets as [Socket, Socket, Socket, Socket, Socket];
     for (const s of [ana, bo, cy]) s.send({ t: "ready" });
-    await nextTick(ana, 3000);
+    await nextTick(ana);
     bo.send({ t: "lobby.leave" });
     await ana.next("pause", 3000);
     // drain what Bo leaving sent (the crew, again, with a gap in it), so only a reaction is read below

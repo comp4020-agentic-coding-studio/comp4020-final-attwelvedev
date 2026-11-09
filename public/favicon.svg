@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img">
+  <title>Sensory heist: the crew</title>
+  <!-- the crew as in the game: a pill body, a face disc and a hat in the role's shape (Can't see: dome, Can't hear: box, Can't speak: cone), on --bg. No gradients, eyes or sheen: they do not survive 16 px. -->
+  <rect width="64" height="64" rx="14" fill="#15121f"/>
+  <g stroke="#15121f" stroke-width="2">
+    <g data-role="blind">
+      <rect class="body" x="3" y="22" width="18" height="36" rx="9" fill="#f2a93b"/>
+      <circle class="face" cx="12" cy="36" r="5" fill="#f5f1e8" stroke="none"/>
+      <circle class="hat" cx="12" cy="17" r="7.5" fill="#f2a93b"/>
+    </g>
+    <g data-role="deaf">
+      <rect class="body" x="23" y="22" width="18" height="36" rx="9" fill="#4db3ff"/>
+      <circle class="face" cx="32" cy="36" r="5" fill="#f5f1e8" stroke="none"/>
+      <rect class="hat" x="25" y="10" width="14" height="14" fill="#4db3ff"/>
+    </g>
+    <g data-role="mute">
+      <rect class="body" x="43" y="22" width="18" height="36" rx="9" fill="#9b7ee0"/>
+      <circle class="face" cx="52" cy="36" r="5" fill="#f5f1e8" stroke="none"/>
+      <path class="hat" d="M52 9 L59 22 L45 22 Z" fill="#9b7ee0"/>
+    </g>
+  </g>
+</svg>

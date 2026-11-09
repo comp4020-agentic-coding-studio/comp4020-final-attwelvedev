@@ -10,7 +10,7 @@ import {
 } from "../playUi.ts";
 
 const baseUrl = inject("baseUrl");
-const HOOK_MS = 30_000;
+const HOOK_MS = 60_000; // not under vitest.config.ts hookTimeout: seating three takes longer on a CI runner
 let browser: Browser;
 // One room for the file: seating three players takes seconds. Room 1: seat 0
 // Can't see on the host's desktop, seat 1 Can't hear on the phone, seat 2
@@ -104,7 +104,7 @@ describe("the comms wheel", () => {
     const plate = await deaf.locator(".wheel-plate").innerText();
     expect(plate).toContain("Ana");
     expect(plate).toContain("Cy");
-    expect(plate).toContain("hears this");
+    expect(plate).toContain("hears you talk");
     await deaf.keyboard.up("q");
     await deaf.locator(".wheel").waitFor({ state: "detached" });
 
@@ -304,14 +304,14 @@ describe("the comms wheel", () => {
     };
     const face = await plate(blind, "2", "OK");
     expect(face).not.toContain("\u2014"); // no em dash
-    expect(face).toMatch(/sees this/);
-    expect(face).not.toMatch(/hears this/);
+    expect(face).toMatch(/sees your faces/);
+    expect(face).not.toMatch(/hears /);
     const callout = await plate(deaf, "1", "Wait");
     expect(callout).not.toContain("\u2014");
-    expect(callout).toMatch(/Ana hears this/); // Can't see hears it
-    expect(callout).toMatch(/Cy hears this/); // Can't speak can't talk, but they hear
+    expect(callout).toMatch(/Ana hears you talk/); // Can't see hears it
+    expect(callout).toMatch(/Cy hears you talk/); // Can't speak can't talk, but they hear
     const clip = await plate(mute, "3", "Bruh");
-    expect(clip).toMatch(/Ana hears this/);
+    expect(clip).toMatch(/Ana hears your sounds/);
   });
 
   it("puts the Comms button in the same row as Write and Hold to talk, and says no more than it needs to", async () => {
@@ -395,11 +395,13 @@ describe("the comms wheel", () => {
     const { blind } = table.byRole;
     await blind.getByRole("button", { name: /comms/i }).click();
     await blind.locator(".wheel").waitFor({ timeout: 1000 });
-    await blind.locator(".wheel-tab", { hasText: "Clips" }).click();
+    await blind.locator(".wheel-tab", { hasText: "Soundboard" }).click();
     await blind.locator(".wheel-slot").first().click();
-    await blind.locator(".comms-toast", { hasText: "You can't send clips" }).waitFor({
-      timeout: 1000,
-    });
+    // "send soundboard" does not parse: the refusal names the soundboard as a thing you use
+    await blind
+      .locator(".comms-toast", { hasText: /^You can't use the soundboard\. Bo and Cy can\.$/ })
+      .waitFor({ timeout: 1000 });
+    expect(await blind.locator(".wheel-plate").innerText()).toMatch(/You can't use the soundboard/);
     expect(await blind.locator(".wheel").count()).toBe(1);
     await blind.keyboard.press("Escape");
   });
@@ -555,15 +557,62 @@ describe("the comms wheel", () => {
       const c = await frameCentre(page);
       await page.mouse.move(c.x, c.y);
       await page.keyboard.down("q");
-      await page.locator(".wheel").waitFor({ timeout: 1000 });
-      expect(await axeViolations(page)).toEqual([]);
-      await page.keyboard.press("Escape");
-      await page.keyboard.up("q");
+      try {
+        await page.locator(".wheel").waitFor({ timeout: 1000 });
+        // joined, so a failure prints the rule and the element and not "Array(1)"
+        expect((await axeViolations(page)).join("\n")).toBe("");
+      } finally {
+        // the table is shared: a failure here must not leave Q down and the wheel open for the next case
+        await page.keyboard.press("Escape");
+        await page.keyboard.up("q");
+        await page.locator(".wheel").waitFor({ state: "detached" });
+      }
     }
   });
 });
 
 describe("the comms wheel on a phone", () => {
+  it("the Soundboard tab fits on the phone and the desktop: not clipped, inside the frame, touching no other tab", async () => {
+    for (const [name, page, open] of [
+      ["phone", table.phone, () => table.phone.locator(".wheel-btn").tap()],
+      [
+        "desktop",
+        table.byRole.blind,
+        () => table.byRole.blind.getByRole("button", { name: /comms/i }).click(),
+      ],
+    ] as const) {
+      await open();
+      await page.locator(".wheel.is-click").waitFor({ timeout: 1000 });
+      const frame = await page.locator(".frame").boundingBox();
+      if (!frame) throw new Error("no frame");
+      const tabs = await page.locator(".wheel-tab").evaluateAll((els) =>
+        els.map((e) => {
+          const r = e.getBoundingClientRect();
+          return {
+            text: e.textContent ?? "",
+            box: { left: r.left, right: r.right, top: r.top, bottom: r.bottom },
+            clipped: e.scrollWidth > e.clientWidth + 1 || e.getClientRects().length > 1,
+          };
+        }),
+      );
+      const sound = tabs.find((t) => t.text.includes("Soundboard"));
+      if (!sound) throw new Error(`no Soundboard tab on the ${name}`);
+      expect(sound.clipped, name).toBe(false);
+      expect(sound.box.left, name).toBeGreaterThanOrEqual(frame.x);
+      expect(sound.box.right, name).toBeLessThanOrEqual(frame.x + frame.width);
+      for (const t of tabs) {
+        if (t === sound) continue;
+        const a = sound.box;
+        const o = t.box;
+        const apart =
+          a.right <= o.left || o.right <= a.left || a.bottom <= o.top || o.bottom <= a.top;
+        expect(apart, `${name}: Soundboard touches ${t.text}`).toBe(true);
+      }
+      await page.keyboard.press("Escape");
+      await page.locator(".wheel").waitFor({ state: "detached", timeout: 1000 });
+    }
+  });
+
   it("holding the wheel button and dragging sends", async () => {
     const { phone } = table;
     const { mute } = table.byRole;

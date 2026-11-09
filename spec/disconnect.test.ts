@@ -34,7 +34,7 @@ const isShort = (pause: PauseMsg) => pause.deadline - Date.now() <= SHORT_S * 10
 async function pausedGame() {
   const { players, code } = await startedGame(baseUrl);
   ready(players);
-  await nextView(players[0] as Player); // the game is running
+  await nextTick((players[0] as Player).socket); // the game is running (after the start's hold)
   const [host, guest, third] = players as [Player, Player, Player];
   await third.socket.unload();
   const pause = await host.socket.next<PauseMsg>("pause");
@@ -69,7 +69,7 @@ describe("a dropped connection pauses the game", () => {
     expect(resume.back).toBe("Cy");
     // the returning player is told their role again and gets views once more
     expect((await back.next<{ role: string }>("reveal")).role).toBe(third.role);
-    const view = await nextView(host, 2000);
+    const view = await nextTick(host.socket);
     expect(view.tick).toBeGreaterThan(0);
     await closeAll(players.slice(0, 2));
     await back.close();

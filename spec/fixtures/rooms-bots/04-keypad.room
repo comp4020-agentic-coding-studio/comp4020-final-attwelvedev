@@ -1,0 +1,19 @@
+{"id":"04-keypad","name":"Keypad by ear (bots fixture)","version":1,"budgetS":240,
+ "beats":[
+  {"name":"Code","x":[0,19],"intent":{"blind":"hears the code","deaf":"watches the keys","mute":"hears the code and presses the keys"}},
+  {"name":"Out","x":[0,19],"intent":{"blind":"walks out","deaf":"walks out","mute":"walks out"}}
+ ],
+ "objects":{
+  "Q1":{"type":"keypad","keys":[[9,1],[10,1],[11,1],[9,2],[10,2],[11,2],[9,3],[10,3],[11,3]],"clue":"c1","length":3},
+  "c1":{},
+  "D1":{"opensWhen":["Q1"]}},
+ "hints":{"jobs":[
+  {"beat":1,"station":"Q1","at":[3,3],"prefer":"mute"},
+  {"beat":2,"goTo":"E","all":true}]}}
+---
+###################
+#1.......Q....D..E#
+#2............D..E#
+#3............D..E#
+##c################
+###################

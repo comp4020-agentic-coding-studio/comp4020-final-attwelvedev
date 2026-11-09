@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { cueCaptions } from "../client/hud.ts";
 import { type EntityView, type RoleView, type SoundCue, viewFor } from "./perception.ts";
+import { syncCacheDoors } from "./sim/cache.ts";
+import { tuneGroups } from "./sim/chimes.ts";
 import { step } from "./sim/step.ts";
-import { gather, hold, input, place, worldWith } from "./sim/testing.ts";
+import { gather, hold, input, place, withChamber, worldWith } from "./sim/testing.ts";
 import { TICK_MS, type World, type WorldEvent } from "./sim/world.ts";
 
 // THE SENSORY PARITY PROMISE. Whatever happens in a room reaches every role
@@ -16,6 +18,9 @@ import { TICK_MS, type World, type WorldEvent } from "./sim/world.ts";
 // whole room. Distance changes how far a sound goes, never whether it has a sight.
 // The one deliberate exception is the alarm, which silences every other cue for
 // the roles that hear: that is its whole point, and the sighted still see it all.
+// Sounds with no picture by design are rows marked `exempt` with the reason: the clue chime,
+// the tumbler and the earpiece. UV ink and goggle sight are pictures with no sound: they change
+// only what a holder sees, and perception.test.ts checks that both are gated by the gear.
 
 type Scenario = {
   world: World;
@@ -69,7 +74,327 @@ const press = (w: World, x: number, seat: 0 | 1 | 2 = 0) => {
 };
 const sign = (v: RoleView) => ent(v, "S1");
 
+// Stations, gear and signals (escape-room phase 01). The listener stands at (2, 2), the station's
+// parts lie east of it in the open room, and DEAF stands in sight at the spawn.
+const stationAt = (q: Record<string, unknown>, cells: [number, number, string][] = [], more = {}) =>
+  worldWith(put([6, 1, "Q"], ...cells), { Q1: q, ...more });
+const actBy = (w: World, seat: 0 | 1 | 2, tile: { x: number; y: number }) => {
+  place(w, seat, tile);
+  step(w, { [seat]: input(0, 0, true) }, TICK_MS);
+};
+const shows = (v: RoleView, id = "Q1") => ent(v, id)?.station?.shows;
+const solvedIn = (v: RoleView) => ent(v, "Q1")?.station?.solved === true;
+const PADS = [
+  [5, 1],
+  [7, 1],
+];
+const KEYS = [0, 1, 2].flatMap((y) => [0, 1, 2].map((x) => [8 + x, 1 + y]));
+const MUTE = 2;
+const CACHE_AT = {
+  owner: 2,
+  motif: "moon",
+  riddle: "Where the moon watches, listen twice.",
+  item: "watch",
+  tiles: [
+    { at: [10, 1], motif: "moon" },
+    { at: [12, 1], motif: "star" },
+  ],
+};
+
+const doors = (v: RoleView) => v.entities.filter((e) => e.kind === "door");
+const keeps = (v: RoleView) => v.entities.filter((e) => e.kind === "keepsake");
+// a cache whose chamber hangs under the room: the moon tile (10,1) opens it, the dial Q1 stands at (6,1)
+const cacheWorld = () => {
+  // BASE with the dial's anchor at (6,1), and a chamber bolted under it (withChamber adds a row of
+  // wall with the secret door, a row of chamber floor with the vault door, and the sealing wall)
+  const built = withChamber(put([6, 1, "Q"]), 14);
+  return worldWith(built.grid, {
+    Q1: {
+      type: "dial",
+      pads: PADS,
+      back: [6, 3],
+      digits: 1,
+      cache: { ...CACHE_AT, chamber: built.chamber },
+    },
+  });
+};
+const CHAMBER_INSIDE = { x: 14, y: BASE.length };
 const PARITY: Record<SoundCue["kind"], Scenario> = {
+  tick: (() => {
+    const world = stationAt({ type: "dial", pads: PADS, back: [6, 3], digits: 1 });
+    place(world, BLIND, { x: 4, y: 2 });
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 7, y: 1 }),
+      sees: (b, a) => shows(b)?.[0] !== shows(a)?.[0],
+    };
+  })(),
+  tumbler: (() => {
+    const world = stationAt({ type: "dial", pads: PADS, back: [6, 3], digits: 1 }, [[6, 2, "g"]], {
+      g1: { item: "stethoscope" },
+    });
+    Object.assign(world.gear[0] as object, { heldBy: BLIND, at: null });
+    place(world, BLIND, { x: 6, y: 2 });
+    const s = world.stations.Q1;
+    if (s) s.input[0] = ((s.answer[0] as number) + 9) % 10;
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 7, y: 1 }),
+      sees: () => true,
+      exempt:
+        "The tumbler is a sound with no picture by design (spec FR6, FR20): only a stethoscope at the safe's back hears the right number, like the clue chime.",
+    };
+  })(),
+  key: (() => {
+    const world = stationAt({ type: "keypad", keys: KEYS, length: 3 });
+    const first = KEYS[world.stations.Q1?.answer[0] as number] as number[]; // the right key: no dye
+    place(world, BLIND, { x: 6, y: 2 });
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: first[0] as number, y: first[1] as number }),
+      sees: (b, a) => (shows(a)?.length ?? 0) > (shows(b)?.length ?? 0),
+    };
+  })(),
+  practice: (() => {
+    // a keypad with its practice lever on: the right key sounds as "practice", never as a real key,
+    // and Can't hear sees the keypad dimmed (the station's `practice` field)
+    const world = worldWith(put([6, 1, "Q"], [4, 3, "v"]), {
+      Q1: { type: "keypad", keys: KEYS, length: 3, practice: "v1" },
+    });
+    actBy(world, MUTE, { x: 4, y: 3 }); // the lever on
+    go(world);
+    const first = KEYS[world.stations.Q1?.answer[0] as number] as number[];
+    place(world, BLIND, { x: 6, y: 2 });
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: first[0] as number, y: first[1] as number }),
+      // the keypad is drawn dimmed before and after (the lever is on the whole time): what the
+      // sighted see of a practice press is that nothing counts: the pad shows no key pressed
+      sees: (b, a) =>
+        ent(b, "Q1")?.station?.practice === true &&
+        ent(a, "Q1")?.station?.practice === true &&
+        (shows(a)?.length ?? 0) === 0,
+    };
+  })(),
+  snap: (() => {
+    const world = stationAt({
+      type: "wires",
+      wires: [
+        [8, 1],
+        [9, 1],
+        [10, 1],
+      ],
+    });
+    const right = world.stations.Q1?.answer[0] as number;
+    place(world, BLIND, { x: 6, y: 2 });
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 8 + right, y: 1 }),
+      sees: (b, a) => !solvedIn(b) && solvedIn(a),
+    };
+  })(),
+  static: (() => {
+    const world = stationAt({ type: "radio", pads: PADS, range: 10 });
+    place(world, BLIND, { x: 4, y: 2 });
+    return {
+      world,
+      act: () => go(world),
+      sees: (_b, a) => !solvedIn(a) && shows(a)?.[0] === 0,
+    };
+  })(),
+  tone: (() => {
+    const world = stationAt({ type: "radio", pads: PADS, range: 10 });
+    const s = world.stations.Q1;
+    if (s) s.input[0] = (s.answer[0] as number) - 1;
+    place(world, BLIND, { x: 4, y: 2 });
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 7, y: 1 }),
+      sees: (_b, a) => solvedIn(a),
+    };
+  })(),
+  pip: (() => {
+    const world = stationAt({ type: "radio", pads: PADS, range: 10 });
+    const s = world.stations.Q1;
+    if (s) s.solved = true;
+    world.tick = 39; // the next tick pips
+    place(world, BLIND, { x: 4, y: 2 });
+    return {
+      world,
+      act: () => go(world),
+      sees: (_b, a) => shows(a)?.length === 2, // the light blinks the digit
+    };
+  })(),
+  clunk: (() => {
+    const world = stationAt({
+      type: "switches",
+      buttons: KEYS.slice(0, 6),
+      lamps: [
+        [14, 1],
+        [15, 1],
+        [16, 1],
+        [14, 2],
+        [15, 2],
+        [16, 2],
+      ],
+    });
+    place(world, BLIND, { x: 6, y: 2 });
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 8, y: 1 }),
+      sees: (b, a) => shows(b)?.join() !== shows(a)?.join(),
+    };
+  })(),
+  bellnote: (() => {
+    const world = stationAt({
+      type: "bells",
+      bells: [
+        [8, 1],
+        [9, 1],
+        [10, 1],
+        [11, 1],
+      ],
+      tune: [6, 3],
+    });
+    const first = world.stations.Q1?.answer[0] as number; // the right bell: no dye
+    place(world, BLIND, { x: 6, y: 2 });
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 8 + first, y: 1 }),
+      sees: (b, a) => (shows(a)?.length ?? 0) > (shows(b)?.length ?? 0),
+    };
+  })(),
+  bell: (() => {
+    const world = worldWith(put([12, 1, "b"]));
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 12, y: 1 }),
+      sees: (b, a) => ent(b, "b1")?.state !== "on" && ent(a, "b1")?.state === "on",
+    };
+  })(),
+  tap: (() => {
+    // Can't see reads a braille plate: a soft tap where it lies, and the sighted see the plate pulse
+    const world = worldWith(put([6, 1, "Q"], [9, 2, "o"]), {
+      Q1: { type: "dial", pads: PADS, digits: 2 },
+      o1: { for: "Q1", part: 0 },
+    });
+    world.roles = ["blind", "deaf", "mute"];
+    return {
+      world,
+      act: () => actBy(world, BLIND, { x: 9, y: 1 }),
+      sees: (b, a) => ent(b, "o1")?.flash === undefined && ent(a, "o1")?.flash === "ok",
+    };
+  })(),
+  jam: (() => {
+    // a teaching dial answered wrong: it buzzes where it stands, and the sighted see it jammed
+    const world = stationAt({ type: "dial", pads: PADS, digits: 1, teach: true });
+    const s = world.stations.Q1 as NonNullable<World["stations"][string]>;
+    s.input = [((s.answer[0] as number) + 1) % 10];
+    place(world, BLIND, { x: 6, y: 2 });
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 6, y: 1 }),
+      sees: (b, a) =>
+        ent(b, "Q1")?.station?.jammed === undefined && ent(a, "Q1")?.station?.jammed === true,
+    };
+  })(),
+  dye: (() => {
+    const world = stationAt({
+      type: "wires",
+      wires: [
+        [8, 1],
+        [9, 1],
+        [10, 1],
+      ],
+    });
+    const wrong = ((world.stations.Q1?.answer[0] as number) + 1) % 3;
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 8 + wrong, y: 1 }),
+      sees: (_b, a) => ent(a, "P1")?.dyed === true,
+    };
+  })(),
+  earpiece: (() => {
+    const world = stationAt({ type: "keypad", keys: KEYS, clue: "g1", length: 3 }, [[3, 3, "g"]], {
+      g1: { item: "earpiece" },
+    });
+    Object.assign(world.gear[0] as object, { heldBy: BLIND, at: null });
+    world.tick = tuneGroups(world.stations.Q1?.answer ?? []).period - 1; // the next tick starts the tune
+    return {
+      world,
+      act: () => go(world),
+      sees: () => true,
+      exempt:
+        "The earpiece is a private tone feed with no picture by design (spec FR17): only its holder hears it, like the clue chime.",
+    };
+  })(),
+  pull: (() => {
+    // two hand-holders pushing opposite ways: both hear a short strain, and Can't hear sees both
+    // figures straining (`pulling`), in the same tick
+    const world = worldWith(put([5, 2, "."]), {});
+    place(world, BLIND, { x: 4, y: 2 });
+    place(world, MUTE, { x: 5, y: 2 });
+    actBy(world, MUTE, { x: 5, y: 2 }); // Act beside a teammate: hold hands, the actor leads
+    go(world);
+    return {
+      world,
+      act: () => step(world, { [MUTE]: input(1, 0), [BLIND]: input(-1, 0) }, TICK_MS),
+      sees: (_b, a) => ent(a, "P0")?.pulling === true && ent(a, "P2")?.pulling === true,
+    };
+  })(),
+  lever: (() => {
+    const world = worldWith(put([12, 1, "v"]), {});
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 12, y: 1 }),
+      sees: (b, a) => ent(b, "v1")?.state !== "on" && ent(a, "v1")?.state === "on",
+    };
+  })(),
+  gear: (() => {
+    const world = worldWith(put([4, 2, "g"]), { g1: { item: "uv" } });
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 4, y: 2 }),
+      sees: (b, a) => ent(b, "g1") !== undefined && ent(a, "P2")?.item === "uv",
+    };
+  })(),
+  solved: (() => {
+    const world = stationAt({ type: "radio", pads: PADS, range: 10 });
+    const s = world.stations.Q1;
+    if (s) s.input[0] = (s.answer[0] as number) - 1;
+    place(world, BLIND, { x: 25, y: 2 });
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 7, y: 1 }),
+      sees: (b, a) => !solvedIn(b) && solvedIn(a),
+    };
+  })(),
+  // The cache moments (phase 14): a secret door slides, a vault opens, an item is taken. Each has a
+  // sound for Can't see and a picture for Can't hear in the same tick: the door as an open `door`
+  // entity, the item standing as a `keepsake` entity, its taking as the keepsake gone.
+  uncover: (() => {
+    const world = cacheWorld();
+    place(world, DEAF, { x: 14, y: 3 }); // on the floor in front of the secret door, which is in sight
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 10, y: 1 }),
+      sees: (b, a) =>
+        doors(b).length === 0 && doors(a).length === 1 && doors(a)[0]?.state === "open",
+    };
+  })(),
+  stash: (() => {
+    const world = cacheWorld();
+    world.cacheUncovered.push("Q1");
+    syncCacheDoors(world);
+    const s = world.stations.Q1;
+    if (s) s.input = [s.answer[0] as number];
+    place(world, DEAF, CHAMBER_INSIDE);
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 6, y: 1 }),
+      sees: (b, a) => keeps(b).length === 0 && keeps(a)[0]?.keep === "watch",
+    };
+  })(),
   footsteps: (() => {
     const world = worldWith(BASE);
     place(world, 0, { x: 5, y: 1 });
@@ -77,6 +402,31 @@ const PARITY: Record<SoundCue["kind"], Scenario> = {
     return {
       world,
       act: () => step(world, east(2), TICK_MS),
+      sees: (b, a) => (ent(a, "P2")?.pos.x ?? 0) > (ent(b, "P2")?.pos.x ?? 0),
+    };
+  })(),
+  hollow: (() => {
+    // a cache's dial with its back tile at (20,2): a teammate walking onto it is heard as a hollow step
+    // by a hearing seat in earshot, and the sighted see the same walker move in the view
+    const built = withChamber(
+      put([6, 1, "Q"]).map((r, y) => (y === 2 ? `${r.slice(0, 1)}2${r.slice(2)}` : r)),
+      14,
+    );
+    const world = worldWith(built.grid, {
+      Q1: {
+        type: "dial",
+        pads: PADS,
+        back: [20, 2],
+        digits: 1,
+        cache: { ...CACHE_AT, chamber: built.chamber },
+      },
+    });
+    place(world, BLIND, { x: 17, y: 2 });
+    place(world, MUTE, { x: 20, y: 2 }); // on the plate, walking on it
+    place(world, DEAF, { x: 5, y: 3 });
+    return {
+      world,
+      act: () => step(world, east(MUTE), TICK_MS),
       sees: (b, a) => (ent(a, "P2")?.pos.x ?? 0) > (ent(b, "P2")?.pos.x ?? 0),
     };
   })(),
@@ -133,15 +483,24 @@ const PARITY: Record<SoundCue["kind"], Scenario> = {
       sees: (b, a) => ent(b, "p1")?.state === "pressed" && ent(a, "p1")?.state === "up",
     };
   })(),
+  // ADR 0025: an ordinary door is team-wide. The listener (seat 0) stands 23 tiles away behind two walls,
+  // and Can't hear stands out of sight of the door behind a wall, so only the team-wide rule serves both.
   door: (() => {
-    const grid = ["##########", "#1.p.D..E#", "#2.p.D...#", "#3.p.D...#", "##########"];
-    const world = worldWith(grid, { D1: { opensWhen: ["p1", "p2", "p3"] } });
+    const row = (c: string, plate = ".") => `#${c}.${plate}.D..#......#.............#`;
+    const grid = [
+      "##############################",
+      row("1", "p"),
+      row("2"),
+      row("3"),
+      "##############################",
+    ];
+    const world = worldWith(grid, { D1: { opensWhen: ["p1"] } });
     return {
       world,
       act: () => {
-        place(world, 0, { x: 3, y: 1 });
-        place(world, 1, { x: 3, y: 2 });
-        place(world, 2, { x: 3, y: 3 });
+        place(world, BLIND, { x: 28, y: 2 });
+        place(world, DEAF, { x: 10, y: 2 });
+        place(world, MUTE, { x: 3, y: 1 });
         go(world);
       },
       sees: (b, a) => ent(b, "D1")?.state === "closed" && ent(a, "D1")?.state === "open",
@@ -260,6 +619,26 @@ const PARITY: Record<SoundCue["kind"], Scenario> = {
         "A clue is the one sound with no picture: rooms use it for twin and split cues (A2), and the linter only allows it inside a beat that declares one.",
     };
   })(),
+  rest: (() => {
+    // a keypad's slot rests: the clue it names plays one quiet marker where the note would be
+    const world = stationAt(
+      { type: "keypad", keys: KEYS, clue: "c1", length: 3, slot: { from: "Q2", at: 0 } },
+      [
+        [6, 2, "c"],
+        [3, 3, "Q"],
+      ],
+      { c1: {}, Q2: { type: "radio", pads: PADS, range: 10, yields: "Q1" } },
+    );
+    world.tick = tuneGroups(world.stations.Q1?.answer ?? [], 0).period - 1; // the next tick starts the tune: a rest first
+    place(world, BLIND, { x: 3, y: 2 });
+    return {
+      world,
+      act: () => go(world),
+      sees: () => true,
+      exempt:
+        "A chime with no picture, like `clue`: it only marks a gap in a keypad's tune, heard where the clue stands.",
+    };
+  })(),
   guard: (() => {
     const world = worldWith(put([11, 2, "G"]), {
       G1: {
@@ -347,6 +726,27 @@ describe("sensory parity: every sound has a sight, and every sound is captioned"
       if (scenario.exempt) expect(scenario.exempt.length).toBeGreaterThan(20); // a real reason
     });
   }
+
+  // Task 64 (j): a cache's take is the same `loot` cue as the floor chest (it counts the loot), and
+  // there is only one row per cue, so the take has its own parity check: Can't see hears the cue,
+  // Can't hear sees the keepsake leave its vault, both in the tick of the take.
+  it("a take: heard by Can't see as the loot cue, seen by Can't hear as the item leaving", () => {
+    const world = cacheWorld();
+    world.cacheUncovered.push("Q1");
+    world.cacheBy.Q1 = MUTE;
+    syncCacheDoors(world);
+    place(world, DEAF, { x: 16, y: BASE.length });
+    const before = viewFor(world, DEAF, "deaf", false);
+    expect(keeps(before)).toHaveLength(1);
+    actBy(world, 1, { x: 17, y: BASE.length }); // the owner is seat 1 (owner: 2)
+    const heard = viewFor(world, BLIND, "blind", false).sounds.find((s) => s.kind === "loot");
+    expect(heard).toMatchObject({ n: 1, item: "watch" });
+    const after = viewFor(world, DEAF, "deaf", false);
+    expect(after.sounds).toEqual([]);
+    expect(keeps(after)).toHaveLength(0);
+    expect(after.cacheEvent).toMatchObject({ result: "taken", owner: 1, item: "watch" });
+    expect(viewFor(world, BLIND, "blind", false).cacheEvent).toEqual(after.cacheEvent);
+  });
 
   it("captions every sound, except your own steps, which you made yourself", () => {
     for (const kind of Object.keys(PARITY) as SoundCue["kind"][]) {

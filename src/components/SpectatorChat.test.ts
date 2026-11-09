@@ -114,8 +114,8 @@ describe("SpectatorChat", () => {
   });
 
   it("says why there is no mic when the browser cannot give one", () => {
-    hold({ micNote: "Microphone blocked: voice is off. Chat still works." });
+    hold({ micNote: "Voice off (optional). Chat still works." });
     expect(talkButton()).toBeNull();
-    expect(document.body.textContent).toMatch(/Microphone blocked/);
+    expect(document.body.textContent).toMatch(/Voice off \(optional\)/);
   });
 });

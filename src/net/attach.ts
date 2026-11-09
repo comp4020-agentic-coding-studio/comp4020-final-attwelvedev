@@ -3,27 +3,33 @@ import type { Duplex } from "node:stream";
 import { type RawData, type WebSocket, WebSocketServer } from "ws";
 import { cleanText } from "../game/channels.ts";
 import { cuesIn } from "../game/cues.ts";
-import { spectatorView, viewFor } from "../game/perception.ts";
+import { INTRO_TOTAL } from "../game/intro.ts";
+import { cacheFor, spectatorView, viewFor } from "../game/perception.ts";
 import type { Room } from "../game/rooms/format.ts";
 import { loadRooms } from "../game/rooms/load.ts";
 import { DEFAULT_SETUP } from "../game/setup.ts";
+import { cacheResultOf, creditsOf } from "../game/sim/credits.ts";
 import { TICK_MS } from "../game/sim/world.ts";
 import type { Role, Seat } from "../game/types.ts";
 import { db } from "../lib/db.ts";
-import { type GameEvent, lobbyKey, logGame } from "../lib/gameLog.ts";
+import { type GameEvent, gameLinesFor, lobbyKey, logGame } from "../lib/gameLog.ts";
 import { sharedPresence } from "../lib/presence.ts";
 import { anon } from "../lib/requestLog.ts";
-import { saveRun } from "../lib/runs.ts";
+import { roomBoard, saveRun } from "../lib/runs.ts";
 import { DEVICE_COOKIE } from "../lib/session.ts";
 import { sharedStats } from "../lib/stats.ts";
 import { joinThrottle } from "../lib/throttle.ts";
 import { createHub } from "./broadcast.ts";
 import { normaliseLobbyCode } from "./codes.ts";
+import { followersOf } from "./follow.ts";
 import {
   advanceRoom,
   applyInput,
+  autopilotOn,
   castVote,
   chooserFor,
+  commsEdges,
+  countVoice,
   crewOf,
   finishVote,
   forgetPerson,
@@ -32,11 +38,14 @@ import {
   markPlayed,
   PAUSE_MS,
   pauseFor,
+  playedBy,
   proposeVote,
   readyAgain,
   relay,
   resumeIfBack,
+  setAutopilot,
   settleVote,
+  stalledRestart,
   startGame,
   swapPeople,
   takeOverWithBot,
@@ -46,6 +55,7 @@ import {
   VOTE_MS,
   voters,
 } from "./game.ts";
+import { addClear, emptyHeist, type Heist, totalsOf } from "./heistTotals.ts";
 import {
   cleanNickname,
   createLobby,
@@ -68,7 +78,8 @@ import {
   startLobby,
   uniqueNickname,
 } from "./lobbies.ts";
-import { type ClientMsg, parseClientMsg, type ServerMsg } from "./protocol.ts";
+import { PLAYTEST_AUTOPILOT } from "./playtest.ts";
+import { type ClientMsg, inputOf, parseClientMsg, type ServerMsg } from "./protocol.ts";
 import { type RealLife, realLifeFor } from "./realLife.ts";
 import {
   createRateLimiter,
@@ -101,9 +112,11 @@ interface Running {
   timer: ReturnType<typeof setInterval> | null;
   pauseTimer: ReturnType<typeof setTimeout> | null; // the end of a dropped seat's time
   voteTimer: ReturnType<typeof setTimeout> | null; // the end of an open restart vote's time
-  // Totalled across rooms as each is cleared, so the heist run saved after
-  // room 3 is the whole heist's time and loot, not just the last room's.
-  heist: { ms: number; loot: number; lootTotal: number; versions: string[] };
+  introTimer: ReturnType<typeof setTimeout> | null; // the end of the start's hold (FR14): then it ticks
+  // Banked as each room is cleared, one entry a room (a replayed room replaces its earlier clear),
+  // so the heist run saved after the last room is the whole heist's time and loot, not just the
+  // last room's, and nothing is counted twice.
+  heist: Heist;
 }
 const games = new Map<string, Running>(); // lobby code → game
 // A watcher's device hash → the seat they follow. Nothing here means the whole room, with no sound.
@@ -168,8 +181,15 @@ function voiceOn(lobby: LobbyState, running: Running): boolean {
   return !setups.every((s) => s?.inRoom === true);
 }
 
-function revealFor(lobby: LobbyState, running: Running, role: Role, who: string): ServerMsg {
+function revealFor(
+  lobby: LobbyState,
+  running: Running,
+  role: Role,
+  who: string,
+  seat?: Seat,
+): ServerMsg {
   const { game } = running;
+  const cache = seat === undefined ? undefined : cacheFor(game.world, seat);
   return {
     t: "reveal",
     room: game.world.room.id,
@@ -181,9 +201,11 @@ function revealFor(lobby: LobbyState, running: Running, role: Role, who: string)
     sittingOut: lobby.sittingOut.flatMap(
       (w) => lobby.people.find((p) => p.who === w)?.nickname ?? [],
     ),
-    played: Object.fromEntries(lobby.people.map((p) => [p.nickname, p.played])),
+    played: playedBy(lobby, game),
     real: realFor(lobby, running, who, role),
     cues: role === "blind" ? cuesIn(game.world.room) : [],
+    ...(typeof game.world.room.meta.hue === "string" ? { hue: game.world.room.meta.hue } : {}),
+    ...(cache ? { cache: { motif: cache.motif, riddle: cache.riddle, item: cache.item } } : {}),
   };
 }
 
@@ -192,7 +214,7 @@ function sendReveal(code: string, seat: Seat): void {
   const running = games.get(code);
   const who = lobby?.seats[seat]?.who;
   if (!lobby || !running || !who) return;
-  hub.sendTo(who, revealFor(lobby, running, running.game.roles[seat] as Role, who));
+  hub.sendTo(who, revealFor(lobby, running, running.game.roles[seat] as Role, who, seat));
 }
 
 // A watcher never occupies a seat, so it gets the same `reveal` (room, crew and every
@@ -270,13 +292,22 @@ function sendRevealViews(code: string): void {
   }
 }
 
-// Ticks once all three are ready, and again after a restart of a cleared room.
+// Ticks once all three are ready, and again after a restart of a cleared room. First everyone gets
+// `intro` and the first tick waits INTRO_FOR while the start of the room plays (FR14), so the clock,
+// the guards and the bots start when it ends.
 function runIfReady(code: string, running: Running): void {
-  if (running.game.ready.size < 3 || running.timer) return;
+  if (running.game.ready.size < 3 || running.timer || running.introTimer) return;
   if (running.game.world.status !== "playing") return;
   const lobby = registry.lobbies.get(code);
-  if (lobby) markPlayed(running.game, lobby); // from here the crew has played this room
-  running.timer = setInterval(() => tick(code), TICK_MS);
+  if (lobby) {
+    markPlayed(running.game, lobby); // from here the crew has played this room
+    const msg: ServerMsg = { t: "intro", ms: INTRO_FOR };
+    for (const who of [...humansOf(lobby), ...watchersOf(lobby)]) hub.sendTo(who, msg);
+  }
+  running.introTimer = setTimeout(() => {
+    running.introTimer = null;
+    running.timer = setInterval(() => tick(code), TICK_MS);
+  }, INTRO_FOR);
 }
 
 function tick(code: string): void {
@@ -306,6 +337,9 @@ function tick(code: string): void {
       record("caught", null, lobby, { room: running.game.world.room.id, reason: event.by });
     }
   }
+  for (const line of gameLinesFor(running.game.world.events)) {
+    record(line.event, null, lobby, { room: running.game.world.room.id, ...line.detail });
+  }
   for (const [seat, view] of views) {
     const who = lobby.seats[seat]?.who;
     if (who) hub.sendTo(who, { t: "view", view });
@@ -320,25 +354,16 @@ function tick(code: string): void {
     running.timer = null;
     const { world } = running.game;
     const roomMs = world.tick * TICK_MS;
+    const comms = commsEdges(running.game.comms);
     record("room.clear", null, lobby, {
       room: world.room.id,
       ms: Date.now() - running.game.startedAt,
+      sends: comms.reduce((n, e) => n + e.count, 0), // how many deliveries, never what they said
     });
-    for (const seat of [0, 1, 2] as const) {
-      const who = lobby.seats[seat]?.who;
-      if (who) {
-        hub.sendTo(who, {
-          t: "cleared",
-          room: world.room.id,
-          ms: roomMs,
-          loot: world.loot,
-          lootTotal: world.lootTotal,
-        });
-      }
-    }
     const names = lobby.seats.map((s) => ({ nickname: s.nickname ?? "Bot", bot: s.bot }));
     const heistNames = [...running.game.heistPeople.values()];
-    saveRun(db, {
+    // saved first, so the board sent with `cleared` already has this run on it
+    const roomRun = saveRun(db, {
       kind: "room",
       roomId: world.room.id,
       version: String(world.room.version),
@@ -348,22 +373,45 @@ function tick(code: string): void {
       loot: world.loot,
       lootTotal: world.lootTotal,
     });
+    const board = roomBoard(db, roomRun);
+    const cache = cacheResultOf(world);
+    for (const seat of [0, 1, 2] as const) {
+      const who = lobby.seats[seat]?.who;
+      if (who) {
+        hub.sendTo(who, {
+          t: "cleared",
+          room: world.room.id,
+          ms: roomMs,
+          loot: world.loot,
+          lootTotal: world.lootTotal,
+          board,
+          credits: creditsOf(world),
+          ...(cache ? { cache } : {}),
+          comms,
+        });
+      }
+    }
     record("run.saved", null, lobby, { kind: "room", room: world.room.id });
-    running.heist.ms += roomMs;
-    running.heist.loot += world.loot;
-    running.heist.lootTotal += world.lootTotal;
-    running.heist.versions.push(String(world.room.version));
+    running.heist = addClear(running.heist, {
+      room: world.room.id,
+      version: String(world.room.version),
+      ms: roomMs,
+      loot: world.loot,
+      lootTotal: world.lootTotal,
+      ...(cache ? { cache: { name: world.room.name, found: cache.found, item: cache.item } } : {}),
+    });
+    const banked = totalsOf(running.heist);
     const lastRoom = !roomList()[running.game.roomIndex + 1];
     if (lastRoom) {
       const heistRun = saveRun(db, {
         kind: "heist",
         roomId: null,
-        version: running.heist.versions.join("."),
+        version: banked.versions.join("."),
         teamName: lobby.teamName,
         names: heistNames,
-        ms: running.heist.ms,
-        loot: running.heist.loot,
-        lootTotal: running.heist.lootTotal,
+        ms: banked.ms,
+        loot: banked.loot,
+        lootTotal: banked.lootTotal,
       });
       record("run.saved", null, lobby, { kind: "heist" });
       for (const who of humansOf(lobby)) {
@@ -373,6 +421,7 @@ function tick(code: string): void {
           loot: heistRun.loot,
           lootTotal: heistRun.lootTotal,
           rank: heistRun.rank,
+          caches: banked.caches,
         });
       }
     }
@@ -381,6 +430,8 @@ function tick(code: string): void {
 
 function stopGame(running: Running): void {
   if (running.timer) clearInterval(running.timer);
+  if (running.introTimer) clearTimeout(running.introTimer);
+  running.introTimer = null;
   if (running.pauseTimer) clearTimeout(running.pauseTimer);
   if (running.voteTimer) clearTimeout(running.voteTimer);
   running.timer = null;
@@ -440,6 +491,13 @@ function askNextEmpty(code: string): void {
 
 // Read once, so a spec can run against a short vote.
 const VOTE_FOR = Number(process.env.VOTE_MS) > 0 ? Number(process.env.VOTE_MS) : VOTE_MS;
+// INTRO_MS: the same kind of seam for the start's hold (R3). `pnpm start:check` sets it to 0.
+const INTRO_FOR =
+  process.env.INTRO_MS !== undefined && Number(process.env.INTRO_MS) >= 0
+    ? Number(process.env.INTRO_MS)
+    : INTRO_TOTAL;
+// STALL_RESTART=1: a test seam that leaves a restarted room stalled, so the watchdog's rescue can be tested.
+const STALL_ON_RESTART = process.env.STALL_RESTART === "1";
 
 function voteMsg(game: Game, lobby: LobbyState): ServerMsg | null {
   const vote = game.vote;
@@ -481,15 +539,41 @@ function endVote(code: string, result: "passed" | "declined" | "timeout", by?: s
   if (acted === "room") {
     record("room.start", null, lobby, { room: running.game.world.room.id });
     running.full = new Set([0, 1, 2]);
-    runIfReady(code, running); // a cleared room that was restarted has everyone ready already
+    // the restarted room starts afresh: its start plays again and its first tick waits for it (FR14)
+    if (running.timer) clearInterval(running.timer);
+    running.timer = null;
+    if (running.introTimer) clearTimeout(running.introTimer);
+    running.introTimer = null;
+    // the restarted room's tick-0 view (its map, everyone at spawn) goes out before its intro, so the
+    // start of the room plays on the restarted room and not the old one's last frame
+    sendRevealViews(code);
+    if (!STALL_ON_RESTART) runIfReady(code, running); // a restarted room has everyone ready already
+    watchRestart(code, running);
   } else if (acted === "heist") {
     if (running.timer) clearInterval(running.timer);
     running.timer = null;
-    running.heist = { ms: 0, loot: 0, lootTotal: 0, versions: [] };
+    if (running.introTimer) clearTimeout(running.introTimer);
+    running.introTimer = null;
+    running.heist = emptyHeist();
     running.full = new Set([0, 1, 2]);
     record("room.start", null, lobby, { room: running.game.world.room.id });
     announceRoom(code);
   }
+}
+
+// The playtest once saw a restarted room that never ticked (playtest fixes, Task 6); it was never
+// reproduced. Once the hold should be over, a restarted room that is still stalled (stalledRestart) is
+// logged and its ticks are started, so nobody is left frozen. Checked once per restart, never per tick.
+const STALL_MARGIN_MS = 2000;
+function watchRestart(code: string, running: Running): void {
+  const world = running.game.world;
+  setTimeout(() => {
+    if (games.get(code) !== running || running.game.world !== world) return; // gone, or restarted again
+    if (!stalledRestart(running.game, { ticking: !!running.timer, holding: !!running.introTimer }))
+      return;
+    record("room.stall", null, registry.lobbies.get(code), { room: world.room.id });
+    running.timer = setInterval(() => tick(code), TICK_MS);
+  }, INTRO_FOR + STALL_MARGIN_MS);
 }
 
 // People came or went: an open vote may now be decided by those who are left.
@@ -819,7 +903,8 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
           timer: null,
           pauseTimer: null,
           voteTimer: null,
-          heist: { ms: 0, loot: 0, lootTotal: 0, versions: [] },
+          introTimer: null,
+          heist: emptyHeist(),
         });
         announceRoom(lobby.code);
         record("game.start", who, lobby, { bots: lobby.seats.filter((s) => s.bot).length });
@@ -1025,6 +1110,7 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
           }
           return;
         }
+        if (autopilotOn(running.game, seat)) return; // the bot speaks for this seat (ADR 0027)
         const sent = relay(running.game, lobby, seat, msg.msg, Date.now());
         if (sent === null) return;
         const method = msg.msg.method;
@@ -1047,11 +1133,8 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
           const to = lobby.seats[receiver]?.who;
           if (to) hub.sendTo(to, { t: "msg", ...sent.message });
         }
-        for (const watcher of watchersOf(lobby)) {
-          const followSeat = spectating.get(watcher) ?? null;
-          if (followSeat !== null && sent.receivers.includes(followSeat)) {
-            hub.sendTo(watcher, { t: "msg", ...sent.message });
-          }
+        for (const watcher of followersOf(watchersOf(lobby), spectating, sent.receivers)) {
+          hub.sendTo(watcher, { t: "msg", ...sent.message });
         }
         if (sent.cooldown) send(socket, { t: "cooldown", ...sent.cooldown });
         return;
@@ -1067,12 +1150,26 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
         });
         return;
       }
+      case "autopilot": {
+        if (!PLAYTEST_AUTOPILOT)
+          throw new LobbyError("refused", "Autopilot is for playtests only.");
+        const code = registry.byDevice.get(who);
+        const running = code ? games.get(code) : undefined;
+        const lobby = code ? registry.lobbies.get(code) : undefined;
+        const seat = code ? seatOfDevice(code, who) : null;
+        if (!running || !lobby || seat === null) return;
+        if (setAutopilot(running.game, lobby, seat, msg.on)) {
+          record("autopilot", who, lobby, { kind: msg.on ? "on" : "off" });
+        }
+        return;
+      }
       case "input": {
         const code = registry.byDevice.get(who);
         const running = code ? games.get(code) : undefined;
         const seat = code ? seatOfDevice(code, who) : null;
         if (!running || seat === null) return;
-        applyInput(running.game, seat, { seq: msg.seq, move: msg.move, act: msg.act });
+        if (autopilotOn(running.game, seat)) return; // the bot drives this seat (ADR 0027)
+        applyInput(running.game, seat, inputOf(msg));
         return;
       }
     }
@@ -1127,14 +1224,12 @@ function relayVoice(socket: WebSocket, who: string, data: Uint8Array): void {
     }
     if (!voiceLimit.allow(who, Date.now())) return;
     out = encodeVoiceOut(seat, frame);
+    countVoice(running.game, seat, receivers); // the comms map counts voice as time: a frame is 60 ms
     for (const receiver of receivers) {
       const device = lobby.seats[receiver]?.who;
       if (device) to.add(device);
     }
-    for (const watcher of watchers) {
-      const following = spectating.get(watcher) ?? null;
-      if (following !== null && receivers.includes(following)) to.add(watcher);
-    }
+    for (const watcher of followersOf(watchers, spectating, receivers)) to.add(watcher);
   }
   for (const device of to) {
     for (const s of hub.socketsOf.get(device) ?? []) {
@@ -1225,7 +1320,10 @@ wss.on("connection", (socket: WebSocket, req: IncomingMessage) => {
   };
   byes.set(socket, pageGone);
   socket.on("close", pageGone);
-  hub.send(socket, { t: "welcome", who });
+  hub.send(
+    socket,
+    PLAYTEST_AUTOPILOT ? { t: "welcome", who, autopilot: true } : { t: "welcome", who },
+  );
   record("socket.open", who, lobbyOf(who));
 });
 

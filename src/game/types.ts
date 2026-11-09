@@ -29,4 +29,5 @@ export interface PlayerInput {
   seq: number; // client counter, echoed in views for reconciliation
   move: Vec; // each component in [-1, 1]
   act: boolean; // held
+  gear?: boolean; // G held: take, give, swap or drop your gear (an edge on the server, like act)
 }

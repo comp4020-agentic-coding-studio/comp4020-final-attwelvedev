@@ -1,0 +1,24 @@
+{"id":"10-earpiece-keypad","name":"Earpiece and a keypad in the dark (bots fixture)","version":1,"budgetS":240,
+ "flips":[{"kind":"dark","zone":[9,1,11,3]}],
+ "beats":[
+  {"name":"Gear","x":[0,21],"intent":{"blind":"is handed the earpiece","deaf":"hands Can't see the earpiece","mute":"puts on the goggles"}},
+  {"name":"Code","x":[0,21],"intent":{"blind":"hears the code in the earpiece and texts it","deaf":"waits","mute":"presses the keys in the dark as the digits come"}},
+  {"name":"Out","x":[0,21],"intent":{"blind":"walks out","deaf":"walks out","mute":"walks out"}}
+ ],
+ "objects":{
+  "Q1":{"type":"keypad","keys":[[9,1],[10,1],[11,1],[9,2],[10,2],[11,2],[9,3],[10,3],[11,3]],"clue":"g1","length":3},
+  "g1":{"item":"earpiece"},
+  "g2":{"item":"goggles"},
+  "D1":{"opensWhen":["Q1"]}},
+ "hints":{"jobs":[
+  {"beat":1,"take":"g1","prefer":"deaf"},
+  {"beat":1,"take":"g2","prefer":"mute"},
+  {"beat":2,"give":"g1","to":"blind","prefer":"deaf"},
+  {"beat":2,"station":"Q1","prefer":"mute"},
+  {"beat":3,"goTo":"E","all":true}]}}
+---
+######################
+#1.......Q......D...E#
+#2.g............D...E#
+#3..g...........D...E#
+######################

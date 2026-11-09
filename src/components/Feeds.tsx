@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import roomText from "../../rooms/01-loading-dock.room?raw";
+import roomText from "../../rooms/01-first-steps.room?raw";
 import { faceImage } from "../client/faces.ts";
-import { detectFx, FX_MAX, FX_MS, type Fx } from "../client/fx.ts";
+import { capSparks, detectFx, FX_MAX, type Fx, fxMs, fxOfCuts } from "../client/fx.ts";
 import { captionFor, cueCaptions, type HeldCues, hearCues, heardCues } from "../client/hud.ts";
-import { draw, type FacePop, type Scene } from "../client/render.ts";
+import type { DecorItem } from "../client/render/decor.ts";
+import { decorFor } from "../client/render/decor.ts";
+import { draw, type FacePop, type Motion, type Scene } from "../client/render.ts";
+import { setHue } from "../client/tokens.ts";
 import { type AttractTick, createAttract } from "../game/bots/attract.ts";
 import { FACE_POP_MS } from "../game/channels.ts";
 import { parseRoom } from "../game/rooms/format.ts";
@@ -16,7 +19,7 @@ import { RoleShape } from "./RoleShape.tsx";
 // Seat order is the headline's order, so each line of it labels its feed.
 export const FEED_ROLES: readonly [Role, Role, Role] = ["blind", "deaf", "mute"];
 const CLEARED_HOLD_MS = 2500; // the cleared room stays up this long before the run restarts
-const STILL_TICK = 280; // with reduced motion, the frame shown: the team at the three plates
+const STILL_TICK = 185; // with reduced motion, the frame shown: the team at the three plates
 const LINE_MS = 2600; // how long a spoken line stays on a feed
 const MAX_LINES = 2;
 
@@ -30,32 +33,44 @@ interface Line {
 interface Run {
   attract: ReturnType<typeof createAttract>;
   tiles: string[]; // the map, as the first tick sent it to the sighted
+  decor: DecorItem[]; // room 1's decor, worked out once for the run
   prev: AttractTick | null;
   last: AttractTick;
   at: number; // the run's clock (ms, stopped while paused) at `last`
   clearedAt: number | null;
   fx: { fx: Fx; at: number }[][]; // per seat
+  sparks: number[][]; // per seat: when recent sparks started (capSparks)
   pops: { seat: Seat; id: string; at: number }[][];
   cues: HeldCues[];
   lines: Line[][];
 }
 
 const room = parseRoom(roomText);
+setHue(room.meta.hue as string | undefined); // room 01: rose
 let lineId = 0;
 
 let runs = 0; // each loop is a new seed, so no two heists play the same
 
-function fresh(now: number): Run {
+export function fresh(now: number): Run {
   const attract = createAttract(room, FEED_ROLES, ++runs);
   const last = attract.next();
+  const tiles = last.views[1].tiles ?? room.grid;
   return {
     attract,
-    tiles: last.views[1].tiles ?? room.grid,
+    tiles,
+    decor: decorFor(
+      room.id,
+      tiles,
+      (last.views[1].entities ?? []).flatMap((e) =>
+        e.kind === "wire" && e.route ? [e.route] : [],
+      ),
+    ),
     prev: null,
     last,
     at: now,
     clearedAt: null,
     fx: [[], [], []],
+    sparks: [[], [], []],
     pops: [[], [], []],
     cues: [new Map(), new Map(), new Map()],
     lines: [[], [], []],
@@ -63,13 +78,15 @@ function fresh(now: number): Run {
 }
 
 // One tick of the run: what each seat now sees, hears and is told.
-function advance(run: Run, now: number) {
+export function advance(run: Run, now: number) {
   const tick = run.attract.next();
   for (const seat of [0, 1, 2] as const) {
     const view = tick.views[seat];
+    const fresh = detectFx(run.last.views[seat].entities, view.entities);
+    fresh.push(...fxOfCuts(view.cuts, fresh)); // a wrong cut is redrawn away: only `cuts` show it
     run.fx[seat] = [
-      ...run.fx[seat].filter((f) => now - f.at < FX_MS),
-      ...detectFx(run.last.views[seat].entities, view.entities).map((fx) => ({ fx, at: now })),
+      ...run.fx[seat].filter((f) => now - f.at < fxMs(f.fx)),
+      ...capSparks(run.sparks[seat] as number[], fresh, now).map((fx) => ({ fx, at: now })),
     ].slice(-FX_MAX);
     hearCues(run.cues[seat] as HeldCues, cueCaptions(view.sounds), now);
   }
@@ -108,6 +125,18 @@ function between(run: Run, seat: Seat, t: number) {
   });
 }
 
+// Can't see's figure on its feed: which way it faces and whether it walks. Can't see's own view has no
+// entity for its own seat, so `me` is empty for them; the bot's facing is read from the run's world, the
+// way their real screen reads the way they last pushed (the user, Task 70 review).
+export function ownOf(run: Run, seat: Seat, me?: { facing?: Vec }): Motion {
+  const motion = run.last.views[seat].you.motion;
+  return {
+    facing: me?.facing ?? run.attract.world.players[seat].facing,
+    moving: motion?.moving ?? false,
+    blocked: motion?.blocked ?? false,
+  };
+}
+
 function paint(canvas: HTMLCanvasElement, run: Run, seat: Seat, now: number, calm: boolean) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -123,27 +152,41 @@ function paint(canvas: HTMLCanvasElement, run: Run, seat: Seat, now: number, cal
   // the cleared room holds its last frame: nothing left to move between
   const t = run.clearedAt !== null ? 1 : Math.min(1, (now - run.at) / TICK_MS);
   const entities = between(run, seat, t);
-  const self = entities.find((e) => e.kind === "player" && e.seat === seat)?.pos ?? null;
+  const me = entities.find((e) => e.kind === "player" && e.seat === seat);
+  const self = me?.pos ?? null;
+  const view = run.last.views[seat];
+  const blind = FEED_ROLES[seat] === "blind";
   const scene: Scene = {
     w,
     h,
     role: FEED_ROLES[seat],
     seat,
     roles: [...FEED_ROLES] as [Role, Role, Role],
-    tiles: FEED_ROLES[seat] === "blind" ? null : run.tiles,
+    roomId: room.id,
+    tiles: blind ? null : run.tiles,
+    decor: blind ? [] : run.decor, // Can't see is sent no map, so no picture of it
     entities,
-    self: FEED_ROLES[seat] === "blind" ? null : self,
+    self: blind ? null : self,
     layout: "fit",
     fx: run.fx[seat]
-      ?.filter((f) => now - f.at < FX_MS)
-      .map((f) => ({ ...f.fx, age: (now - f.at) / FX_MS })),
+      ?.filter((f) => now - f.at < fxMs(f.fx))
+      .map((f) => ({ ...f.fx, age: (now - f.at) / fxMs(f.fx) })),
     pops: run.pops[seat]?.flatMap((p): FacePop[] => {
       const img = faceImage(p.id);
       const age = now - p.at;
       return img && age < FACE_POP_MS ? [{ seat: p.seat, img, fade: 1 - age / FACE_POP_MS }] : [];
     }),
     reducedMotion: calm,
+    // Can't see's feed is their own screen: their figure, walking as their bot walks (FR1)
+    ...(blind
+      ? {
+          own: ownOf(run, seat, me),
+          nowMs: now, // so the figure hops; reduced motion (calm) still holds it
+        }
+      : {}),
+    cleared: run.clearedAt !== null, // the cleared room holds still: nobody walks on
   };
+  canvas.dataset.decor = String(scene.decor?.length ?? 0); // for spec/layout/home.test.ts
   draw(ctx, scene);
 }
 

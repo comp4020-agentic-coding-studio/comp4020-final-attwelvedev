@@ -2,7 +2,15 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { readNickname, saveNickname } from "../client/nickname.ts";
 import { loadSetup, saveSetup } from "../client/preferences.ts";
 import { qrSvg } from "../client/qr.ts";
+import { revealOf } from "../client/reveal.ts";
 import { forecast, nextRoomFor } from "../client/rotation.ts";
+import {
+  diffPeople,
+  installUiSounds,
+  peopleSound,
+  savedSettings,
+  uiSound,
+} from "../client/uiSound.ts";
 import { MAX_PEOPLE } from "../game/crew.ts";
 import { sharesRoom } from "../game/setup.ts";
 import type { Seat } from "../game/types.ts";
@@ -52,12 +60,16 @@ export function Lobby({ code }: { code: string }) {
   const [asking, setAsking] = useState<string | null>(null); // where a clicked link was going, while the leave modal is open
   const [moved, setMoved] = useState<{ person: string; dir: -1 | 1 } | null>(null); // the Move button to keep focus on
   const [prefsOpen, setPrefsOpen] = useState(false);
+  const [glowing, setGlowing] = useState<string[]>([]); // people (by `who`) who joined a second ago
+  const knownPeople = useRef<string[] | null>(null); // null until the first lobby message: it is not a join
   const dragging = useRef<number | null>(null);
   const leaveTo = useRef("/"); // where a confirmed leave goes: home, or the link that was clicked
   const sentSetup = useRef(false); // the saved setup goes to the server once per page, when the join is confirmed
   const as = useRef<"player" | "spectator">("player");
   const following = useRef(false); // this page asked to start a new team
   const editingTeam = useRef(false); // an update from the server must not overwrite what the host is typing
+
+  useEffect(() => installUiSounds(savedSettings), []);
 
   useEffect(() => {
     setNickname(readNickname());
@@ -74,6 +86,17 @@ export function Lobby({ code }: { code: string }) {
           if (following.current) location.assign(`/lobby/${m.lobby.code}`);
           return;
         }
+        const now = m.lobby.people.map((p) => p.who);
+        if (knownPeople.current) {
+          const { joined } = diffPeople(knownPeople.current, now);
+          const chime = peopleSound(knownPeople.current, now, m.lobby.phase);
+          if (chime) uiSound(chime, savedSettings());
+          if (joined.length > 0) {
+            setGlowing((old) => [...old, ...joined]);
+            setTimeout(() => setGlowing((old) => old.filter((w) => !joined.includes(w))), 1000);
+          }
+        }
+        knownPeople.current = now;
         setLobby(m.lobby);
         setRooms(m.rooms);
         // the host gave the game up (or nobody was left): back to the lobby screen
@@ -90,22 +113,7 @@ export function Lobby({ code }: { code: string }) {
       socket.on("ready", (m) => {
         early.current.ready = m.seats;
       }),
-      socket.on("reveal", (m) =>
-        setReveal((old) => ({
-          room: m.room,
-          name: m.name,
-          index: m.index,
-          role: m.role,
-          crew: m.crew,
-          real: m.real,
-          cues: m.cues,
-          rooms: m.rooms,
-          sittingOut: m.sittingOut,
-          played: m.played,
-          // a reveal for the room you are already in (a reconnect) has nothing to morph from
-          ...(old && old.index !== m.index ? { from: old.role } : {}),
-        })),
-      ),
+      socket.on("reveal", (m) => setReveal((old) => revealOf(m, old))),
       socket.on("error", (m) => {
         // a refused send (too soon, not allowed, not in sight) is the wheel's to show, never the lobby failing
         if (m.code === "cooldown" || m.code === "cant-send" || m.code === "not-in-sight") return;
@@ -428,6 +436,33 @@ export function Lobby({ code }: { code: string }) {
             dangerouslySetInnerHTML={{ __html: qr }}
           />
         )}
+        {!watching && (
+          <div class="start">
+            {host ? (
+              <>
+                <button type="button" class="btn primary" onClick={start}>
+                  {bots === 0
+                    ? "Start"
+                    : `Start (${bots} ${bots === 1 ? "bot fills" : "bots fill"})`}
+                </button>
+                <p class="muted" role="status">
+                  {bots === 0
+                    ? `${here} ${here === 1 ? "person is" : "people are"} here.`
+                    : `${here} of 3 here. ${bots === 1 ? "A bot takes" : "Bots take"} the rest.`}
+                </p>
+              </>
+            ) : (
+              <p class="muted" role="status">
+                Waiting for the host to start.
+              </p>
+            )}
+            {message && lobby.phase === "open" && (
+              <p class="error" role="alert">
+                {message}
+              </p>
+            )}
+          </div>
+        )}
         {lobby.private && (
           <p class="muted private-note">
             Hidden from open lobbies. Only people with the code can join.
@@ -496,10 +531,11 @@ export function Lobby({ code }: { code: string }) {
       <div class="lobby-side">
         <div class="section-head">
           <h2 id="players-title">
-            {watching ? "You are watching" : `Players ${here} of ${MAX_PEOPLE}`}
+            {watching ? "You are watching" : `${here} here · 3 play each room`}
           </h2>
           <Connection state={state} rttMs={rttMs} />
         </div>
+        {!watching && <p class="muted">Up to {MAX_PEOPLE} take turns; the rest watch.</p>}
         {host && (
           <button
             type="button"
@@ -515,8 +551,11 @@ export function Lobby({ code }: { code: string }) {
         {host && here > 1 && (
           <p class="muted">Drag, or use the arrows, to set the starting order.</p>
         )}
-        {here === 1 && !watching && (
-          <p class="muted">Share the code to fill seats; bots fill the rest.</p>
+        {here < 4 && !watching && (
+          <p class="muted">
+            Bots fill empty seats. With more than three, you take turns: whoever sits out watches
+            and plays a later room.
+          </p>
         )}
         <ol class="players" aria-labelledby="players-title">
           {lobby.people.map((person, i) => (
@@ -530,6 +569,7 @@ export function Lobby({ code }: { code: string }) {
               last={i === here - 1}
               together={together}
               plays={crowded ? (plan.plays[i] ?? 0) : null}
+              glow={glowing.includes(person.who)}
               focusMove={moved?.person === person.who ? moved.dir : null}
               onMove={(dir) => move(i, dir)}
               onRename={(nick) => socket?.send({ t: "lobby.nickname", nickname: nick })}
@@ -551,34 +591,6 @@ export function Lobby({ code }: { code: string }) {
               Preferences
             </button>
           </>
-        )}
-
-        {!watching && (
-          <div class="start">
-            {host ? (
-              <>
-                <button type="button" class="btn primary" onClick={start}>
-                  {bots === 0
-                    ? "Start"
-                    : `Start (${bots} ${bots === 1 ? "bot fills" : "bots fill"})`}
-                </button>
-                <p class="muted" role="status">
-                  {bots === 0
-                    ? `${here} ${here === 1 ? "person is" : "people are"} here.`
-                    : `${here} of 3 players here. Start now and ${bots === 1 ? "a bot takes" : "bots take"} the rest.`}
-                </p>
-              </>
-            ) : (
-              <p class="muted" role="status">
-                Waiting for the host to start.
-              </p>
-            )}
-            {message && lobby.phase === "open" && (
-              <p class="error" role="alert">
-                {message}
-              </p>
-            )}
-          </div>
         )}
 
         <div class="actions">

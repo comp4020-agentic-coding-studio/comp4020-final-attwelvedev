@@ -1,6 +1,21 @@
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
-import { COLOR, DUSK, MIST, ROLE_COLOR, setContrast, setDusk, WORLD } from "./tokens.ts";
+import {
+  COLOR,
+  currentHue,
+  DUSK,
+  HUE_DUSK,
+  HUE_WALLS,
+  HUES,
+  MIST,
+  ROLE_COLOR,
+  SHELL,
+  setContrast,
+  setDusk,
+  setDuskAmount,
+  setHue,
+  WORLD,
+} from "./tokens.ts";
 
 // Canvas code can't read CSS variables cheaply every frame, so tokens.ts
 // mirrors the ones it draws with. This keeps the two from drifting apart.
@@ -15,6 +30,7 @@ const cssToken = (name: string): string | undefined => cssTokens(name)[0];
 const kebab = (key: string) => key.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
 
 afterEach(() => {
+  setHue(undefined);
   setContrast(false);
   setDusk(false, 0, true);
 });
@@ -23,6 +39,7 @@ describe("canvas tokens", () => {
   it.each([
     ["bg", COLOR.bg],
     ["panel", COLOR.panel],
+    ["panel-hi", COLOR.panelHi],
     ["ink", COLOR.ink],
     ["ui", COLOR.ui],
     ["ui-muted", COLOR.uiMuted],
@@ -70,6 +87,20 @@ describe("setContrast(true)", () => {
     }
   });
 
+  it("SHELL.glass follows --glass in both looks", () => {
+    const glass = (block: number) => {
+      const m = [...css.matchAll(/--glass:\s*rgb\((\d+) (\d+) (\d+) \/ (\d+)%\)/g)][
+        block
+      ] as RegExpMatchArray;
+      return `rgba(${m[1]}, ${m[2]}, ${m[3]}, ${Number(m[4]) / 100})`;
+    };
+    expect(SHELL.glass).toBe(glass(0));
+    setContrast(true);
+    expect(SHELL.glass).toBe(glass(1));
+    setContrast(false);
+    expect(SHELL.glass).toBe(glass(0));
+  });
+
   it("veils with half black instead of 60% mist", () => {
     expect(MIST.alpha).toBe(0.6);
     setContrast(true);
@@ -87,6 +118,44 @@ describe("setContrast(true)", () => {
     setContrast(false);
     expect(COLOR).toEqual(base);
     expect(WORLD).toEqual(world);
+  });
+});
+
+// WCAG 1.4.11: a code colour is told by its pattern, and found by its edge. Every code swatch is
+// drawn outlined in --w-line, so the fill or that outline has to stand 3:1 off the floor, in both
+// themes (a white wire on the cream floor carries its edge; a black one under high contrast too).
+const luminance = (hex: string) => {
+  const c = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16) / 255);
+  const [r, g, b] = c.map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)) as [
+    number,
+    number,
+    number,
+  ];
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+const ratio = (a: string, b: string) => {
+  const [x, y] = [luminance(a), luminance(b)];
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+};
+const CODES = ["codeRed", "codeBlue", "codeYellow", "codeGreen", "codeWhite", "codeBlack"] as const;
+
+describe("code colours", () => {
+  it.each([false, true])(
+    "stand 3:1 off the floor by fill or outline (high contrast %s)",
+    (high) => {
+      setContrast(high);
+      for (const k of CODES) {
+        const best = Math.max(ratio(WORLD[k], WORLD.floor), ratio(WORLD.line, WORLD.floor));
+        expect(best, k).toBeGreaterThanOrEqual(3);
+      }
+    },
+  );
+
+  it("are six different colours in each theme", () => {
+    for (const high of [false, true]) {
+      setContrast(high);
+      expect(new Set(CODES.map((k) => WORLD[k])).size).toBe(6);
+    }
   });
 });
 
@@ -111,6 +180,21 @@ describe("setDusk", () => {
     expect(WORLD.wallTop).toBe(day.wallTop);
   });
 
+  it("can be set to an amount (the sunrise), and the clock eases on from there", () => {
+    const day = { ...WORLD };
+    setDuskAmount(1, 0);
+    expect(WORLD.wallTop).toBe(DUSK.wallTop);
+    setDuskAmount(0.5, 0);
+    expect(WORLD.wallTop).not.toBe(DUSK.wallTop);
+    expect(WORLD.wallTop).not.toBe(day.wallTop);
+    setDuskAmount(0, 0);
+    expect(WORLD.wallTop).toBe(day.wallTop);
+    setDuskAmount(1, 100);
+    setDusk(false, 400); // the alarm's clock path takes over from the amount: half way back
+    expect(WORLD.wallTop).not.toBe(DUSK.wallTop);
+    expect(WORLD.wallTop).not.toBe(day.wallTop);
+  });
+
   it("is instant when asked (reduced motion)", () => {
     setDusk(true, 5000, true);
     expect(WORLD.skyHi).toBe(DUSK.skyHi);
@@ -121,5 +205,60 @@ describe("setDusk", () => {
     const high = { ...WORLD };
     setDusk(true, 0, true);
     expect(WORLD).toEqual(high);
+  });
+});
+
+describe("room hues", () => {
+  const keys = [
+    ["wallTop", "top"],
+    ["wallFront", "front"],
+    ["wallShade", "shade"],
+  ] as const;
+
+  it("every hue's wall set has --w-wall-*-<hue> with the same base and HC value", () => {
+    for (const hue of HUES)
+      for (const [key, part] of keys) {
+        const name = `w-wall-${part}-${hue}`;
+        expect(cssTokens(name)[0], name).toBe(HUE_WALLS[hue][key]);
+        expect(cssTokens(name)[1], name).toBe(cssTokens(`w-wall-${part}`)[1]);
+        const dusk = `dusk-wall-${part}-${hue}`;
+        expect(cssToken(dusk), dusk).toBe(HUE_DUSK[hue][key]);
+      }
+  });
+
+  it("setHue('teal') paints WORLD's walls teal, and setHue(undefined) is rose", () => {
+    setHue("teal");
+    expect(currentHue()).toBe("teal");
+    expect(WORLD.wallFront).toBe(HUE_WALLS.teal.wallFront);
+    setHue(undefined);
+    expect(currentHue()).toBe("rose");
+    expect(WORLD.wallFront).toBe("#dc8fa6");
+    setHue("lilac");
+    expect(currentHue()).toBe("rose");
+  });
+
+  it("dusk blends the hue's walls toward its own dusk set", () => {
+    setHue("amber");
+    setDusk(true, 0, true);
+    expect(WORLD.wallFront).toBe(HUE_DUSK.amber.wallFront);
+    setDusk(false, 0, true);
+    expect(WORLD.wallFront).toBe(HUE_WALLS.amber.wallFront);
+  });
+
+  it("high contrast ignores the hue", () => {
+    setContrast(true);
+    setHue("violet");
+    expect(WORLD.wallFront).toBe("#bdbdbd");
+    expect(WORLD.wallTop).toBe("#ffffff");
+  });
+
+  it("each hue's wall front stands 1.3:1 off the floor, day and dusk", () => {
+    for (const hue of HUES) {
+      setHue(hue);
+      expect(ratio(WORLD.wallFront, WORLD.floor), `${hue} day`).toBeGreaterThanOrEqual(1.3);
+      setDusk(true, 0, true);
+      expect(ratio(WORLD.wallFront, WORLD.floor), `${hue} dusk`).toBeGreaterThanOrEqual(1.3);
+      setDusk(false, 0, true);
+    }
   });
 });

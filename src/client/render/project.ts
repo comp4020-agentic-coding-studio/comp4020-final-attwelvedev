@@ -1,5 +1,5 @@
 import { MAP } from "../tokens.ts";
-import type { Scene } from "./index.ts";
+import type { Box, Scene } from "./index.ts";
 
 // The 3/4 projection (ADR 0016, DESIGN.md "The 3/4 recipe"). The grid stays axis-aligned with
 // north up; depth is squashed by TILT.depth and height lifts a point straight up the screen.
@@ -9,14 +9,32 @@ export const TILT = { depth: 0.82, wall: 1.1, block: 0.7 } as const;
 // What the projection is right now. The world rises out of the flat reveal (FR25): at rise 0 depth
 // is a full tile and nothing has height, at rise 1 it is TILT. Set once per frame, by camera() and
 // draw(), so one frame never mixes two states.
-export const LIVE: { depth: number; wall: number; block: number } = { ...TILT };
+export const LIVE: {
+  depth: number;
+  wall: number;
+  block: number;
+  rowRise?: (y: number) => number; // while the board tips, how far row y's walls have grown, 0 to 1
+} = { ...TILT };
 
-export function setRise(rise: number): void {
+// Walls grow north to south as the board tips (FR14): row y lags row 0 by STAGGER × y / rows of the
+// tilt, so row 0 is whole at 2/3 of it and the last row at its end.
+const STAGGER = 0.5;
+export const riseRow = (rise: number, y: number, rows: number): number =>
+  Math.max(0, Math.min(1, rise * (1 + STAGGER) - (STAGGER * y) / rows));
+
+// `rows`: the room's height, when walls should grow by row; without it they grow together.
+export function setRise(rise: number, rows?: number): void {
   const r = Math.max(0, Math.min(1, rise));
   LIVE.depth = 1 + (TILT.depth - 1) * r;
   LIVE.wall = TILT.wall * r;
   LIVE.block = TILT.block * r;
+  if (rows && r > 0 && r < 1) LIVE.rowRise = (y) => riseRow(r, y, rows);
+  else delete LIVE.rowRise;
 }
+
+// A wall's height in row y right now: the whole wall height, or its row's share while it grows.
+export const wallAt = (y: number): number =>
+  LIVE.rowRise ? TILT.wall * LIVE.rowRise(y) : LIVE.wall;
 
 export interface Camera {
   scale: number; // pixels per tile across
@@ -60,16 +78,17 @@ function windowStart(
   return Math.max(0, Math.min(room - view, centre - view / 2));
 }
 
-// The whole room in frame, walls and a strip of cliff included.
-function fitCamera(scene: Scene): Camera {
+// The whole room in frame, walls and a strip of cliff included: in the canvas, or in `box` (canvas
+// px, and it may reach past the canvas) when one is given.
+function fitCamera(scene: Scene, box: Box = { x: 0, y: 0, w: scene.w, h: scene.h }): Camera {
   const roomW = scene.tiles?.[0]?.length ?? 1;
   const roomH = scene.tiles?.length ?? 1;
   const projected = roomH * LIVE.depth + LIVE.wall; // the room's height on screen, in tiles
-  const scale = Math.max(Math.min(scene.w / roomW, scene.h / (projected + CLIFF_RESERVE)), 1);
+  const scale = Math.max(Math.min(box.w / roomW, box.h / (projected + CLIFF_RESERVE)), 1);
   return {
     scale,
-    ox: (scene.w - roomW * scale) / 2,
-    oy: (scene.h - (projected + CLIFF_RESERVE) * scale) / 2 + LIVE.wall * scale,
+    ox: box.x + (box.w - roomW * scale) / 2,
+    oy: box.y + (box.h - (projected + CLIFF_RESERVE) * scale) / 2 + LIVE.wall * scale,
   };
 }
 
@@ -107,17 +126,18 @@ function followCamera(scene: Scene): Camera {
   return { scale, ox: -left * scale, oy: (LIVE.wall - top) * scale };
 }
 
-// "fit" shows the whole room (the home feeds, the reveal); "follow" is the game camera. While the
-// world is still rising, "follow" is eased from the whole room toward the game camera, so the
-// first frame of the game is the reveal's room exactly and the two cross-fade without a jump.
+// "fit" shows the whole room (the home feeds, the reveal); "follow" is the game camera. At the start
+// of a room the board tips first (`rise`, the projection) and then the camera swoops (`swoop`) from
+// the whole room to the game camera, so the first frame of the game is the reveal's room exactly.
 export function camera(scene: Scene): Camera {
   const rise = Math.max(0, Math.min(1, scene.rise ?? 1));
-  setRise(rise);
+  const swoop = Math.max(0, Math.min(1, scene.swoop ?? 1));
+  setRise(rise, scene.tiles?.length);
   if (scene.layout === "fit" || !scene.tiles) return fitCamera(scene);
   const follow = followCamera(scene);
-  if (rise >= 1) return follow;
-  const fit = fitCamera(scene);
-  const mix = (a: number, b: number) => a + (b - a) * rise;
+  if (swoop >= 1) return follow;
+  const fit = fitCamera(scene, scene.introFit); // the reveal's backdrop showed it there
+  const mix = (a: number, b: number) => a + (b - a) * swoop;
   return {
     scale: mix(fit.scale, follow.scale),
     ox: mix(fit.ox, follow.ox),

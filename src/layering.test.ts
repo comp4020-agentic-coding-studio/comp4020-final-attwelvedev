@@ -53,12 +53,22 @@ const RULES: Rule[] = [
     why: "src/pages/ stays thin and never imports src/net/: the socket server is a separate module instance, so shared state goes on globalThis behind one accessor",
     allowed: (_file, to) => !/^net\//.test(to),
   },
+  {
+    layer: "bench",
+    why: "src/bench/ (the frame bench's page, built only with BENCH=1) is a page like the others: it never imports src/net/",
+    allowed: (_file, to) => !/^net\//.test(to),
+  },
+  {
+    layer: "any",
+    why: "the Anthropic SDK is a dev dependency for the playtest review: nothing under src/ ships it",
+    allowed: (_f, to) => !to.startsWith("@anthropic-ai/"),
+  },
 ];
 
-// Test files are exempt: they may read fixtures and cross layers. `devSocket.ts` is the Astro integration that loads net/attach.ts in dev, so it is the
+// The "any" layer is all of src/. Test files are exempt: they may read fixtures and cross layers. `devSocket.ts` is the Astro integration that loads net/attach.ts in dev, so it is the
 // one place under net/ allowed to import "astro".
 const violations = (layer: string, rule: Rule): string[] =>
-  files(join(SRC, layer))
+  files(join(SRC, layer === "any" ? "" : layer))
     .filter((f) => /\.(ts|tsx|astro)$/.test(f) && !/\.test\.ts$/.test(f))
     .flatMap((f) =>
       imports(readFileSync(f, "utf8"))
@@ -81,5 +91,7 @@ describe("layering", () => {
     expect(game.allowed(join(SRC, "game/x.ts"), "net/protocol.ts")).toBe(false);
     expect(RULES[2].allowed(join(SRC, "client/x.ts"), "net/game.ts")).toBe(false);
     expect(RULES[3].allowed(join(SRC, "pages/x.astro"), "net/attach.ts")).toBe(false);
+    const any = RULES.find((r) => r.layer === "any");
+    expect(any?.allowed(join(SRC, "client/x.ts"), "@anthropic-ai/sdk")).toBe(false);
   });
 });

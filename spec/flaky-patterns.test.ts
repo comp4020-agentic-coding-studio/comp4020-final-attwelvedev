@@ -6,7 +6,23 @@ import { describe, expect, it } from "vitest";
 // new one is caught when it is written and not at the fifth retry. Only patterns precise
 // enough to be right every time belong here: a check that cries wolf gets suppressed. The
 // broader tool is `pnpm check:flaky`, which runs the whole suite repeatedly and says which
-// tests fail and how often. The rules of thumb behind both are in CLAUDE.md ("Flaky tests").
+// tests fail and how often. CLAUDE.md ("Flaky tests") holds the rule that a retry hides a flake.
+//
+// Shapes that cannot be grepped without false alarms, so they are rules of thumb for whoever writes a spec:
+// - A picture of the canvas is a moving image: compare `settledHash(page)` (spec/playUi.ts), never one
+//   `canvasHash` frame (rule 1 below), and never one taken right after a game starts.
+// - Wait for the thing, not a time: `expect.poll` or `waitFor`, not `waitForTimeout` then an assertion (rule 2
+//   below). A count read earlier is stale while other spec files add and drop lobbies on the same server.
+// - A gesture whose speed matters (a flick under 200 ms) is dispatched inside the page in one task: each step
+//   from the test runner is a round trip.
+// - A rate is events over the time they took, not events in a window whose edge the runner decides.
+// - Do not raise a timeout to make a failure go away. Raise it when the work is genuinely slower under load,
+//   and say why beside the number (see vitest.config.ts).
+// - Restart the server between runs: leftovers fill its 40-lobby cap and time out unrelated specs.
+// - A message sent right after another may be handled before it: a "resend until it arrives" loop means the test is
+//   racing the server. Wait for the server's own signal (a tick, a reply).
+// - State read right after a restart can still be the old room's (`data-intro` reads `done` for a moment): wait for a
+//   signal only the new room can give (`tick` in `data-net` down, then at least 1).
 
 interface Rule {
   name: string;

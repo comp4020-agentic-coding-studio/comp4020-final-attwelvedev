@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseClientMsg, type ServerMsg } from "./protocol.ts";
+import { inputOf, parseClientMsg, type ServerMsg } from "./protocol.ts";
 
 describe("parseClientMsg", () => {
   it("returns the message for a ping", () => {
@@ -87,6 +87,33 @@ describe("parseClientMsg game messages", () => {
     });
   });
 
+  it("accepts autopilot only with a boolean `on` (playtest only, ADR 0027)", () => {
+    expect(parseClientMsg('{"t":"autopilot","on":true}')).toEqual({ t: "autopilot", on: true });
+    expect(parseClientMsg('{"t":"autopilot","on":false}')).toEqual({ t: "autopilot", on: false });
+    expect(parseClientMsg('{"t":"autopilot"}')).toBeNull();
+    expect(parseClientMsg('{"t":"autopilot","on":"yes"}')).toBeNull();
+  });
+
+  it("carries gear (G pressed) when it is a boolean", () => {
+    expect(
+      parseClientMsg('{"t":"input","seq":4,"move":{"x":0,"y":0},"act":false,"gear":true}'),
+    ).toEqual({ t: "input", seq: 4, move: { x: 0, y: 0 }, act: false, gear: true });
+    expect(parseClientMsg('{"t":"input","seq":4,"move":{"x":0,"y":0},"act":false}')).toEqual({
+      t: "input",
+      seq: 4,
+      move: { x: 0, y: 0 },
+      act: false,
+    });
+  });
+
+  it("inputOf hands the sim everything the client sent, G included (it was dropped in attach.ts)", () => {
+    const msg = parseClientMsg(
+      '{"t":"input","seq":4,"move":{"x":1,"y":0},"act":false,"gear":true}',
+    );
+    if (msg?.t !== "input") throw new Error("not an input");
+    expect(inputOf(msg)).toEqual({ seq: 4, move: { x: 1, y: 0 }, act: false, gear: true });
+  });
+
   it("clamps move components to [-1, 1]", () => {
     expect(parseClientMsg('{"t":"input","seq":1,"move":{"x":9,"y":-9},"act":false}')).toEqual({
       t: "input",
@@ -101,6 +128,7 @@ describe("parseClientMsg game messages", () => {
     ["a string seq", '{"t":"input","seq":"1","move":{"x":0,"y":0},"act":false}'],
     ["a negative seq", '{"t":"input","seq":-1,"move":{"x":0,"y":0},"act":false}'],
     ["a non-boolean act", '{"t":"input","seq":1,"move":{"x":0,"y":0},"act":1}'],
+    ["a non-boolean gear", '{"t":"input","seq":1,"move":{"x":0,"y":0},"act":false,"gear":"yes"}'],
     ["a non-numeric move", '{"t":"input","seq":1,"move":{"x":"1","y":0},"act":false}'],
   ])("returns null for an input with %s", (_name, raw) => {
     expect(parseClientMsg(raw)).toBeNull();
@@ -318,5 +346,32 @@ describe("the reveal's server messages", () => {
   it("reveal carries the sounds to learn, so Can't see's briefing needs no room data on the client", () => {
     const m: Extract<ServerMsg, { t: "reveal" }>["cues"] = ["hum", "door"];
     expect(m).toEqual(["hum", "door"]);
+  });
+});
+
+describe("the cache fields on `cleared` and `heist` (Task 54)", () => {
+  it("name seats, never nicknames, and the heist's shelf is one row per cache room", () => {
+    const cache: NonNullable<Extract<ServerMsg, { t: "cleared" }>["cache"]> = {
+      room: "04-the-safe",
+      opened: true,
+      found: true,
+      item: "watch",
+      owner: 0,
+      by: 2,
+      riddle: "Where the moon watches, listen twice.",
+    };
+    const heist: Extract<ServerMsg, { t: "heist" }> = {
+      t: "heist",
+      ms: 1,
+      loot: 1,
+      lootTotal: 2,
+      rank: 1,
+      caches: [{ room: cache.room, name: "The Safe", found: cache.found, item: cache.item }],
+    };
+    expect(Object.keys(heist.caches[0] ?? {})).toEqual(["room", "name", "found", "item"]);
+    expect(typeof cache.owner).toBe("number");
+    // `found` is the take; `opened` is the vault door: the cleared card says which, the shelf only the take
+    expect(cache.opened).toBe(true);
+    expect(heist.caches[0]).not.toHaveProperty("opened");
   });
 });

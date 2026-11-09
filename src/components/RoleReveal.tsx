@@ -8,10 +8,13 @@ import {
   sendsOf,
   swapPrompt,
 } from "../client/reveal.ts";
+import { loadRevealOpen, saveRevealOpen } from "../client/revealPrefs.ts";
 import { PAGE_LABEL, PAGE_METHOD, type Page } from "../client/wheel.ts";
 import type { BriefingCue } from "../game/cues.ts";
+import type { RoleView } from "../game/perception.ts";
 import { ROLE_LABEL, type Role, type Seat } from "../game/types.ts";
 import type { CrewMember, RealLife } from "../net/protocol.ts";
+import { MotifGlyph } from "./MotifGlyph.tsx";
 import { ReceiverLine } from "./ReceiverLine.tsx";
 import { RoleShape } from "./RoleShape.tsx";
 import { SoundBriefing } from "./SoundBriefing.tsx";
@@ -20,6 +23,13 @@ const YOU: Record<Role, string> = {
   blind: "You can't see",
   deaf: "You can't hear",
   mute: "You can't speak",
+};
+
+// One sentence for the role, in people's words, under the goal line.
+const ROLE_LINE: Record<Role, string> = {
+  blind: "Your teammates guide you. Talk to them; listen for the room.",
+  deaf: "You see the map but hear nothing. Watch for faces and marks.",
+  mute: "You see and hear everything. Use the soundboard, faces and marks.",
 };
 
 // The pages as the reveal says them: what you send, and what you get, in the wheel's words.
@@ -35,6 +45,7 @@ export function RoleReveal({
   from,
   ready,
   readySeats,
+  pulsing = [],
   onReady,
   real,
   cues,
@@ -45,6 +56,7 @@ export function RoleReveal({
   host,
   onSwap,
   audio,
+  cache,
 }: {
   name: string;
   index: number;
@@ -54,6 +66,7 @@ export function RoleReveal({
   from?: Role;
   ready: boolean; // this page pressed I'm ready
   readySeats: Seat[];
+  pulsing?: string[]; // crew-row keys whose Ready mark just appeared: it pulses once
   onReady: (on: boolean) => void; // I'm ready, or taking it back
   real: RealLife;
   cues: BriefingCue[];
@@ -64,6 +77,7 @@ export function RoleReveal({
   host: boolean;
   onSwap: (a: string, b: string) => void; // by nickname: the page maps to person indexes
   audio: { current: GameAudio | null };
+  cache?: Pick<NonNullable<RoleView["cache"]>, "motif" | "riddle" | "item">; // your own seat's cache, if the room has one for you (never shown to the others)
 }) {
   const sends = sendsOf(role);
   const gets = getsOf(role);
@@ -79,6 +93,13 @@ export function RoleReveal({
       old.includes(who) ? old.filter((n) => n !== who) : [...old, who].slice(-2),
     );
   const [a, b] = picked;
+  // "Who perceives what": folded the first time, then as this person last left it
+  const [open, setOpen] = useState(loadRevealOpen);
+  const flip = () => {
+    const next = !open;
+    setOpen(next);
+    saveRevealOpen(next);
+  };
 
   return (
     <div class="reveal-stage">
@@ -104,27 +125,52 @@ export function RoleReveal({
             {YOU[role]}
           </h1>
         </div>
+        <p class="reveal-goal">Get all three onto the exit.</p>
 
-        <dl class="reveal-facts">
-          <div>
-            <dt>You can send</dt>
-            <dd>{pagesText(sends)}</dd>
-          </div>
-          <div>
-            <dt>You get</dt>
-            <dd>{pagesText(gets)}</dd>
-          </div>
-        </dl>
+        <p class="reveal-role-line">{ROLE_LINE[role]}</p>
 
-        <ul class="reveal-lines" aria-label="Who gets what you send">
-          {sends.map((page) => (
-            <li key={page}>
-              <span class="page">{PAGE_LABEL[page]}</span>
-              <ReceiverLine method={PAGE_METHOD[page]} crew={crew} me={me} />
-              <span class="sr-only">{receiverNames(page, crew, me).hear.join(", ")}</span>
-            </li>
-          ))}
-        </ul>
+        {cache && (
+          <div class="reveal-cache">
+            <MotifGlyph motif={cache.motif} size={48} />
+            <div>
+              <p class="reveal-cache-title">Your side job</p>
+              <p class="reveal-cache-riddle">{cache.riddle}</p>
+              <p class="muted">Only you can read this</p>
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          class="btn reveal-more"
+          aria-expanded={open}
+          aria-controls="reveal-more"
+          onClick={flip}
+        >
+          Who perceives what
+        </button>
+        <div id="reveal-more" class="reveal-more-body" hidden={!open}>
+          <dl class="reveal-facts">
+            <div>
+              <dt>You can send</dt>
+              <dd>{pagesText(sends)}</dd>
+            </div>
+            <div>
+              <dt>You get</dt>
+              <dd>{pagesText(gets)}</dd>
+            </div>
+          </dl>
+
+          <ul class="reveal-lines" aria-label="Who gets what you send">
+            {sends.map((page) => (
+              <li key={page}>
+                <span class="page">{PAGE_LABEL[page]}</span>
+                <ReceiverLine method={PAGE_METHOD[page]} crew={crew} me={me} />
+                <span class="sr-only">{receiverNames(page, crew, me).hear.join(", ")}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
 
         {role === "blind" && <p class="reveal-dark">Your screen goes dark. That's on purpose.</p>}
         {real.lines.length > 0 && (
@@ -176,8 +222,21 @@ export function RoleReveal({
                     {r.bot ? " (bot)" : ""}
                   </span>
                   {r.role && <span class="crew-role">{ROLE_LABEL[r.role]}</span>}
+                  {r.played.length > 0 && (
+                    <span
+                      class="played"
+                      role="img"
+                      aria-label={`Already played: ${r.played.map((p) => ROLE_LABEL[p]).join(", ")}`}
+                      title={`Already played: ${r.played.map((p) => ROLE_LABEL[p]).join(", ")}`}
+                    >
+                      <span aria-hidden="true">Played</span>
+                      {r.played.map((p, i) => (
+                        <RoleShape key={i} role={p} size={14} outline />
+                      ))}
+                    </span>
+                  )}
                 </span>
-                <span class="crew-state">
+                <span class={pulsing.includes(r.key) ? "crew-state pulse" : "crew-state"}>
                   {r.left
                     ? "Left the game"
                     : r.role === null
@@ -186,17 +245,6 @@ export function RoleReveal({
                         ? "Ready"
                         : "Not ready"}
                 </span>
-                {r.played.length > 0 && (
-                  <span
-                    class="pips"
-                    role="img"
-                    aria-label={`Played ${r.played.map((p) => ROLE_LABEL[p]).join(", ")}`}
-                  >
-                    {r.played.map((p, i) => (
-                      <RoleShape key={`${p}${i}`} role={p} size={12} />
-                    ))}
-                  </span>
-                )}
                 {swappable && (
                   <button
                     type="button"

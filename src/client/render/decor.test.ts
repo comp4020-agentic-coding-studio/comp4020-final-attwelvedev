@@ -1,0 +1,369 @@
+import { readFileSync } from "node:fs";
+import { afterEach, describe, expect, it } from "vitest";
+import { spectatorView, viewFor } from "../../game/perception.ts";
+import { flipsOf } from "../../game/rooms/format.ts";
+import { loadRooms } from "../../game/rooms/load.ts";
+import { createWorld } from "../../game/sim/world.ts";
+import type { Role, Vec } from "../../game/types.ts";
+import {
+  type DecorItem,
+  decorAt,
+  decorFor,
+  KIND_FACES,
+  THEME_KINDS,
+  THEME_OF,
+  type Theme,
+} from "./decor.ts";
+
+// A wide room of plain walls: a long north wall over open floor, then inner walls in a grid, so
+// there are plenty of eligible fronts and tops.
+function hall(w = 60, h = 30): string[] {
+  const rows: string[] = [];
+  for (let y = 0; y < h; y++) {
+    let row = "";
+    for (let x = 0; x < w; x++) {
+      const edge = y === 0 || y === h - 1 || x === 0 || x === w - 1;
+      row += edge || (y % 4 === 0 && x % 7 !== 3) ? "#" : ".";
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
+const cheb = (a: Vec, b: Vec) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+const isBlock = (c: string | undefined) => c === "#" || c === "=" || c === "%" || c === "H";
+
+function eligible(tiles: readonly string[]) {
+  let fronts = 0;
+  let tops = 0;
+  tiles.forEach((row, y) => {
+    for (let x = 0; x < row.length; x++) {
+      if (row[x] !== "#") continue;
+      tops++;
+      const s = tiles[y + 1]?.[x];
+      if (s !== undefined && !isBlock(s) && s !== "D") fronts++;
+    }
+  });
+  return { fronts, tops };
+}
+
+describe("decorFor: placement", () => {
+  it("the same room and tiles give the same decor; another room id gives another", () => {
+    const t = hall();
+    const a = decorFor("09-the-vault", t);
+    expect(a.length).toBeGreaterThan(0);
+    expect(decorFor("09-the-vault", t)).toEqual(a);
+    expect(decorFor("05-the-gallery", t)).not.toEqual(a);
+  });
+
+  it("no item on a front whose south tile is a block, a door, or past the last row", () => {
+    const t = hall();
+    // put a door, glass, a vent and a hatch under parts of the north wall
+    const row1 = [...(t[1] as string)];
+    for (const [x, c] of [
+      [10, "D"],
+      [20, "="],
+      [30, "%"],
+      [40, "H"],
+    ] as const)
+      row1[x] = c;
+    t[1] = row1.join("");
+    for (const room of ["05-the-gallery", "08-music-room", "09-the-vault"])
+      for (const it of decorFor(room, t).filter((i) => i.face === "front")) {
+        expect(it.y).toBeLessThan(t.length - 1);
+        const south = t[it.y + 1]?.[it.x];
+        expect(isBlock(south) || south === "D", `${room} ${it.x},${it.y}`).toBe(false);
+      }
+  });
+
+  it("no item within 1 tile of D, H, =, %, night, or a wire route", () => {
+    const t = hall();
+    const put = (x: number, y: number, c: string) => {
+      const r = [...(t[y] as string)];
+      r[x] = c;
+      t[y] = r.join("");
+    };
+    // a door in each wall line, glass, a vent, a hatch, a patch of night
+    for (let x = 2; x < 58; x += 5) put(x, 1, "D");
+    put(5, 8, "=");
+    put(12, 12, "%");
+    put(20, 16, "H");
+    put(30, 20, " ");
+    put(31, 20, " ");
+    const wires: Vec[][] = [
+      [
+        { x: 2.5, y: 4.5 },
+        { x: 50.5, y: 4.5 },
+      ],
+      [
+        { x: 44.5, y: 2.5 },
+        { x: 44.5, y: 26.5 },
+      ],
+    ];
+    const near = (it: DecorItem, test: (x: number, y: number) => boolean) => {
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) if (test(it.x + dx, it.y + dy)) return true;
+      return false;
+    };
+    const onWire = (x: number, y: number) =>
+      wires.some((w) =>
+        w.some((p, i) => {
+          const q = w[i + 1] ?? p;
+          const minX = Math.floor(Math.min(p.x, q.x));
+          const maxX = Math.floor(Math.max(p.x, q.x));
+          const minY = Math.floor(Math.min(p.y, q.y));
+          const maxY = Math.floor(Math.max(p.y, q.y));
+          return x >= minX && x <= maxX && y >= minY && y <= maxY;
+        }),
+      );
+    let seen = 0;
+    for (const room of ["05-the-gallery", "08-music-room", "09-the-vault"])
+      for (const it of decorFor(room, t, wires)) {
+        seen++;
+        expect(
+          near(it, (x, y) => "DH=% ".includes(t[y]?.[x] ?? "#")),
+          `${room} ${it.x},${it.y}`,
+        ).toBe(false);
+        expect(near(it, onWire), `${room} ${it.x},${it.y} by a wire`).toBe(false);
+      }
+    expect(seen).toBeGreaterThan(0);
+  });
+
+  it("fronts: at most 1 per 6 eligible, and items are at least 3 apart; tops at most 1 per 8", () => {
+    const t = hall(80, 40);
+    const { fronts, tops } = eligible(t);
+    for (const room of ["05-the-gallery", "08-music-room", "09-the-vault"]) {
+      const items = decorFor(room, t);
+      const f = items.filter((i) => i.face === "front");
+      const p = items.filter((i) => i.face === "top");
+      expect(f.length).toBeGreaterThan(0);
+      expect(f.length).toBeLessThanOrEqual(fronts / 6);
+      expect(p.length).toBeLessThanOrEqual(tops / 8);
+      for (const list of [f, p])
+        for (let i = 1; i < list.length; i++)
+          expect(cheb(list[i - 1] as DecorItem, list[i] as DecorItem), room).toBeGreaterThanOrEqual(
+            3,
+          );
+    }
+    // the strongroom's rivets are the one kind that goes on a top
+    expect(decorFor("09-the-vault", t).some((i) => i.face === "top")).toBe(true);
+  });
+
+  describe("room 01", () => {
+    const saved = THEME_KINDS.pavilion;
+    afterEach(() => {
+      (THEME_KINDS as Record<Theme, unknown>).pavilion = saved;
+    });
+    it("room 01 places at most half of what the same tiles would get under another id", () => {
+      // the pavilion's kinds come in phase 8; lend it the strongroom's for the count
+      (THEME_KINDS as Record<Theme, unknown>).pavilion = THEME_KINDS.strongroom;
+      const t = hall(120, 60);
+      const { fronts, tops } = eligible(t);
+      const one = decorFor("01-first-steps", t);
+      const f = one.filter((i) => i.face === "front").length;
+      const p = one.filter((i) => i.face === "top").length;
+      expect(f).toBeGreaterThan(0);
+      expect(f).toBeLessThanOrEqual(fronts / 12);
+      expect(p).toBeLessThanOrEqual(tops / 16);
+    });
+  });
+
+  it("every room's theme has at least one front kind", () => {
+    for (const [room, theme] of Object.entries(THEME_OF))
+      expect(
+        THEME_KINDS[theme].some((k) => KIND_FACES[k].includes("front")),
+        room,
+      ).toBe(true);
+  });
+
+  it("decorFor never reads anything but its arguments", () => {
+    const t = Object.freeze(hall().map((r) => r));
+    const a = decorFor("08-music-room", t, Object.freeze([]));
+    expect(decorFor("08-music-room", t)).toEqual(a);
+    const src = readFileSync(new URL("./decor.ts", import.meta.url), "utf8");
+    const imports = [...src.matchAll(/from\s+["']([^"']+)["']/g)].map((m) => m[1] as string);
+    for (const spec of imports) {
+      expect(spec).not.toMatch(/perception|sim|net|protocol|document|window/);
+      expect(spec === "../../game/types.ts", spec).toBe(true);
+    }
+    expect(src).not.toMatch(/\b(document|window|globalThis|localStorage)\b/);
+  });
+
+  it("decorAt finds an item by its wall tile and face", () => {
+    const items = decorFor("09-the-vault", hall(80, 40));
+    for (const it of items) expect(decorAt(items, it.x, it.y)[it.face]).toBe(it);
+    expect(decorAt(items, -5, -5)).toEqual({});
+  });
+});
+
+// R2: decor reads layout only, so it cannot know where a station stands. Stations, plaques and the
+// like are drawn after the wall, but an item beside one could still read as part of it: in every
+// shipped room, no item is within 1 tile of one. A failing room has its SALT raised in decor.ts.
+describe("R2: no decor beside a station, plaque, camera, bell, lamp, lever or ink", () => {
+  const ROLES: [Role, Role, Role] = ["blind", "deaf", "mute"];
+  for (const room of loadRooms("./rooms")) {
+    it(`room ${room.id}`, () => {
+      const world = createWorld(room, 1, ROLES);
+      const view = viewFor(world, 1, "deaf", true);
+      const tiles = view.tiles ?? room.grid;
+      const wires = view.entities.filter((e) => e.kind === "wire").map((e) => e.route ?? []);
+      const items = decorFor(room.id, tiles, wires);
+      const anchors: Vec[] = [];
+      for (const e of spectatorView(world, null, ROLES, true).entities) {
+        if (e.station) for (const p of e.station.parts) anchors.push(...p.at);
+        if (["sign", "camera", "bell", "lamp", "lever"].includes(e.kind))
+          anchors.push({ x: Math.floor(e.pos.x), y: Math.floor(e.pos.y) });
+      }
+      for (const o of room.objects) if (o.kind === "ink") anchors.push(...o.tiles);
+      for (const it of items)
+        for (const a of anchors)
+          expect(
+            cheb(it, { x: Math.floor(a.x), y: Math.floor(a.y) }),
+            `${it.kind} at ${it.x},${it.y}`,
+          ).toBeGreaterThan(1);
+    });
+  }
+});
+
+// FR3 (auto fixes 2): each cell rolls on its own, so a view that differs near the night or a cache's
+// chamber gets the same decor everywhere else. A cell's eligibility moves within 1 tile of a change
+// (NEAR), and spacing reaches APART - 1 = 2 tiles further, so only items within 3 tiles may differ.
+describe("decor is the same on every screen in a room", () => {
+  const ROLES: [Role, Role, Role] = ["blind", "deaf", "mute"];
+  const SPREAD = 3;
+  const key = (i: DecorItem) => JSON.stringify(i);
+  const awayFrom = (items: DecorItem[], near: (i: DecorItem) => boolean) =>
+    items
+      .filter((i) => !near(i))
+      .map(key)
+      .sort();
+
+  it("a floor cell beside a wall turned to night moves only the decor within 3 tiles of it", () => {
+    let tried = 0;
+    for (const room of loadRooms("./rooms")) {
+      const tiles = room.grid;
+      const base = decorFor(room.id, tiles);
+      // every floor cell just south of a wall front, one at a time
+      for (let y = 1; y < tiles.length; y++)
+        for (let x = 0; x < (tiles[y] as string).length; x++) {
+          if (tiles[y]?.[x] !== "." || tiles[y - 1]?.[x] !== "#") continue;
+          const t = [...tiles];
+          t[y] = `${(t[y] as string).slice(0, x)} ${(t[y] as string).slice(x + 1)}`;
+          const near = (i: DecorItem) => cheb(i, { x, y }) <= SPREAD;
+          tried++;
+          expect(awayFrom(decorFor(room.id, t), near), `${room.id} night at ${x},${y}`).toEqual(
+            awayFrom(base, near),
+          );
+        }
+    }
+    expect(tried).toBeGreaterThan(0);
+  });
+
+  // the per-cell rolls keep no running count, so "at most 1 per 6 (8) eligible" is shown here for
+  // every shipped room rather than enforced by a cap
+  it("no shipped room places more than 1 per 6 eligible fronts or 1 per 8 tops", () => {
+    for (const room of loadRooms("./rooms")) {
+      const t = room.grid;
+      const clear = (x: number, y: number) => {
+        for (let dy = -1; dy <= 1; dy++)
+          for (let dx = -1; dx <= 1; dx++)
+            if ("DH=% ".includes(t[y + dy]?.[x + dx] ?? "#")) return false;
+        return true;
+      };
+      let fronts = 0;
+      let tops = 0;
+      t.forEach((row, y) => {
+        for (let x = 0; x < row.length; x++) {
+          if (row[x] !== "#" || !clear(x, y)) continue;
+          tops++;
+          const s = t[y + 1]?.[x];
+          if (s !== undefined && !isBlock(s) && s !== "D") fronts++;
+        }
+      });
+      const half = room.id.startsWith("01-") ? 0.5 : 1;
+      const items = decorFor(room.id, t);
+      const f = items.filter((i) => i.face === "front").length;
+      const p = items.filter((i) => i.face === "top").length;
+      expect(f, `${room.id} fronts`).toBeLessThanOrEqual(Math.floor((fronts * half) / 6));
+      expect(p, `${room.id} tops`).toBeLessThanOrEqual(Math.floor((tops * half) / 8));
+    }
+  });
+
+  it("room 08: a sighted player and a spectator see the same decor away from the night and chamber", () => {
+    const room = loadRooms("./rooms").find((r) => r.id === "08-music-room");
+    if (!room) throw new Error("room 08 missing");
+    const world = createWorld(room, 1, ROLES);
+    const player = viewFor(world, 1, "deaf", true).tiles ?? room.grid;
+    const watcher = spectatorView(world, null, ROLES, true).tiles ?? room.grid;
+    const rects = [
+      [12, 1, 16, 3], // the dark zone
+      [2, 8, 10, 10], // the cache's chamber, its door at 4,7 and its vault
+      [4, 7, 4, 7],
+    ];
+    const near = (i: DecorItem) =>
+      rects.some(
+        ([x0, y0, x1, y1]) =>
+          i.x >= (x0 as number) - SPREAD &&
+          i.x <= (x1 as number) + SPREAD &&
+          i.y >= (y0 as number) - SPREAD &&
+          i.y <= (y1 as number) + SPREAD,
+      );
+    const a = decorFor(room.id, player);
+    expect(a.filter((i) => !near(i)).length, "some decor to compare").toBeGreaterThan(0);
+    expect(awayFrom(decorFor(room.id, watcher), near)).toEqual(awayFrom(a, near));
+  });
+});
+
+// Rule 4 (a light is quiet): a lit item never hangs within a tile of a dark zone, where its glow
+// would look like light spilling into the dark. A sighted seat gets a dark zone as night, which NEAR
+// already keeps decor clear of; a spectator gets the unmasked layout, so this checks that one against
+// the room file's own zones (the client is never told them: no wire field for decor).
+describe("no lit decor beside a dark zone", () => {
+  for (const room of loadRooms("./rooms")) {
+    const zones = flipsOf(room).flatMap((f) => (f.kind === "dark" ? [f.zone] : []));
+    if (zones.length === 0) continue;
+    it(`room ${room.id}`, () => {
+      const lit = decorFor(room.id, room.grid).filter((i) => i.lit);
+      for (const it of lit)
+        for (const [x0, y0, x1, y1] of zones) {
+          const dx = Math.max(x0 - it.x, 0, it.x - x1);
+          const dy = Math.max(y0 - it.y, 0, it.y - y1);
+          expect(Math.max(dx, dy), `${it.kind} at ${it.x},${it.y}`).toBeGreaterThan(1);
+        }
+    });
+  }
+});
+
+describe("faces (DESIGN.md §4.9 rule 7)", () => {
+  // a wall's top carries only flush things: coping, moss, a row of rivets
+  const FLUSH = new Set(["coping", "moss", "rivets"]);
+  it("every theme kind has a face, and only a flush kind goes on a top", () => {
+    for (const k of Object.values(THEME_KINDS).flat()) {
+      expect(KIND_FACES[k]?.length, k).toBeGreaterThan(0);
+      if (KIND_FACES[k].includes("top")) expect(FLUSH.has(k), k).toBe(true);
+    }
+  });
+  it("no shipped room places anything but a flush kind on a top", () => {
+    for (const room of loadRooms("./rooms"))
+      for (const it of decorFor(room.id, room.grid).filter((i) => i.face === "top"))
+        expect(FLUSH.has(it.kind), `${room.id} ${it.kind}`).toBe(true);
+  });
+});
+
+describe("the banned list", () => {
+  // rule 3 (DESIGN.md §4.9): no kind is named as a game object, a motif or a role. Kind names are
+  // camelCase, so each word is checked on its own (a cable tray is not a ray).
+  const BANNED = new Set(
+    "door hatch glass pane vent louvre slat slats bell dial wheel gauge clock keypad key camera eye cone beam ray rays hazard stripe stripes exit flag blind deaf mute ear mouth moon star wave note leaf horn".split(
+      " ",
+    ),
+  );
+  const words = (k: string) => k.split(/(?=[A-Z])/).map((w) => w.toLowerCase());
+  it("no theme kind is named as a banned thing", () => {
+    const kinds = Object.values(THEME_KINDS).flat();
+    expect(kinds.length).toBeGreaterThan(0);
+    for (const k of kinds) for (const w of words(k)) expect(BANNED.has(w), k).toBe(false);
+    // every room maps to a theme
+    for (const room of loadRooms("./rooms")) expect(THEME_OF[room.id], room.id).toBeDefined();
+  });
+});

@@ -1,0 +1,22 @@
+{"id":"05-radio","name":"Radio to keypad (bots fixture)","version":1,"budgetS":240,
+ "beats":[
+  {"name":"Tune","x":[0,23],"intent":{"blind":"hears the code","deaf":"tunes the radio and texts its digit","mute":"hears the code and presses the keys"}},
+  {"name":"Out","x":[0,23],"intent":{"blind":"walks out","deaf":"walks out","mute":"walks out"}}
+ ],
+ "objects":{
+  "Q1":{"type":"radio","pads":[[3,3],[5,3]],"range":6,"yields":"Q2","motif":"moon"},
+  "Q2":{"type":"keypad","keys":[[13,1],[14,1],[15,1],[13,2],[14,2],[15,2],[13,3],[14,3],[15,3]],"clue":"c1","length":3,"motif":"moon","slot":{"from":"Q1","at":0}},
+  "c1":{},
+  "D1":{"opensWhen":["Q2"]}},
+ "hints":{"jobs":[
+  {"beat":1,"station":"Q1","at":[4,2],"prefer":"deaf"},
+  {"beat":1,"station":"Q2","at":[3,5],"prefer":"mute"},
+  {"beat":2,"goTo":"E","all":true}]}}
+---
+#######################
+#1..Q....#.Q.......D.E#
+#2.......#.........D.E#
+#3.......#.........D.E#
+#######.####.##########
+#.c..........##########
+#######################

@@ -1,0 +1,201 @@
+---
+// The frame bench (scripts/bench-frame.ts): the real renderer drawing a room in a loop, timed. It is
+// built only with BENCH=1 (astro.config.ts injects its route, into dist-bench/), and even there it is
+// a 404 unless the server also runs with BENCH=1.
+if (process.env.BENCH !== "1") return new Response(null, { status: 404 });
+---
+
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Frame bench</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="bench"></canvas>
+    <script>
+      import room01 from "../../rooms/01-first-steps.room?raw";
+      import room02 from "../../rooms/02-three-hands.room?raw";
+      import room03 from "../../rooms/03-watchers.room?raw";
+      import room04 from "../../rooms/04-the-safe.room?raw";
+      import room06 from "../../rooms/06-lights-out.room?raw";
+      import room07 from "../../rooms/07-night-shift.room?raw";
+      import room05 from "../../rooms/05-the-gallery.room?raw";
+      import room08 from "../../rooms/08-music-room.room?raw";
+      import room09 from "../../rooms/09-the-vault.room?raw";
+      import { INTRO_TOTAL, introAt } from "../client/intro.ts";
+      import { camera, draw, type Scene } from "../client/render.ts";
+      import { wall } from "../client/render/blocks.ts";
+      import { type DecorItem, decorFor, KIND_FACES, LIT, THEME_KINDS, THEME_OF } from "../client/render/decor.ts";
+      import { LOOKS } from "../client/render/decor-paint.ts";
+      import { setRise, TILT } from "../client/render/project.ts";
+      import { setContrast, setHue } from "../client/tokens.ts";
+      import { benchCam } from "./benchCam.ts";
+      import { viewFor } from "../game/perception.ts";
+      import { parseRoom } from "../game/rooms/format.ts";
+      import { createWorld } from "../game/sim/world.ts";
+      import type { Role } from "../game/types.ts";
+
+      const FRAMES = 300;
+      const WARMUP = 30;
+      const ROLES: [Role, Role, Role] = ["blind", "deaf", "mute"];
+      // ?room=01..09 (05 by default); ?decor=0 draws the room without its decor (spec/layout/decor.test.ts);
+      // ?still=1 draws one settled frame and stops, for a spec to read; ?hc=1 is high contrast;
+      // ?sheet=1 is the decor contact sheet (scripts/decor-sheet.ts); ?intro=1 times the room-start intro
+      // instead of the settled room: its 2400 ms timeline (the tilt, the swoop, the land and the sunrise,
+      // as Game.tsx's introScene passes them) swept over FRAMES frames, and the longest frame reported
+      const q = new URLSearchParams(location.search);
+      const which = {
+        "01": room01,
+        "02": room02,
+        "03": room03,
+        "04": room04,
+        "06": room06,
+        "07": room07,
+        "08": room08,
+        "09": room09,
+      }[q.get("room") ?? ""] ?? room05;
+      const room = parseRoom(which);
+      setHue(room.meta.hue as string | undefined);
+      if (q.get("hc") === "1") setContrast(true);
+      // three players at their spawns; the drawing seat is Can't hear (seat 1), who sees the most
+      const world = createWorld(room, 1, ROLES);
+      const view = viewFor(world, 1, "deaf", true);
+      const self = world.players[1].pos;
+      const canvas = document.getElementById("bench") as HTMLCanvasElement;
+      const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const base: Scene = {
+        w,
+        h,
+        role: "deaf",
+        seat: 1,
+        roles: ROLES,
+        tiles: view.tiles ?? room.grid,
+        entities: view.entities,
+        self,
+        layout: "follow",
+        seen: view.seen,
+        roomId: room.id,
+        decor:
+          q.get("decor") === "0"
+            ? []
+            : decorFor(
+                room.id,
+                view.tiles ?? room.grid,
+                view.entities.flatMap((e) => (e.kind === "wire" && e.route ? [e.route] : [])),
+              ),
+      };
+      if (q.get("still") === "1") {
+        // one settled frame (drawn twice: the atlas warm the second time), with or without the decor;
+        // the camera and the tiles drawn are told to the page
+        const cam = camera(base);
+        // extra: scene fields laid over the settled frame (a fx mid-flight, an added figure) for a
+        // screenshot script; the scene itself is on window.__scene
+        const still = (withDecor: boolean, extra: Partial<Scene> = {}) => {
+          // a moved `self` moves the camera with it
+          const at = extra.self ? camera({ ...base, ...extra }) : cam;
+          const s: Scene = { ...base, nowMs: 0, decor: withDecor ? base.decor : [], ...extra, cam: at };
+          draw(ctx, s);
+          draw(ctx, s);
+        };
+        (window as unknown as { __still: typeof still; __scene: Scene }).__still = still;
+        (window as unknown as { __scene: Scene }).__scene = base;
+        still(q.get("decor") !== "0");
+        canvas.dataset.camera = `${cam.scale},${cam.ox},${cam.oy}`;
+        canvas.dataset.tiles = JSON.stringify(base.tiles);
+        canvas.dataset.decor = JSON.stringify(base.decor);
+        canvas.dataset.ready = "1";
+      }
+      // The decor contact sheet: every look of every kind of the room's theme, on a wall tile in the
+      // room's tint, through the real wall painter, at 1×, 2× and 3× a 56 px tile; the bare wall first.
+      if (q.get("sheet") === "1") {
+        setRise(1);
+        const kinds = THEME_KINDS[THEME_OF[room.id] ?? "pavilion"];
+        const rows: (DecorItem | null)[] = [null];
+        for (const kind of kinds)
+          for (const face of KIND_FACES[kind])
+            for (let variant = 0; variant < LOOKS[kind]; variant++)
+              rows.push({ x: 0, y: 0, face, kind, variant, ...(LIT.has(kind) ? { lit: true as const } : {}) });
+        const S = 56;
+        const PAD = 16;
+        const LABEL = 150;
+        const tileH = (k: number) => S * k * (TILT.depth + TILT.wall) + PAD;
+        const width = LABEL + PAD + [1, 2, 3].reduce((a, k) => a + S * k + PAD, 0);
+        const height = PAD + rows.length * tileH(3);
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.fillStyle = "#1b1726";
+        ctx.fillRect(0, 0, width, height);
+        rows.forEach((item, i) => {
+          const top = PAD + i * tileH(3);
+          ctx.fillStyle = "#e8e2f0";
+          ctx.font = "13px system-ui";
+          ctx.fillText(item ? `${item.face} ${item.kind} ${item.variant}` : "bare wall", PAD, top + 20);
+          let left = LABEL + PAD;
+          for (const k of [1, 2, 3]) {
+            const scale = S * k;
+            // a camera that puts wall tile (0, 0)'s top at (left, top)
+            const cam = { scale, ox: left, oy: top + TILT.wall * scale };
+            const decor = item ? { [item.face]: item } : {};
+            ctx.save();
+            wall(ctx, cam, 0, 0, true, decor);
+            ctx.restore();
+            left += scale + PAD;
+          }
+        });
+        canvas.dataset.ready = "1";
+      }
+      const times: number[] = [];
+      let frame = 0;
+      const start = performance.now();
+      const intro = q.get("intro") === "1";
+      function tick(now: number) {
+        // the intro: the scene's own camera (the swoop flies it from the whole room to you), at the
+        // point of the timeline this frame stands for, warm-up included so the tilt's first frames count
+        const f = introAt((Math.min(frame, WARMUP + FRAMES - 1) * INTRO_TOTAL) / (WARMUP + FRAMES - 1), false);
+        const scene: Scene = intro
+          ? { ...base, nowMs: now - start, rise: f.rise, swoop: f.swoop, landing: f.land, sunrise: f.sunrise }
+          : { ...base, cam: benchCam(camera(base), frame), nowMs: now - start };
+        const t0 = performance.now();
+        draw(ctx, scene);
+        // read one pixel back so the frame is rasterised inside the timing, not deferred past it
+        ctx.getImageData(0, 0, 1, 1);
+        const ms = performance.now() - t0;
+        if (frame >= WARMUP) times.push(ms);
+        frame++;
+        if (times.length < FRAMES) return void requestAnimationFrame(tick);
+        const sorted = [...times].sort((a, b) => a - b);
+        const at = (q: number) => sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] ?? 0;
+        (window as unknown as { __bench: { p50: number; p95: number; max: number } }).__bench = {
+          p50: at(0.5),
+          p95: at(0.95),
+          max: sorted.at(-1) ?? 0,
+        };
+      }
+      if (q.get("still") !== "1" && q.get("sheet") !== "1") requestAnimationFrame(tick);
+    </script>
+  </body>
+</html>

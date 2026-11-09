@@ -1,6 +1,11 @@
+import { footHalf, footLit, inLight, lightPolygon, tileTouched } from "../../game/light.ts";
 import type { Vec } from "../../game/types.ts";
+import type { EntityView } from "../../net/protocol.ts";
 import { MIST, WORLD } from "../tokens.ts";
+import { darkOfGlass, darkOfWall, touchedOf } from "./column.ts";
 import { type Camera, LIVE, toScreen } from "./project.ts";
+
+export { inLight, lightPolygon, tileTouched };
 
 // The tiles in your line of sight, from the view's `seen` ("y:x0-x1,x2-x3", inclusive runs). The
 // client may not import src/game/sim/, so this repeats decodeSeen there; render.test.ts holds it
@@ -34,6 +39,70 @@ export function seenOf(rows: readonly string[]): Seen {
 // Whether a point (in tiles) is in a tile you can see.
 export const inSight = (seen: Seen | null, at: Vec): boolean =>
   seen === null || seen.has(Math.floor(at.x), Math.floor(at.y));
+
+// A station is sent whole when any one of its parts is in your light (so its furniture can be drawn
+// from where you can see it), but a part behind a wall is not in your light: it is cut here, so wires,
+// a music box or a back box that stand in the dark are not drawn at all, and a station none of whose
+// parts you can see is dropped. A watcher has no `seen`, and every part stays.
+export function cutToSight(entities: EntityView[], seen: Seen | null): EntityView[] {
+  if (seen === null) return entities;
+  const out: EntityView[] = [];
+  for (const e of entities) {
+    const st = e.station;
+    if (e.kind !== "station" || !st) {
+      out.push(e);
+      continue;
+    }
+    const parts = st.parts
+      .map((p) => ({ ...p, at: p.at.filter((t) => seen.has(t.x, t.y)) }))
+      .filter((p) => p.at.length > 0);
+    if (parts.length > 0) out.push({ ...e, station: { ...st, parts } });
+  }
+  return out;
+}
+
+// What stands is drawn only where the light touches its footprint: the ground its drawing stands on (a
+// figure's shadow disc, here its square; anything else its tile's half each way). The server sends a thing
+// when the light touches its tile, and the swept clip that keeps a figure's head and a crate's top from
+// being cut also reaches up over the unlit tile behind a wall, which is how a camera on veiled floor was
+// drawn at full strength. A thing whose footprint the light misses entirely is dropped; one whose
+// footprint it touches anywhere is kept, drawn whole, and the clip then cuts it at the cone's edge (the
+// user, playtest L1, L3, L5: a figure at a corner, the flag and the goggles vanished while part of each
+// was in the light). Never dropped: your own figure, a mark (a teammate's message, shown faintly through
+// the haze by design), a cone of sight, and the floor's own layout (plates, doors, exits...), which the
+// veil is meant to leave readable. A watcher has no light and keeps everything.
+export function litEntities(
+  entities: EntityView[],
+  light: readonly Vec[] | null,
+  mySeat: number,
+): EntityView[] {
+  if (light === null) return entities;
+  // a guard or camera keeps the tile-set rule on the server (it is sent by `seen`; what it sees is sent
+  // apart), so it keeps it here too: a footprint test would drop one the server sent, leaving its cone
+  // drawn with nobody in it (review F3)
+  const touched = (e: EntityView) =>
+    e.kind === "guard" || e.kind === "camera"
+      ? tileTouched(light, Math.floor(e.pos.x), Math.floor(e.pos.y))
+      : footLit(light, e.pos, footHalf(e.kind));
+  return entities.filter((e) => {
+    if (e.kind === "player") return e.seat === mySeat || touched(e);
+    return !STANDS.has(e.kind) || touched(e);
+  });
+}
+
+// The things that stand on the floor and read as "something is there": gone when out of the light.
+const STANDS = new Set<EntityView["kind"]>([
+  "crate",
+  "loot",
+  "gear",
+  "bell",
+  "lamp",
+  "lever",
+  "keepsake",
+  "card",
+  "guard",
+  "camera",
+]);
 
 const STIPPLE_PX = 4;
 
@@ -87,137 +156,6 @@ export function nightTile(
   if (lit(x + 1, y)) ctx.fillRect(p.x + s - 2, p.y, 2, d + 0.5);
 }
 
-// What stops your sight, as the server counts it (src/game/sim/sight.ts): walls, vents and closed
-// doors. Glass passes sight. The tile you stand on never blocks you, even in a doorway.
-function stopsSight(
-  tiles: readonly string[],
-  closed: (tx: number, ty: number) => boolean,
-  home: Vec,
-  tx: number,
-  ty: number,
-): boolean {
-  if (tx === home.x && ty === home.y) return false;
-  const ch = tiles[ty]?.[tx];
-  if (ch === undefined || ch === "#" || ch === "%") return true; // off the map is a wall
-  return ch === "D" && closed(tx, ty);
-}
-
-// Where a ray from (ox, oy) along the unit vector (dx, dy) meets the face of the first tile that
-// stops it: a grid walk, tile to tile, so the answer is the face itself and not a step short.
-function rayLength(
-  ox: number,
-  oy: number,
-  dx: number,
-  dy: number,
-  hit: (tx: number, ty: number) => boolean,
-  home: Vec,
-): number {
-  let x = home.x;
-  let y = home.y;
-  const stepX = dx > 0 ? 1 : -1;
-  const stepY = dy > 0 ? 1 : -1;
-  const deltaX = dx === 0 ? Number.POSITIVE_INFINITY : Math.abs(1 / dx);
-  const deltaY = dy === 0 ? Number.POSITIVE_INFINITY : Math.abs(1 / dy);
-  let nextX = dx === 0 ? Number.POSITIVE_INFINITY : ((dx > 0 ? x + 1 : x) - ox) / dx;
-  let nextY = dy === 0 ? Number.POSITIVE_INFINITY : ((dy > 0 ? y + 1 : y) - oy) / dy;
-  for (;;) {
-    let t: number;
-    if (nextX < nextY) {
-      t = nextX;
-      x += stepX;
-      nextX += deltaX;
-    } else {
-      t = nextY;
-      y += stepY;
-      nextY += deltaY;
-    }
-    if (hit(x, y)) return t;
-  }
-}
-
-const PEEK = 1e-4; // radians: a ray this far to either side of a corner sees what lies past it
-
-// Everything you can see from `origin`, as one polygon: the edge of the light runs exactly through
-// the corners of walls, as a camera's cone does, not along tile edges. A ray goes to every corner
-// of every wall that borders open ground, plus one a hair either side of it (that pair is what
-// puts the edge of a shadow on the corner), and the polygon joins where they land, in order.
-// Built in tiles; the caller projects it. Drawn, it is the lit part of the floor: the server's own
-// tile set (view.seen) still decides what you are told, and the picture is cut to it.
-export function lightPolygon(
-  origin: Vec,
-  tiles: readonly string[],
-  closedDoor: (tx: number, ty: number) => boolean = () => false,
-): Vec[] {
-  const home = { x: Math.floor(origin.x), y: Math.floor(origin.y) };
-  const rows = tiles.length;
-  const cols = tiles[0]?.length ?? 0;
-  const stops = (tx: number, ty: number) => stopsSight(tiles, closedDoor, home, tx, ty);
-  const corners = new Set<number>();
-  const stride = cols + 1;
-  for (let ty = 0; ty < rows; ty++) {
-    for (let tx = 0; tx < cols; tx++) {
-      if (!stops(tx, ty)) continue;
-      let border = false;
-      for (let dy = -1; dy <= 1 && !border; dy++)
-        for (let dx = -1; dx <= 1; dx++) {
-          const nx = tx + dx;
-          const ny = ty + dy;
-          if (nx >= 0 && ny >= 0 && nx < cols && ny < rows && !stops(nx, ny)) {
-            border = true;
-            break;
-          }
-        }
-      if (!border) continue;
-      for (const [cx, cy] of [
-        [tx, ty],
-        [tx + 1, ty],
-        [tx, ty + 1],
-        [tx + 1, ty + 1],
-      ] as const)
-        corners.add(cy * stride + cx);
-    }
-  }
-  // the map's own corners always bound the light, so a room with no wall in it is lit whole
-  for (const [cx, cy] of [
-    [0, 0],
-    [cols, 0],
-    [0, rows],
-    [cols, rows],
-  ] as const)
-    corners.add(cy * stride + cx);
-  const rays: { angle: number; x: number; y: number }[] = [];
-  for (const key of corners) {
-    const cx = key % stride;
-    const cy = Math.floor(key / stride);
-    const aim = Math.atan2(cy - origin.y, cx - origin.x);
-    for (const off of [-PEEK, 0, PEEK]) {
-      let angle = aim + off;
-      if (angle > Math.PI) angle -= 2 * Math.PI;
-      if (angle <= -Math.PI) angle += 2 * Math.PI;
-      const dx = Math.cos(angle);
-      const dy = Math.sin(angle);
-      const t = rayLength(origin.x, origin.y, dx, dy, stops, home);
-      rays.push({ angle, x: origin.x + dx * t, y: origin.y + dy * t });
-    }
-  }
-  rays.sort((a, b) => a.angle - b.angle);
-  return rays.map((r) => ({ x: r.x, y: r.y }));
-}
-
-// The wall tiles the light touches. A wall is seen where a ray ends on its face, so it is lit when
-// the polygon has a vertex on its boundary: area would say a wall is dark, since the light stops at
-// its face and never fills it. A vertex on a corner touches up to four tiles.
-const TOUCH = 1e-3;
-function touchedTiles(light: readonly Vec[]): Set<number> {
-  const out = new Set<number>();
-  for (const p of light) {
-    for (let ty = Math.floor(p.y - TOUCH); ty <= Math.floor(p.y + TOUCH); ty++)
-      for (let tx = Math.floor(p.x - TOUCH); tx <= Math.floor(p.x + TOUCH); tx++)
-        out.add(ty * 4096 + tx);
-  }
-  return out;
-}
-
 // The mist, cut exactly to your line of sight, drawn as ONE region filled ONCE. Per-tile rectangles
 // stepped along the edge of the light and doubled the veil's alpha where two overlapped by the half
 // pixel kept to hide seams, which at night showed as a pale outline round a tile.
@@ -238,33 +176,36 @@ function touchedTiles(light: readonly Vec[]): Set<number> {
 // unit tests record calls on a plain-Node context that has none.
 type Box = { x: number; y: number; w: number; h: number };
 
+// The mist is painted in pieces, in the order what stands is drawn, so nothing lit is ever veiled and no
+// hole has to be cut for it (a hole was a rectangle wider than the thing it was cut for): the floor
+// first, once, before any wall or anything standing; then each row's walls the light never reaches,
+// right after that row's blocks are drawn and before what stands in it. What stands in a row is drawn
+// over the veil of the walls behind it, and under the walls in front of it, as in the world.
+//   part "floor": the open floor, with the light punched out of it (one path, even-odd, one fill).
+//   part n (a row): the walls of that row, and its closed doors, that the light does not touch.
 export function drawMist(
   ctx: CanvasRenderingContext2D,
   cam: Camera,
   tiles: readonly string[],
   light: readonly Vec[] | null,
   win: { x0: number; x1: number; y0: number; y1: number },
+  part: "floor" | number,
 ) {
   if (!light) return;
-  const touched = touchedTiles(light);
   const s = cam.scale;
   const depth = s * LIVE.depth;
-  const open: Box[] = []; // floor: the light is cut out of it
-  const walls: Box[] = []; // walls the light never reaches: veiled whole
-  for (let y = win.y0; y <= win.y1; y++) {
-    const row = tiles[y] ?? "";
-    for (let x = win.x0; x <= win.x1; x++) {
-      if (row[x] === " ") continue; // a dark zone is night, not mist
-      const block = row[x] === "#" || row[x] === "%" || row[x] === "=";
-      const lift = block ? LIVE.wall : 0;
-      const top = toScreen(cam, x, y, lift);
-      const box = { x: top.x, y: top.y, w: s, h: depth + lift * s };
-      if (!block) open.push(box);
-      else if (!touched.has(y * 4096 + x)) walls.push(box);
+  if (part === "floor") {
+    const open: Box[] = []; // floor: the light is cut out of it
+    for (let y = win.y0; y <= win.y1; y++) {
+      const row = tiles[y] ?? "";
+      for (let x = win.x0; x <= win.x1; x++) {
+        const ch = row[x];
+        if (ch === " " || ch === "#" || ch === "%" || ch === "=" || ch === "H") continue; // night, or a block
+        const top = toScreen(cam, x, y);
+        open.push({ x: top.x, y: top.y, w: s, h: depth });
+      }
     }
-  }
-  ctx.save();
-  if (open.length > 0) {
+    if (open.length === 0) return;
     ctx.save();
     ctx.beginPath();
     for (const b of open) ctx.rect(b.x, b.y, b.w, b.h);
@@ -280,13 +221,85 @@ export function drawMist(
     ctx.closePath();
     paintVeil(ctx, "evenodd");
     ctx.restore();
+    return;
   }
-  if (walls.length > 0) {
-    ctx.beginPath();
-    for (const b of walls) ctx.rect(b.x, b.y, b.w, b.h);
-    paintVeil(ctx, "nonzero");
+  const walls: Box[] = []; // walls the light never reaches: veiled whole
+  const touched = touchedOf(light);
+  const cut: { x: number; y: number }[][] = []; // the dark side of the cone's edge on a wall it reaches
+  const row = tiles[part] ?? "";
+  for (let x = win.x0; x <= win.x1; x++) {
+    const ch = row[x];
+    if (ch !== "#" && ch !== "%" && ch !== "=" && ch !== "H") continue;
+    const top = toScreen(cam, x, part, LIVE.wall);
+    const box = { x: top.x, y: top.y, w: s, h: depth + LIVE.wall * s };
+    if (ch === "=") {
+      const rect = [
+        { x: box.x, y: box.y },
+        { x: box.x + box.w, y: box.y },
+        { x: box.x + box.w, y: box.y + box.h },
+        { x: box.x, y: box.y + box.h },
+      ];
+      const pane = darkOfGlass(cam, light, x, part, rect);
+      if (pane === "dark") walls.push(box);
+      else if (pane !== "lit") cut.push(...pane);
+      continue;
+    }
+    const dark = darkOfWall(
+      cam,
+      light,
+      tiles,
+      x,
+      part,
+      [
+        { x: box.x, y: box.y },
+        { x: box.x + box.w, y: box.y },
+        { x: box.x + box.w, y: box.y + box.h },
+        { x: box.x, y: box.y + box.h },
+      ],
+      touched.has(part * 4096 + x),
+    );
+    if (dark === "dark") walls.push(box);
+    else if (dark !== "lit") cut.push(...dark);
   }
+  if (walls.length === 0 && cut.length === 0) return;
+  ctx.save();
+  ctx.beginPath();
+  for (const b of walls) ctx.rect(b.x, b.y, b.w, b.h);
+  for (const shape of cut) {
+    for (const [i, q] of shape.entries()) {
+      if (i === 0) ctx.moveTo(q.x, q.y);
+      else ctx.lineTo(q.x, q.y);
+    }
+    ctx.closePath();
+  }
+  paintVeil(ctx, "nonzero");
   ctx.restore();
+}
+
+// The stipple's tile: dots 1.5 px across on a checkerboard, 8 px across and 16 down (two rows of
+// dots, the second shifted half a step). Built once per device pixel ratio and tiled as a pattern,
+// so the GPU (or the software rasteriser, on a machine without one) fills a region in one call
+// instead of running a fillRect per dot over the whole canvas every frame. Null where there is
+// no DOM to draw the tile on (the unit tests' recording context).
+let stipple: { dpr: number; pattern: CanvasPattern } | null = null;
+function stipplePattern(ctx: CanvasRenderingContext2D): CanvasPattern | null {
+  if (typeof document === "undefined" || typeof ctx.createPattern !== "function") return null;
+  const dpr = window.devicePixelRatio || 1;
+  if (stipple?.dpr === dpr) return stipple.pattern;
+  const tile = document.createElement("canvas");
+  tile.width = Math.round(STIPPLE_PX * 2 * dpr);
+  tile.height = Math.round(STIPPLE_PX * 4 * dpr);
+  const t = tile.getContext("2d");
+  if (!t) return null;
+  t.scale(dpr, dpr);
+  t.fillStyle = "#ffffff";
+  t.fillRect(0, 0, 1.5, 1.5);
+  t.fillRect(STIPPLE_PX, STIPPLE_PX * 2, 1.5, 1.5);
+  const pattern = ctx.createPattern(tile, "repeat");
+  if (!pattern) return null;
+  pattern.setTransform(new DOMMatrix().scale(1 / dpr, 1 / dpr)); // the tile is in device pixels
+  stipple = { dpr, pattern };
+  return pattern;
 }
 
 // Fills the current path once, then a static stipple through the same region, so the haze is
@@ -296,13 +309,11 @@ function paintVeil(ctx: CanvasRenderingContext2D, rule: CanvasFillRule) {
   ctx.globalAlpha = MIST.alpha;
   ctx.fillStyle = WORLD.mist;
   ctx.fill(rule);
-  ctx.clip(rule);
-  ctx.globalAlpha = 0.3;
-  ctx.fillStyle = "#ffffff";
-  const step = STIPPLE_PX * 2;
-  const w = ctx.canvas?.width ?? 0;
-  const h = ctx.canvas?.height ?? 0;
-  for (let y = 0; y < h; y += step)
-    for (let x = ((y / step) % 2) * STIPPLE_PX; x < w; x += step) ctx.fillRect(x, y, 1.5, 1.5);
+  const dots = stipplePattern(ctx);
+  if (dots) {
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = dots;
+    ctx.fill(rule); // the same path: only the region is stippled, no clip needed
+  }
   ctx.restore();
 }

@@ -1,0 +1,11 @@
+{"id":"00-show","name":"Show","version":1,"beats":[{"name":"A","x":[0,15],"intent":{"blind":"b","deaf":"d","mute":"m"}}],"objects":{"S1":{"text":"No red wires: cut the second wire."},"T1":{"of":"Q2"},"Q1":{"type":"dial","pads":[[3,4],[5,4]],"back":[4,5],"digits":1,"range":10,"teach":true},"Q2":{"type":"switches","buttons":[[9,4],[10,4],[11,4],[9,5],[10,5],[11,5]],"cols":3,"lamps":[[12,1],[13,1],[14,1],[12,2],[13,2],[14,2]],"motif":"moon"},"Q3":{"type":"radio","pads":[[6,6],[8,6]],"range":8,"motif":"moon","yields":"Q2"},"D1":{"opensWhen":["p1","p2","p3"]}}}
+---
+################
+#1..S..t.....p.#
+#2...........p.#
+#3..Q........p.#
+#..........Q...#
+#..............#
+#......Q.......#
+############DE.#
+################

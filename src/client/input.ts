@@ -9,9 +9,16 @@ const LEFT = ["a", "arrowleft"];
 const RIGHT = ["d", "arrowright"];
 const UP = ["w", "arrowup"];
 const DOWN = ["s", "arrowdown"];
-const GAME_KEYS = new Set([...LEFT, ...RIGHT, ...UP, ...DOWN, " "]);
+const GEAR = "g"; // take, give (to a teammate beside you), swap or drop your gear
+const GAME_KEYS = new Set([...LEFT, ...RIGHT, ...UP, ...DOWN, " ", GEAR]);
 const DEAD_ZONE = 0.2;
 const STICK_PX = 48; // how far the knob travels from the centre
+
+// What the send loop compares to know a still player's input changed: the move, Act and the gear
+// key. The counter is left out, since it changes every read. (Gear was once left out too, so G was
+// never sent while standing still.)
+export const inputKey = (input: PlayerInput): string =>
+  `${input.move.x},${input.move.y},${input.act},${input.gear ?? false}`;
 
 const typing = (target: EventTarget | null): boolean => {
   const el = target as HTMLElement | null;
@@ -21,14 +28,15 @@ const typing = (target: EventTarget | null): boolean => {
   );
 };
 
-// Keyboard (WASD or arrows, Space) and a touch joystick, merged into one
-// PlayerInput. The joystick and Act button are the elements in `root` marked
-// data-joystick and data-act, if there are any (touch devices only render them).
+// Keyboard (WASD or arrows, Space, G) and a touch joystick, merged into one
+// PlayerInput. The joystick, Act button and gear slot are the elements in `root` marked
+// data-joystick, data-act and data-gear, if there are any (touch devices only render them).
 export function createInput(root: HTMLElement): InputSource {
   const keys = new Set<string>();
   let seq = 0;
   let stick = { x: 0, y: 0 };
   let actHeld = false;
+  let gearHeld = false;
   let live = true;
 
   const onKeyDown = (e: KeyboardEvent): void => {
@@ -45,6 +53,7 @@ export function createInput(root: HTMLElement): InputSource {
     keys.clear();
     stick = { x: 0, y: 0 };
     actHeld = false;
+    gearHeld = false;
   };
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
@@ -119,6 +128,27 @@ export function createInput(root: HTMLElement): InputSource {
     });
   }
 
+  // the phone's gear slot (data-gear): held, it gives or drops your gear, like G
+  const gear = root.querySelector<HTMLElement>("[data-gear]");
+  if (gear) {
+    noMenu(gear);
+    const down = (e: PointerEvent): void => {
+      gearHeld = true;
+      gear.setPointerCapture?.(e.pointerId);
+    };
+    const up = (): void => {
+      gearHeld = false;
+    };
+    gear.addEventListener("pointerdown", down);
+    gear.addEventListener("pointerup", up);
+    gear.addEventListener("pointercancel", up);
+    cleanups.push(() => {
+      gear.removeEventListener("pointerdown", down);
+      gear.removeEventListener("pointerup", up);
+      gear.removeEventListener("pointercancel", up);
+    });
+  }
+
   const axis = (neg: string[], pos: string[]): number =>
     (pos.some((k) => keys.has(k)) ? 1 : 0) - (neg.some((k) => keys.has(k)) ? 1 : 0);
   const clamp = (n: number): number => Math.max(-1, Math.min(1, n));
@@ -132,6 +162,7 @@ export function createInput(root: HTMLElement): InputSource {
           y: clamp(axis(UP, DOWN) + stick.y) + 0,
         },
         act: keys.has(" ") || actHeld,
+        gear: keys.has(GEAR) || gearHeld,
       };
     },
     dispose() {

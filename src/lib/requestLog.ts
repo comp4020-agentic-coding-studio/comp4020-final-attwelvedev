@@ -27,6 +27,7 @@ export const ACTIONS: Record<string, string> = {
   "GET /lobby/[code]": "view.lobby",
   "GET /preferences": "view.preferences",
   "GET /leaderboard": "view.leaderboard",
+  "GET /leaderboard.json": "view.leaderboard.panel",
 };
 
 // The stats view and static assets are not user actions: logging them would

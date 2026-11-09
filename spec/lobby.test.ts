@@ -202,7 +202,7 @@ describe("lobbies over the socket", () => {
     const { rooms } = await a.next<LobbyMsg>("lobby");
     // the room set changes between phases, so check the shape and the first room, not the list
     expect(rooms.length).toBeGreaterThanOrEqual(3);
-    expect(rooms[0]).toBe("Loading Dock");
+    expect(rooms[0]).toBe("First Steps");
     expect(rooms.every((name) => name.length > 0)).toBe(true);
     await a.close();
   });

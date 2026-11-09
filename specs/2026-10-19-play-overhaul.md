@@ -95,7 +95,7 @@ design.
 11. **Held sequence:** a sequence door's plates must each stay held from when
     they are pressed until the last is pressed, so it needs three bodies. The
     linter rejects any door one person could open alone.
-12. The heist becomes **4 rooms**: room 1 a tutorial, then one room for each
+12. *Superseded by `specs/2026-10-28-escape-room-heist.md` (2026-10-28).* The heist becomes **4 rooms**: room 1 a tutorial, then one room for each
     role's lead beat:
     - **dark** → Can't see leads (hears what no one sees; Can't speak hears but
       can't talk);
@@ -111,7 +111,7 @@ design.
     - any combination of flips that leaves a role with no input (playtest 1);
     - a held-sequence door one person could open;
     - a room whose lead beats are not declared in metadata.
-14. **Every role is needed:** `spec/rooms.test.ts` keeps "three bots clear every
+14. *Superseded by `specs/2026-10-28-escape-room-heist.md` (2026-10-28).* **Every role is needed:** `spec/rooms.test.ts` keeps "three bots clear every
     room in every rotation" and adds, per lead beat, that bots with the lead
     role's sending switched off fail that beat.
 15. Room 1 shows small in-world labels the first time each object type enters

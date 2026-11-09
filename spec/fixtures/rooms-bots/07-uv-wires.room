@@ -1,0 +1,22 @@
+{"id":"07-uv-wires","name":"Wires and a UV-ink plaque (bots fixture)","version":1,"budgetS":240,
+ "beats":[
+  {"name":"Torch","x":[0,19],"intent":{"blind":"waits","deaf":"takes the UV torch","mute":"waits"}},
+  {"name":"Plaque","x":[0,19],"intent":{"blind":"hears the snip","deaf":"lights the ink and cuts the wire","mute":"waits"}},
+  {"name":"Out","x":[0,19],"intent":{"blind":"walks out","deaf":"walks out","mute":"walks out"}}
+ ],
+ "objects":{
+  "Q1":{"type":"wires","wires":[[10,1],[11,1],[12,1],[13,1]],"plaque":"u1"},
+  "g1":{"item":"uv"},
+  "u1":{"text":""},
+  "D1":{"opensWhen":["Q1"]}},
+ "hints":{"jobs":[
+  {"beat":1,"take":"g1","prefer":"deaf"},
+  {"beat":2,"station":"Q1","at":[4,3],"prefer":"deaf"},
+  {"beat":3,"goTo":"E","all":true}]}}
+---
+###################
+#1.......Q....D..E#
+#2...g........D..E#
+#3............D..E#
+###u###############
+###################

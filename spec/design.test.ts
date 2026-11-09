@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 // DESIGN.md is the design reference (overview A5). It keeps names, never values, so
@@ -36,9 +36,35 @@ describe("DESIGN.md", () => {
     expect(design.match(/#[0-9a-fA-F]{6}\b/g) ?? []).toEqual([]);
   });
 
+  it("mentions no flat-shaded world, and names the reserved ring and the decor themes", () => {
+    // ADR 0016's history may be quoted; nothing else calls the world flat-shaded
+    const body = design
+      .split("\n")
+      .filter((l) => !/ADR 0016/.test(l))
+      .join("\n");
+    expect(body).not.toMatch(/flat-shaded|flat shading/i);
+    expect(design).toMatch(/The ring is reserved/);
+    for (const theme of ["pavilion", "conservatory", "watch house", "bank", "backstage", "service"])
+      expect(design.toLowerCase(), theme).toContain(theme);
+    expect(design).not.toMatch(/\*\*planned \(Task N\)|plan: diorama|come with phase 8/);
+  });
+
   it("supersedes the old draft in doc/prompts/DESIGN.md", () => {
     const first = readFileSync("doc/prompts/DESIGN.md", "utf8").split("\n")[0];
     expect(first).toMatch(/superseded/i);
     expect(first).toContain("DESIGN.md");
+  });
+
+  it("no shell CSS or component holds the old navy (#0b1220, #141e36, rgb(11 18 32, rgb(20 30 54)", () => {
+    const old = /#0b1220|#141e36|rgba?\(\s*11[ ,]+18[ ,]+32|rgba?\(\s*20[ ,]+30[ ,]+54/i;
+    const files = [
+      ...readdirSync("src/styles").map((f) => `src/styles/${f}`),
+      ...readdirSync("src/components").map((f) => `src/components/${f}`),
+      ...readdirSync("src/client/render")
+        .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
+        .map((f) => `src/client/render/${f}`),
+    ];
+    const holding = files.filter((f) => old.test(readFileSync(f, "utf8")));
+    expect(holding).toEqual([]);
   });
 });

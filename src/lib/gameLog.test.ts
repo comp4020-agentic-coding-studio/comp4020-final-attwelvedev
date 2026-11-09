@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeGame, lobbyKey } from "./gameLog.ts";
+import { describeGame, gameLinesFor, lobbyKey } from "./gameLog.ts";
 
 const NOW = Date.parse("2026-10-08T03:00:00Z");
 
@@ -48,6 +48,14 @@ describe("describeGame", () => {
     expect(line.detail).toEqual({ room: "loading-dock", seat: 2, ms: 41_000, bots: 0 });
   });
 
+  it("keeps a room's comms total as `sends`, a number, and drops any message content beside it", () => {
+    const line = describeGame({
+      event: "room.clear",
+      detail: { room: "01-first-steps", sends: 14, text: "go left", callout: "wait", by: "Ana" },
+    });
+    expect(line.detail).toEqual({ room: "01-first-steps", sends: 14 });
+  });
+
   it("uses null for a missing device or lobby and omits empty detail", () => {
     const line = describeGame({ event: "socket.open", detail: { text: "nope" } });
     expect(line.who).toBeNull();
@@ -63,5 +71,87 @@ describe("lobbyKey", () => {
     expect(lobbyKey("ABCD", 1000)).toBe(key);
     expect(lobbyKey("ABCD", 2000)).not.toBe(key);
     expect(key.toLowerCase()).not.toContain("abcd");
+  });
+});
+
+describe("gameLinesFor: a tug of war (Task 40)", () => {
+  it("logs one line a pull with the kind of thing only, never which seats", () => {
+    const lines = gameLinesFor([
+      { kind: "pull", leader: 0, towed: 2, at: { x: 3.5, y: 1.5 } },
+      { kind: "pull", leader: 1, towed: 0, at: { x: 9.5, y: 4.5 } },
+    ]);
+    expect(lines).toEqual([
+      { event: "pull", detail: { kind: "tug" } },
+      { event: "pull", detail: { kind: "tug" } },
+    ]);
+    const details = JSON.stringify(
+      lines.map((l) => describeGame({ event: l.event, detail: l.detail }).detail),
+    );
+    expect(details).not.toMatch(/leader|towed|seat|3\.5|9\.5|[0-9]/);
+  });
+});
+
+describe("gameLinesFor: a braille plate read (Task 72)", () => {
+  it("logs a read as its kind only, never the plate or the number", () => {
+    const lines = gameLinesFor([{ kind: "braille", id: "o1", seat: 0, at: { x: 2, y: 3 } }]);
+    expect(lines).toEqual([{ event: "station", detail: { kind: "braille" } }]);
+  });
+});
+
+describe("gameLinesFor: a jam (FR13)", () => {
+  it("logs a jam as its kind only, never which station", () => {
+    const lines = gameLinesFor([{ kind: "station", id: "Q4", result: "jam", at: { x: 2, y: 3 } }]);
+    expect(lines).toEqual([{ event: "station", detail: { kind: "jam" } }]);
+  });
+});
+
+describe("gameLinesFor: the sim's station, gear, hold and signal events", () => {
+  it("logs the kind of thing only, never an answer, a key or an id", () => {
+    const lines = gameLinesFor([
+      { kind: "station", id: "Q1", result: "press", n: 7, at: { x: 1, y: 1 } },
+      { kind: "station", id: "Q1", result: "solved", at: { x: 1, y: 1 } },
+      { kind: "station", id: "Q2", result: "wrong", at: { x: 1, y: 1 } },
+      { kind: "gear", id: "g1", action: "give", seat: 0, at: { x: 1, y: 1 } },
+      { kind: "hold", seat: 1, leader: 0 },
+      { kind: "hold", seat: 1, leader: null },
+      { kind: "bell", id: "b1", at: { x: 1, y: 1 } },
+      { kind: "lamp", id: "l1", seat: 2 },
+      { kind: "lever", id: "v1", on: true, at: { x: 1, y: 1 } },
+      { kind: "lever", id: "v1", on: false, at: { x: 1, y: 1 } },
+    ]);
+    expect(lines).toEqual([
+      { event: "station", detail: { kind: "solved" } },
+      { event: "station", detail: { kind: "wrong" } },
+      { event: "gear", detail: { kind: "give" } },
+      { event: "hold", detail: { kind: "on" } },
+      { event: "hold", detail: { kind: "off" } },
+      { event: "signal", detail: { kind: "bell" } },
+      { event: "signal", detail: { kind: "lamp" } },
+      { event: "practice", detail: { kind: "on" } },
+      { event: "practice", detail: { kind: "off" } },
+    ]);
+    const redacted = lines.map((l) => describeGame({ event: l.event, detail: l.detail }));
+    // what reaches the log beyond the event name: never a station, gear or signal id, or a key
+    const details = JSON.stringify(redacted.map((l) => l.detail));
+    expect(details).not.toMatch(/Q1|Q2|g1|b1|l1|v1|"n"|7/);
+  });
+});
+
+describe("gameLinesFor: a cache (Task 54)", () => {
+  it("logs an uncover, a solve and a take by kind only: never the item, motif, riddle or seat", () => {
+    const lines = gameLinesFor([
+      { kind: "cache", id: "Q9", result: "uncover", seat: 1, at: { x: 3.5, y: 2.5 } },
+      { kind: "cache", id: "Q9", result: "solved", seat: 2, at: { x: 3.5, y: 2.5 } },
+      { kind: "cache", id: "Q9", result: "taken", seat: 0, at: { x: 3.5, y: 2.5 } },
+    ]);
+    expect(lines).toEqual([
+      { event: "cache", detail: { kind: "uncover" } },
+      { event: "cache", detail: { kind: "solved" } },
+      { event: "cache", detail: { kind: "taken" } },
+    ]);
+    const out = JSON.stringify(
+      lines.map((l) => describeGame({ event: l.event, detail: l.detail }).detail),
+    );
+    expect(out).not.toMatch(/watch|moon|Q9|seat|[0-9]/);
   });
 });

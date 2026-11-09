@@ -32,7 +32,6 @@ export function botsAct(
   now: number,
   nickname: (seat: Seat) => string,
   full: ReadonlySet<Seat> = new Set(),
-  muted?: Seat, // the lead-role harness: this seat's sends are dropped before they are routed
 ): { inputs: Partial<Record<Seat, PlayerInput>>; sent: BotSent[]; refused: number } {
   const inputs: Partial<Record<Seat, PlayerInput>> = {};
   const sent: BotSent[] = [];
@@ -43,9 +42,10 @@ export function botsAct(
   for (const seat of order) {
     const bot = bots[seat] as BotSeat;
     const view = viewFor(world, seat, roles[seat], full.has(seat));
+    // the bot is given its own role's view and inbox and nothing else (clues FR5, ADR 0018)
     const turn = think(room, view, bot.inbox.splice(0), bot.memory, now);
     inputs[seat] = turn.input;
-    if (!turn.send || seat === muted) continue;
+    if (!turn.send) continue;
     const result = route(roles as [Role, Role, Role], seat, turn.send, cooldowns, now);
     if (!result.ok) {
       refused++;

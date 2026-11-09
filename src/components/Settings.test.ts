@@ -2,6 +2,7 @@
 import { h, render } from "preact";
 import { act } from "preact/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Settings as SettingsState } from "../client/settings.ts";
 import { Settings } from "./Settings.tsx";
 
 afterEach(() => {
@@ -9,7 +10,7 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-const settings = {
+const settings: SettingsState = {
   captions: true,
   sound: true,
   speech: true,
@@ -18,6 +19,9 @@ const settings = {
   highContrast: false,
   maskNoiseOn: true,
   volume: 0.5,
+  labels: true,
+  menuSounds: true,
+  maskNoise: "brown",
 };
 
 async function open() {
@@ -114,6 +118,24 @@ describe("Settings: masking noise", () => {
     expect((slider as HTMLInputElement)?.disabled).toBe(false);
   });
 
+  it("offers Brown, Rain and Café, and reports the one picked", async () => {
+    const onChange = vi.fn();
+    await openAs("deaf", true, onChange);
+    const select = document.querySelector("select") as HTMLSelectElement;
+    expect([...select.options].map((o) => o.textContent)).toEqual(["Brown", "Rain", "Café"]);
+    expect(select.disabled).toBe(false);
+    select.value = "rain";
+    await act(() => {
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(onChange).toHaveBeenCalledWith({ ...settings, maskNoise: "rain" });
+  });
+
+  it("greys the bed picker out with no headphones", async () => {
+    await openAs("deaf", false);
+    expect((document.querySelector("select") as HTMLSelectElement).disabled).toBe(true);
+  });
+
   it("is greyed out with an explanation when their setup has no headphones", async () => {
     await openAs("deaf", false);
     const toggle = document.querySelector('input[type="checkbox"][name="mask-noise"]');
@@ -121,6 +143,29 @@ describe("Settings: masking noise", () => {
     expect((toggle as HTMLInputElement)?.disabled).toBe(true);
     expect((slider as HTMLInputElement)?.disabled).toBe(true);
     expect(document.body.textContent).toMatch(/headphones/i);
+  });
+
+  it("shows the setup's default until they choose: off for someone remote", async () => {
+    for (const maskNoiseDefault of [false, true]) {
+      render(
+        h(Settings, {
+          role: "deaf",
+          settings: { ...settings, maskNoiseOn: null },
+          onChange: () => {},
+          maskNoiseAvailable: true,
+          maskNoiseDefault,
+          othersSoundOff: false,
+          voiceOn: true,
+        }),
+        document.body,
+      );
+      await act(() => (document.querySelector("button.hud-btn") as HTMLButtonElement).click());
+      const toggle = document.querySelector(
+        'input[type="checkbox"][name="mask-noise"]',
+      ) as HTMLInputElement;
+      expect(toggle.checked).toBe(maskNoiseDefault);
+      render(null, document.body);
+    }
   });
 
   it("calls onChange with maskNoiseOn flipped", async () => {

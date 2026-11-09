@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Browser, Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { DUSK, MIST, ROLE_COLOR, WORLD } from "../../src/client/tokens.ts";
+import { DUSK, MIST, mix, ROLE_COLOR, WORLD } from "../../src/client/tokens.ts";
 import { DESKTOP, launch } from "../browser.ts";
 import { playRoom, type Table } from "../playUi.ts";
 
@@ -58,6 +58,15 @@ beforeAll(async () => {
   });
   // the sea drifts and a hop is a motion: nothing here measures them
   for (const page of table.pages) await page.emulateMedia({ reducedMotion: "reduce" });
+  // the first room's labels are chips drawn over the world, and this measures the world's own pixels
+  for (const page of table.pages) {
+    await page.evaluate(() => {
+      const saved = JSON.parse(localStorage.getItem("heist.settings") ?? "{}");
+      localStorage.setItem("heist.settings", JSON.stringify({ ...saved, labels: false }));
+    });
+    await page.reload();
+    await page.locator(".frame canvas").waitFor();
+  }
 }, 60_000);
 
 // No leaving the lobby first: that habit stops abandoned lobbies filling a shared server, and this
@@ -108,6 +117,13 @@ const SPOTS: [number, number][] = [
   [0.3, 0.4],
   [0.7, 0.4],
 ];
+// The floor is stone flags in four tones (render/materials.ts: paintFloor), with a faint shade at a
+// wall's foot and an 8 % speckle: a pixel within 6 of a tone is floor. The mist over any tone is 10 or
+// more from every tone in blue, so a veiled pixel never counts as floor.
+const FLOOR_TONES: Rgb[] = [0, 1, 2, 3].map((v) =>
+  rgb(v ? mix(WORLD.floor, "#000000", 0.02 * v) : WORLD.floor),
+);
+const isFloor = (px: Rgb) => FLOOR_TONES.some((tone) => near(px, tone, 6));
 const floorShare = async (page: Page, tx: number, ty: number) => {
   let floor = 0;
   let misty = 0;
@@ -116,7 +132,7 @@ const floorShare = async (page: Page, tx: number, ty: number) => {
   ) as Rgb;
   for (const [ox, oy] of SPOTS) {
     const px = await pixelAt(page, tx, ty, ox, oy);
-    if (near(px, rgb(WORLD.floor), 0)) floor++;
+    if (isFloor(px)) floor++;
     else if (near(px, blend, 14)) misty++;
   }
   return { floor, misty };

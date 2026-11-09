@@ -1,0 +1,21 @@
+{"id":"06-switches","name":"Switches and card (bots fixture)","version":1,"budgetS":240,
+ "beats":[
+  {"name":"Lamps","x":[0,21],"intent":{"blind":"hears the clunks","deaf":"reads the card, then watches the lamps and marks the buttons","mute":"presses the marked buttons"}},
+  {"name":"Out","x":[0,21],"intent":{"blind":"walks out","deaf":"walks out","mute":"walks out"}}
+ ],
+ "objects":{
+  "Q1":{"type":"switches","buttons":[[4,1],[5,1],[6,1],[4,2],[5,2],[6,2]],"cols":3,"lamps":[[8,1],[9,1],[10,1],[8,2],[9,2],[10,2]]},
+  "T1":{"of":"Q1"},
+  "D1":{"opensWhen":["Q1"]}},
+ "hints":{"jobs":[
+  {"beat":1,"watch":"Q1","at":[8,4],"read":[14,4],"prefer":"deaf"},
+  {"beat":1,"station":"Q1","prefer":"mute"},
+  {"beat":2,"goTo":"E","all":true}]}}
+---
+######################
+#1.....#...#######D.E#
+#2.....#...#######D.E#
+#3..Q..===.#######D.E#
+#.................D###
+###############t######
+######################

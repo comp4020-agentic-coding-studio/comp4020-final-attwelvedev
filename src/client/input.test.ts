@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
-import { createInput, type InputSource } from "./input.ts";
+import { createInput, type InputSource, inputKey } from "./input.ts";
 
 let source: InputSource | null = null;
 afterEach(() => {
@@ -30,6 +30,15 @@ describe("createInput", () => {
     expect(source.read().act).toBe(true);
     key("keyup", " ");
     expect(source.read().act).toBe(false);
+  });
+
+  it("reads G as gear", () => {
+    source = createInput(document.body);
+    expect(source.read().gear).toBe(false);
+    key("keydown", "g");
+    expect(source.read().gear).toBe(true);
+    key("keyup", "g");
+    expect(source.read().gear).toBe(false);
   });
 
   it("cancels opposite keys and is not case sensitive", () => {
@@ -81,5 +90,28 @@ describe("createInput", () => {
     expect(menu(act)).toBe(true);
     source.dispose();
     expect(menu(stick)).toBe(false);
+  });
+});
+
+describe("the phone's gear slot", () => {
+  it("sends gear while the slot is held, like Act", () => {
+    document.body.innerHTML = "<button data-gear></button>";
+    const source = createInput(document.body);
+    const slot = document.querySelector("[data-gear]") as HTMLElement;
+    expect(source.read().gear).toBe(false);
+    slot.dispatchEvent(new Event("pointerdown"));
+    expect(source.read().gear).toBe(true);
+    slot.dispatchEvent(new Event("pointerup"));
+    expect(source.read().gear).toBe(false);
+    source.dispose();
+  });
+});
+
+describe("inputKey: what tells the loop a still player's input changed", () => {
+  it("changes when gear is pressed, so G is sent while standing still (it was dropped before)", () => {
+    const still = { seq: 1, move: { x: 0, y: 0 }, act: false };
+    expect(inputKey({ ...still, gear: true })).not.toBe(inputKey({ ...still, gear: false }));
+    expect(inputKey({ ...still, act: true })).not.toBe(inputKey(still));
+    expect(inputKey({ ...still, seq: 9 })).toBe(inputKey(still)); // the counter alone is no change
   });
 });

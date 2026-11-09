@@ -20,9 +20,10 @@ describe("realLifeFor: masking noise", () => {
 
 describe("realLifeFor: sound off and captions", () => {
   it.each(["blind", "mute"] as Role[])(
-    "%s without headphones gets captions instead of game sound",
+    "%s without headphones, in the room with others, gets captions instead of game sound",
     (role) => {
-      const r = realLifeFor(role, setup({ headphones: false }), crewOf(remote));
+      const me = setup({ inRoom: true, headphones: false });
+      const r = realLifeFor(role, me, crewOf(me, together));
       expect(r.soundOff).toBe(true);
       expect(r.captions).toBe(true);
     },
@@ -49,6 +50,47 @@ describe("realLifeFor: sound off and captions", () => {
         expect(r.captions).toBe(false);
       }
     }
+  });
+});
+
+describe("realLifeFor: remote players keep game sound", () => {
+  it.each(["blind", "mute"] as Role[])(
+    "%s, remote and without headphones, keeps game sound, with captions only if they asked",
+    (role) => {
+      expect(
+        realLifeFor(role, setup({ inRoom: false, headphones: false }), crewOf(remote)),
+      ).toMatchObject({
+        soundOff: false,
+        captions: false,
+      });
+      expect(
+        realLifeFor(
+          role,
+          setup({ inRoom: false, headphones: false, captions: true }),
+          crewOf(remote),
+        ).captions,
+      ).toBe(true);
+    },
+  );
+
+  it("a hearing role without headphones, in the room with two others, gets captions instead", () => {
+    const me = setup({ inRoom: true, headphones: false });
+    expect(realLifeFor("blind", me, crewOf(me, together, together)).soundOff).toBe(true);
+  });
+});
+
+describe("realLifeFor: masking noise default", () => {
+  it("starts off for a remote Can't hear, and on in the room with company", () => {
+    const me = setup({ inRoom: false, headphones: true });
+    expect(realLifeFor("deaf", me, crewOf(me, remote, remote))).toMatchObject({
+      maskNoise: true,
+      maskDefault: false,
+    });
+    const there = setup({ inRoom: true, headphones: true });
+    expect(realLifeFor("deaf", there, crewOf(there, together, together))).toMatchObject({
+      maskNoise: true,
+      maskDefault: true,
+    });
   });
 });
 

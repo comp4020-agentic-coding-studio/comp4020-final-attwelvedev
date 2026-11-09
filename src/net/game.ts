@@ -21,7 +21,8 @@ import {
   type Seat,
   type Vec,
 } from "../game/types.ts";
-import { type LobbyState, MAX_PEOPLE, newPerson, SEAT_SHAPE, seatCrew } from "./lobbies.ts";
+import { BOT_NAME, type LobbyState, MAX_PEOPLE, newPerson, seatCrew } from "./lobbies.ts";
+import { VOICE_FRAME_MS } from "./voice.ts";
 
 export interface CrewMember {
   seat: Seat;
@@ -47,7 +48,7 @@ export interface Paused {
 // The team was caught: by a guard, camera or laser, who it saw, and the checkpoint (0 = the
 // start) the team is back at.
 export interface Caught {
-  hazard: "guard" | "camera" | "laser";
+  hazard: "guard" | "camera" | "laser" | "station"; // station: a wrong answer (FR15)
   seat: Seat;
   checkpoint: number;
 }
@@ -81,13 +82,18 @@ export interface Game {
   vacated: Partial<Record<Seat, string>>; // the device that left a seat a bot now plays, who may take it back
   heistPeople: Map<string, { nickname: string; bot: boolean }>; // everyone who played any room, for the heist record
   counted: number; // the last room whose crew was written to people's `played` (a restart is not a second play)
+  botPlayed: Record<string, Role[]>; // what each bot has played this heist, by its name: a bot is not a person, so it has no `played`
+  comms: Comms; // this room's deliveries, for the comms map on the cleared card
+  autopilot: Set<Seat>; // person seats a bot is playing for a playtest (ADR 0027); cleared with every seatBots
 }
 
 // Bots start afresh with each room: their memory is of that room and these roles.
-// A bot is always ready.
+// A bot is always ready. Autopilot ends here too: every caller but setAutopilot (a new room, a
+// restart, a takeover, a swap) leaves it off, and setAutopilot writes its set back after.
 function seatBots(game: Game, botSeats: readonly Seat[]): void {
   const humans = new Set<Seat>(([0, 1, 2] as const).filter((s) => !botSeats.includes(s)));
   game.bots = {};
+  game.autopilot = new Set();
   for (const seat of botSeats) {
     game.bots[seat] = { memory: createBotMemory(seat, humans, game.roles), inbox: [] };
     game.ready.add(seat);
@@ -96,6 +102,82 @@ function seatBots(game: Game, botSeats: readonly Seat[]): void {
 const botSeatsOf = (game: Game): Seat[] => ([0, 1, 2] as const).filter((s) => game.bots[s]);
 const botSeatsIn = (lobby: LobbyState): Seat[] =>
   ([0, 1, 2] as const).filter((s) => lobby.seats[s]?.bot);
+
+// Playtest only (ADR 0027): a bot plays a person's seat, so the regression run can drive all three.
+// The person's socket still gets the seat's views; its own input and sends are ignored (attach.ts).
+// Every bot starts afresh, as on a takeover, since who is a person has changed. False: no change.
+export function setAutopilot(game: Game, lobby: LobbyState, seat: Seat, on: boolean): boolean {
+  if (game.autopilot.has(seat) === on) return false;
+  const autopilot = new Set(game.autopilot);
+  if (on) autopilot.add(seat);
+  else autopilot.delete(seat);
+  delete game.inputs[seat]; // a held key does not walk on
+  seatBots(game, [...new Set([...botSeatsIn(lobby), ...autopilot])]);
+  game.autopilot = autopilot;
+  return true;
+}
+export const autopilotOn = (game: Game, seat: Seat): boolean => game.autopilot.has(seat);
+
+// The comms map (overhaul FR35): how many messages went each way, by method, counted once per seat
+// a message reached; keyed "from>to". Never what was said. A fresh world starts it again.
+export type Comms = Record<string, Partial<Record<Method, number>>>;
+export interface CommsEdge {
+  from: Seat;
+  to: Seat;
+  count: number;
+  by: Partial<Record<Method, number>>; // messages by method; never voice
+  voiceMs?: number; // time spoken along this arrow, from the frames relayed; absent when none
+}
+
+export function countComms(
+  comms: Comms,
+  from: Seat,
+  receivers: readonly Seat[],
+  method: Method,
+): void {
+  for (const to of receivers) {
+    const k = `${from}>${to}`;
+    const edge = comms[k] ?? {};
+    edge[method] = (edge[method] ?? 0) + 1;
+    comms[k] = edge;
+  }
+}
+
+// Voice arrives as a stream of frames, each VOICE_FRAME_MS of speech. The comms map counts voice as time, not
+// as messages: a spurt cannot be told apart when someone holds the mic open (toggle to talk), but the seconds
+// they spoke can. The frames are kept under the `voice` key and read as milliseconds by `commsEdges`.
+export function countVoice(game: Game, from: Seat, receivers: readonly Seat[]): void {
+  countComms(game.comms, from, receivers, "voice");
+}
+
+// The edges that carried anything, in seat order, for the `cleared` message.
+export function commsEdges(comms: Comms): CommsEdge[] {
+  const edges: CommsEdge[] = [];
+  for (const from of [0, 1, 2] as const) {
+    for (const to of [0, 1, 2] as const) {
+      const by = comms[`${from}>${to}`];
+      if (!by) continue;
+      const { voice = 0, ...messages } = by;
+      const count = Object.values(messages).reduce((n, c) => n + (c ?? 0), 0);
+      if (count > 0 || voice > 0) {
+        const edge: CommsEdge = { from, to, count, by: messages };
+        if (voice > 0) edge.voiceMs = voice * VOICE_FRAME_MS;
+        edges.push(edge);
+      }
+    }
+  }
+  return edges;
+}
+
+function freshComms(game: Game): void {
+  game.comms = {};
+}
+
+// Every new world gets its own seed for its station answers (FR5): the clock, plus a counter so two
+// worlds made in the same millisecond still differ. The simulation itself never reads the clock.
+let worlds = 0;
+const freshWorld = (room: Room): World =>
+  createWorld(room, ((Date.now() % 1_000_000) * 1000 + (worlds++ % 1000)) >>> 0);
 
 // The caller has already checked that the starter is the host, and startLobby has
 // filled the empty seats with bots.
@@ -107,7 +189,7 @@ export function startGame(lobby: LobbyState, rooms: Room[]): Game {
     roomIndex: 0,
     crew: crewFor(lobby, 0),
     roles: crewFor(lobby, 0).roles,
-    world: createWorld(room),
+    world: freshWorld(room),
     ready: new Set(),
     inputs: {},
     startedAt: Date.now(),
@@ -118,6 +200,9 @@ export function startGame(lobby: LobbyState, rooms: Room[]): Game {
     vacated: {},
     heistPeople: new Map(),
     counted: -1,
+    botPlayed: {},
+    comms: {},
+    autopilot: new Set(),
   };
   seatBots(
     game,
@@ -158,7 +243,8 @@ export function advanceRoom(game: Game, lobby: LobbyState, rooms: Room[]): "next
   if (!room) return "done";
   game.roomIndex++;
   setCrew(game, lobby, crewFor(lobby, game.roomIndex));
-  game.world = createWorld(room);
+  game.world = freshWorld(room);
+  freshComms(game);
   game.ready.clear();
   game.inputs = {};
   game.cooldowns = { until: {} };
@@ -196,8 +282,9 @@ export function markPlayed(game: Game, lobby: LobbyState): boolean {
       person.played.push(role);
       game.heistPeople.set(person.who, { nickname: person.nickname, bot: false });
     } else {
-      const nickname = `Bot ${SEAT_SHAPE[seat]}`;
+      const nickname = `Bot ${BOT_NAME[seat]}`;
       game.heistPeople.set(`bot:${seat}`, { nickname, bot: true });
+      game.botPlayed[nickname] = [...(game.botPlayed[nickname] ?? []), role];
     }
   }
   return true;
@@ -274,9 +361,11 @@ export function finishVote(
   for (const person of lobby.people) person.played = [];
   game.roomIndex = 0;
   game.heistPeople = new Map();
+  game.botPlayed = {};
   game.counted = -1;
   setCrew(game, lobby, crewFor(lobby, 0));
-  game.world = createWorld(first);
+  game.world = freshWorld(first);
+  freshComms(game);
   game.ready.clear();
   game.inputs = {};
   game.cooldowns = { until: {} };
@@ -288,10 +377,22 @@ export function finishVote(
 // A fresh world for the same room: everyone back at spawn, crates and doors
 // reset, held inputs dropped. Roles and who is ready stay as they are.
 export function restartGame(game: Game): void {
-  game.world = createWorld(game.world.room);
+  game.world = freshWorld(game.world.room);
+  freshComms(game);
   game.inputs = {};
   game.startedAt = Date.now();
-  seatBots(game, botSeatsOf(game));
+  const lobbyBots = botSeatsOf(game).filter((s) => !game.autopilot.has(s));
+  seatBots(game, lobbyBots); // an autopilot seat goes back to its person
+}
+
+// A restarted room that should be running and is not: all three ready, nothing holding it (no pause,
+// no open vote, not cleared), and yet no tick loop, no hold, and its clock still at tick 0. The
+// playtest's freeze after a restart vote was never reproduced (playtest fixes, Task 6); this is how the
+// server notices one if it happens, so it can log it and start the room's ticks.
+export function stalledRestart(game: Game, loop: { ticking: boolean; holding: boolean }): boolean {
+  if (loop.ticking || loop.holding) return false;
+  if (game.paused || game.vote || game.ready.size < 3) return false;
+  return game.world.status === "playing" && game.world.tick === 0;
 }
 
 export function crewOf(lobby: LobbyState, game: Game): CrewMember[] {
@@ -302,6 +403,17 @@ export function crewOf(lobby: LobbyState, game: Game): CrewMember[] {
     bot: s.bot,
     ...(s.who === null && !s.bot ? { left: true as const } : {}),
   }));
+}
+
+// The roles each seated name has played this heist, people and bots alike, for the reveal's Played row. A bot
+// keeps its history under its own name, so the row reads the same for a bot as for a person.
+export function playedBy(lobby: LobbyState, game: Game): Record<string, Role[]> {
+  const out: Record<string, Role[]> = {};
+  for (const p of lobby.people) out[p.nickname] = p.played;
+  for (const seat of lobby.seats) {
+    if (seat.bot && seat.nickname) out[seat.nickname] = game.botPlayed[seat.nickname] ?? [];
+  }
+  return out;
 }
 
 // A seat's last connection dropped: the game stops for everyone and the seat is
@@ -395,10 +507,10 @@ export function takeOverWithBot(
   former: string | null = null,
 ): void {
   if (former) game.vacated[seat] = former;
-  game.heistPeople.set(`bot:${seat}`, { nickname: `Bot ${SEAT_SHAPE[seat]}`, bot: true });
+  game.heistPeople.set(`bot:${seat}`, { nickname: `Bot ${BOT_NAME[seat]}`, bot: true });
   lobby.seats[seat] = {
     who: null,
-    nickname: `Bot ${SEAT_SHAPE[seat]}`,
+    nickname: `Bot ${BOT_NAME[seat]}`,
     connected: true,
     bot: true,
     person: null,
@@ -464,15 +576,41 @@ export function tickGame(
     const input = acted.inputs[seat];
     if (input) applyInput(game, seat, input);
   }
+  // A mark a bot sent is drawn where it was put, as a person's is in `relay`: Can't hear and Can't
+  // speak see it fade. (The bot picked a tile in its own sight; the router already applied the rules.)
+  for (const said of acted.sent) {
+    if (said.message.method === "mark") addStamp(game.world, said.message.id, said.message.at);
+    countComms(game.comms, said.from, said.receivers, said.message.method);
+  }
+  // the roles can change after the world is made (a swap at a reveal): the sim reads them each tick
+  game.world.roles = [...game.roles];
   step(game.world, game.inputs, TICK_MS);
+  // a secret door opening changes the map the sighted hold, so every seat gets it this tick (a
+  // chamber hidden as wall appears the moment its door slides, never a tick later or on a reload).
+  // A send-back shuts them again, so it is a map change too: otherwise a client keeps the open
+  // chamber drawn and predicts it walkable while the server treats it as wall.
+  const mapChanged = game.world.events.some(
+    (e) =>
+      e.kind === "caught" ||
+      (e.kind === "cache" && (e.result === "uncover" || e.result === "solved")),
+  );
   const views = new Map<Seat, RoleView>();
   for (const seat of [0, 1, 2] as const) {
-    views.set(seat, viewFor(game.world, seat, game.roles[seat], full.has(seat)));
+    views.set(seat, viewFor(game.world, seat, game.roles[seat], mapChanged || full.has(seat)));
   }
   // who was caught, by what, and where the team went back to: told to everyone
   const caught = game.world.events.flatMap((e) =>
     e.kind === "caught"
-      ? [{ hazard: e.hazard, seat: e.seat, checkpoint: game.world.checkpoint }]
+      ? [
+          {
+            hazard: e.hazard,
+            seat: e.seat,
+            checkpoint: game.world.checkpoint,
+            ...(e.hazard === "station" && game.world.stations[e.by]
+              ? { station: game.world.stations[e.by]?.type }
+              : {}),
+          },
+        ]
       : [],
   );
   return { views, cleared: game.world.status === "cleared", sent: acted.sent, caught };
@@ -545,6 +683,7 @@ export function relay(
   };
   // a bot hears what a person sends it, the same as a person would
   for (const receiver of result.receivers) game.bots[receiver]?.inbox.push(message);
+  countComms(game.comms, from, result.receivers, out.method);
   return {
     ok: true,
     message,

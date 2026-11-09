@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { createAudio, type GameAudio } from "../client/audio.ts";
 import {
   type CueCaption,
@@ -9,10 +9,14 @@ import {
   hearCues,
   heardCues,
 } from "../client/hud.ts";
+import { introAt } from "../client/intro.ts";
+import { type RoomDecor, roomDecor } from "../client/render/decor.ts";
 import { draw, type Scene } from "../client/render.ts";
 import type { ConnectionState, GameSocket } from "../client/socket.ts";
+import { setHue } from "../client/tokens.ts";
 import { ROLE_LABEL, type Role, type Seat } from "../game/types.ts";
 import type { LobbyState, RoleView } from "../net/protocol.ts";
+import { BrailleCard } from "./BrailleCard.tsx";
 import { type CaptionLine, Captions } from "./Captions.tsx";
 import { Connection } from "./Connection.tsx";
 import { Disconnect } from "./Disconnect.tsx";
@@ -71,6 +75,8 @@ export function Spectator({
   const frame = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const view = useRef<RoleView | null>(early.view);
+  const decor = useRef<RoomDecor | null>(null); // the room's decor, from its first view with tiles
+  const intro = useRef<{ at: number; ms: number; reduced: boolean } | null>(null);
   const roles = useRef<[Role, Role, Role]>(
     crew.reduce(
       (acc, c) => {
@@ -89,6 +95,7 @@ export function Spectator({
   const audio = useRef<GameAudio | null>(null);
   const cueHold = useRef<HeldCues>(new Map());
   const [cues, setCues] = useState<CueCaption[]>([]);
+  const [braille, setBraille] = useState<RoleView["braille"]>(undefined);
   const root = useRef<HTMLDivElement>(null);
   const [tab, setTab] = useState<"chat" | "players">("chat");
   // A watcher talks to the other watchers and hears them and the seat it follows (ADR 0015)
@@ -118,17 +125,25 @@ export function Spectator({
     const wake = () => void audio.current?.resume();
     document.addEventListener("pointerdown", wake);
     document.addEventListener("keydown", wake);
+    // the start of a room (FR14): the board tips, then the camera settles on the whole room
+    const offIntro = socket.on("intro", (m) => {
+      const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      intro.current = { at: performance.now(), ms: m.ms, reduced };
+    });
     const off = socket.on("view", (m) => {
       view.current = m.view;
       hearCues(cueHold.current, cueCaptions(m.view.sounds), performance.now());
       audio.current?.play(m.view.sounds);
     });
     const timer = setInterval(() => {
+      const open = view.current?.braille;
+      setBraille((old) => (JSON.stringify(old) === JSON.stringify(open) ? old : open));
       const heard = heardCues(cueHold.current, performance.now());
       setCues((old) => (cueKey(old) === cueKey(heard) ? old : heard));
     }, 100);
     return () => {
       off();
+      offIntro();
       clearInterval(timer);
       document.removeEventListener("pointerdown", wake);
       document.removeEventListener("keydown", wake);
@@ -189,8 +204,10 @@ export function Spectator({
     };
   }, [voice]);
 
-  // Same full-bleed layout as a game: the site header and footer step aside.
-  useEffect(() => {
+  // Same full-bleed layout as a game: the site header and footer step aside. Before the first
+  // paint (a layout effect): in a plain effect the header stood around the map for one frame and
+  // the map then jumped up, so a reader measuring across that frame saw two layouts at once.
+  useLayoutEffect(() => {
     document.body.classList.add("playing");
     return () => document.body.classList.remove("playing");
   }, []);
@@ -216,11 +233,15 @@ export function Spectator({
       raf = requestAnimationFrame(loop);
       const v = view.current;
       if (!v) return;
+      if (v.full) setHue(v.hue);
+      decor.current = roomDecor(decor.current, v);
       const scene: Scene = {
         ...size,
         role: v.role,
         seat: v.you.seat,
         roles: roles.current,
+        roomId: v.room, // its floor's material
+        decor: decor.current?.items,
         tiles: v.tiles ?? null,
         entities: v.entities,
         self: v.you.pos ?? null,
@@ -228,9 +249,16 @@ export function Spectator({
         alarm: v.alarm,
         nowMs: performance.now(),
         reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+        cleared: v.status === "cleared", // nobody walks on once the room is cleared (FR2)
         spectator: true,
         noSelf: v.you.pos === undefined, // the whole room: nobody is followed
       };
+      const i = intro.current;
+      const f = i ? introAt(performance.now() - i.at, i.reduced, i.ms) : null;
+      if (f && !f.done) {
+        scene.rise = f.rise;
+        scene.swoop = f.swoop;
+      }
       draw(ctx, scene);
     };
     raf = requestAnimationFrame(loop);
@@ -244,7 +272,7 @@ export function Spectator({
     voice.status === "ready" || voice.status === "starting"
       ? null
       : voice.status === "blocked"
-        ? "Microphone blocked: voice is off. Chat still works."
+        ? "Voice off (optional). Chat still works."
         : "This browser can't do voice: voice is off. Chat still works.";
   const players = (
     <div class="spectator-players">
@@ -298,17 +326,20 @@ export function Spectator({
         <HudMenu restarts={false} leaveLabel="Leave" onLeave={onLeave} />
       </header>
       <div class="spectator-body">
-        <div class="frame spectator-frame" ref={frame}>
-          <canvas
-            ref={canvas}
-            role="img"
-            aria-label={
-              follow === null
-                ? "Spectator view of the whole room"
-                : `Spectator view, following ${ROLE_LABEL[roles.current[follow]]}`
-            }
-          />
-          <Captions lines={lines} cues={cues} />
+        <div class="frame spectator-frame">
+          <div class="recess" ref={frame}>
+            <canvas
+              ref={canvas}
+              role="img"
+              aria-label={
+                follow === null
+                  ? "Spectator view of the whole room"
+                  : `Spectator view, following ${ROLE_LABEL[roles.current[follow]]}`
+              }
+            />
+            {braille && <BrailleCard cells={braille.cells} teach={braille.teach} />}
+            <Captions lines={lines} cues={cues} />
+          </div>
         </div>
         <section
           class="spectator-panel"

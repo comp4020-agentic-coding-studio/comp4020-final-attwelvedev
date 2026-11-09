@@ -1,6 +1,7 @@
 import { STAMP_LIFE_MS, type Stamp } from "../channels.ts";
-import type { Room } from "../rooms/format.ts";
-import type { PlayerInput, Seat, Vec } from "../types.ts";
+import { cacheOf, type GEAR_ITEMS, type Room, type STATION_TYPES } from "../rooms/format.ts";
+import type { PlayerInput, Role, Seat, Vec } from "../types.ts";
+import { drawStations } from "./stations.ts";
 
 export const TICK_MS = 50;
 export const SPEED_TPS = 4;
@@ -21,6 +22,31 @@ export interface PlayerState {
   moving: boolean; // holding a direction
   blocked: boolean; // holding a direction but getting almost nowhere: a wall, a door, a crate
   hidden: boolean; // standing on a hide spot: guards and cameras cannot see you
+  actHeld: boolean; // Act was held last tick: Act works on the press, not while held
+  gearHeld: boolean; // G was held last tick: likewise
+}
+
+export type StationType = (typeof STATION_TYPES)[number];
+export type GearItem = (typeof GEAR_ITEMS)[number];
+
+// A puzzle (spec FR5-FR14). `answer` is the secret, re-drawn per attempt and never sent to a
+// client as-is; `input` is what the team has entered so far (a dial's setting is its last entry).
+export interface StationState {
+  id: string; // "Q1"
+  type: StationType;
+  answer: number[];
+  input: number[];
+  solved: boolean;
+  tuned?: boolean; // a radio sitting on a band (real or decoy): it tones and pips, solved or not
+  reveal?: number; // a wing station's symbol (0 to SYMBOLS - 1), drawn when it is solved
+}
+
+export interface GearState {
+  id: string; // "g1"
+  item: GearItem;
+  at: Vec | null; // tile it lies on; null while carried or on a hatch sill
+  heldBy: Seat | null;
+  sill: string | null; // hatch id while it sits on one
 }
 
 export interface CrateState {
@@ -51,6 +77,10 @@ export interface Snapshot {
   players: Vec[];
   crates: CrateState[];
   lootTaken: string[];
+  gear: GearState[];
+  cacheUncovered: string[]; // a send-back restores both, and un-solves a cache solved after it
+  cacheBy: Record<string, Seat>;
+  cacheTaken: Record<string, Seat>; // and the keepsakes taken
 }
 
 export interface World {
@@ -62,6 +92,8 @@ export interface World {
   nextStamp: number;
   doorOpen: Record<string, boolean>;
   pressed: Record<string, boolean>;
+  levers: Record<string, boolean>; // a practice lever: on while its stations only play (Task 38)
+  pulling: Record<number, boolean>; // by towed seat: the pair is in a tug of war (ADR 0019)
   status: RoomStatus;
   events: WorldEvent[]; // emitted this tick only, cleared at the start of step
   guards: GuardState[];
@@ -75,6 +107,21 @@ export interface World {
   flagPresent: Record<string, number>; // checkpoint id -> how many players were within reach last tick
   exitCount: number; // players on the exit last tick
   seqFlash: Record<string, { result: "ok" | "wrong"; tick: number }>; // a sequence door's latest result, shown briefly
+  stations: Record<string, StationState>;
+  gear: GearState[];
+  holding: Partial<Record<Seat, Seat>>; // towed seat -> leader
+  seed: number;
+  attempt: number; // 0 at room start, +1 on every send-back; answers come from rng(seed * 1000 + attempt)
+  dyedUntil: number; // the tick the dye-pack splatter ends; 0 = none
+  solvedBy: Record<string, Seat>; // a station solved -> the seat whose Act solved it (credits)
+  cacheUncovered: string[]; // cache station ids whose motif tile was pressed
+  cacheBy: Record<string, Seat>; // cache station id -> the seat whose Act solved it (the vault door is open)
+  cacheTaken: Record<string, Seat>; // cache station id -> the seat that took the keepsake (its owner); +1 loot
+  syncAt: Record<string, number[]>; // sync locks: the tick each key was last turned (-1 = not yet)
+  jammedUntil: Record<string, number>; // a teaching station or cache: ignores input until this tick (FR13)
+  reading: Partial<Record<Seat, string>>; // seat -> the braille plate it has open, while it stays beside it
+  // who plays which seat, for the one rule that needs it (only Can't see reads a plate); none in old tests
+  roles?: [Role, Role, Role];
 }
 
 export type WorldEvent =
@@ -85,11 +132,28 @@ export type WorldEvent =
   | { kind: "flag"; id: string; present: number; at: Vec } // players within reach of an unset flag changed
   | { kind: "exit"; present: number; at: Vec } // players on the exit changed
   | { kind: "seq"; door: string; result: "ok" | "wrong" | "open"; n: number; at: Vec }
-  | { kind: "caught"; by: string; hazard: "guard" | "camera" | "laser"; seat: Seat } // `by` is the hazard's id, `seat` the player it got
+  | { kind: "caught"; by: string; hazard: "guard" | "camera" | "laser" | "station"; seat: Seat } // `by` is the hazard's (or station's) id, `seat` the player it got (or who answered)
   | { kind: "checkpoint"; index: number }
   | { kind: "loot"; id: string; at: Vec }
-  | { kind: "clue"; id: string; n: number; at: Vec } // a chime with no picture: it carries a count
-  | { kind: "cleared" };
+  | { kind: "clue"; id: string; n: number; rest?: true; at: Vec } // a chime with no picture: it carries a count
+  | { kind: "cleared" }
+  | {
+      kind: "station";
+      id: string;
+      result: "turn" | "press" | "cut" | "solved" | "wrong" | "jam";
+      n?: number;
+      practice?: true; // a press while its practice lever is on: it plays and counts for nothing
+      at: Vec;
+    }
+  | { kind: "lever"; id: string; on: boolean; at: Vec } // a practice lever flipped
+  | { kind: "gear"; id: string; action: "take" | "drop" | "give" | "sill"; seat: Seat; at: Vec }
+  | { kind: "hold"; seat: Seat; leader: Seat | null }
+  | { kind: "pull"; leader: Seat; towed: Seat; at: Vec } // a tug of war began between two hand-holders
+  | { kind: "bell"; id: string; at: Vec }
+  | { kind: "lamp"; id: string; seat: Seat }
+  | { kind: "dye"; station: string }
+  | { kind: "braille"; id: string; seat: Seat; at: Vec } // Can't see opened a plate: a tap where it lies
+  | { kind: "cache"; id: string; result: "uncover" | "solved" | "taken"; seat: Seat; at: Vec };
 
 export type Inputs = Partial<Record<Seat, PlayerInput>>;
 
@@ -107,7 +171,7 @@ export function patrolOf(params: Record<string, unknown> | undefined): Vec[] {
   );
 }
 
-export function createWorld(room: Room): World {
+export function createWorld(room: Room, seed = 1, roles?: [Role, Role, Role]): World {
   const spawn = (n: 1 | 2 | 3): PlayerState => {
     const tile = room.objects.find((o) => o.id === `s${n}`)?.tiles[0];
     if (!tile) throw new Error(`room ${room.id} has no spawn ${n}`);
@@ -120,11 +184,15 @@ export function createWorld(room: Room): World {
       moving: false,
       blocked: false,
       hidden: false,
+      actHeld: false,
+      gearHeld: false,
     };
   };
   const doorOpen: Record<string, boolean> = {};
   const pressed: Record<string, boolean> = {};
+  const levers: Record<string, boolean> = {};
   for (const o of room.objects) {
+    if (o.kind === "lever") levers[o.id] = false;
     if (o.kind === "door") doorOpen[o.id] = false;
     if (o.kind === "plate") pressed[o.id] = false;
   }
@@ -133,7 +201,16 @@ export function createWorld(room: Room): World {
     .filter((o) => o.kind === "crate")
     .map((o) => ({ id: o.id, tile: { ...(o.tiles[0] as Vec) } }));
   const loot = room.objects.filter((o) => o.kind === "loot");
-  return {
+  const gear: GearState[] = room.objects
+    .filter((o) => o.kind === "gear")
+    .map((o) => ({
+      id: o.id,
+      item: o.params?.item as GearItem,
+      at: { ...(o.tiles[0] as Vec) },
+      heldBy: null,
+      sill: null,
+    }));
+  const world: World = {
     room,
     tick: 0,
     players,
@@ -159,12 +236,19 @@ export function createWorld(room: Room): World {
       }),
     lootTaken: [],
     loot: 0,
-    lootTotal: loot.reduce((sum, o) => sum + lootValue(o.params), 0),
+    // a cache's stash is worth 1 loot, whatever its item
+    lootTotal:
+      loot.reduce((sum, o) => sum + lootValue(o.params), 0) +
+      room.objects.filter((o) => cacheOf(o) !== null).length,
     checkpoint: 0,
     snapshot: {
       players: players.map((p) => ({ ...p.pos })),
       crates: crates.map((c) => ({ id: c.id, tile: { ...c.tile } })),
       lootTaken: [],
+      gear: copyGear(gear),
+      cacheUncovered: [],
+      cacheBy: {},
+      cacheTaken: {},
     },
     seqProgress: {},
     alarmUntil: 0,
@@ -175,10 +259,31 @@ export function createWorld(room: Room): World {
     nextStamp: 1,
     doorOpen,
     pressed,
+    levers,
+    pulling: {},
     status: "playing",
     events: [],
+    stations: {},
+    gear,
+    holding: {},
+    seed,
+    attempt: 0,
+    dyedUntil: 0,
+    solvedBy: {},
+    cacheUncovered: [],
+    cacheBy: {},
+    cacheTaken: {},
+    syncAt: {},
+    jammedUntil: {},
+    reading: {},
+    ...(roles ? { roles: [...roles] as [Role, Role, Role] } : {}),
   };
+  drawStations(world);
+  return world;
 }
+
+export const copyGear = (gear: GearState[]): GearState[] =>
+  gear.map((g) => ({ ...g, at: g.at && { ...g.at } }));
 
 export function addStamp(world: World, id: Stamp, pos: Vec): void {
   world.stamps.push({ key: `S${world.nextStamp++}`, id, pos: { ...pos }, ageMs: 0 });

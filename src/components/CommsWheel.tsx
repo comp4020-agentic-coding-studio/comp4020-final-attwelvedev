@@ -45,13 +45,15 @@ type Source = "key" | "mouse" | "touch" | "click"; // click: opened by the Comms
 
 const PIN_MS = 500; // a touch held on one slot this long pins it to the quick slot
 const TOAST_MS = 2500;
-const NOUN: Record<Method, string> = {
-  callout: "callouts",
-  text: "text",
-  voice: "voice",
-  clip: "clips",
-  face: "faces",
-  mark: "marks",
+// What you can't do, as a whole phrase: "You can't use the soundboard", since "send soundboard" does
+// not parse.
+const CANT: Record<Method, string> = {
+  callout: "send callouts",
+  text: "send text",
+  voice: "send voice",
+  clip: "use the soundboard",
+  face: "send faces",
+  mark: "send marks",
 };
 const KEYS = [
   ["Q (hold)", "open the comms wheel; flick to send without it"],
@@ -84,7 +86,7 @@ interface Hold {
   page: Page;
   drawn: boolean;
   centre: Vec; // client px of the drawn wheel's centre: a drawn wheel is aimed by the cursor over it
-  mode: Mode; // wide frames get the ring for Faces and Clips, narrow ones a 4x3 grid
+  mode: Mode; // wide frames get the ring for Faces and Soundboard, narrow ones a 4x3 grid
   frame: { w: number; h: number }; // the frame the wheel is drawn in, for its scale
   pinned: boolean; // a long press pinned a slot: letting go sends nothing
   aimIndex: number | null;
@@ -224,7 +226,7 @@ export function CommsWheel({
     const { role: r, crew: c, me: seat, socket: s } = live.current;
     if (!canSend(r, slot.method)) {
       const who = sendersOf(slot.method, c, seat).map((m) => m.nickname);
-      say(`You can't send ${NOUN[slot.method]}.${who.length ? ` ${who.join(" and ")} can.` : ""}`);
+      say(`You can't ${CANT[slot.method]}.${who.length ? ` ${who.join(" and ")} can.` : ""}`);
       return;
     }
     const left = wait(slot.method);
@@ -679,7 +681,7 @@ export function CommsWheel({
               </>
             ) : (
               <>
-                <strong class="wheel-name">You can't send {NOUN[method]}</strong>
+                <strong class="wheel-name">You can't {CANT[method]}</strong>
                 <span class="receiver-line">
                   {senders.map((c, i) => (
                     <span key={c.seat}>

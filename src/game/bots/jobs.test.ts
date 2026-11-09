@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { parseRoom, type Room } from "../rooms/format.ts";
+import { type CacheSpec, cacheOf, parseRoom, type Room } from "../rooms/format.ts";
+import { loadRooms } from "../rooms/load.ts";
+import { giveChambers } from "../sim/testing.ts";
+import type { Role, Seat } from "../types.ts";
+import { emptyBelief } from "./decode.ts";
 import {
   claimJobs,
+  clueTarget,
   exitTile,
   hintsOf,
   isDone,
   isOpen,
   type Job,
+  jobTile,
   type Known,
   parseJob,
 } from "./jobs.ts";
@@ -119,6 +125,68 @@ describe("a clue job", () => {
   });
 });
 
+describe("a clue job resolves from the chime a bot heard, not from the room file", () => {
+  const GRID = [
+    "####################",
+    "#1.p.c...p...p...E.#",
+    "#2.......D.........#",
+    "#3.....p...........#",
+    "####################",
+  ];
+  const r = parseRoom(
+    `${JSON.stringify({
+      id: "t",
+      name: "T",
+      version: 1,
+      beats: [
+        { name: "one", x: [1, 8], intent: { blind: "b", deaf: "d", mute: "m" } },
+        { name: "two", x: [9, 18], intent: { blind: "b", deaf: "d", mute: "m" } },
+      ],
+      objects: { D1: { opensWhen: ["p1"] }, c1: { n: 2 } },
+      hints: { jobs: [{ beat: 2, goTo: "clue:c1" }] },
+    })}\n---\n${GRID.join("\n")}\n`,
+  );
+  const job = hintsOf(r)[0] as Job;
+  const known = (clues: Record<string, number>): Known => ({
+    stations: {},
+    gear: {},
+    holding: {},
+    doorOpen: {},
+    pressed: {},
+    crates: {},
+    checkpoint: 0,
+    seq: {},
+    seenHazards: {},
+    clues,
+  });
+
+  it("keeps the clue and the beat's plates on the job", () => {
+    expect(job.target).toMatchObject({ kind: "plate", clue: { id: "c1" } });
+  });
+
+  it("has no plate until a chime has been heard", () => {
+    expect(clueTarget(job, known({}))).toBeNull();
+  });
+
+  it("takes the plate the heard number names, whatever the room file says", () => {
+    // the room file says n = 2 (p4); a chime of 1 heard means p1
+    expect(clueTarget(job, known({ c1: 1 }))).toMatchObject({ id: "p1" });
+    expect(clueTarget(job, known({ c1: 2 }))).toMatchObject({ id: "p4" });
+  });
+
+  it("has no plate for a number the beat has no plate for", () => {
+    expect(clueTarget(job, known({ c1: 3 }))).toBeNull();
+  });
+
+  it("is left to a seat that can hear: Can't hear never gets it", () => {
+    const seats = (roles: Role[]) =>
+      roles.map((role, seat) => ({ seat: seat as Seat, role, human: false }));
+    const queues = claimJobs(r, [job], seats(["blind", "deaf", "mute"]));
+    expect(queues[1]).toEqual([]);
+    expect(queues[0].length + queues[2].length).toBe(1);
+  });
+});
+
 describe("claimJobs", () => {
   it("gives every bot the job its role prefers", () => {
     const queues = claimJobs(room, hintsOf(room), seats());
@@ -173,6 +241,9 @@ describe("exitTile", () => {
 
 describe("isDone / isOpen", () => {
   const known = (over: Partial<Known> = {}): Known => ({
+    stations: {},
+    gear: {},
+    holding: {},
     doorOpen: { D1: false },
     pressed: {},
     crates: { B1: { x: 4, y: 2 } },
@@ -196,6 +267,51 @@ describe("isDone / isOpen", () => {
     );
   });
 
+  it("a plated radio's job is done once its real band's digit is known, not when it is solved (it never is)", () => {
+    const grid = [
+      "####################",
+      "#1.#........o...E.#",
+      "#2.#B...Q..........#",
+      "#3.................#",
+      "####################",
+    ];
+    const plated = parseRoom(
+      `${JSON.stringify({
+        id: "t",
+        name: "T",
+        beats: [{ name: "b", x: [0, 19], intent: { blind: "b", deaf: "d", mute: "m" } }],
+        objects: {
+          D1: { opensWhen: ["p1", "p2", "p3"] },
+          Q1: {
+            type: "radio",
+            pads: [
+              [6, 3],
+              [8, 3],
+            ],
+            range: 8,
+            yields: "Q2",
+          },
+          o1: { for: "Q1", part: 0 },
+          Q2: {
+            type: "keypad",
+            keys: [
+              [10, 3],
+              [11, 3],
+              [12, 3],
+            ],
+            length: 1,
+            slot: { from: "Q1", at: 0 },
+          },
+        },
+        hints: { jobs: [{ beat: 1, station: "Q1" }] },
+      })}\n---\n${grid.join("\n")}\n`,
+    );
+    const job = hintsOf(plated)[0] as Job;
+    const b = (answer: (number | null)[]) => ({ ...emptyBelief(), answer });
+    expect(isDone(plated, job, known({ stations: { Q1: b([]) } }), undefined)).toBe(false);
+    expect(isDone(plated, job, known({ stations: { Q1: b([2]) } }), undefined)).toBe(true);
+  });
+
   it("a tile job is done once the player is on it", () => {
     const job = hintsOf(roomWith({ jobs: [{ beat: 1, goTo: [5, 2] }] }))[0] as Job;
     expect(isDone(room, job, known(), { x: 9.5, y: 2.5 })).toBe(false);
@@ -213,6 +329,9 @@ describe("isDone / isOpen", () => {
 describe("flag jobs", () => {
   const flagRoom = roomWith({ jobs: [{ beat: 1, goTo: "K1", all: true }] });
   const known = (checkpoint: number): Known => ({
+    stations: {},
+    gear: {},
+    holding: {},
     doorOpen: {},
     pressed: {},
     crates: {},
@@ -237,5 +356,304 @@ describe("flag jobs", () => {
 
   it("drops a flag that is not in the room", () => {
     expect(hintsOf(roomWith({ jobs: [{ beat: 1, goTo: "K4" }] }))).toEqual([]);
+  });
+});
+
+describe("jobs for stations, gear and hands (escape-room Task 4)", () => {
+  const GRID = ["############", "#1..Q...#..#", "#2..g...H..#", "#3......#.E#", "############"];
+  const r = parseRoom(
+    `${JSON.stringify({
+      id: "t",
+      name: "T",
+      beats: [{ name: "b", x: [0, 11], intent: { blind: "b", deaf: "d", mute: "m" } }],
+      objects: {
+        Q1: {
+          type: "dial",
+          pads: [
+            [3, 1],
+            [5, 1],
+          ],
+          back: [4, 3],
+        },
+        g1: { item: "stethoscope" },
+      },
+    })}\n---\n${GRID.join("\n")}\n`,
+  );
+  const job = (j: Record<string, unknown>) => parseJob(r, { beat: 1, ...j }, 0);
+
+  it("parses a station, take, give, sill and tow job", () => {
+    expect((job({ station: "Q1" }) as Job).target).toEqual({ kind: "station", id: "Q1" });
+    expect((job({ take: "g1" }) as Job).target).toEqual({ kind: "take", gear: "g1" });
+    expect((job({ give: "g1", to: "deaf" }) as Job).target).toEqual({
+      kind: "give",
+      gear: "g1",
+      to: "deaf",
+    });
+    expect((job({ sill: "g1", hatch: "H1" }) as Job).target).toEqual({
+      kind: "sill",
+      gear: "g1",
+      hatch: "H1",
+    });
+    expect((job({ tow: "blind", to: [6, 3] }) as Job).target).toEqual({
+      kind: "tow",
+      role: "blind",
+      to: { x: 6, y: 3 },
+    });
+  });
+
+  it("says what is wrong with an unknown id, for the linter", () => {
+    expect(job({ station: "Q9" })).toMatch(/Q9.*not a station/);
+    expect(job({ take: "g9" })).toMatch(/g9.*not gear/);
+    expect(job({ give: "g1", to: "ghost" })).toMatch(/not a role/);
+    expect(job({ sill: "g1", hatch: "H9" })).toMatch(/H9.*not a hatch/);
+    expect(job({ tow: "blind", to: [0, 0] })).toMatch(/not floor/);
+  });
+});
+
+describe("station jobs that perceive the clue from a tile (escape-room Task 18)", () => {
+  const GRID = ["############", "#1..Q...#..#", "#2..Q...#..#", "#3......#.E#", "############"];
+  const r = parseRoom(
+    `${JSON.stringify({
+      id: "t",
+      name: "T",
+      beats: [{ name: "b", x: [0, 11], intent: { blind: "b", deaf: "d", mute: "m" } }],
+      objects: {
+        Q1: {
+          type: "wires",
+          wires: [
+            [5, 1],
+            [6, 1],
+            [7, 1],
+          ],
+          plaque: "S9",
+        },
+        Q2: {
+          type: "keypad",
+          keys: [
+            [5, 2],
+            [6, 2],
+            [7, 2],
+          ],
+          clue: "c9",
+        },
+      },
+    })}\n---\n${GRID.join("\n")}\n`,
+  );
+  const job = (j: Record<string, unknown>) => parseJob(r, { beat: 1, ...j }, 0);
+
+  it("goes to `at` first, where the plaque is read or the code heard", () => {
+    const j = job({ station: "Q1", at: [2, 3] }) as Job;
+    expect(j.target).toEqual({ kind: "station", id: "Q1", at: { x: 2, y: 3 } });
+    expect(jobTile(r, j, 0)).toEqual({ x: 2, y: 3 });
+    expect(job({ station: "Q1", at: [0, 0] })).toMatch(/not floor/);
+  });
+
+  it("leaves a keypad, whose code is heard, to a seat that can hear", () => {
+    const j = job({ station: "Q2", at: [2, 3], prefer: "deaf" }) as Job;
+    expect(j.target).toMatchObject({ hearing: true });
+    const queues = claimJobs(r, [j], seats());
+    expect(queues[1]).toEqual([]);
+  });
+});
+
+// A switches watcher (escape-room Task 20): reads the card at `read`, then marks buttons from `at`.
+describe("a watch job", () => {
+  const room = loadRooms("./spec/fixtures/rooms-bots").find((x) => x.id === "06-switches");
+  if (!room) throw new Error("no 06-switches fixture");
+  const job = (j: Record<string, unknown>) => parseJob(room, { beat: 1, ...j }, 0);
+
+  it("names a switches station, a floor tile to watch from and one to read the card at", () => {
+    const j = job({ watch: "Q1", at: [8, 4], read: [14, 4] }) as Job;
+    expect(j.target).toEqual({
+      kind: "watch",
+      station: "Q1",
+      tile: { x: 8, y: 4 },
+      read: { x: 14, y: 4 },
+    });
+    expect(job({ watch: "Q1", at: [0, 0] })).toMatch(/not floor/);
+    expect(job({ watch: "D1", at: [8, 4] })).toMatch(/not a switches station/);
+  });
+
+  it("never goes to Can't see, and is done once the station is seen solved", () => {
+    const j = job({ watch: "Q1", at: [8, 4] }) as Job;
+    expect(claimJobs(room, [j], seats())[0]).toEqual([]);
+    const known = {
+      stations: { Q1: { ...emptyBelief(), solved: true } },
+    } as unknown as Known;
+    expect(isDone(room, j, known, undefined)).toBe(true);
+  });
+});
+
+describe("a job that names a cache (phase 14, Task 53)", () => {
+  const GRID = ["############", "#1..Q...#..#", "#2..g...H..#", "#3......#.E#", "############"];
+  const CACHE = {
+    owner: 1,
+    motif: "moon",
+    riddle: "r",
+    item: "watch",
+    tiles: [{ at: [6, 3], motif: "moon" }],
+  };
+  const given = giveChambers(GRID, {
+    Q1: {
+      type: "dial",
+      pads: [
+        [3, 1],
+        [5, 1],
+      ],
+      back: [4, 3],
+      cache: CACHE,
+    },
+    g1: { item: "stethoscope" },
+  });
+  const cacheRoom = parseRoom(
+    `${JSON.stringify({
+      id: "t",
+      name: "T",
+      beats: [{ name: "b", x: [0, 11], intent: { blind: "b", deaf: "d", mute: "m" } }],
+      objects: given.objects,
+    })}\n---\n${given.grid.join("\n")}\n`,
+  );
+
+  it("is an error for a job tile inside a chamber, whichever key carries it", () => {
+    const chamber = (cacheOf(cacheRoom.objects.find((o) => o.id === "Q1") as never) as CacheSpec)
+      .chamber;
+    const inside = [chamber.rect[0], chamber.rect[1]];
+    for (const hint of [
+      { beat: 1, goTo: inside },
+      { beat: 1, listen: "Q2", at: inside },
+    ]) {
+      const job = parseJob(cacheRoom, hint, 0);
+      expect(typeof job === "string" ? job : "a job was made").toMatch(/inside the chamber/);
+    }
+  });
+
+  it("is an error whichever way it names the station: bots never work a cache", () => {
+    for (const hint of [
+      { beat: 1, station: "Q1" },
+      { beat: 1, listen: "Q1", at: [4, 3] },
+      { beat: 1, watch: "Q1", at: [4, 3] },
+    ]) {
+      const job = parseJob(cacheRoom, hint, 0);
+      expect(typeof job === "string" ? job : "a job was made").toMatch(/Q1.*cache/);
+    }
+  });
+
+  const chamberOf = () =>
+    (cacheOf(cacheRoom.objects.find((o) => o.id === "Q1") as never) as CacheSpec).chamber;
+  const botSeats = (humans: number[] = [], pos: Record<number, { x: number; y: number }> = {}) =>
+    ([0, 1, 2] as const).map((seat) => ({
+      seat,
+      role: (["blind", "deaf", "mute"] as const)[seat] as Role,
+      human: humans.includes(seat),
+      pos: pos[seat],
+    }));
+
+  it("a job without `cache` still may not (and the message says the fix)", () => {
+    const inside = chamberOf().rect.slice(0, 2);
+    expect(parseJob(cacheRoom, { beat: 1, goTo: inside }, 0)).toMatch(/only a cache job may/);
+    expect(parseJob(cacheRoom, { beat: 1, station: "Q1" }, 0)).toMatch(/only a cache job may/);
+  });
+
+  it("a cache job may work the cache and stand in its chamber", () => {
+    const inside = chamberOf().rect.slice(0, 2);
+    expect(parseJob(cacheRoom, { beat: 1, cache: "Q1", station: "Q1" }, 0)).toMatchObject({
+      cache: "Q1",
+      target: { kind: "station", id: "Q1" },
+    });
+    expect(
+      parseJob(cacheRoom, { beat: 1, cache: "Q1", listen: "Q1", at: [4, 3] }, 0),
+    ).toMatchObject({ cache: "Q1", target: { kind: "listen" } });
+    expect(parseJob(cacheRoom, { beat: 1, cache: "Q1", goTo: inside }, 0)).toMatchObject({
+      cache: "Q1",
+      target: { kind: "tile" },
+    });
+  });
+
+  it("`cache` naming a non-cache is an error", () => {
+    expect(parseJob(cacheRoom, { beat: 1, cache: "g1", goTo: [1, 1] }, 0)).toBe(
+      "hint job 1 names cache g1, which is not a cache",
+    );
+    expect(parseJob(cacheRoom, { beat: 1, cache: "nope", goTo: [1, 1] }, 0)).toMatch(/not a cache/);
+  });
+
+  it("a keepsake job goes to the owner seat's bot, and to nobody when the owner is a person", () => {
+    const job = parseJob(cacheRoom, { beat: 1, cache: "Q1", keepsake: "Q1" }, 0) as Job;
+    expect(job.target).toMatchObject({
+      kind: "keepsake",
+      cache: "Q1",
+      tile: chamberOf().vault.item,
+    });
+    expect(jobTile(cacheRoom, job, 0)).toEqual(chamberOf().vault.item);
+    // owner 1 is seat 0
+    const bots = claimJobs(cacheRoom, [job], botSeats());
+    expect(bots[0]).toEqual([job]);
+    expect(bots[1]).toEqual([]);
+    expect(bots[2]).toEqual([]);
+    const person = claimJobs(cacheRoom, [job], botSeats([0]));
+    expect([person[0], person[1], person[2]]).toEqual([[], [], []]);
+    // a keepsake job must carry its own cache
+    expect(parseJob(cacheRoom, { beat: 1, keepsake: "Q1" }, 0)).toMatch(/cache/);
+    expect(parseJob(cacheRoom, { beat: 1, cache: "Q1", keepsake: "g1" }, 0)).toMatch(/cache/);
+  });
+
+  it("a keepsake is done once the cache is known taken", () => {
+    const job = parseJob(cacheRoom, { beat: 1, cache: "Q1", keepsake: "Q1" }, 0) as Job;
+    const known = { stations: {}, cachesTaken: { Q1: true } } as unknown as Known;
+    expect(isDone(cacheRoom, job, known, undefined, 0)).toBe(true);
+    expect(isDone(cacheRoom, job, { ...known, cachesTaken: {} }, undefined, 0)).toBe(false);
+  });
+
+  it("a person chooses a cache job before a bot", () => {
+    const a = parseJob(cacheRoom, { beat: 1, cache: "Q1", station: "Q1" }, 0) as Job;
+    const queues = claimJobs(cacheRoom, [a], botSeats([2], { 2: { x: 1, y: 1 } }));
+    expect(queues[2]).toEqual([a]);
+    expect(queues[0]).toEqual([]);
+    expect(queues[1]).toEqual([]);
+  });
+
+  it("Can't hear is never given a cache `listen`", () => {
+    const a = parseJob(cacheRoom, { beat: 1, cache: "Q1", listen: "Q1", at: [4, 3] }, 0) as Job;
+    for (const humans of [[], [1]]) {
+      const queues = claimJobs(cacheRoom, [a], botSeats(humans));
+      expect(queues[1]).toEqual([]); // seat 1 is the deaf role
+      expect(queues[0].length + queues[2].length).toBe(1);
+    }
+  });
+});
+
+// Braille (Task 74): a read job sends Can't see to a plate, and only Can't see.
+describe("a read job", () => {
+  const plated = (hints: unknown) =>
+    parseRoom(
+      `${JSON.stringify({
+        id: "t",
+        name: "T",
+        beats: [{ name: "b", x: [0, 19], intent: { blind: "b", deaf: "d", mute: "m" } }],
+        objects: { D1: { opensWhen: ["p1"] }, o1: { for: "Q1", part: 0 } },
+        hints,
+      })}\n---\n${["####################", "#1.#....o....D...E.#", "#2.#.........D...E.#", "#3.#....p....D...E.#", "####################"].join("\n")}\n`,
+    );
+  it("parses into the plate and its tile", () => {
+    const r = plated({ jobs: [{ beat: 1, read: "o1", prefer: "blind" }] });
+    expect(parseJob(r, { beat: 1, read: "o1" }, 0)).toMatchObject({
+      target: { kind: "read", plate: "o1", tile: { x: 8, y: 1 } },
+    });
+    expect(parseJob(r, { beat: 1, read: "o2" }, 0)).toBe(
+      "hint job 1 reads o2, which is not a braille plate in this room",
+    );
+  });
+  it("goes to the Can't-see seat and nobody else", () => {
+    const r = plated({ jobs: [{ beat: 1, read: "o1" }] });
+    const jobs = hintsOf(r);
+    for (const blind of [0, 1, 2] as const) {
+      const seats = ([0, 1, 2] as const).map((seat) => ({
+        seat,
+        role: (seat === blind ? "blind" : seat === (blind + 1) % 3 ? "deaf" : "mute") as Role,
+        human: false,
+      }));
+      const queues = claimJobs(r, jobs, seats);
+      expect(queues[blind].map((j) => j.target.kind)).toEqual(["read"]);
+      for (const s of [0, 1, 2] as const) if (s !== blind) expect(queues[s]).toEqual([]);
+    }
   });
 });
