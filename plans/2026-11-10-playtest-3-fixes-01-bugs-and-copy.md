@@ -34,7 +34,7 @@
 - **Break check:** revert the guard by script; the test goes red.
 - **Depends on:** none.
 
-### Task 267: An off-screen face's pill faces the sender (B3) — [ ]
+### Task 267: An off-screen face's pill faces the sender (B3) — [x]
 
 - **Found:** a face sent through a wall showed its edge pill in the top-right corner, cut off, while the sender was elsewhere.
 - **Files:** `src/client/render/pops.ts` (`drawEdgePills`, line 57), `src/components/Game.tsx:227-238` (where pops get `from`), and their unit tests.
@@ -44,7 +44,7 @@
 
   Check whether the bug is that `from` is missing when out of line of sight (falling back to a corner). If it is, test that case.
 - **Fix:** the measured cause.
-- **Acceptance:** the test passes. A screenshot of a face sent through a wall: `review/p3-267-pill.png`.
+- **Acceptance:** the test passes. A screenshot of a face sent through a wall: `review/p3-267-pill.png` (made as `review/p3-267-pill-{1280,375}.png`).
 - **Break check:** by script; red.
 - **Depends on:** none.
 
