@@ -1,5 +1,13 @@
 import { type ChildProcess, execSync, spawn } from "node:child_process";
-import { copyFileSync, existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Browser, Page } from "playwright";
@@ -226,7 +234,20 @@ describe.each(ROOMS)("labels never cover a plaque (room $n)", ({ n, plaques, rou
     if (!existsSync("dist/server/entry.mjs")) execSync("pnpm build", { stdio: "ignore" });
     const file = readdirSync("rooms").find((f) => f.startsWith(`${n}-`));
     if (!file) throw new Error(`no room ${n}`);
-    copyFileSync(join("rooms", file), join(dir, file));
+    // Room 3 has a camera over its hall that watches 2.5 s of every 8 and sends the whole team back to the spawn
+    // when it sees anyone in its cone. This test only walks the hall to read where the label chips fall, but a
+    // walk that meets the camera while it watches is reset and has to start again: started 2 to 5 s into the
+    // cycle, a held-key walk is caught once (probed), and how late a walk starts depends on how slow the runner
+    // is. That is CI run 42595732106's three passes that began at x 1.5, and why the walk stopped at a different
+    // x every run. The camera is still there and still gets its chip (a camera entity is labelled whether it
+    // watches or is idle), it just never watches, so the walk is never caught. The room as played is checked by
+    // spec/rooms.test.ts and the camera by its own specs.
+    const room = readFileSync(join("rooms", file), "utf8");
+    const calm = room.replace('"watchingS":2.5', '"watchingS":0');
+    if (n === "03" && calm === room)
+      throw new Error("room 3's camera no longer says watchingS 2.5");
+    if (n === "03") writeFileSync(join(dir, file), calm);
+    else copyFileSync(join("rooms", file), join(dir, file));
     app = spawn("node", ["server.ts"], {
       env: {
         ...process.env,

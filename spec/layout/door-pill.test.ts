@@ -5,7 +5,6 @@ import { join } from "node:path";
 import type { Browser, Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { WORLD } from "../../src/client/tokens.ts";
-import type { Role } from "../../src/game/types.ts";
 import { DESKTOP, launch, PHONE } from "../browser.ts";
 import { playRoom, type Table } from "../playUi.ts";
 
@@ -87,23 +86,21 @@ const boxOf = async (page: Page, selector: string) => {
   return (await loc.count()) ? await loc.boundingBox() : null;
 };
 
-// "stand on the plate": the plate is the tile east of the spawn (x 2 to 3; the spawn is at 1.5). A hold
-// of 300 ms walked the deaf and mute figures to x of about 2.3 to 2.4 (probed), so a 150 ms tap
-// ended near the plate's edge and a slow machine could fall short of it. The two pages that publish
-// where their figure is (data-self; the blind page does not) walk until it is mid-plate; the blind
-// one holds 320 ms, which is mid-plate by the same probe.
-const standOn = async (page: Page, role: Role) => {
-  await page.keyboard.down("d");
+// "stand on the plate": each plate is the tile east of its spawn (x 2 to 3, `Math.floor(x) === 2`: step.ts
+// updatePlates) and the fixture puts a wall on the tile after it, so a held key carries a figure onto its plate and
+// the wall stops it there. How long the key stays down no longer matters, and that is the point: this walked each
+// figure to a position it had to stop at, and on a loaded runner the key-up came late and carried the figures
+// past the 1-tile plate (CI run 42595732106: x 3.1 and 3.06, the blind one about 3.3) so the door never opened
+// and no pill was drawn in 46 passes. With a 500 ms late key-up the old walk ended at x 4.3 to 4.7 locally.
+// Can't see's page publishes no position, which is why a position check could not stop it. The key is pressed again
+// on every poll for 1.2 s, well over the 0.25 s it takes to cross the plate: the page drops every held key when its
+// window loses focus (input.ts) and does not send a pressed key again.
+const standOn = async (page: Page) => {
+  const until = Date.now() + 1200;
   try {
-    if (role === "blind") await page.waitForTimeout(320);
-    else {
-      const selfX = async () => {
-        const raw = await page.locator("canvas[data-camera]").getAttribute("data-self");
-        return Number((raw ?? "").split(",")[0]);
-      };
-      await expect
-        .poll(selfX, { timeout: 10_000, interval: 25, message: "walked onto the plate" })
-        .toBeGreaterThan(2.3);
+    while (Date.now() < until) {
+      await page.keyboard.down("d");
+      await page.waitForTimeout(40);
     }
   } finally {
     await page.keyboard.up("d");
@@ -142,7 +139,7 @@ describe("a door opening off screen, drawn as an edge pill", () => {
       for (const [, role] of roles) await table.byRole[role].setViewportSize(size);
       // the whole table stands on its plates; the door opens at the far end
       const standing = Date.now();
-      for (const role of ROLES) await standOn(table.byRole[role], role);
+      for (const role of ROLES) await standOn(table.byRole[role]);
       const polling = Date.now();
       // where each figure stood when the walk ended, and what its page says the server applied: the door
       // opens only when all three are on their plates at once (x 2 to 3), and the blind page publishes no
