@@ -2256,3 +2256,93 @@ describe("a camera out of sight still shows its cone where the seat can see grou
     expect(viewFor(world, 2, "blind", true).entities).toEqual([]);
   });
 });
+
+// ADR 0030: holding hands is felt, not seen. The hand is touch: a direction, which end you are and
+// whether the pair strains, never who holds it (FR2, FR5, Task 274).
+describe("viewFor: the hand is touch, with no identity", () => {
+  const ROLES = ["blind", "deaf", "mute"] as const;
+  const hold = () => {
+    const w = worldWith(["##########", "#1.......#", "#2.......#", "#3.......#", "##########"], {});
+    place(w, 0, { x: 3, y: 1 });
+    place(w, 1, { x: 4, y: 2 }); // down and to the right of the leader
+    place(w, 2, { x: 8, y: 3 });
+    step(w, { 0: { seq: 1, move: { x: 0, y: 0 }, act: true } }, TICK_MS);
+    step(w, {}, TICK_MS);
+    expect(w.holding).toEqual({ 1: 0 });
+    place(w, 0, { x: 3, y: 1 }); // towing stood the towed behind; put it down and to the right
+    place(w, 1, { x: 4, y: 2 });
+    return w;
+  };
+
+  it("each end gets a unit step toward the other hand, which end it is, and whether it pulls", () => {
+    for (const role of ROLES) {
+      const w = hold();
+      expect(viewFor(w, 0, role, false).you.hand, `${role} leading`).toEqual({
+        dir: { x: 1, y: 1 },
+        leads: true,
+        pulling: false,
+      });
+      expect(viewFor(w, 1, role, false).you.hand, `${role} towed`).toEqual({
+        dir: { x: -1, y: -1 },
+        leads: false,
+        pulling: false,
+      });
+    }
+  });
+
+  it("the hand carries no seat or id of the partner, for any role and either end", () => {
+    for (const role of ROLES) {
+      const w = hold();
+      for (const [seat, mate] of [
+        [0, 1],
+        [1, 0],
+      ] as const) {
+        const you = JSON.stringify(viewFor(w, seat, role, false).you);
+        expect(you, `${role} seat ${seat}`).not.toContain(`"seat":${mate}`);
+        expect(you).not.toContain(`P${mate}`);
+        expect(Object.keys(viewFor(w, seat, role, false).you.hand ?? {}).sort()).toEqual([
+          "dir",
+          "leads",
+          "pulling",
+        ]);
+      }
+    }
+  });
+
+  it("Can't see's whole view never names the partner in a hand field", () => {
+    const w = hold();
+    for (const [seat, mate] of [
+      [0, 1],
+      [1, 0],
+    ] as const) {
+      const text = JSON.stringify(viewFor(w, seat, "blind", true));
+      for (const field of ["hand", "holding", "heldBy", "partner", "leader"]) {
+        expect(text, `${field} in seat ${seat}'s view`).not.toMatch(
+          new RegExp(`"${field}":${mate}\\b`),
+        );
+      }
+    }
+  });
+
+  it("a pair in a tug of war is pulling at both ends", () => {
+    const w = hold();
+    step(
+      w,
+      {
+        0: { seq: 2, move: { x: 1, y: 0 }, act: false },
+        1: { seq: 3, move: { x: -1, y: 0 }, act: false },
+      },
+      TICK_MS,
+    );
+    expect(viewFor(w, 0, "blind", false).you.hand?.pulling).toBe(true);
+    expect(viewFor(w, 1, "deaf", false).you.hand?.pulling).toBe(true);
+  });
+
+  it("not held, no hand", () => {
+    const w = hold();
+    expect(viewFor(w, 2, "blind", false).you.hand).toBeUndefined();
+    step(w, { 1: { seq: 4, move: { x: 0, y: 0 }, act: true } }, TICK_MS); // the towed lets go
+    expect(viewFor(w, 0, "blind", false).you.hand).toBeUndefined();
+    expect(viewFor(w, 1, "mute", false).you.hand).toBeUndefined();
+  });
+});

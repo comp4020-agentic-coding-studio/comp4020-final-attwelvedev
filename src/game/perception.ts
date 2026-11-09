@@ -217,12 +217,13 @@ export interface RoleView {
   full: boolean; // true when tiles are included
   // motion: this seat's own walking and pushing, sent to every role (Can't see hears both already, so
   // it learns nothing it can't perceive). It reads only this seat's state, never another player's.
-  // hand: whose hand this seat holds (FR22: Can't see's own screen says who), from its own state only
+  // hand: the hand this seat holds, as touch (ADR 0030): a unit step toward the other hand, whether
+  // this seat leads, and whether the pair strains. Never who holds it: that is not felt.
   you: {
     seat: Seat;
     pos?: Vec;
     motion?: { moving: boolean; blocked: boolean };
-    hand?: Seat;
+    hand?: { dir: Vec; leads: boolean; pulling: boolean };
   };
   tiles?: string[];
   hue?: string; // the room's wall hue (room meta), only on a full view, with `tiles`: room layout, no perception
@@ -1222,6 +1223,27 @@ function brailleFor(world: World, seat: Seat, role: Role): RoleView["braille"] {
 
 // The one place that decides what a role may know (ADR 0007). A field added to
 // RoleView must be gated here against the role tables in types.ts.
+// The hand `seat` holds, as touch (ADR 0030): the 8-way unit step toward the other hand, which
+// end it is, and whether the pair is in a tug of war (the rule a figure's `pulling` uses).
+function handOf(world: World, seat: Seat): RoleView["you"]["hand"] {
+  const mate = partner(world, seat);
+  if (mate === undefined) return undefined;
+  const me = world.players[seat].pos;
+  const them = world.players[mate].pos;
+  const angle = Math.atan2(them.y - me.y, them.x - me.x);
+  const octant = Math.round(angle / (Math.PI / 4));
+  const dir = {
+    x: Math.round(Math.cos((octant * Math.PI) / 4)),
+    y: Math.round(Math.sin((octant * Math.PI) / 4)),
+  };
+  const leads = world.holding[seat] === undefined;
+  return {
+    dir: { x: dir.x + 0, y: dir.y + 0 },
+    leads,
+    pulling: !!world.pulling[leads ? mate : seat],
+  };
+}
+
 export function viewFor(world: World, seat: Seat, role: Role, full: boolean): RoleView {
   const view: RoleView = {
     tick: world.tick,
@@ -1239,8 +1261,8 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
     dark: false,
     gear: carried(world, seat)?.item ?? null, // own state: each role knows what it carries
   };
-  const hand = partner(world, seat);
-  if (hand !== undefined) view.you.hand = hand; // own state (FR22)
+  const hand = handOf(world, seat);
+  if (hand) view.you.hand = hand; // own state, felt not seen (ADR 0030)
   const cache = cacheFor(world, seat);
   if (cache) view.cache = cache;
   const kept = keepsakeFor(world, seat);

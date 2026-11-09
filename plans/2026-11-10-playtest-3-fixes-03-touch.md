@@ -33,7 +33,7 @@ hand?: { dir: Vec; leads: boolean; pulling: boolean }; // dir: a unit step towar
 
 ## Tasks
 
-### Task 274: The hand is sent as touch, with no identity (FR2, FR5) — [ ]
+### Task 274: The hand is sent as touch, with no identity (FR2, FR5) — [x]
 
 - **Tests first (red), in `src/game/perception.test.ts`:**
   - (a) For each role, while held (towed and leading), `view.you.hand` is `{ dir, leads, pulling }`, where `dir` is the unit step from your figure toward your partner's. The serialised message contains no seat or id of the partner in `you`. Assert on `JSON.stringify(view.you)` with no `"seat":<partner>` beyond your own, and no player id.
