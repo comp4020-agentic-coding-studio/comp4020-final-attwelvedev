@@ -21,6 +21,7 @@ import { sharedStats } from "../lib/stats.ts";
 import { joinThrottle } from "../lib/throttle.ts";
 import { createHub } from "./broadcast.ts";
 import { normaliseLobbyCode } from "./codes.ts";
+import { followersOf } from "./follow.ts";
 import {
   advanceRoom,
   applyInput,
@@ -1132,11 +1133,8 @@ function handle(socket: WebSocket, who: string, msg: ClientMsg): void {
           const to = lobby.seats[receiver]?.who;
           if (to) hub.sendTo(to, { t: "msg", ...sent.message });
         }
-        for (const watcher of watchersOf(lobby)) {
-          const followSeat = spectating.get(watcher) ?? null;
-          if (followSeat !== null && sent.receivers.includes(followSeat)) {
-            hub.sendTo(watcher, { t: "msg", ...sent.message });
-          }
+        for (const watcher of followersOf(watchersOf(lobby), spectating, sent.receivers)) {
+          hub.sendTo(watcher, { t: "msg", ...sent.message });
         }
         if (sent.cooldown) send(socket, { t: "cooldown", ...sent.cooldown });
         return;
@@ -1231,10 +1229,7 @@ function relayVoice(socket: WebSocket, who: string, data: Uint8Array): void {
       const device = lobby.seats[receiver]?.who;
       if (device) to.add(device);
     }
-    for (const watcher of watchers) {
-      const following = spectating.get(watcher) ?? null;
-      if (following !== null && receivers.includes(following)) to.add(watcher);
-    }
+    for (const watcher of followersOf(watchers, spectating, receivers)) to.add(watcher);
   }
   for (const device of to) {
     for (const s of hub.socketsOf.get(device) ?? []) {

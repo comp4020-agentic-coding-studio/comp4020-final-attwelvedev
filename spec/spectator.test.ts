@@ -71,45 +71,21 @@ describe("a spectator follows a running game", () => {
     await closeAll(players);
   });
 
-  it("receives the msgs the followed seat receives, but can't send", async () => {
+  it("can't send", async () => {
     const { players, code } = await startedGame(baseUrl);
     ready(players);
     await players[0]?.socket.next("view");
 
     const blind = players.find((p) => p.role === "blind");
-    const deaf = players.find((p) => p.role === "deaf");
-    if (!blind || !deaf) throw new Error("expected a blind and a deaf seat");
+    if (!blind) throw new Error("expected a blind seat");
 
     const spectator = await joinAsSpectator(code);
     spectator.send({ t: "spectate", seat: blind.seat });
     await spectator.next<{ view: RoleView }>("view");
 
-    // say: deaf sends, blind and mute receive — the spectator is following blind. The follow takes effect when the
-    // server handles `spectate`, and a callout sent before that reaches nobody the spectator follows and is lost for
-    // good: sent once, this test failed in CI run 42605097983 (`no "msg" message within 2000 ms`) and, with the
-    // follow made to take effect 400 ms late, 3 of 3 locally. No view or reveal the spectator can read says the follow
-    // has taken effect (a view's `you.seat` comes from the `spectate` message itself, tried and dropped), so the callout
-    // is sent again every 200 ms until the spectator gets one. A callout has no cooldown (channels.ts), so a repeat is
-    // never refused; the extra frames wait in the queue, and the sends below wait for their `error` by type.
-    const msg = await new Promise<{ method: string }>((resolve, reject) => {
-      const resend = setInterval(
-        () => deaf.socket.send({ t: "send", msg: { method: "callout", callout: "wait" } }),
-        200,
-      );
-      deaf.socket.send({ t: "send", msg: { method: "callout", callout: "wait" } });
-      spectator.next<{ method: string }>("msg", 5000).then(
-        (m) => {
-          clearInterval(resend);
-          resolve(m);
-        },
-        (e) => {
-          clearInterval(resend);
-          reject(e);
-        },
-      );
-    });
-    expect(msg.method).toBe("callout");
-
+    // Who receives a callout is src/net/follow.test.ts: sent from here it raced the server handling `spectate`
+    // (a callout sent a moment early reaches nobody and is lost, CI run 42605097983). What is checked here needs
+    // no timing: a spectator's attempts to send are refused.
     for (const attempt of [
       { t: "send", msg: { method: "callout", callout: "wait" } },
       { t: "send", msg: { method: "clip", clip: "airhorn" } },
