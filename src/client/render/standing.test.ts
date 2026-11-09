@@ -1402,14 +1402,22 @@ describe("a wall's top is never veiled (screenshots 82 to 85)", () => {
 // lit, and only for a viewer south of it; a front with wall south of it is behind that wall and veiled whole. The
 // oracle is the light polygon alone (`inLight` on the foot line).
 describe("a wall's front is cut by a vertical line from where the light meets its foot (screenshots 89 to 92)", () => {
-  it("clears each column of a front whose foot ground is lit, from south of it, and veils the rest", () => {
-    vi.stubGlobal("Path2D", class {});
-    const room = loadRooms().find((r) => r.id === "04-the-safe") as ReturnType<typeof loadRooms>[0];
-    const wrong: string[] = [];
-    let lit = 0;
-    let dark = 0;
-    let hidden = 0;
-    for (const opened of [false, true])
+  // One test for the room as found and one for it with the safe opened: together they took 17.7 s of the 20 s
+  // limit on a CI runner. Each half is the same sweep over its own state.
+  it.each([
+    { opened: false, state: "closed" },
+    { opened: true, state: "open" },
+  ])(
+    "clears each column of a front whose foot ground is lit, from south of it, and veils the rest ($state)",
+    ({ opened }) => {
+      vi.stubGlobal("Path2D", class {});
+      const room = loadRooms().find((r) => r.id === "04-the-safe") as ReturnType<
+        typeof loadRooms
+      >[0];
+      const wrong: string[] = [];
+      let lit = 0;
+      let dark = 0;
+      let hidden = 0;
       for (let vy = 1.05; vy <= 5.95; vy += 0.3)
         for (let vx = 22.05; vx <= 29.95; vx += 0.3) {
           const at = { x: vx, y: vy };
@@ -1463,11 +1471,12 @@ describe("a wall's front is cut by a vertical line from where the light meets it
             }
           }
         }
-    expect(lit, "front points whose foot ground is lit").toBeGreaterThan(300);
-    expect(dark, "front points whose foot ground is dark or out of sight").toBeGreaterThan(1000);
-    expect(hidden, "front points behind another wall").toBeGreaterThan(300);
-    expect(wrong.slice(0, 6), `${wrong.length} front points wrong`).toEqual([]);
-  });
+      expect(lit, "front points whose foot ground is lit").toBeGreaterThan(300);
+      expect(dark, "front points whose foot ground is dark or out of sight").toBeGreaterThan(1000);
+      expect(hidden, "front points behind another wall").toBeGreaterThan(300);
+      expect(wrong.slice(0, 6), `${wrong.length} front points wrong`).toEqual([]);
+    },
+  );
 });
 
 // The user (screenshots 103 and 104): a station is cut straight across by the diagonal, and where that cut reaches the wall
@@ -1881,22 +1890,30 @@ const OFF_CENTRE: [number, number, string][] = [
 ];
 
 describe("what stands is dropped only when the light touches none of its footprint (L1, L3, L5)", () => {
-  it("draws a figure whose feet are partly lit, from every spot of room 6 and room 8 (L1, screenshots 122 and 123)", () => {
-    vi.stubGlobal("Path2D", class {});
-    const lost: string[] = [];
-    let checked = 0;
-    for (const id of ["06-lights-out", "08-music-room"]) {
-      const room = roomOf(id);
-      for (let vy = 1; vy < room.height; vy += 2)
-        for (let vx = 1; vx < room.width; vx += 2) {
-          if (room.grid[vy]?.[vx] !== ".") continue;
-          const v = { x: vx + 0.3, y: vy + 0.6 };
-          for (let fy = vy - 4; fy <= vy + 4; fy++)
-            for (let fx = vx - 6; fx <= vx + 6; fx++) {
-              if (room.grid[fy]?.[fx] !== "." || (fx === vx && fy === vy)) continue;
-              // the tile's centre, and off-centre on each axis, where the feet cross into the next tile
-              // (a figure at a centre never leaves its own tile, so a gate on that tile alone passed)
-              for (const [ox, oy, spot] of OFF_CENTRE) {
+  // One test per room and standing place, not one for all ten: the whole sweep took 23 s on a CI runner (20 s
+  // limit) and each of these takes about a tenth of that. The sweep itself is unchanged: every viewer spot,
+  // every figure tile around it, and the five places on that tile.
+  describe.each(
+    ["06-lights-out", "08-music-room"].flatMap((id) =>
+      OFF_CENTRE.map(([ox, oy, spot]) => ({ id, ox, oy, spot })),
+    ),
+  )(
+    "a figure whose feet are partly lit, $id, standing at its tile's $spot",
+    ({ id, ox, oy, spot }) => {
+      it("is kept, from every spot (L1, screenshots 122 and 123)", () => {
+        vi.stubGlobal("Path2D", class {});
+        const lost: string[] = [];
+        let checked = 0;
+        const room = roomOf(id);
+        for (let vy = 1; vy < room.height; vy += 2)
+          for (let vx = 1; vx < room.width; vx += 2) {
+            if (room.grid[vy]?.[vx] !== ".") continue;
+            const v = { x: vx + 0.3, y: vy + 0.6 };
+            for (let fy = vy - 4; fy <= vy + 4; fy++)
+              for (let fx = vx - 6; fx <= vx + 6; fx++) {
+                if (room.grid[fy]?.[fx] !== "." || (fx === vx && fy === vy)) continue;
+                // the tile's centre, or off-centre on one axis, where the feet cross into the next tile
+                // (a figure at a centre never leaves its own tile, so a gate on that tile alone passed)
                 const f = { x: fx + ox, y: fy + oy };
                 const { view, light, tiles } = viewAt(room, v, f);
                 // a figure in a dark zone is never sent (FR19): the tile it stands on is masked out of the map
@@ -1910,12 +1927,12 @@ describe("what stands is dropped only when the light touches none of its footpri
                 );
                 if (!kept) lost.push(`${id} viewer ${v.x},${v.y} figure ${f.x},${f.y} (${spot})`);
               }
-            }
-        }
-    }
-    expect(checked, "figures partly lit").toBeGreaterThan(1000);
-    expect(lost.slice(0, 5), `${lost.length} figures lost`).toEqual([]);
-  });
+          }
+        expect(checked, "figures partly lit").toBeGreaterThan(1000);
+        expect(lost.slice(0, 5), `${lost.length} figures lost`).toEqual([]);
+      });
+    },
+  );
 
   it("keeps the checkpoint while any of its tile is lit, room 6 (L3, screenshot 125)", () => {
     vi.stubGlobal("Path2D", class {});
