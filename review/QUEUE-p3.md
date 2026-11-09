@@ -50,3 +50,10 @@ Open three tabs (or a phone and two tabs), create a lobby in one, join with the 
 - **Screenshots:** `review/p3-275-touch-towed-1280.png`, `review/p3-275-touch-towed-375.png`, `review/p3-275-touch-leading-1280.png`, `review/p3-275-touch-leading-375.png`, `review/p3-275-touch-pulling-1280.png`, `review/p3-275-touch-pulling-375.png`.
 - **A pass:** it reads as touch, the link matches what the sighted see, and nothing (HUD, caption, crew list) names the partner.
 - **What I judged:** all six read clearly. The far bead floats on black with no figure, which is the point. The server sends no seat (Task 274's test), so nothing can name the partner.
+
+## Task 276: grip and release, for the pair only (FR3), listening
+
+- **Listen to:** `review/p3-276-grip.wav` (a hand taken), `review/p3-276-release.wav` (a hand let go), and `review/p3-276-step-grip-step-release.wav` (an approximate own step, the grip, a step, the release, for level). These are offline renders of the same tones `src/client/audio.ts` plays (sine slides 330→440 + 440→494 Hz at 0.1/0.07; 440→300 Hz at 0.08), not a recording of the browser.
+- **Live:** `pnpm build && pnpm start`, three tabs, room 2: take hands with Space beside a teammate. The two holding hear it and see the captions "hand taken" / "hand let go"; the third seat gets nothing.
+- **A pass:** both feel like touch, soft, clearly quieter than footsteps, and neither is mistaken for a station or alarm.
+- **What I judged:** they read as soft and short. The level beside a step is a guess from the code, so it's worth hearing in a real game.

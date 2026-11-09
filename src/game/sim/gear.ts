@@ -56,8 +56,14 @@ export function partner(world: World, seat: Seat): Seat | undefined {
 const inPair = (world: World, seat: Seat) => partner(world, seat) !== undefined;
 
 function release(world: World, towed: Seat): void {
+  const from = world.holding[towed];
   delete world.holding[towed];
-  world.events.push({ kind: "hold", seat: towed, leader: null });
+  world.events.push({
+    kind: "hold",
+    seat: towed,
+    leader: null,
+    ...(from !== undefined ? { from } : {}),
+  });
 }
 
 export function releaseAll(world: World): void {

@@ -58,7 +58,7 @@ hand?: { dir: Vec; leads: boolean; pulling: boolean }; // dir: a unit step towar
 - **Acceptance:** the tests pass. Real-canvas screenshots of Can't see towed and leading at 1280 and 375: `review/p3-275-touch-*.png`. **Human review:** it reads as touch; the link is the same as the sighted see; nothing identifies the partner.
 - **Depends on:** Task 274.
 
-### Task 276: Grip and release sounds for the pair only (FR3) — [ ]
+### Task 276: Grip and release sounds for the pair only (FR3) — [ ] (review queued)
 
 - **Behaviour:**
   - On the tick a hold starts, the two seats in the pair each get a `grip` cue (pan 0, gain 1). On the tick it ends, a `release` cue.

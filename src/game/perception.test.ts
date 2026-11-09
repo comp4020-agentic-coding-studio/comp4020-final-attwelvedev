@@ -2346,3 +2346,48 @@ describe("viewFor: the hand is touch, with no identity", () => {
     expect(viewFor(w, 1, "mute", false).you.hand).toBeUndefined();
   });
 });
+
+// ADR 0030: taking and letting go of a hand is felt by the pair alone (FR3, Task 276).
+describe("viewFor: grip and release reach the pair only", () => {
+  const ROLES = ["blind", "deaf", "mute"] as const;
+  const cues = (w: ReturnType<typeof worldWith>, seat: 0 | 1 | 2, kind: string) =>
+    viewFor(w, seat, ROLES[seat], false).sounds.filter((s) => s.kind === kind);
+
+  it("the two who take hands each get one centred grip; the third, beside them, none", () => {
+    const w = worldWith(["##########", "#1.......#", "#2.......#", "#3.......#", "##########"], {});
+    place(w, 0, { x: 3, y: 2 });
+    place(w, 2, { x: 4, y: 2 });
+    place(w, 1, { x: 3, y: 3 }); // Can't hear's seat, right beside the pair
+    step(w, { 2: { seq: 1, move: { x: 0, y: 0 }, act: true } }, TICK_MS);
+    expect(Object.keys(w.holding)).toHaveLength(1);
+    const mate = (w.holding[0] !== undefined ? 0 : w.holding[1] !== undefined ? 1 : 2) as 0 | 1 | 2;
+    const pair = new Set([2, mate]);
+    for (const seat of [0, 1, 2] as const) {
+      const got = cues(w, seat, "grip");
+      if (pair.has(seat)) expect(got, `seat ${seat}`).toEqual([{ kind: "grip", pan: 0, gain: 1 }]);
+      else expect(got, `seat ${seat}, not in the pair`).toEqual([]);
+    }
+    // letting go: a release for the same two, and nobody else
+    step(w, {}, TICK_MS);
+    step(w, { 2: { seq: 2, move: { x: 0, y: 0 }, act: true } }, TICK_MS);
+    expect(w.holding).toEqual({});
+    for (const seat of [0, 1, 2] as const) {
+      const got = cues(w, seat, "release");
+      if (pair.has(seat))
+        expect(got, `seat ${seat}`).toEqual([{ kind: "release", pan: 0, gain: 1 }]);
+      else expect(got, `seat ${seat}, not in the pair`).toEqual([]);
+      expect(cues(w, seat, "grip")).toEqual([]);
+    }
+  });
+
+  it("a sighted holder hears it too, whatever their role, and a third Can't see hears nothing", () => {
+    const w = worldWith(["##########", "#1.......#", "#2.......#", "#3.......#", "##########"], {});
+    place(w, 1, { x: 3, y: 2 });
+    place(w, 2, { x: 4, y: 2 });
+    place(w, 0, { x: 4, y: 3 }); // Can't see stands diagonally beside them, outside the pair
+    step(w, { 1: { seq: 1, move: { x: 0, y: 0 }, act: true } }, TICK_MS);
+    expect(w.holding).toEqual({ 2: 1 });
+    expect(cues(w, 2, "grip")).toHaveLength(1);
+    expect(cues(w, 0, "grip"), "Can't see, beside but not holding").toEqual([]);
+  });
+});

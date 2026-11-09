@@ -147,7 +147,7 @@ export type WorldEvent =
     }
   | { kind: "lever"; id: string; on: boolean; at: Vec } // a practice lever flipped
   | { kind: "gear"; id: string; action: "take" | "drop" | "give" | "sill"; seat: Seat; at: Vec }
-  | { kind: "hold"; seat: Seat; leader: Seat | null }
+  | { kind: "hold"; seat: Seat; leader: Seat | null; from?: Seat } // from: a let-go's old leader
   | { kind: "pull"; leader: Seat; towed: Seat; at: Vec } // a tug of war began between two hand-holders
   | { kind: "bell"; id: string; at: Vec }
   | { kind: "lamp"; id: string; seat: Seat }

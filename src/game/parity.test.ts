@@ -342,6 +342,33 @@ const PARITY: Record<SoundCue["kind"], Scenario> = {
       sees: (_b, a) => ent(a, "P0")?.pulling === true && ent(a, "P2")?.pulling === true,
     };
   })(),
+  grip: (() => {
+    // Can't see and Can't speak take hands: the pair feels it, Can't hear (the third) is told nothing
+    const world = worldWith(put([5, 2, "."]), {});
+    place(world, BLIND, { x: 4, y: 2 });
+    place(world, MUTE, { x: 5, y: 2 });
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 5, y: 2 }),
+      sees: () => true,
+      exempt:
+        "Touch is felt only by the two holding hands (ADR 0030): no other seat hears or sees it.",
+    };
+  })(),
+  release: (() => {
+    const world = worldWith(put([5, 2, "."]), {});
+    place(world, BLIND, { x: 4, y: 2 });
+    place(world, MUTE, { x: 5, y: 2 });
+    actBy(world, MUTE, { x: 5, y: 2 }); // hold hands, the actor leads
+    go(world);
+    return {
+      world,
+      act: () => actBy(world, MUTE, { x: 5, y: 2 }), // the leader lets go
+      sees: () => true,
+      exempt:
+        "Touch is felt only by the two holding hands (ADR 0030): no other seat hears or sees it.",
+    };
+  })(),
   lever: (() => {
     const world = worldWith(put([12, 1, "v"]), {});
     return {

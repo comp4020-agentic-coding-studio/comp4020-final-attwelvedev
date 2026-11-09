@@ -189,6 +189,8 @@ export interface SoundCue {
     | "practice" // a key or bell pressed while its practice lever is on: it plays, it counts for nothing
     | "lever" // a practice lever flipped: the whole room hears it
     | "pull" // a tug of war between two hand-holders: only those two hear it
+    | "grip" // a hand taken: felt by the two holding hands only (ADR 0030)
+    | "release" // a hand let go: felt by the two who held hands only (ADR 0030)
     | "bellnote" // a music-box bell struck or played; `n` is which
     | "bell" // the bell rope: the whole room hears it
     | "dye" // the dye pack: a wrong answer, heard by the team
@@ -679,6 +681,11 @@ function soundsFor(world: World, seat: Seat): SoundCue[] {
     } else if (e.kind === "gear") {
       const c = cue(world, "gear", e.at, me);
       if (c) out.push(c);
+    } else if (e.kind === "hold") {
+      // a hand taken or let go is felt by the two whose hands they are, and by nobody else (ADR 0030)
+      const other = e.leader ?? e.from;
+      if (seat === e.seat || seat === other)
+        out.push({ kind: e.leader === null ? "release" : "grip", pan: 0, gain: 1 });
     } else if (e.kind === "pull") {
       // a strain between the two who hold hands: it is theirs alone, centred in their heads like the
       // earpiece, and nobody else in the room hears it

@@ -321,6 +321,13 @@ export function createAudio(): GameAudio {
           // a fingertip on a metal plate: two soft, short, high taps, quieter than a step
           tone(c, s, "sine", 1800, 1600, 0.03, 0.12);
           tone(c, s, "sine", 1700, 1500, 0.03, 0.1, 0.08);
+        } else if (s.kind === "grip") {
+          // a hand taken (ADR 0030): a soft low squeeze rising, in your own head, quieter than a step
+          tone(c, s, "sine", 330, 440, 0.09, 0.1);
+          tone(c, s, "sine", 440, 494, 0.06, 0.07, 0.07);
+        } else if (s.kind === "release") {
+          // a hand let go: the same squeeze falling away, shorter
+          tone(c, s, "sine", 440, 300, 0.11, 0.08);
         } else if (s.kind === "gear") {
           tone(c, s, "square", 1200, 1200, 0.02, 0.18);
           tone(c, s, "square", 900, 900, 0.02, 0.18, 0.07);
