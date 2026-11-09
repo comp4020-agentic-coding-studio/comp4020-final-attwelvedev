@@ -22,10 +22,21 @@ let table: Table;
 const COLOUR = /\b(red|blue|yellow|green|white|black)\b/i;
 
 // Walk with a key held until the predicate holds (the server decides where you are; the view says).
+// The key is pressed again on every poll. The page drops every held key when its window loses focus
+// (input.ts: blur clears them), and a key pressed once is never sent again, so one blur would stop the
+// walk dead while this waited out its whole timeout. The page keeps its keys in a Set, so pressing a
+// key that is already down changes nothing.
 async function walk(page: Page, key: string, until: () => Promise<boolean>, maxMs = 8000) {
-  await page.keyboard.down(key);
   try {
-    await expect.poll(until, { timeout: maxMs, interval: 50 }).toBe(true);
+    await expect
+      .poll(
+        async () => {
+          await page.keyboard.down(key);
+          return until();
+        },
+        { timeout: maxMs, interval: 50 },
+      )
+      .toBe(true);
   } finally {
     await page.keyboard.up(key);
   }
