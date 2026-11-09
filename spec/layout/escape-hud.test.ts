@@ -212,10 +212,9 @@ describe("the gear slot and Act hint at the bottom right (Task 39)", () => {
 });
 
 describe("the HUD at both widths, for every role", () => {
-  it.each([
-    ["desktop", DESKTOP],
-    ["phone", PHONE],
-  ] as const)(
+  // The desktop case was deleted: it flaked on CI with the same code that passed a run earlier
+  // ("locator('.captions') was never laid out"), and the user chose deletion over another fix.
+  it.each([["phone", PHONE]] as const)(
     "has no horizontal scroll, keeps its pieces apart, and passes axe (%s)",
     async (_, vp) => {
       for (const page of table.pages) {
