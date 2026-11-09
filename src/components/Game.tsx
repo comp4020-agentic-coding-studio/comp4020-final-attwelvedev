@@ -13,6 +13,7 @@ import {
   fxOfCleared,
   fxOfCuts,
   openedDoors,
+  popOfMessage,
 } from "../client/fx.ts";
 import {
   CALLOUT_WORD,
@@ -920,23 +921,9 @@ function Hud({
         speech.say(m.method === "callout" ? CALLOUT_WORD[m.callout] : m.text);
       } else if (m.method === "clip" && s.sound && !forceCaptions) {
         audio.current?.playClip(m.clip);
-      } else if (m.method === "face") {
-        rt.pops.push({
-          seat: m.from.seat,
-          id: m.id,
-          at: now,
-          from: m.from.pos,
-          name: m.from.nickname,
-        });
-      } else if (m.method === "mark") {
-        rt.pops.push({
-          seat: m.from.seat,
-          id: m.id,
-          at: now,
-          from: m.at,
-          name: m.from.nickname,
-          mark: m.id,
-        });
+      } else {
+        const pop = popOfMessage(m, now);
+        if (pop) rt.pops.push(pop);
       }
       // text to Can't speak is always shown, since reading it is their only way
       const caption = captionFor(m);

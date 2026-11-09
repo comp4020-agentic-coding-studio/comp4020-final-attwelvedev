@@ -1,3 +1,4 @@
+import type { ChannelMessage, Stamp } from "../game/channels.ts";
 import type { RoleView } from "../game/perception.ts";
 import type { ItemId } from "../game/rooms/format.ts";
 import type { Vec } from "../game/types.ts";
@@ -143,6 +144,25 @@ export function fxOfCaught(prev: readonly EntityView[], next: readonly EntityVie
 }
 
 const key = (e: EntityView): string => `${e.id}@${e.pos.x},${e.pos.y}`;
+
+// A face or a mark that arrives on the channel is shown over its sender, and as an edge pill when the
+// place it names is off screen: this is the entry the page keeps for it (`from` and `name` are what the
+// pill needs when the sender is out of sight). Anything else a message can be makes none.
+export interface PopEntry {
+  seat: number | null;
+  id: string;
+  at: number;
+  from?: Vec;
+  name?: string;
+  mark?: Stamp;
+}
+export function popOfMessage(m: ChannelMessage, at: number): PopEntry | null {
+  if (m.method === "face")
+    return { seat: m.from.seat, id: m.id, at, from: m.from.pos, name: m.from.nickname };
+  if (m.method === "mark")
+    return { seat: m.from.seat, id: m.id, at, from: m.at, name: m.from.nickname, mark: m.id };
+  return null;
+}
 
 // Every ordinary door's true state is sent to every sighted seat (ADR 0025), so a door that goes from
 // closed to open between two views has just opened, wherever it is. One per door.

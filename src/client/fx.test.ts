@@ -16,6 +16,7 @@ import {
   fxOfCleared,
   fxOfCuts,
   openedDoors,
+  popOfMessage,
 } from "./fx.ts";
 
 const e = (over: Partial<EntityView> & Pick<EntityView, "id" | "kind">): EntityView => ({
@@ -81,6 +82,46 @@ describe("detectFx: small effects for what just changed between two views", () =
       ).map((f) => f.pos.y),
     ).toEqual([1.5, 2.5]);
     expect(openedDoors(before, after).map((d) => d.id)).toEqual(["D1", "D2"]);
+  });
+
+  // The page's entry for a face or a mark that arrives (the browser spec for a door's pill beside a mark's seated
+  // three players and raced a 4 s window to prove this and a layout rule render.test.ts already proves).
+  describe("popOfMessage: what a channel message puts on show", () => {
+    const from = {
+      seat: 2 as const,
+      role: "mute" as const,
+      nickname: "Cy",
+      pos: { x: 3.5, y: 2.5 },
+    };
+    it("a mark is an entry at the tile it names, with its stamp and its sender's name and seat", () => {
+      expect(
+        popOfMessage({ method: "mark", id: "key", at: { x: 12.5, y: 2.5 }, from, sentAt: 0 }, 900),
+      ).toEqual({
+        seat: 2,
+        id: "key",
+        at: 900,
+        from: { x: 12.5, y: 2.5 }, // where the mark lies, not where the sender stands
+        name: "Cy",
+        mark: "key",
+      });
+    });
+    it("a face is an entry at its sender, with no stamp", () => {
+      expect(popOfMessage({ method: "face", id: "f01", from, sentAt: 0 }, 900)).toEqual({
+        seat: 2,
+        id: "f01",
+        at: 900,
+        from: { x: 3.5, y: 2.5 },
+        name: "Cy",
+      });
+    });
+    it("a callout, text or clip puts nothing on show", () => {
+      for (const m of [
+        { method: "callout", callout: "wait" },
+        { method: "text", text: "hi" },
+        { method: "clip", clip: "airhorn" },
+      ] as const)
+        expect(popOfMessage({ ...m, from, sentAt: 0 }, 900), m.method).toBeNull();
+    });
   });
 
   it("crate moved emits a crate fx targeting the crate, from where it was", () => {
