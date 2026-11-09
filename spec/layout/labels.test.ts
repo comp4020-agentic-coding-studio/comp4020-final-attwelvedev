@@ -106,6 +106,12 @@ async function walkAndSample(page: Page, route: [number, number][]): Promise<Box
                       intro: document.querySelector(".game")?.getAttribute("data-intro") ?? null,
                       clock: document.querySelector(".hud-clock")?.textContent ?? null,
                       hint: document.querySelector(".act-hint")?.textContent ?? null,
+                      net:
+                        document.querySelector("canvas[data-net]")?.getAttribute("data-net") ??
+                        null,
+                      self:
+                        document.querySelector("canvas[data-self]")?.getAttribute("data-self") ??
+                        null,
                       visible: document.visibilityState,
                       focus: document.hasFocus(),
                       framesIn500ms: frames,

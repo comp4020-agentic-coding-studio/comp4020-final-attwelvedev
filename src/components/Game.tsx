@@ -33,6 +33,7 @@ import {
 import { createInput, inputKey } from "../client/input.ts";
 import { INTRO, INTRO_TOTAL, type IntroFrame, introAt, REDUCED_FADE } from "../client/intro.ts";
 import { ESCAPE_KINDS, LABEL_CAP, type Label, labelsFor } from "../client/labels.ts";
+import { netTrace, type Sent } from "../client/nettrace.ts";
 import { playtestFrame } from "../client/playtest.ts";
 import { createPredictor, type Predictor } from "../client/predict.ts";
 import { type RoomDecor, roomDecor } from "../client/render/decor.ts";
@@ -125,6 +126,7 @@ interface Runtime {
   shown: Vec | null; // where we draw ourselves (self, eased)
   facing: Vec; // the way we last pushed: our own figure turns the moment the key goes down
   walking: { moving: boolean; blocked: boolean }; // what the last input did to the predicted position
+  sent: Sent; // inputs sent so far, for `data-net` (nettrace.ts)
   // faces and marks on show, by when they landed; `from` and `name` are what an edge pill needs
   // when the sender is out of sight and so not among the entities
   pops: { seat: number | null; id: string; at: number; from?: Vec; name?: string; mark?: Stamp }[];
@@ -325,6 +327,9 @@ function useDraw(
           const me = `${scene.self.x.toFixed(3)},${scene.self.y.toFixed(3)}`;
           if (el.dataset.self !== me) el.dataset.self = me;
         }
+        // and what was sent beside what the server last said, for a spec that sees a figure stall
+        const net = netTrace(rt.sent, view);
+        if (el.dataset.net !== net) el.dataset.net = net;
       }
       draw(ctx, scene);
       if (!flat) playtestFrame(ctx, scene, labels ? rt.labels : []); // a no-op unless a playtest (ADR 0027)
@@ -522,6 +527,7 @@ export function Game({
     shown: null,
     facing: SPAWN_FACING,
     walking: { moving: false, blocked: false },
+    sent: { count: 0, seq: 0 },
     pops: [],
     fx: [],
     sparks: [],
@@ -1139,6 +1145,7 @@ function Hud({
       if (!moving && sig === lastSent.current) return;
       lastSent.current = sig;
       socket.send({ t: "input", ...input });
+      rt.sent = { count: rt.sent.count + 1, seq: input.seq };
       if (moving && rt.predictor) {
         const from = rt.self;
         rt.self = rt.predictor.apply(input, 1000 / NET.inputHz);

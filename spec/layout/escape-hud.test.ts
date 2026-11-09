@@ -123,6 +123,22 @@ describe("the Act hint", () => {
   });
 });
 
+describe("the net trace", () => {
+  // `data-net` is what a stalled walk is read from (nettrace.ts): inputs sent, the last one the server
+  // applied, and where the server puts the figure. It has to be there and agree with the walk.
+  it("counts what a walking page sent and shows the server applying it", async () => {
+    const mute = table.byRole.mute;
+    const net = async () => (await mute.locator("canvas[data-net]").getAttribute("data-net")) ?? "";
+    const field = (line: string, name: string) =>
+      Number(new RegExp(`${name}=(\\d+)`).exec(line)?.[1] ?? Number.NaN);
+    await walk(mute, "s", async () => field(await net(), "sent") >= 5);
+    await expect.poll(async () => field(await net(), "ack"), { timeout: 5000 }).toBeGreaterThan(0);
+    const line = await net();
+    expect(line).toMatch(/^sent=\d+ seq=\d+ ack=\d+ tick=\d+ srv=-?[\d.]+,-?[\d.]+$/);
+    expect(field(line, "seq")).toBeGreaterThanOrEqual(field(line, "ack"));
+  });
+});
+
 describe("the gear slot", () => {
   it("shows what you carry, once you pick it up", async () => {
     const mute = table.byRole.mute;
@@ -146,6 +162,7 @@ describe("the gear slot", () => {
       const state = await mute
         .evaluate(() => ({
           self: document.querySelector("canvas[data-self]")?.getAttribute("data-self") ?? null,
+          net: document.querySelector("canvas[data-net]")?.getAttribute("data-net") ?? null,
           hint: document.querySelector(".act-hint")?.textContent ?? null,
           slot: document.querySelector(".gear-slot")?.textContent ?? null,
           conn: document.querySelector(".hud-top .conn")?.textContent ?? null,
