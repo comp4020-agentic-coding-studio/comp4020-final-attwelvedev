@@ -66,7 +66,7 @@
 - **Acceptance:** the test passes, and there's a screenshot in a room with a checkpoint at 1280 and 375. **Human review:** the wording, in `review/QUEUE-p3.md`.
 - **Depends on:** none.
 
-### Task 270: Earplugs copy (T2) — [ ]
+### Task 270: Earplugs copy (T2) — [x]
 
 - **Files:** `src/components/YourSetup.tsx:53`, its spec if one asserts the label (`spec/setup.test.ts`), and `DESIGN.md` copy if listed.
 - **Change:** the label becomes `Ears blocked (earplugs or earmuffs)`, with visible space between the Headphones row and this checkbox (an existing spacing token, no new token).

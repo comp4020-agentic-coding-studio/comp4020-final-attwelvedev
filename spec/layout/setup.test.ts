@@ -56,7 +56,9 @@ describe.each([
       await first.page.getByRole("group", { name: "Headphones" }).getByLabel("No").isChecked(),
     ).toBe(true);
     expect(await first.page.getByLabel("Sleep mask or blindfold").isChecked()).toBe(true);
-    expect(await first.page.getByLabel("Earplugs or earmuffs").isChecked()).toBe(false);
+    expect(await first.page.getByLabel("Ears blocked (earplugs or earmuffs)").isChecked()).toBe(
+      false,
+    );
     await leaveAndClose(first.page); // the second lobby: closing the tab would only hold its seat
   });
 
@@ -67,7 +69,7 @@ describe.each([
     const boRow = host.locator(".player-row").filter({ hasText: "Bo" });
     await boRow.waitFor();
     expect(await boRow.getByText("Set up", { exact: true }).count()).toBe(0);
-    await guest.getByLabel("Earplugs or earmuffs").check();
+    await guest.getByLabel("Ears blocked (earplugs or earmuffs)").check();
     await boRow.getByText("Set up", { exact: true }).waitFor({ timeout: 1000 });
     await leaveAndClose(host);
     await leaveAndClose(guest);
