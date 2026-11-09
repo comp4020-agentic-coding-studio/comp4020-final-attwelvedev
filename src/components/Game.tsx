@@ -12,6 +12,7 @@ import {
   fxOfCaught,
   fxOfCleared,
   fxOfCuts,
+  fxOfHand,
   openedDoors,
   popOfMessage,
 } from "../client/fx.ts";
@@ -280,6 +281,8 @@ function useDraw(
         // Can't see is told whether they are walking or pushing (they hear it already); a sighted
         // role reads it off its own predicted position, which is ahead of the server
         own: ownMotion(rt, role),
+        // the hand you hold, felt: Can't see's frame draws its link (ADR 0030); it never says who
+        ...(view.you.hand ? { hand: view.you.hand } : {}),
         cleared: view.status === "cleared", // nobody walks on once the room is cleared (FR2)
         bots: crew.map((c) => !!c.bot) as Scene["bots"],
         layout: "follow", // the game camera on every screen; the intro's swoop flies it in from the whole room
@@ -442,10 +445,13 @@ function onView(rt: Runtime, view: RoleView, audio: GameAudio, names: readonly s
   if (view.status === "cleared") rt.walking = { moving: false, blocked: false };
   rt.prevEntities = rt.view?.entities ?? [];
   const wasCleared = rt.view?.status === "cleared";
+  const hadHand = rt.view?.you.hand;
   rt.view = view;
   const started = performance.now();
   hearCues(rt.cueHold, cueCaptions(view.sounds, names), started); // every view, so a one-tick sound is not missed
   const fresh = detectFx(rt.prevEntities, view.entities);
+  // Can't see's own hand joining or letting go: their frame has no figures to read it from (ADR 0030)
+  if (view.role === "blind") fresh.push(...fxOfHand(hadHand, view.you.hand));
   // a door opening is team-wide (ADR 0025): each one that opened gets a pill if it is off screen
   for (const d of openedDoors(rt.prevEntities, view.entities))
     rt.pops.push({ seat: null, id: "door", at: started, from: d.pos, name: "Door", mark: "door" });

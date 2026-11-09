@@ -38,3 +38,15 @@ Open three tabs (or a phone and two tabs), create a lobby in one, join with the 
 - **Screenshots:** `review/p3-272-radio-1280.png`, `review/p3-272-radio-375.png` (room 6's teaching radio Q1, band set to position 4, so the chip reads 4; the bench masks tiles to the spawn's view, so the plated radio Q3 further right isn't drawn there, but it uses the same face).
 - **A pass:** the ticks and the chip's number read at 375, and "band N" on the plate obviously means the chip reading N.
 - **What I judged:** ten labelled ticks don't fit the band at the 11 px floor, so only the needle's tick is numbered (logged under `## p3fix`). Ticks read at both widths; I looked at 1, 4 and 10.
+
+## ADR 0030: holding hands is felt, not seen (accept?)
+
+- **Look at:** `doc/adr/0030-holding-hands-is-felt-not-seen.md`, still `proposed`. Phase 03 (Tasks 274–277) is built on it. Accept it, or say what to change.
+
+## Task 275: Can't see feels the hand (FR1, FR4, FR5)
+
+- **Look at:** Can't see's black frame while holding hands: the same link the sighted see (2 px arc, a bead at each end, an arrowhead toward the leader), from their own figure to one tile toward the other hand. Towed: the arrow points away from you. Leading: it points at you. In a tug of war the line is taut and thick with strain ticks. The beads meet when hands join and draw back when they let go.
+- **How:** `pnpm build && pnpm start`, three tabs, Start. In room 2, the seat that can't see walks next to a teammate and presses Space (or the teammate does). Screenshots are the real renderer on the bench: `BENCH=1 pnpm build && BENCH=1 node server.ts`, open `http://localhost:8080/bench?room=02&still=1`, then in the console `__still(false, { role: "blind", seat: 0, tiles: null, entities: [], self: null, seen: undefined, own: { facing: { x: 0, y: 1 }, moving: false, blocked: false }, hand: { dir: { x: 1, y: 0 }, leads: false, pulling: false } })`.
+- **Screenshots:** `review/p3-275-touch-towed-1280.png`, `review/p3-275-touch-towed-375.png`, `review/p3-275-touch-leading-1280.png`, `review/p3-275-touch-leading-375.png`, `review/p3-275-touch-pulling-1280.png`, `review/p3-275-touch-pulling-375.png`.
+- **A pass:** it reads as touch, the link matches what the sighted see, and nothing (HUD, caption, crew list) names the partner.
+- **What I judged:** all six read clearly. The far bead floats on black with no figure, which is the point. The server sends no seat (Task 274's test), so nothing can name the partner.

@@ -44,7 +44,7 @@ hand?: { dir: Vec; leads: boolean; pulling: boolean }; // dir: a unit step towar
 - **Break check:** by script, add `seat: mate` back into `hand`; test (a) goes red.
 - **Depends on:** none.
 
-### Task 275: Can't see sees the link (FR1, FR4, FR5) — [ ]
+### Task 275: Can't see sees the link (FR1, FR4, FR5) — [ ] (review queued)
 
 - **Behaviour:** on Can't see's frame (no tiles, no entities), while `view.you.hand` is set, draw `drawHold` from your own figure to `pos + dir` (one tile), with the arrow toward the leader:
   - towed: from yourself to the far point
