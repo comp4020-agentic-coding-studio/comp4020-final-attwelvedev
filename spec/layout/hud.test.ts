@@ -30,6 +30,36 @@ async function proposeFrom(page: Page, what: "room" | "heist" = "room") {
 }
 const card = (page: Page) => page.getByRole("alertdialog").filter({ hasText: /wants to restart/ });
 
+// Five tests that only read a live room share ONE table: seating three players costs about 6 s here (12 s on a
+// CI runner) and each of the five paid it. Room 1 has no hazard, so nothing catches the table, and a lobby only
+// expires after ten minutes empty. Each test puts back what it changed (reduced motion, the phone's width, the
+// Labels setting, a closed menu), so the order does not matter. Tests that add a watcher, vote, restart or leave
+// keep a table each.
+let shared: Table;
+const sharedTable = async (): Promise<Table> => {
+  shared ??= await playRoom(browser, baseUrl);
+  return shared;
+};
+afterAll(async () => {
+  if (shared) await closeAll(shared.pages);
+});
+// Closes the menu on a page whatever state it is in. Escape closes it only once the page has attached its key
+// listener, a frame after the menu draws, so a key pressed inside that frame is lost: press until it is shut.
+// A fresh table never noticed (nobody opened the menu twice); a shared one is read by the next test.
+const menuShut = async (page: Page) => {
+  const menu = page.getByRole("button", { name: "Menu" });
+  await expect
+    .poll(
+      async () => {
+        if ((await menu.getAttribute("aria-expanded")) === "true")
+          await page.keyboard.press("Escape");
+        return menu.getAttribute("aria-expanded");
+      },
+      { timeout: 3000, message: "the menu shuts" },
+    )
+    .toBe("false");
+};
+
 describe("the top bar", () => {
   it("lists every crew member with their role shape and name, and how many are watching", async () => {
     const table = await playRoom(browser, baseUrl);
@@ -70,17 +100,16 @@ describe("the top bar", () => {
   });
 
   it("shows the loot and the clock, and says Live", async () => {
-    const table = await playRoom(browser, baseUrl);
+    const table = await sharedTable();
     for (const page of table.pages) {
       expect(await page.locator(".hud-top .hud-clock").innerText()).toMatch(/^\d+:\d\d$/);
       expect(await page.locator(".hud-top .hud-loot").innerText()).toMatch(/^◆\s*\d+$/);
       expect(await page.locator(".hud-top .conn").innerText()).toContain("Live");
     }
-    await closeAll(table.pages);
   });
 
   it("pulses the live light once a second, and holds it still under reduced motion", async () => {
-    const table = await playRoom(browser, baseUrl);
+    const table = await sharedTable();
     const page = table.byRole.blind;
     const dot = page.locator(".hud-top .conn-dot");
     await dot.waitFor();
@@ -92,12 +121,15 @@ describe("the top bar", () => {
     expect((await style()).name).not.toBe("none");
     expect((await style()).duration).toBe("1s");
     await page.emulateMedia({ reducedMotion: "reduce" });
-    expect((await style()).name).toBe("none");
-    await closeAll(table.pages);
+    try {
+      expect((await style()).name).toBe("none");
+    } finally {
+      await page.emulateMedia({ reducedMotion: "no-preference" }); // the next test shares this page
+    }
   });
 
   it("names the room: its number and name on desktop, the number of the total on a phone, in full in the menu", async () => {
-    const table = await playRoom(browser, baseUrl);
+    const table = await sharedTable();
     const room = (page: Page) => page.locator(".hud-top .hud-room");
     for (const page of table.pages.filter((p) => p !== table.phone))
       expect(await room(page).innerText()).toBe("1 · First Steps");
@@ -128,32 +160,33 @@ describe("the top bar", () => {
         .locator("#hud-menu")
         .getByText("Room 1 of 9: First Steps", { exact: true })
         .waitFor();
-      await page.keyboard.press("Escape");
+      await menuShut(page);
     }
     // the phone's seat at desktop width shows the long form too, so every role is covered at 1280
     await table.phone.setViewportSize(DESKTOP);
     await expect.poll(() => room(table.phone).innerText()).toBe("1 · First Steps");
-    await closeAll(table.pages);
+    await table.phone.setViewportSize(PHONE); // the next test reads the phone as a phone
   });
 
   it("keeps the menu a 48 px target on a phone, and opens settings from it", async () => {
-    const table = await playRoom(browser, baseUrl);
+    const table = await sharedTable();
+    await menuShut(table.phone);
     const box = await table.phone.getByRole("button", { name: "Menu" }).boundingBox();
     expect(box?.width).toBeGreaterThanOrEqual(48);
     expect(box?.height).toBeGreaterThanOrEqual(48);
     await table.phone.getByRole("button", { name: "Menu" }).click();
     await table.phone.getByRole("button", { name: "Settings" }).click();
     await table.phone.getByLabel("High contrast").waitFor();
-    await table.phone.keyboard.press("Escape");
+    await menuShut(table.phone);
     expect(await table.phone.getByRole("button", { name: "Restart room" }).count()).toBe(0);
-    await closeAll(table.pages);
   });
 });
 
 describe("room one's labels", () => {
   it("shows the nearest chips, at most three, and the Labels toggle hides them", async () => {
-    const table = await playRoom(browser, baseUrl);
+    const table = await sharedTable();
     const page = table.byRole.deaf;
+    await menuShut(page);
     const canvas = page.locator("canvas[data-camera]");
     await expect.poll(() => canvas.getAttribute("data-labels"), { timeout: 5000 }).not.toBe("");
     const chips = (await canvas.getAttribute("data-labels"))?.split(" ").filter(Boolean) ?? [];
@@ -162,7 +195,8 @@ describe("room one's labels", () => {
     await page.getByRole("button", { name: "Settings" }).click();
     await page.getByLabel("Labels").uncheck();
     await expect.poll(() => canvas.getAttribute("data-labels"), { timeout: 3000 }).toBe("");
-    await closeAll(table.pages);
+    await page.getByLabel("Labels").check(); // the setting is the page's: put it back for whoever reads next
+    await menuShut(page);
   });
 });
 
