@@ -133,6 +133,8 @@ interface Guide {
   stopFrom: Vec | null; // where they were when told to stop, to measure it
   bumped: Vec | null; // a person pushed at something here: until they are clear of it, line them up first
   tapAt: number; // when the guide last asked a person for a tap
+  sentFrom: Vec | null; // where they were when last told a direction, to measure their progress
+  nudged: boolean; // they have been told the same direction once more (FR11); reset on a new one
 }
 
 // Jobs a seat works where it stands (Act on a part, the gear, a hand): a guide on one parks the
@@ -166,7 +168,8 @@ function perceivedHazards(known: Known, tick: number): ReadonlySet<string> {
 const newNav = (): Nav => ({ key: "", plan: [], i: 0, expect: null });
 const ZERO: Vec = { x: 0, y: 0 };
 const STEP_LEN = (SPEED_TPS * TICK_MS) / 1000;
-const REPEAT_MS = 1500; // a callout is repeated, not spammed
+const NUDGE_MS = 3000; // a person who has made no progress this long after a direction hears it once more
+const PROGRESS = 0.25; // tiles along the heading that count as progress
 const FLAVOUR_MS = 10_000;
 const MARK_AFTER_MS = 20_000; // a torch carrier at the ink gives the others this long to read it first
 const IDLE_MS = 5000; // a blind bot with nothing heard for this long stays put
@@ -220,6 +223,8 @@ export function createBotMemory(
       stopFrom: null,
       bumped: null,
       tapAt: Number.NEGATIVE_INFINITY,
+      sentFrom: null,
+      nudged: false,
     },
     lastClipAt: Number.NEGATIVE_INFINITY,
     blindAt: null,
@@ -1112,6 +1117,7 @@ function forgetPlans(m: BotMemory): void {
   g.nav = newNav();
   g.bumped = null;
   g.stopFrom = null;
+  g.sentFrom = null;
 }
 
 function thinkSighted(
@@ -1503,6 +1509,7 @@ function guideBlind(
     // it stopped on its own: a hum, or a wall
     if (g.moving && g.still >= 2 && blindIsBot && onPlate(room, p)) g.moving = false; // a hum
     if (g.bumped && Math.hypot(p.x - g.bumped.x, p.y - g.bumped.y) > 0.9) g.bumped = null; // clear of it
+    if (seen.blocked && !blindIsBot) g.bumped = { ...p }; // a person pushing at something: line them up
     if (g.stopFrom && !g.moving && g.still >= 3) {
       // they have come to rest: that far is how long a person takes to react, in tiles
       const coasted = Math.hypot(p.x - g.stopFrom.x, p.y - g.stopFrom.y);
@@ -1540,9 +1547,15 @@ function guideBlind(
       callout = "wait";
       g.moving = false;
     }
-  } else if (g.moving && g.still >= STUCK_TICKS && !mapsOf(room).plateAt.has(key(tile))) {
-    // A person pushing at something and getting nowhere: say so and stop them, rather than
-    // calling the same direction again. Line them up with the lane before going on.
+  } else if (
+    g.moving &&
+    g.still >= STUCK_TICKS &&
+    !mapsOf(room).plateAt.has(key(tile)) &&
+    (blindIsBot || seen?.blocked === true || progress(g, p) >= PROGRESS)
+  ) {
+    // A body pushing at something and getting nowhere: say so and stop them, rather than
+    // calling the same direction again. Line them up with the lane before going on. (A person
+    // who has not set off, or turned the wrong way, is not against anything: they get one nudge.)
     callout = "stop";
     g.moving = false;
     g.bumped = { ...p };
@@ -1551,10 +1564,24 @@ function guideBlind(
   } else if (due) {
     const step = decide(room, m, g.nav, known, tile, stepTick, goal);
     g.decided = key(tile);
-    const a = step !== "wait" && !blindIsBot ? approach(g, p, tile, step, now, stepTick) : null;
-    if (step === "wait") {
+    // (a person who bumped into something is lined up with the lane before anything else)
+    const lineUp =
+      step !== "wait" && !blindIsBot && g.bumped !== null && needsLineUp(room, g, p, tile, step);
+    const a =
+      step !== "wait" && !blindIsBot && !lineUp ? approach(g, p, tile, step, now, stepTick) : null;
+    const onGoal = tile.x === goal.x && tile.y === goal.y;
+    const edge = step === "wait" && onGoal && !blindIsBot && !g.moving ? edgeWord(p, tile) : null;
+    if (edge) {
+      // a person at the very edge of their goal's tile (the view rounds 29.99999 up onto it, the sim
+      // does not): tap them to its middle, or they wait there forever for a plate that is not pressed
+      if (stepTick >= g.nextTick && now - g.tapAt >= TAP_MS) {
+        g.tapAt = now;
+        g.nextTick = stepTick + 16;
+        tap = `Tap ${edge}.`;
+      }
+    } else if (step === "wait") {
       if (g.moving) {
-        callout = tile.x === goal.x && tile.y === goal.y ? "stop" : "wait";
+        callout = onGoal ? "stop" : "wait";
         g.moving = false;
       }
       g.nextTick = stepTick + STEP_TICKS;
@@ -1592,13 +1619,25 @@ function guideBlind(
         callout = resumes ? "go" : (WORD[step] as Callout);
         g.heading = { ...heading };
         g.moving = true;
+        g.sentFrom = { ...p };
+        g.nudged = false;
       }
     }
   }
   void job;
 
-  if (!callout && g.moving && g.lastSent && now - g.lastSentAt >= REPEAT_MS) {
-    callout = g.lastSent === "go" ? (WORD[headingWord(g.heading)] as Callout) : g.lastSent;
+  // a direction is said once (FR10); a person who has made no progress along it for NUDGE_MS hears
+  // it once more, and then nothing until the next turn (FR11)
+  if (
+    !callout &&
+    !tap &&
+    g.moving &&
+    !g.nudged &&
+    now - g.lastSentAt >= NUDGE_MS &&
+    progress(g, p) < PROGRESS
+  ) {
+    callout = WORD[headingWord(g.heading)] as Callout;
+    g.nudged = true;
   }
   if (callout) {
     g.lastSentAt = now;
@@ -1688,6 +1727,21 @@ function lineUpWord(p: Vec, tile: Vec, step: Step): string {
   const off = offLane(p, tile, step);
   if (step === "left" || step === "right") return off > 0 ? "up" : "down";
   return off > 0 ? "left" : "right";
+}
+
+// The way to tap a person toward the middle of the tile they are on, when they are near its edge.
+function edgeWord(p: Vec, tile: Vec): string | null {
+  const dx = tile.x + 0.5 - p.x;
+  const dy = tile.y + 0.5 - p.y;
+  if (Math.abs(dx) > 0.3) return dx > 0 ? "right" : "left";
+  if (Math.abs(dy) > 0.3) return dy > 0 ? "down" : "up";
+  return null;
+}
+
+// How far a person has gone along their heading since they were told it, in tiles.
+function progress(g: Guide, p: Vec): number {
+  if (!g.sentFrom) return 0;
+  return (p.x - g.sentFrom.x) * g.heading.x + (p.y - g.sentFrom.y) * g.heading.y;
 }
 
 function headingWord(h: Vec): string {

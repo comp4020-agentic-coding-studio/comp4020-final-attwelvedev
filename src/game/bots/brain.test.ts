@@ -1607,3 +1607,117 @@ describe("cache jobs (ADR 0024)", () => {
     expect(run.world.cacheUncovered).toEqual([]);
   });
 });
+
+describe("a guide says a direction once, and nudges once (FR10-FR11, Task 273)", () => {
+  const ROLES: [Role, Role, Role] = ["blind", "deaf", "mute"];
+  const DIRS: Record<string, { x: number; y: number }> = {
+    up: { x: 0, y: -1 },
+    down: { x: 0, y: 1 },
+    left: { x: -1, y: 0 },
+    right: { x: 1, y: 0 },
+  };
+  const OPEN = [
+    "##############################",
+    "#2...........................#",
+    "#1..........................E#",
+    "#3...........................#",
+    "##############################",
+  ];
+  type Pos = { x: number; y: number };
+  // A person playing Can't see, moved by hand each tick from what the guide last said to them
+  // (`heard`, a callout, or a "Tap x." text once). The guide stands on them, so it always sees them.
+  const guided = (
+    grid: string[],
+    ticks: number,
+    walk: (heard: string | null, pos: Pos, tap: string | null) => Pos,
+  ) => {
+    const r = roomWith(grid, {}, { hints: { jobs: [{ beat: 1, goTo: "E", all: true }] } });
+    const world = createWorld(r);
+    const memory = createBotMemory(1, new Set([0]), ROLES);
+    const said: { word: string; tick: number }[] = [];
+    let heard: string | null = null;
+    let tap: string | null = null;
+    for (let t = 1; t <= ticks; t++) {
+      world.tick = t;
+      world.players[0].pos = walk(heard, { ...world.players[0].pos }, tap);
+      tap = null;
+      world.players[1].pos = { ...world.players[0].pos };
+      const turn = think(r, viewFor(world, 1, "deaf", true), [], memory, t * TICK_MS);
+      if (turn.send?.method === "callout") {
+        said.push({ word: turn.send.callout, tick: t });
+        heard = turn.send.callout;
+      }
+      if (turn.send?.method === "text") tap = /^Tap (\w+)\./.exec(turn.send.text)?.[1] ?? null;
+    }
+    return { said, at: world.players[0].pos };
+  };
+  const along = (heard: string | null, p: Pos, speed: number): Pos => {
+    const d = heard ? DIRS[heard] : undefined;
+    return d ? { x: p.x + d.x * speed, y: p.y + d.y * speed } : p;
+  };
+
+  it("says the direction exactly once over 10 s while the person walks that way", () => {
+    const run = guided(OPEN, 200, (heard, p) => along(heard, p, 0.1));
+    expect(run.said.map((s) => s.word)).toEqual(["right"]);
+    expect(run.at.x).toBeGreaterThan(15); // and they did walk it
+  });
+
+  it("a person standing still is told once more after 3 s, then nothing for 10 s", () => {
+    const run = guided(OPEN, 60 + 60 + 200, (_heard, p) => p);
+    expect(run.said.map((s) => s.word)).toEqual(["right", "right"]);
+    expect((run.said[1]?.tick ?? 0) - (run.said[0]?.tick ?? 0)).toBe(3000 / TICK_MS);
+  });
+
+  it("a person walking against the heading is told once more after 3 s, then nothing", () => {
+    const run = guided(OPEN, 60 + 60 + 200, (heard, p) =>
+      heard === null ? p : { x: Math.max(1.5, p.x - 0.02), y: p.y },
+    );
+    expect(run.said.map((s) => s.word)).toEqual(["right", "right"]);
+  });
+
+  it("a turn sends the new word at once, and each word once", () => {
+    const L = [
+      "#############",
+      "#2..........#",
+      "#1..........#",
+      "#3..........#",
+      "##########.##",
+      "##########.##",
+      "##########E##",
+      "#############",
+    ];
+    const run = guided(L, 400, (heard, p, tap) =>
+      tap ? along(tap, p, 0.2) : along(heard, p, 0.2),
+    );
+    const words = run.said.map((s) => s.word);
+    // right, then down once the way turns; a stop between (at the corner, or to line them up with
+    // the lane) is a new instruction, but the same word is never said twice in a row
+    expect(words.filter((w) => DIRS[w])[0]).toBe("right");
+    expect(words).toContain("down");
+    expect(words.slice(words.indexOf("down")).every((w) => w !== "right")).toBe(true);
+    for (let i = 1; i < words.length; i++) expect(words[i]).not.toBe(words[i - 1]);
+    expect(Math.floor(run.at.y)).toBe(6); // they got to the exit's tile
+  });
+});
+
+describe("a person at the very edge of their goal's tile is tapped onto it (Task 273)", () => {
+  // the sim's sums leave a person at 29.99999…, which the view rounds to 30.000: on the plate's tile
+  // by what the guide sees, and off it by what the sim presses. The guide taps them to the middle.
+  it("taps a person toward the plate's centre rather than waiting forever", () => {
+    const grid = ["#########", "#2......#", "#1...p..#", "#3......#", "#########"];
+    const r = roomWith(grid, {}, { hints: { jobs: [{ beat: 1, goTo: "p1", prefer: "blind" }] } });
+    const world = createWorld(r);
+    const roles: [Role, Role, Role] = ["blind", "deaf", "mute"];
+    const memory = createBotMemory(1, new Set([0]), roles);
+    world.players[1].pos = { x: 3.5, y: 1.5 };
+    world.players[2].pos = { x: 1.5, y: 3.5 };
+    const texts: string[] = [];
+    for (let t = 1; t <= 60; t++) {
+      world.tick = t;
+      world.players[0].pos = { x: 4.9999999999999, y: 2.5 }; // left of x = 5, the plate's tile
+      const turn = think(r, viewFor(world, 1, "deaf", true), [], memory, t * TICK_MS);
+      if (turn.send?.method === "text") texts.push(turn.send.text);
+    }
+    expect(texts).toContain("Tap right.");
+  });
+});
