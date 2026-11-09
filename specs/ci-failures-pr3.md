@@ -19,6 +19,8 @@ Eight CI attempts of nearly the same code, three passes and five failures. The l
 | 42611330796 attempt 2 | 5ed2beb | pass | (15 m 22 s) |
 | 42611330796 attempt 3 | 5ed2beb | fail | labels (room 05), both tests: NO CAUSE FOUND |
 
+After attempt 3 the labels walk was replaced (ca007d9, below), so that failure cannot recur in its old form.
+
 The pull_request trigger did not fire for a81c081 or 1c936f2 (cause unknown; it fired for 882c113), hence the
 dispatch. Every failure above now has a shown cause and a fix, in commits 3c03d5d and 0f65cf1 and earlier (see "What
 the failures were"). Those two are the newest and are not yet in a CI run, so none of this is confirmed on the
@@ -111,14 +113,19 @@ of 3 on their own and in 4 of 4 `pnpm check:flaky` runs. The next two failed in 
   (Two earlier attempts at `standOn` were dropped: one counted `ack`, which counts reads and not moves, and one
   walked the blind figure past the plate.) The earlier "a slow pass missed a 4 s pill" idea is ruled out: no pill of
   any size was drawn at all.
-- **labels room 05, run 42611330796 attempt 3: both tests, no cause found.** The figure was stuck at (9.5, 4.6):
-  inside the one-tile gap at x 9, 0.9 short of the corridor row (5.5) the leg walks to. One failure had `conn`
-  Offline (clock stopped at 0:10, `ack` 3 behind `seq`); the other was Live with `ack` equal to `seq`, the clock at
-  0:33 and x unchanged over 358 passes. Room 05 has no camera or guard (only a door), so it is not the room-3 catch.
-  Locally the tap walk crosses that gap in 10 to 20 passes at 1x and at 6x throttle (y 4.8, 4.9, 5.0, 5.1). Not
-  reproduced and the walk is unchanged. The stall report now gives y for every pass (`distinctY`, the last four
-  positions, the target), so the next failure says whether the figure was inching or had stopped dead. The Offline
-  case is a dropped connection mid-walk, which none of these specs guard against.
+- **labels room 05, run 42611330796 attempt 3: both tests, no cause found, and the walk is gone (ca007d9).** The
+  figure was stuck at (9.5, 4.6): inside the one-tile gap at x 9, 0.9 short of the corridor row it walked to. One
+  failure had `conn` Offline (clock stopped at 0:10, `ack` 3 behind `seq`); the other was Live with `ack` equal to
+  `seq`, the clock at 0:33 and x unchanged over 358 passes. Room 05 has no camera or guard, so it is not the room-3
+  catch, and locally the tap walk crosses that gap in 10 to 20 passes at 1x and at 6x. Never reproduced, never
+  explained. The test existed to read where the label chips fall, which needs no walking: the layout is now a unit
+  test (`src/client/render/labels-layout.test.ts`) that runs the page's own `labelsFor` and `draw` on a recording
+  canvas from every floor tile of rooms 3, 5 and 7, at 1280 and 375, in about 7 s. What that gives up: it uses 5 and
+  7 px a character for the text, bracketing the real Archivo 600 at 13 px (5.7 to 6.2, measured in Chrome), not the
+  real font; and the browser test that remains stands at room 5's spawn, where the wires chip is in view and no
+  plaque is, so it checks that the page publishes well-formed boxes and cannot show a chip on a plaque. Shown red
+  under: no plaque clamp, no free-place check, plaques not taken places, a chip off the canvas (the unit test
+  missed that at first; a bounds check was added), and, in the browser, the page not publishing.
 
 ## Ruled out, each with a measurement
 
