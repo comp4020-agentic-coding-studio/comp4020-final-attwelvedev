@@ -42,35 +42,6 @@ async function walk(page: Page, key: string, until: () => Promise<boolean>, maxM
   }
 }
 
-// Short taps toward a point on one axis until the figure is within `slack` of it. A held key is released
-// some polls after the predicate holds, and on a loaded runner that is a tile or more of travel: the
-// figure carried past a gear's tile never sees the "Take" hint. A tap is one input tick (a fifth of a
-// tile at 4 tiles a second), so this stops where it is sent however slow the page is.
-async function nudgeTo(page: Page, axis: 0 | 1, target: number, slack: number, maxMs = 20_000) {
-  const at = async () => {
-    const raw = (await page.locator("canvas[data-self]").getAttribute("data-self")) ?? "";
-    return Number(raw.split(",")[axis]);
-  };
-  await expect
-    .poll(
-      async () => {
-        const here = await at();
-        if (Math.abs(here - target) <= slack) {
-          // a read just after a tap can be a tick behind: only done once the figure has stopped
-          await page.waitForTimeout(150);
-          return Math.abs((await at()) - here) < 0.001;
-        }
-        const key = axis === 0 ? (here < target ? "d" : "a") : here < target ? "s" : "w";
-        await page.keyboard.down(key);
-        await page.waitForTimeout(45);
-        await page.keyboard.up(key);
-        return false;
-      },
-      { timeout: maxMs, interval: 20 },
-    )
-    .toBe(true);
-}
-
 // A box is read right after a resize or a render, so it is waited for (the page lays out on its own
 // schedule, later under load), not read once. An element that really is absent still fails, with
 // the locator named, after the wait.
@@ -169,60 +140,8 @@ describe("the net trace", () => {
 });
 
 describe("the gear slot", () => {
-  it("shows what you carry, once you pick it up", async () => {
-    const mute = table.byRole.mute;
-    // up to row 2, then east until standing on the first gear (the UV torch at x 22)
-    const at = async () =>
-      (await mute.locator("canvas[data-self]").getAttribute("data-self")) ?? "";
-    await walk(mute, "w", async () => Number((await at()).split(",")[1]) < 4);
-    await nudgeTo(mute, 1, 2.5, 0.3); // row 2: the gear's row (a late key-up carries it up to row 1)
-    // held to a point short of the gear (a late key-up carries it on a tile or more), then tapped onto it
-    await walk(mute, "d", async () => Number((await at()).split(",")[0]) >= 20, 10_000);
-    await nudgeTo(mute, 0, 22.5, 0.3);
-    // where the walk stopped: the gear is at x 22, so a figure well past it has overshot
-    const stoppedAt = await at();
-    const pageState = () =>
-      mute
-        .evaluate(() => ({
-          self: document.querySelector("canvas[data-self]")?.getAttribute("data-self") ?? null,
-          net: document.querySelector("canvas[data-net]")?.getAttribute("data-net") ?? null,
-          hint: document.querySelector(".act-hint")?.textContent ?? null,
-          slot: document.querySelector(".gear-slot")?.textContent ?? null,
-          conn: document.querySelector(".hud-top .conn")?.textContent ?? null,
-          intro: document.querySelector(".game")?.getAttribute("data-intro") ?? null,
-        }))
-        .catch((e) => ({ unreadable: String(e) }));
-    try {
-      await expect
-        .poll(() => mute.locator(".act-hint").textContent(), { timeout: 3000 })
-        .toMatch(/^Space Take the /);
-    } catch (error) {
-      // the hint never offered the gear: the walk stopped at `stoppedAt` and the page is now here
-      throw new Error(
-        `no Take hint: walk stopped at ${stoppedAt}; page now ${JSON.stringify(await pageState())}`,
-        { cause: error },
-      );
-    }
-    // Act is read when the client samples input: hold Space until the slot shows the gear
-    await mute.keyboard.down(" ");
-    try {
-      await expect
-        .poll(() => mute.locator(".gear-slot").textContent(), { timeout: 3000 })
-        .toMatch(/UV torch|Stethoscope|Earpiece|Goggles/);
-    } catch (error) {
-      // Act did nothing: say where the figure was, what the hint said and whether the page was live, so
-      // a failure that only happens on a loaded runner explains itself
-      const state = await pageState();
-      throw new Error(`Act did not take the gear: ${JSON.stringify(state)}`, { cause: error });
-    } finally {
-      await mute.keyboard.up(" ");
-    }
-    expect(await mute.locator(".gear-slot").textContent()).toContain("G take, give, swap or drop");
-    // the crew row shows it on Can't speak's own chip, on every page that can see them
-    await expect
-      .poll(() => mute.locator(".hud-crew li.you .hud-gear").count(), { timeout: 3000 })
-      .toBe(1);
-  });
+  // "shows what you carry, once you pick it up" is src/components/GearTake.test.ts: this walked a figure onto the gear
+  // with held keys and a late key-up carried it past (CI run 42579267291 and others).
 
   it("is a 48 px button on a phone that never touches the joystick, comms, Act or the notch", async () => {
     const phone = table.byRole.deaf;
