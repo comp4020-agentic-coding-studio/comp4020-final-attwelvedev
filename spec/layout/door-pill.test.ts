@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Browser, Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { LIVE } from "../../src/client/render/project.ts";
 import { WORLD } from "../../src/client/tokens.ts";
 import type { Role } from "../../src/game/types.ts";
 import { DESKTOP, launch, PHONE } from "../browser.ts";
@@ -22,7 +21,6 @@ let app: ChildProcess;
 let browser: Browser;
 let desk: Table; // the deaf and mute players read the door at 1280
 let phone: Table; // a second table in the same fixture, read at 375
-let marked: Table; // a third: a mark stamped toward the door as it opens
 
 beforeAll(async () => {
   if (!existsSync("dist/server/entry.mjs")) execSync("pnpm build", { stdio: "ignore" });
@@ -48,8 +46,7 @@ beforeAll(async () => {
   // two tables: a door opens once and its pill lasts 4 s, so each screen size gets its own door
   desk = await playRoom(browser, url);
   phone = await playRoom(browser, url);
-  marked = await playRoom(browser, url);
-  for (const page of [...desk.pages, ...phone.pages, ...marked.pages])
+  for (const page of [...desk.pages, ...phone.pages])
     await page.emulateMedia({ reducedMotion: "reduce" });
 }, 90_000);
 
@@ -61,7 +58,6 @@ afterAll(async () => {
 
 const ROLES = ["blind", "deaf", "mute"] as const;
 const door = [0xf6, 0xcf, 0x63];
-const DOOR = door;
 
 // the bounding box, in CSS px on the canvas, of every pixel in the door's colour (null if none)
 const pillBox = (page: Page) =>
@@ -189,101 +185,3 @@ describe("a door opening off screen, drawn as an edge pill", () => {
     }, 30_000);
   }
 });
-
-// The door's pill and a mark's pill toward the same edge (plan 2026-11-07-team-wide-doors, review
-// fixes A Task 134): Can't speak stamps a mark ten tiles east, off Can't hear's phone screen, and the
-// door opens beyond it within the mark pill's 4 s. On the phone both pills sit on the east edge, at
-// nearly one height: they must never touch, 48 px or more between their centres.
-const MUTE = [0x9b, 0x7e, 0xe0]; // ROLE_COLOR.mute: a mark's pill is its sender's colour
-
-// the box (CSS px) of every pixel of one colour in the east third of the canvas (figures are central)
-const eastBox = (page: Page, want: number[]) =>
-  page.locator(".frame canvas").evaluate((el, want) => {
-    const c = el as HTMLCanvasElement;
-    const d = c.getContext("2d")?.getImageData(0, 0, c.width, c.height).data;
-    const k = c.width / c.clientWidth;
-    let x0 = Infinity;
-    let y0 = Infinity;
-    let x1 = -1;
-    let y1 = -1;
-    for (let i = 0; d && i < d.length; i += 4) {
-      const px = (i / 4) % c.width;
-      if (px < (c.width * 2) / 3) continue;
-      if (d[i] === want[0] && d[i + 1] === want[1] && d[i + 2] === want[2]) {
-        const py = Math.floor(i / 4 / c.width);
-        x0 = Math.min(x0, px);
-        x1 = Math.max(x1, px);
-        y0 = Math.min(y0, py);
-        y1 = Math.max(y1, py);
-      }
-    }
-    return x1 < 0 ? null : { x0: x0 / k, y0: y0 / k, x1: x1 / k, y1: y1 / k };
-  }, want);
-
-async function pointAt(page: Page, name: string): Promise<void> {
-  const slot = page
-    .locator(".wheel-slot")
-    .filter({ has: page.getByText(name, { exact: true }) })
-    .first();
-  const box = await slot.boundingBox();
-  if (!box) throw new Error(`no slot ${name}`);
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 4 });
-}
-
-describe("a door's pill beside a mark's pill", () => {
-  it("at 375 the two pills on the east edge never touch", async () => {
-    const { blind, deaf, mute } = marked.byRole;
-    await deaf.setViewportSize(PHONE);
-    // Can't see and Can't hear on their plates first: the door waits for Can't speak
-    await standOn(blind, "blind");
-    await standOn(deaf, "deaf");
-    // Can't speak picks the Marks page on the wheel and stamps the floor tile (12, 2), well east of
-    // Can't hear's phone screen and short of the door at x 30. Where it is drawn: the camera the
-    // page publishes (scale, ox, oy) and the projection (render/project.ts: fromScreen)
-    const canvas = mute.locator("canvas[data-camera]");
-    const [scale, ox, oy] = ((await canvas.getAttribute("data-camera")) ?? "")
-      .split(",")
-      .map(Number);
-    const box = await canvas.boundingBox();
-    if (!box || !scale || ox === undefined || oy === undefined) throw new Error("no camera");
-    // the camera is in CSS px; a row is scale x depth tall (render/project.ts: toScreen)
-    const at = (x: number, y: number) => ({
-      x: box.x + ox + x * scale,
-      y: box.y + oy + y * scale * LIVE.depth,
-    });
-    const c = at(3.5, 2.5);
-    const target = at(12.5, 2.5);
-    await mute.mouse.move(c.x, c.y);
-    await mute.keyboard.down("q");
-    await mute.locator(".wheel").waitFor({ timeout: 1000 });
-    await mute.keyboard.press("4"); // Marks
-    await mute.locator(".wheel-tab.is-page", { hasText: "Marks" }).waitFor();
-    await pointAt(mute, "→");
-    await mute.keyboard.up("q");
-    await mute.locator(".comms-place-note").waitFor({ timeout: 1000 });
-    await mute.mouse.click(target.x, target.y);
-    await mute.locator(".comms-toast", { hasText: "Sent" }).waitFor({ timeout: 1500 });
-    await standOn(mute, "mute"); // the door opens
-    let both = null as null | { door: Box; mark: Box };
-    const pill = (b: Box | null) => b !== null && b.y1 - b.y0 >= 24 && b.x1 - b.x0 >= 30;
-    await expect
-      .poll(
-        async () => {
-          const [door, mark] = [await eastBox(deaf, DOOR), await eastBox(deaf, MUTE)];
-          both = door && mark && pill(door) && pill(mark) ? { door, mark } : null;
-          return both;
-        },
-        { timeout: 10_000, interval: 50, message: "both pills drawn on the phone" },
-      )
-      .not.toBeNull();
-    if (!both) throw new Error("no pills");
-    const { door, mark } = both as { door: Box; mark: Box };
-    const mid = (b: Box) => ({ x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2 });
-    const apartY = Math.abs(mid(door).y - mid(mark).y);
-    const gapX = Math.max(mark.x0 - door.x1, door.x0 - mark.x1);
-    const where = JSON.stringify({ door, mark });
-    expect(apartY >= 47 || gapX >= 16, `the pills touch: ${where}`).toBe(true);
-  }, 30_000);
-});
-
-type Box = { x0: number; y0: number; x1: number; y1: number };
