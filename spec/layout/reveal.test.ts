@@ -297,8 +297,45 @@ describe("the crew column", () => {
   it("lets a person take I'm ready back, and everyone sees them not ready again", async () => {
     const { pages } = await revealed(["Ana", "Bo", "Cy"]);
     const [host, bo] = pages as [Page, Page];
+    // Bo's page flips its own button the moment it is pressed and the socket drops a message while it is not
+    // open (socket.ts send), so a failure here is either a send that never left the page or an update the
+    // host never drew. Which one: every send Bo's page makes, and the state of its sockets, are kept.
+    await bo.evaluate(() => {
+      const w = window as unknown as { __ws?: { sent: string[]; sockets: WebSocket[] } };
+      w.__ws = { sent: [], sockets: [] };
+      const log = w.__ws;
+      const send = WebSocket.prototype.send;
+      WebSocket.prototype.send = function (this: WebSocket, data) {
+        if (!log.sockets.includes(this)) log.sockets.push(this);
+        if (typeof data === "string" && !data.includes('"ping"'))
+          log.sent.push(`${Math.round(performance.now())}ms ${this.readyState} ${data}`);
+        return send.call(this, data);
+      };
+    });
     await bo.getByRole("button", { name: "I'm ready" }).click();
-    await expect.poll(() => crewRow(host, "Bo").innerText()).toContain("Ready");
+    try {
+      await expect.poll(() => crewRow(host, "Bo").innerText()).toContain("Ready");
+    } catch (error) {
+      const bos = await bo
+        .evaluate(() => {
+          const w = window as unknown as { __ws?: { sent: string[]; sockets: WebSocket[] } };
+          return {
+            button: document.querySelector(".reveal button")?.textContent ?? null,
+            buttons: [...document.querySelectorAll("button")].map((b) => b.textContent),
+            sent: w.__ws?.sent ?? null, // none with "ready" in it: the page never sent it
+            sockets: w.__ws?.sockets.map((x) => x.readyState) ?? null, // 1 is open
+            now: Math.round(performance.now()),
+          };
+        })
+        .catch((e) => ({ unreadable: String(e) }));
+      const row = await crewRow(host, "Bo")
+        .innerText()
+        .catch((e) => String(e));
+      throw new Error(
+        `Bo's I'm ready never showed on the host: host row ${JSON.stringify(row)}; Bo's page ${JSON.stringify(bos)}`,
+        { cause: error },
+      );
+    }
     await bo.getByRole("button", { name: "Not ready yet" }).click();
     await bo.getByRole("button", { name: "I'm ready" }).waitFor();
     await expect.poll(() => crewRow(host, "Bo").innerText()).toContain("Not ready");

@@ -157,9 +157,37 @@ describe("the home page's hero", () => {
     await page.reload();
     await page.getByRole("button", { name: "Play feeds" }).waitFor();
     const frame = () => page.locator(".feed canvas").nth(1).screenshot();
+    // what the page looked like when each frame was taken: a feed repaints when its box is resized (the
+    // page lays out again when a web font arrives), so two frames that differ may only be two layouts
+    const look = () =>
+      page.evaluate(() => {
+        const c = document.querySelectorAll<HTMLCanvasElement>(".feed canvas")[1];
+        const box = c?.getBoundingClientRect();
+        return {
+          canvas: c ? `${c.width}x${c.height}` : null,
+          box: box
+            ? `${box.width.toFixed(1)}x${box.height.toFixed(1)}@${box.x.toFixed(1)},${box.y.toFixed(1)}`
+            : null,
+          fonts: document.fonts.status,
+          scrollY: Math.round(window.scrollY),
+          calm: matchMedia("(prefers-reduced-motion: reduce)").matches,
+        };
+      });
+    const lookBefore = await look();
     const before = await frame();
     await page.waitForTimeout(400);
-    expect((await frame()).equals(before)).toBe(true);
+    const lookAfter = await look();
+    const after = await frame();
+    if (!after.equals(before)) {
+      // moving or only late? a third frame after another wait says whether it has settled
+      await page.waitForTimeout(400);
+      const third = await frame();
+      const size = (b: Buffer) => `${b.length} bytes`;
+      throw new Error(
+        `the still feed changed: ${size(before)} then ${size(after)}; settled again by the third frame: ${third.equals(after)}; ` +
+          `before ${JSON.stringify(lookBefore)}; after ${JSON.stringify(lookAfter)}; now ${JSON.stringify(await look())}`,
+      );
+    }
     await leaveAndClose(page);
   });
 
