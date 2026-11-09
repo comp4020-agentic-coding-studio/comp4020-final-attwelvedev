@@ -5,7 +5,7 @@ import { axeViolations, DESKTOP, horizontalOverflow, launch } from "../browser.t
 import { clearRoomOne } from "../heistPlay.ts";
 import { leaveGameAndClose } from "../lobbyUi.ts";
 import { closeAll, type Player, ready, startedGame } from "../play.ts";
-import { canvasHash, playRoom, settledHash, settleReport, type Table } from "../playUi.ts";
+import { canvasHash, playRoom, settledHash, type Table } from "../playUi.ts";
 
 const baseUrl = inject("baseUrl");
 let browser: Browser;
@@ -210,31 +210,44 @@ describe("the game screen", () => {
       await deaf.waitForTimeout(800);
       await deaf.keyboard.up("d");
     };
-    // The first frames of a new game are not the scene yet (a reveal fades into it), so a
-    // picture taken then can never match the real spawn. A restart puts everyone at the
-    // spawn with the page long since loaded: take the spawn from there, then move away,
-    // restart again, and check the second restart looks like the first.
+    // Where the figure is drawn is the page's own `data-self`, a number (the predicted position, which the server's
+    // restart view replaces at once), not a picture of it: the picture was compared after a "settle" that returns its
+    // last frame whether or not it held still, and this test failed in CI with only two truncated hashes to show for
+    // it (run 42579267291, attempt 2). The first accepted restart puts everyone at the spawn: take the spawn from
+    // there, move away, restart again, and the figure must be back on it. The read right after a restart can still
+    // be the old position for a few frames (4.7 for one read, then 1.5 within 60 ms, probed), so it is polled for.
+    const at = async () => {
+      const raw = (await deaf.locator("canvas[data-self]").getAttribute("data-self")) ?? "";
+      const [x = Number.NaN, y = Number.NaN] = raw.split(",").map(Number);
+      return { x, y };
+    };
     await askToRestart(host, [deaf, mute]);
-    await deaf.waitForTimeout(500); // the restart reaches the page; then wait for it to stop changing
-    const spawn = await settledHash(deaf);
-    // where the page says the figure is at the spawn, and what that settle was like, kept for the report below
-    const spawnAt = await deaf.locator("canvas[data-self]").getAttribute("data-self");
-    const spawnReport = await settleReport(deaf);
+    let spawn = { x: Number.NaN, y: Number.NaN };
+    await expect
+      .poll(
+        async () => {
+          spawn = await at();
+          return Number.isFinite(spawn.x);
+        },
+        { message: "the figure is drawn after the first restart" },
+      )
+      .toBe(true);
     await move();
-    expect(await settledHash(deaf)).not.toBe(spawn);
+    // moved away: east of the spawn by more than a tile (800 ms held is about 3 tiles; a slow page moves less)
+    await expect
+      .poll(async () => (await at()).x - spawn.x, { message: "moved away from the spawn" })
+      .toBeGreaterThan(1);
     await askToRestart(deaf, [host, mute]);
-    // back at the spawn, once the scene has come to rest: not whatever frame happens to be up
-    try {
-      await expect.poll(() => settledHash(deaf, 1500), { timeout: 8000 }).toBe(spawn);
-    } catch (error) {
-      // settledHash returns the last frame whether or not it held still, so say which this was: did the frame
-      // settle, on how many frames, and where is the figure now against where it stood at the spawn
-      const [now, then] = [await settleReport(deaf), spawnAt];
-      throw new Error(
-        `not back at the spawn: spawn was at ${then} and is now ${JSON.stringify(now)}; the spawn frame is ${JSON.stringify(spawnReport)}`,
-        { cause: error },
-      );
-    }
+    // back on the spawn: its tile, within a tenth, and still there a moment later (not passing through it)
+    const back = async () => {
+      const here = await at();
+      return Math.hypot(here.x - spawn.x, here.y - spawn.y);
+    };
+    await expect
+      .poll(back, { message: `back at the spawn ${spawn.x},${spawn.y}` })
+      .toBeLessThan(0.1);
+    await deaf.waitForTimeout(300);
+    expect(await back(), "still at the spawn, not passing through it").toBeLessThan(0.1);
     await leaveGameAndClose(host, baseUrl);
     await leaveGameAndClose(deaf, baseUrl);
     await leaveGameAndClose(mute, baseUrl);
