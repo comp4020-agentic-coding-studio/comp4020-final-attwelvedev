@@ -50,6 +50,14 @@ describe("labelsFor", () => {
     ).toEqual(["door", "stationdoor"]);
   });
 
+  // T1 (playtest 3): nobody knew what the flag was for
+  it("labels a checkpoint in range: where the team starts again after being caught", () => {
+    const flag: EntityView = { id: "K1", kind: "checkpoint", pos: { x: 6.5, y: 4.5 }, state: "up" };
+    const got = labelsFor([flag], undefined, me, true);
+    expect(got.map((l) => l.kind)).toEqual(["checkpoint"]);
+    expect(got[0]?.text).toBe("Checkpoint: caught after this, you start here");
+  });
+
   it("labels a secret door as its own kind, never with the ordinary door's plates line", () => {
     const got = labelsFor([secretDoor], undefined, me, true);
     expect(got.map((l) => l.kind)).toEqual(["secretdoor"]);

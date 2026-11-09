@@ -191,7 +191,7 @@ The reveal stays over it as the same element (its flat backdrop keeps drawing, n
 Room 1 (and, for the escape-room objects, every room: a station, gear, the hatch, bell, lamp, ink and held hands) carries glass chips with a leader line that name what each thing is for
 (`src/client/labels.ts` picks them, `src/client/render/labels.ts` draws them). They are a
 reference, not a notification: while a kind of thing (plate, crate, door, glass, vent, camera,
-guard, exit, loot, and a cache's secret door, which has its own chip: "Secret door: it slid open from a hidden catch", never the ordinary door's plates line) is in your line of sight, one chip floats above the nearest of it on `--glass`
+guard, exit, loot, a checkpoint ("Checkpoint: caught after this, you start here"), and a cache's secret door, which has its own chip: "Secret door: it slid open from a hidden catch", never the ordinary door's plates line) is in your line of sight, one chip floats above the nearest of it on `--glass`
 with a one-sentence job, in the HUD's font. Out of sight, the chip goes; back in sight, it returns.
 At most three chips show on desktop and two on a phone (a canvas under 720 px), the nearest first.
 Chips wrap, stay inside the frame, and move to the nearest free spot rather than overlap. The

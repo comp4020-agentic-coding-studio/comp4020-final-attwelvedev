@@ -25,6 +25,7 @@ export const LABEL_COPY: Record<string, string> = {
   laser: "Laser: a beam that catches you while it's on",
   guard: "Guard: keep out of its sight",
   exit: "Exit: everyone on it ends the room",
+  checkpoint: "Checkpoint: caught after this, you start here",
   dark: "Dark: you can't see here, but you can hear",
   // stations, gear and signals (spec §4.1 labels; the keys' line is ours: the spec named none)
   safe: "Safe: stand on an arrow and press Act to turn the dial",
@@ -93,6 +94,7 @@ const KIND_OF: Partial<Record<EntityView["kind"], string>> = {
   laser: "laser",
   guard: "guard",
   exit: "exit",
+  checkpoint: "checkpoint",
   gear: "gear",
   hatch: "hatch",
   bell: "bell",
