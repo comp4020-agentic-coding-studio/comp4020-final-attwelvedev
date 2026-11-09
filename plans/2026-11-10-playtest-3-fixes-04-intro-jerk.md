@@ -15,7 +15,7 @@ After the swoop and the hop (which are fine), something happens for a split seco
 - **The server** holds the first tick for `INTRO_FOR` (`src/net/attach.ts:296-310`), so the first view after the intro arrives at about the same moment. A camera or `seen` change on that first tick can also show.
 - **Backlog 2026-11-08 (pf01):** the tile atlas is off during the intro. The first settled frame turns it on, a different drawing path.
 
-## Task 278: Find and fix the jerk (B4) — [ ]
+## Task 278: Find and fix the jerk (B4) — [ ] (parked: did not reproduce; see `plans/2026-11-07-overnight.md` p3fix04/278)
 
 1. **Reproduce on a real canvas** (`CLAUDE.md`). With `pnpm start:check` (but `INTRO_MS` unset, so the real 2.4 s intro runs), capture frames in headless Chrome from 2.2 s to 2.8 s after `intro` arrives, every 16 ms, for one seat at 1280×800. The repo's `scripts/` has bench and playtest helpers that open real tabs; reuse them. For each frame, measure:
    - the camera's tilt (`rise`) and position

@@ -44,7 +44,7 @@
 | [x] 01 (reviews queued; task 271 parked) | `-01-bugs-and-copy.md` | 265–271 (B1, B2, B3, B5, T1, T2, T3) | `Unit done: p3fix01` | PR 3 merged |
 | [x] 02 (review queued: 272) | `-02-radio-and-callouts.md` | 272–273 (FR7–FR9, FR10–FR11) | `Unit done: p3fix02` | none (runs after 01 only to keep commits ordered) |
 | [x] 03 (reviews queued: 275, 276, 277; ADR 0030 to accept) | `-03-touch.md` | 274–277 (FR1–FR6) | `Unit done: p3fix03` | none |
-| [ ] 04 | `-04-intro-jerk.md` | 278 (B4) | `Unit done: p3fix04` | none; last, because it may only reproduce and park |
+| [x] 04 (task 278 parked: did not reproduce) | `-04-intro-jerk.md` | 278 (B4) | `Unit done: p3fix04` | none; last, because it may only reproduce and park |
 
 Each phase stands alone, so if one parks, the others still run. Units run in this order: 01, 02, 03, 04.
 

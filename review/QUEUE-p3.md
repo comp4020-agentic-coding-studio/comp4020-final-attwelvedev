@@ -25,6 +25,13 @@ Open three tabs (or a phone and two tabs), create a lobby in one, join with the 
 
 ## Parked
 
+### Task 278: the jerk after the intro (B4), did not reproduce
+
+- **Branch:** `auto/playtest-3-parked-p3fix04-task278` (the measurements, kept frames, and the capture scripts `scripts/capture-intro.ts` and `scripts/capture-intro-page.ts`). No fix was made.
+- **What was measured:** `review/p3-278-frames/MEASUREMENTS.md` on that branch. Real 2.4 s intro, room 1, Can't speak at 1280 and Can't hear at 375, with and without 4× CPU throttling, plus a whole-page screencast. From the end of the swoop through 4 s the camera does not move and luminance stays within 0.2. The playing→done handover changes nothing measurable.
+- **What it needs from you:** where you saw it (browser, laptop or phone, which seat, which room), or a screen recording. To re-measure on that machine: `git switch auto/playtest-3-parked-p3fix04-task278`, `pnpm build`, `node server.ts` (no `INTRO_MS`), then `APP_URL=http://localhost:8080 node scripts/capture-intro.ts review/p3-278-frames` (add `THROTTLE=4` for a slow machine).
+- **Still worth a look in the morning:** start room 1 at 1280 and on a phone (the plan's human review). If you see it, note the seat and the moment (before or after the HUD's clock starts).
+
 ### Task 271: the goal line for the sighted (T3)
 
 - **Branch:** `auto/playtest-3-parked-p3fix01-task271` (one commit, the line, its HUD spec, DESIGN.md).
