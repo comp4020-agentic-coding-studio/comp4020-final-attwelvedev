@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { EntityView } from "../game/perception.ts";
+import { beside, inReach } from "../game/sim/gear.ts";
+import { worldWith } from "../game/sim/testing.ts";
 import { ESCAPE_KINDS, LABEL_CAP, LABEL_COPY, LABEL_RANGE, labelsFor } from "./labels.ts";
 
 const plate: EntityView = { id: "p1", kind: "plate", pos: { x: 3.5, y: 4.5 } };
@@ -286,5 +288,64 @@ describe("labelsFor: a new kind first, and a range", () => {
     expect(labelsFor([far], undefined, me, true, all, undefined, 3, known)).toEqual([]);
     const edge: EntityView = { ...camera, pos: { x: me.x + LABEL_RANGE - 0.5, y: me.y } };
     expect(labelsFor([edge], undefined, me, true, all, undefined, 3, known)).toHaveLength(1);
+  });
+});
+
+// FR6 (playtest 3): nobody found holding hands until a teammate was already doing it. A free teammate
+// in hand reach gets "Space: hold hands" (on a phone, "Hold hands"), by the rule `beside` uses.
+describe("labelsFor: a teammate you can hold hands with", () => {
+  const you: EntityView = { id: "P1", kind: "player", seat: 1, pos: { x: 2.5, y: 4.5 } };
+  const mate = (x: number, y: number, extra: Partial<EntityView> = {}): EntityView => ({
+    id: "P2",
+    kind: "player",
+    seat: 2,
+    pos: { x, y },
+    ...extra,
+  });
+  const chips = (es: EntityView[], phone = false) =>
+    labelsFor(es, undefined, you.pos, true, undefined, ESCAPE_KINDS, 3, undefined, {
+      seat: 1,
+      phone,
+    });
+
+  it("labels a free teammate within reach, and says Space on desktop only", () => {
+    const desk = chips([you, mate(3.5, 4.5)]);
+    expect(desk).toEqual([{ kind: "canhold", text: "Space: hold hands", at: { x: 3.5, y: 4.5 } }]);
+    expect(chips([you, mate(3.5, 4.5)], true).map((l) => l.text)).toEqual(["Hold hands"]);
+    // the reach is the server's: 1.5 tiles between centres, so a diagonal neighbour counts
+    expect(chips([you, mate(3.5, 5.5)]).map((l) => l.kind)).toEqual(["canhold"]);
+  });
+
+  it("gives no chip to a teammate beyond reach", () => {
+    expect(chips([you, mate(4.5, 4.5)])).toEqual([]);
+  });
+
+  it("gives none when you, or they, are already in a pair", () => {
+    expect(chips([you, mate(3.5, 4.5, { heldBy: 0 })]).map((l) => l.kind)).not.toContain("canhold");
+    expect(chips([you, mate(3.5, 4.5, { holding: 0 })]).map((l) => l.kind)).not.toContain(
+      "canhold",
+    );
+    const held = { ...you, heldBy: 0 as const };
+    expect(chips([held, mate(3.5, 4.5)]).map((l) => l.kind)).not.toContain("canhold");
+    const leading = { ...you, holding: 0 as const };
+    expect(chips([leading, mate(3.5, 4.5)]).map((l) => l.kind)).not.toContain("canhold");
+  });
+
+  it("never labels yourself, and without your seat offers no chip", () => {
+    expect(chips([you])).toEqual([]);
+    expect(labelsFor([you, mate(3.5, 4.5)], undefined, you.pos, true)).toEqual([]);
+  });
+
+  it("agrees with the server's `beside` on a grid of positions", () => {
+    for (let dx = -2; dx <= 2; dx += 0.25) {
+      for (let dy = -2; dy <= 2; dy += 0.25) {
+        const w = worldWith(["#######", "#1....#", "#2....#", "#3....#", "#######"], {});
+        w.players[1].pos = { x: 3, y: 2.5 };
+        w.players[2].pos = { x: 3 + dx, y: 2.5 + dy };
+        w.players[0].pos = { x: 100, y: 100 };
+        const server = beside(w, 1).includes(2);
+        expect(inReach(w.players[1].pos, w.players[2].pos), `${dx},${dy}`).toBe(server);
+      }
+    }
   });
 });

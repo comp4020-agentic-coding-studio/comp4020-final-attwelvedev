@@ -73,7 +73,7 @@ hand?: { dir: Vec; leads: boolean; pulling: boolean }; // dir: a unit step towar
 - **Break check:** by script, send `grip` to every seat; the perception test goes red.
 - **Depends on:** Task 274 (shares the file and the pair helpers).
 
-### Task 277: "Space: hold hands" in reach (FR6) — [ ]
+### Task 277: "Space: hold hands" in reach (FR6) — [ ] (review queued)
 
 - **Behaviour:** for a sighted seat that isn't in a pair, a teammate figure within hand reach (the rule `beside(world, seat)` uses in `gear.ts`) that isn't in a pair gets the label `Space: hold hands` on desktop and `Hold hands` on phone. It obeys the label cap and range. The existing `hands` chip for a figure already holding (`labels.ts:115`) is unchanged.
 - **Files:** `src/client/labels.ts` (a new kind, e.g. `canhold`, with copy in `LABEL_COPY` and added to `ESCAPE_KINDS` if it should show beyond room 1), `src/client/labels.test.ts`, and `Game.tsx` if `labelsFor` needs your own position or pair state, which it has (`near`).

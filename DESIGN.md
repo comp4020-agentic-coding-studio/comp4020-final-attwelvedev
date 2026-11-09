@@ -188,7 +188,7 @@ The reveal stays over it as the same element (its flat backdrop keeps drawing, n
 
 ### 4.6 Labels (built, Task 22)
 
-Room 1 (and, for the escape-room objects, every room: a station, gear, the hatch, bell, lamp, ink and held hands) carries glass chips with a leader line that name what each thing is for
+Room 1 (and, for the escape-room objects, every room: a station, gear, the hatch, bell, lamp, ink and held hands, and a free teammate in hand reach while you are free: "Space: hold hands", "Hold hands" on a phone) carries glass chips with a leader line that name what each thing is for
 (`src/client/labels.ts` picks them, `src/client/render/labels.ts` draws them). They are a
 reference, not a notification: while a kind of thing (plate, crate, door, glass, vent, camera,
 guard, exit, loot, a checkpoint ("Checkpoint: caught after this, you start here"), and a cache's secret door, which has its own chip: "Secret door: it slid open from a hidden catch", never the ordinary door's plates line) is in your line of sight, one chip floats above the nearest of it on `--glass`

@@ -251,6 +251,7 @@ function useDraw(
           rt.labelsAll ? undefined : ESCAPE_KINDS,
           size.w >= 720 ? LABEL_CAP.desktop : LABEL_CAP.phone,
           rt.metKinds,
+          { seat: view.you.seat, phone: size.w < 720 }, // the hold-hands chip (FR6)
         );
         for (const l of rt.labels) rt.roomKinds.add(l.kind);
         labels = rt.labels;

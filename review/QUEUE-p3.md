@@ -57,3 +57,11 @@ Open three tabs (or a phone and two tabs), create a lobby in one, join with the 
 - **Live:** `pnpm build && pnpm start`, three tabs, room 2: take hands with Space beside a teammate. The two holding hear it and see the captions "hand taken" / "hand let go"; the third seat gets nothing.
 - **A pass:** both feel like touch, soft, clearly quieter than footsteps, and neither is mistaken for a station or alarm.
 - **What I judged:** they read as soft and short. The level beside a step is a guess from the code, so it's worth hearing in a real game.
+
+## Task 277: "Space: hold hands" in reach (FR6), placement
+
+- **Look at:** the chip over a free teammate within hand reach (1.5 tiles), when you are free too: "Space: hold hands" on desktop, "Hold hands" on a phone. The older "Hold hands: press Act next to a teammate" chip on a pair is unchanged.
+- **How:** `pnpm build && pnpm start`, three tabs, room 2: walk a sighted seat next to a teammate. Bench: `BENCH=1 pnpm build && BENCH=1 node server.ts`, `http://localhost:8080/bench?room=02&still=1`.
+- **Screenshots:** `review/p3-277-hold-1280.png`, `review/p3-277-hold-375.png` (bench, room 2, Can't speak moved beside Can't hear, the chip passed in as the game passes it).
+- **A pass:** the chip sits clearly on the teammate, doesn't cover either face badly, and plays well against the other chips.
+- **What I judged:** it reads whole at both widths. The chip's tail sits on the teammate's head and overlaps the edge of your own figure's hat at this distance (they are one tile apart), which is the label renderer's usual placement; acceptable, but worth your eye.

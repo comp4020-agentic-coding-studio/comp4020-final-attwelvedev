@@ -32,13 +32,16 @@ export const hatchBeside = (world: World, tile: Vec): RoomObject | undefined =>
 export const onSill = (world: World, hatch: string): GearState | undefined =>
   world.gear.find((g) => g.sill === hatch);
 
+// Whether two figures stand within hand reach of each other. The client's "hold hands" chip reads
+// the same rule (labels.ts), so the chip shows exactly when Space would take the hand.
+export const inReach = (a: Vec, b: Vec): boolean => Math.hypot(b.x - a.x, b.y - a.y) <= REACH;
+
 // The teammates beside `seat`, nearest first.
 export function beside(world: World, seat: Seat): Seat[] {
   const me = world.players[seat].pos;
   return world.players
-    .filter((p) => p.seat !== seat)
+    .filter((p) => p.seat !== seat && inReach(me, p.pos))
     .map((p) => ({ seat: p.seat, d: Math.hypot(p.pos.x - me.x, p.pos.y - me.y) }))
-    .filter((o) => o.d <= REACH)
     .sort((a, b) => a.d - b.d)
     .map((o) => o.seat);
 }
