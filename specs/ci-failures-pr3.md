@@ -13,9 +13,10 @@ that had not failed before: `door-pill` ("shows a pill at the edge toward the do
 every player a Restart ... back at spawn"). Neither has a cause yet (see "Still unexplained"); commit 5d49130
 makes each explain itself when it fails again.
 
-CI run 42586723384 (commit cc44612, which added the two reports) failed too, in `labels` room 03 and `door-pill`
-at 1280. `labels` was a real finding (below, fixed in 28083e0); `door-pill` is still unexplained. Three runs of
-nearly the same code: one pass, two failures, in four different files between them.
+CI runs 42586723384 (cc44612) and 42595732106 (1c936f2, a `workflow_dispatch`; the pull_request trigger fired for
+neither a81c081 nor 1c936f2, cause unknown) failed in `labels` room 03 and `door-pill` at 1280. Both now have a
+shown cause (below) and a fix that is not yet in a CI run. Four runs of nearly the same code: one pass, three
+failures, in five different files between them.
 
 So one commit has passed once and failed once. The walk, `standing`, `reveal` and `home` tests that the fixes below
 target passed in both attempts, which is encouraging and is two runs. The suite still has load-sensitive tests, and
@@ -36,13 +37,16 @@ were not lost inputs, a stale `seq`, a wrong drawn position or a wall. The figur
   moved the figure about 0.04 tile, so it covered 9 tiles in 30 s. Horizontal legs now hold the key and watch
   the figure's x inside the page, sampling the drawn boxes while it moves. Vertical legs stay on taps: a held
   key wedged the figure on the one-tile gap at x 25 in room 05 (found by running it).
-- **labels again, run 42586723384: a held key the page forgot.** The hold added above pressed its key once and
-  waited up to 5 s. Three of 46 passes took 5.2 to 5.4 s each, nearly all in `press`, and the figure stopped at
-  x 17.5, y 6.1. `input.ts` clears every held key on a window blur and a key pressed once is not sent again, so
-  one blur stops a hold for its whole window. `holdTo` now presses its key again on every poll and gives up after
-  1.5 s without movement (28083e0). Shown red: a blur every 400 ms made the old hold fail all four labels tests
-  with passes of about 5.04 s, the CI shape; the new one passed all four. That a blur happens on the runner is not
-  shown; the injected one reproduces its numbers and nothing else did.
+- **labels again (runs 42586723384, 42595732106): the room's camera, not the walk.** Room 3 has a camera over its
+  hall that watches 2.5 s of every 8 and sends the whole team back to the spawn when it sees anyone in its cone.
+  A plain held-d walk probed locally is sent back once when it starts 2 to 5 s into the cycle (the
+  `.caught-banner` shows) and not at 0, 1, 6 or 7 s. That fits what the CI reports showed and the earlier
+  explanations did not: three passes that began at x 1.5 (the figure sent back), and a stall at a different x every
+  run (8.2, 25.6, 16.9, 10.4, 17.5, 29.7). The test now copies room 3 with that camera's `watchingS` set to 0 (it is
+  still there and still labelled). Not shown red: the committed test passes even at 8x throttle with a late start,
+  so the catch is shown and that it caused the CI failure is inferred. An earlier version of this file blamed a
+  dropped key on a window blur and 28083e0 added a press-every-poll hold for it; the injected blur reproduced a
+  similar slowdown, but the cause was the camera. That change is harmless and stays.
 - **escape-hud, "shows what you carry": overshoot.** The walk held a key until x >= 22.2 and stopped when its
   poll saw it; on a loaded runner the key-up came late and the figure was carried past the gear (23.054 to
   23.500), so "Space Take the ..." never showed. It now holds to x >= 20 and nudges onto the gear with short taps
@@ -72,19 +76,19 @@ of 3 on their own and in 4 of 4 `pnpm check:flaky` runs. The next two failed in 
   guess (the button shows before the first still frame is painted) did not reproduce in 120 tries at 1x, 4x and 8x
   throttle. The failure now reports the canvas size, box, font status and scroll before and after, and whether a
   third frame matches the second.
-- **door-pill, "shows a pill at the edge toward the door at 1280".** Failed in CI attempt 2 and again in run
-  42586723384, where the report said: 40 passes in 10 s, passes of 400 to 544 ms (12 to 60 ms here), `standOn` 1204
-  ms, and no pill of any size in any pass. So the pill was not drawn at all, which rules out "a slow pass missed a
-  4 s pill" and leaves "the door never opened". The door opens when all three figures are on their plates (x 2 to 3)
-  at once. A change to `standOn` was tried and dropped: its first versions broke the test (`ack` counts reads, not
-  moves, and the blind figure walked past the 1-tile plate), and once working it passed, but the old `standOn` also
-  passed under the same injected blur, so nothing showed it guards this failure. The failure report now also says
-  where each figure stood after the walk and what its page says the server applied (28083e0). The poll for the pill
-  (10 s, every 50 ms) never saw it whole. The pill lasts 4000 ms (`PILL_MS`, `Game.tsx`) and the door opens as the
-  last player reaches the plate, just before the poll starts. A guess that a slow pass (it reads every pixel of
-  the canvas) used up the window is weak: a pass takes 52 to 62 ms here, so CI would need passes about 70 times
-  slower. The failure now reports every pass's start and duration, how long `standOn` took, and any pass that saw
-  a pill of any size.
+- **door-pill, "shows a pill at the edge toward the door at 1280" (attempt 2, runs 42586723384, 42595732106): the
+  figures overshot the plate, so the door never opened.** The plate is the tile at x 2 (`Math.floor(x) === 2`,
+  step.ts updatePlates), x 2.0 to 3.0, and the door needs all three on their plates at once. The failure report
+  (5d49130, 28083e0) said no pill of any size in 40 to 46 passes and, after the walk, the figures at x 3.1 and 3.06
+  and the blind one after 9 inputs, about 3.3: all past the pad. A held key released when a poll sees the figure
+  is released late on a loaded runner. Reproduced locally with a 500 ms late key-up: the figures ended at x 4.3 to
+  4.5 and both tests failed with the CI report shape. Can't see's page publishes no position, and inputs sent do not
+  measure distance (the server applies an input every tick until the next one), so a position check could not stop
+  that figure; the fixture (`spec/fixtures/rooms-door`) now has a wall on the tile after each plate, so a held key
+  carries each figure onto its plate and the wall stops it there. The late key-up and a blur every 150 ms pass.
+  (Two earlier attempts at `standOn` were dropped: one counted `ack`, which counts reads and not moves, and one
+  walked the blind figure past the plate.) The earlier "a slow pass missed a 4 s pill" idea is ruled out: no pill of
+  any size was drawn at all.
 - **game, "back at spawn".** Failed in CI attempt 2: after a restart, `settledHash` never equalled the spawn
   picture within 8 s. `settledHash` returns its last frame whether or not it held still, so "settled on the wrong
   picture" and "never settled" were indistinguishable in the old message. `settleReport` (`spec/playUi.ts`) now
