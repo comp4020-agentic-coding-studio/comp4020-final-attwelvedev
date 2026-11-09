@@ -41,7 +41,7 @@
 
 | phase | file | tasks | ends with | depends on |
 | --- | --- | --- | --- | --- |
-| [ ] 01 | `-01-bugs-and-copy.md` | 265–271 (B1, B2, B3, B5, T1, T2, T3) | `Unit done: p3fix01` | PR 3 merged |
+| [x] 01 (reviews queued; task 271 parked) | `-01-bugs-and-copy.md` | 265–271 (B1, B2, B3, B5, T1, T2, T3) | `Unit done: p3fix01` | PR 3 merged |
 | [ ] 02 | `-02-radio-and-callouts.md` | 272–273 (FR7–FR9, FR10–FR11) | `Unit done: p3fix02` | none (runs after 01 only to keep commits ordered) |
 | [ ] 03 | `-03-touch.md` | 274–277 (FR1–FR6) | `Unit done: p3fix03` | none |
 | [ ] 04 | `-04-intro-jerk.md` | 278 (B4) | `Unit done: p3fix04` | none; last, because it may only reproduce and park |
