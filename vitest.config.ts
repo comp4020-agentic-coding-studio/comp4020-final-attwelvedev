@@ -27,6 +27,10 @@ export default defineConfig({
           // deployed app (Sydney) that is more than vitest's default 5 s. The
           // 1 s live-sync bounds are assertions in the specs, not this timeout.
           testTimeout: 30_000,
+          // `expect.poll` with no timeout of its own: vitest's 1 s is shorter than a freshly opened page
+          // needs to draw its first frame on a slow CI runner (reveal.test.ts failed there at ~0.5 s
+          // quiet). 8 s is what the specs' own longest waits use; a wait that must be quick says so.
+          expect: { poll: { timeout: 8000 } },
           // Launching Chrome in a file's beforeAll takes seconds on a small CI runner
           // with dozens of files starting at once; the default 10 s is not enough there.
           hookTimeout: 60_000,
