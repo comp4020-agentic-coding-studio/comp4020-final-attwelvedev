@@ -791,13 +791,39 @@ function stationStanding(
     ctx.fillRect(face.x - s * 0.36, face.y - s * 0.13, s * 0.72, s * 0.26);
     ctx.strokeRect(face.x - s * 0.36, face.y - s * 0.13, s * 0.72, s * 0.26);
     if (!st.furniture) {
-      // the needle on its band, and a pip when the digit plays
+      // ten ticks along the band, counted 1 to 10 from the left (playtest 3 FR7); the needle on its
+      // band, and under it the number of the tick it is on (ten numbers do not fit the band side by
+      // side at the 11 px floor, so the needle carries its own)
       const range = 10;
-      const nx = face.x - s * 0.26 + ((st.shows[0] ?? 0) / (range - 1)) * s * 0.52;
+      const at = st.shows[0] ?? 0;
+      const tickX = (i: number) => face.x - s * 0.26 + (i / (range - 1)) * s * 0.52;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let i = 0; i < range; i++) {
+        ctx.moveTo(tickX(i), face.y + s * 0.03);
+        ctx.lineTo(tickX(i), face.y + s * 0.1);
+      }
+      ctx.stroke();
+      ctx.lineWidth = 2;
+      const nx = tickX(at);
       ctx.beginPath();
       ctx.moveTo(nx, face.y - s * 0.1);
       ctx.lineTo(nx, face.y + s * 0.1);
       ctx.stroke();
+      const px = Math.max(PLATE_MIN_PX, Math.round(s * 0.2));
+      ctx.fillStyle = WORLD.line;
+      ctx.font = `700 ${px}px Archivo, system-ui, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const label = String(at + 1);
+      const cw = ctx.measureText(label).width + 6;
+      const ch = px + 4;
+      const cy = face.y + s * 0.13 + 1;
+      ctx.fillStyle = WORLD.card;
+      ctx.fillRect(nx - cw / 2, cy, cw, ch);
+      ctx.strokeRect(nx - cw / 2, cy, cw, ch);
+      ctx.fillStyle = WORLD.line;
+      ctx.fillText(label, nx, cy + ch / 2 + 1);
       if (st.shows.length > 1) {
         ctx.fillStyle = WORLD.lamp;
         ctx.beginPath();

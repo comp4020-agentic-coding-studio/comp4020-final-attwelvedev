@@ -106,7 +106,7 @@ by room (never lilac); the room's `hue` meta picks it, defaulting to rose: `setH
 | `--w-lamp` | A lit lamp, key or pip (always with rays or a number, never alone) | built |
 | `--w-uv`, `--w-uv-ink` | The UV pool's wash, and the ink it shows | built |
 | `--w-nv` | Night vision: the goggles' tint and lenses | built |
-| `--w-card` | Card faces: the safe's dial, the radio's band, gear mats | built |
+| `--w-card` | Card faces: the safe's dial, the radio's band (ten ticks, counted 1 to 10 from the left; the needle's number on a card chip under it), gear mats | built |
 | `--w-dye-pink`, `--w-dye-mint`, `--w-dye-sky` | The dye pack's splats | built |
 | `--w-sconce` | Decor's light: a picture light's or a sconce's glow, clipped to its own wall face (unused in high contrast) | built |
 

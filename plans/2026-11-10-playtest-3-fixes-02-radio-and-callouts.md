@@ -28,7 +28,7 @@
 
 ## Tasks
 
-### Task 272: The radio counts from 1 (FR7–FR9) — [ ]
+### Task 272: The radio counts from 1 (FR7–FR9) — [ ] (review queued)
 
 - **Tests first (red):**
   - `src/game/sim/braille.test.ts` ("a radio: its real band", line 75): the plate carries `answer[0] + 1`.

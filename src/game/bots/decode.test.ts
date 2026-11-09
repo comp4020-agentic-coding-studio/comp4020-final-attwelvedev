@@ -1133,10 +1133,12 @@ describe("a plated radio's turner (FR10)", () => {
     expect(radioPad(o, belief(0))).toBeNull();
   });
 
-  it("turns toward the told band by the shorter way, and stops there", () => {
-    expect(radioPad(o, belief(0, 5))).toEqual({ x: 2, y: 2 }); // 0 -> 5 is 3 notches back, not 5 up
-    expect(radioPad(o, belief(0, 2))).toEqual({ x: 4, y: 2 });
-    expect(radioPad(o, belief(5, 5))).toBeNull();
+  it("turns toward the told band (counted from 1) by the shorter way, and stops there", () => {
+    expect(radioPad(o, belief(0, 6))).toEqual({ x: 2, y: 2 }); // band 6 is position 5: 3 notches back, not 5 up
+    expect(radioPad(o, belief(0, 3))).toEqual({ x: 4, y: 2 });
+    expect(radioPad(o, belief(5, 6))).toBeNull();
+    expect(radioPad(o, belief(0, 1))).toBeNull(); // band 1 is position 0: already there
+    expect(radioPad(o, belief(5, 5))).toEqual({ x: 2, y: 2 }); // band 5 is position 4: one back
   });
 
   it("ignores a decoy's pips: only a pip on the band Can't see texted gives its digit (the real band never solves)", () => {
@@ -1145,12 +1147,16 @@ describe("a plated radio's turner (FR10)", () => {
     const untold = { ...emptyBelief(), shows: [3, 2] };
     DECODERS.radio?.(noView, [], untold, o, 0, 0);
     expect(untold.answer).toEqual([]);
-    // told band 5 but sitting on 3 (a decoy): its pip is not the digit
-    const decoy = { ...emptyBelief(), shows: [3, 2], numbers: [5] };
+    // told band 6 (position 5) but sitting on 3 (a decoy): its pip is not the digit
+    const decoy = { ...emptyBelief(), shows: [3, 2], numbers: [6] };
     DECODERS.radio?.(noView, [], decoy, o, 0, 0);
     expect(decoy.answer).toEqual([]);
+    // told band 5 is position 4, so sitting on position 5 is a decoy
+    const offByOne = { ...emptyBelief(), shows: [5, 2], numbers: [5] };
+    DECODERS.radio?.(noView, [], offByOne, o, 0, 0);
+    expect(offByOne.answer).toEqual([]);
     // sitting on the told band: the face's pip is the digit, solved or not
-    const real = { ...emptyBelief(), shows: [5, 2], numbers: [5] };
+    const real = { ...emptyBelief(), shows: [5, 2], numbers: [6] };
     DECODERS.radio?.(noView, [], real, o, 0, 0);
     expect(real.solved).toBe(false);
     expect(real.answer).toEqual([2]);
