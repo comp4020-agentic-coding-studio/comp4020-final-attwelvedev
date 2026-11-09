@@ -19,6 +19,10 @@ import { describe, expect, it } from "vitest";
 // - Do not raise a timeout to make a failure go away. Raise it when the work is genuinely slower under load,
 //   and say why beside the number (see vitest.config.ts).
 // - Restart the server between runs: leftovers fill its 40-lobby cap and time out unrelated specs.
+// - A message sent right after another may be handled before it: a "resend until it arrives" loop means the test is
+//   racing the server. Wait for the server's own signal (a tick, a reply).
+// - State read right after a restart can still be the old room's (`data-intro` reads `done` for a moment): wait for a
+//   signal only the new room can give (`tick` in `data-net` down, then at least 1).
 
 interface Rule {
   name: string;

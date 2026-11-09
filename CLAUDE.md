@@ -112,6 +112,12 @@ run is a bug, one that fails in **some** is flaky. Fix the cause, never a timeou
 that have caused flakes, with their rules, are in `spec/flaky-patterns.test.ts`; add a rule
 there when a shape can be matched without false alarms.
 
+A browser spec is for what only a browser can measure (layout, fonts, pixels); logic goes in
+a unit test with a tick count and no clock. Place a figure, never walk it: a held key
+overshoots on a slow runner (CI is about 2.5 times slower). A second patch to one flaky test
+is the cue to replace it. Measure before replacing more: `pnpm check:flaky 4`, then
+`gh run rerun` a few times on one commit.
+
 ## Editing files
 
 Replace a named block, not "from here to the end of the file": slicing to the end silently
