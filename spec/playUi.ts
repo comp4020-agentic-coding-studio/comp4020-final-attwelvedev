@@ -87,6 +87,40 @@ export const canvasHash = (page: Page) =>
 // frame is a moving picture (the camera eases, effects play out), so comparing a later
 // frame to one taken a fixed time after something happened is a race. Gives up after
 // `timeoutMs` and returns the last frame.
+// What a settle did, for a failure report: settledHash returns the last frame whether or not it ever held still,
+// so "settled on the wrong picture" and "never settled" look the same to the caller. This says which: whether two
+// frames in a row matched, after how many frames and how long, where the page says its figure is (`data-self`) and
+// a short fingerprint of the frame. Reads like settledHash, and is only used to explain a failure.
+export async function settleReport(page: Page, timeoutMs = 3000) {
+  const started = Date.now();
+  const hashes: string[] = [];
+  let settled = false;
+  for (;;) {
+    hashes.push(await canvasHash(page));
+    const n = hashes.length;
+    if (n >= 2 && hashes[n - 1] === hashes[n - 2]) {
+      settled = true;
+      break;
+    }
+    if (Date.now() - started >= timeoutMs) break;
+    await page.waitForTimeout(120);
+  }
+  const fingerprint = (h: string) =>
+    `${h.length}:${[...h].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7).toString(16)}`;
+  const self = await page
+    .locator("canvas[data-self]")
+    .getAttribute("data-self")
+    .catch(() => null);
+  return {
+    settled,
+    frames: hashes.length,
+    ms: Date.now() - started,
+    distinct: new Set(hashes).size,
+    last: fingerprint(hashes[hashes.length - 1] ?? ""),
+    self,
+  };
+}
+
 export async function settledHash(page: Page, timeoutMs = 3000): Promise<string> {
   // The sea drifts unless motion is reduced, so a canvas never holds still to be compared. The
   // drift is not what any caller is measuring, so take it out (idempotent, and the pages are ours).

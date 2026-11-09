@@ -141,19 +141,49 @@ describe("a door opening off screen, drawn as an edge pill", () => {
       const table = tableOf();
       for (const [, role] of roles) await table.byRole[role].setViewportSize(size);
       // the whole table stands on its plates; the door opens at the far end
+      const standing = Date.now();
       for (const role of ROLES) await standOn(table.byRole[role], role);
+      const polling = Date.now();
       const seen = await Promise.all(
         roles.map(async ([name, role]) => {
           const label = `${name} at ${width}`;
           const page = table.byRole[role];
           let shot = null as Awaited<ReturnType<typeof snapshot>>;
-          await expect
-            .poll(async () => (shot = await snapshot(page)), {
-              timeout: 10_000,
-              interval: 50,
-              message: `${label}: the door pill is drawn`,
-            })
-            .not.toBeNull();
+          // every pass of the poll, for the report: how long a pass took (it reads every pixel of the canvas),
+          // and the pill's box if one was there at all, so a pill that came and went inside a slow pass shows
+          const passes: { at: number; ms: number; box: string | null }[] = [];
+          try {
+            await expect
+              .poll(
+                async () => {
+                  const t0 = Date.now();
+                  shot = await snapshot(page);
+                  const any = shot ? null : await pillBox(page).catch(() => null);
+                  passes.push({
+                    at: t0 - polling,
+                    ms: Date.now() - t0,
+                    box: shot
+                      ? "whole"
+                      : any
+                        ? `partial ${(any.x1 - any.x0) | 0}x${(any.y1 - any.y0) | 0}`
+                        : null,
+                  });
+                  return shot;
+                },
+                { timeout: 10_000, interval: 50, message: `${label}: the door pill is drawn` },
+              )
+              .not.toBeNull();
+          } catch (error) {
+            const slowest = [...passes].sort((a, b) => b.ms - a.ms).slice(0, 3);
+            const seenAny = passes.filter((q) => q.box !== null);
+            throw new Error(
+              `${label}: the door pill was never whole: ${passes.length} passes in ${Date.now() - polling} ms, ` +
+                `standOn took ${polling - standing} ms, slowest passes ${JSON.stringify(slowest)}, ` +
+                `a pill of any size in ${seenAny.length} passes ${JSON.stringify(seenAny.slice(0, 4))}; ` +
+                `the pill lasts 4000 ms, so a first pass later than that missed it`,
+              { cause: error },
+            );
+          }
           return { label, shot };
         }),
       );

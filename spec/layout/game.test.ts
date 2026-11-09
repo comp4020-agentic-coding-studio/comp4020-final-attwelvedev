@@ -5,7 +5,7 @@ import { axeViolations, DESKTOP, horizontalOverflow, launch } from "../browser.t
 import { clearRoomOne } from "../heistPlay.ts";
 import { leaveGameAndClose } from "../lobbyUi.ts";
 import { closeAll, type Player, ready, startedGame } from "../play.ts";
-import { canvasHash, playRoom, settledHash, type Table } from "../playUi.ts";
+import { canvasHash, playRoom, settledHash, settleReport, type Table } from "../playUi.ts";
 
 const baseUrl = inject("baseUrl");
 let browser: Browser;
@@ -217,11 +217,24 @@ describe("the game screen", () => {
     await askToRestart(host, [deaf, mute]);
     await deaf.waitForTimeout(500); // the restart reaches the page; then wait for it to stop changing
     const spawn = await settledHash(deaf);
+    // where the page says the figure is at the spawn, and what that settle was like, kept for the report below
+    const spawnAt = await deaf.locator("canvas[data-self]").getAttribute("data-self");
+    const spawnReport = await settleReport(deaf);
     await move();
     expect(await settledHash(deaf)).not.toBe(spawn);
     await askToRestart(deaf, [host, mute]);
     // back at the spawn, once the scene has come to rest: not whatever frame happens to be up
-    await expect.poll(() => settledHash(deaf, 1500), { timeout: 8000 }).toBe(spawn);
+    try {
+      await expect.poll(() => settledHash(deaf, 1500), { timeout: 8000 }).toBe(spawn);
+    } catch (error) {
+      // settledHash returns the last frame whether or not it held still, so say which this was: did the frame
+      // settle, on how many frames, and where is the figure now against where it stood at the spawn
+      const [now, then] = [await settleReport(deaf), spawnAt];
+      throw new Error(
+        `not back at the spawn: spawn was at ${then} and is now ${JSON.stringify(now)}; the spawn frame is ${JSON.stringify(spawnReport)}`,
+        { cause: error },
+      );
+    }
     await leaveGameAndClose(host, baseUrl);
     await leaveGameAndClose(deaf, baseUrl);
     await leaveGameAndClose(mute, baseUrl);
