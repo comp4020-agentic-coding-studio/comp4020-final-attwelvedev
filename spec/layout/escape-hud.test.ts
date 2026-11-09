@@ -129,6 +129,19 @@ describe("the gear slot", () => {
       await expect
         .poll(() => mute.locator(".gear-slot").textContent(), { timeout: 3000 })
         .toMatch(/UV torch|Stethoscope|Earpiece|Goggles/);
+    } catch (error) {
+      // Act did nothing: say where the figure was, what the hint said and whether the page was live, so
+      // a failure that only happens on a loaded runner explains itself
+      const state = await mute
+        .evaluate(() => ({
+          self: document.querySelector("canvas[data-self]")?.getAttribute("data-self") ?? null,
+          hint: document.querySelector(".act-hint")?.textContent ?? null,
+          slot: document.querySelector(".gear-slot")?.textContent ?? null,
+          conn: document.querySelector(".hud-top .conn")?.textContent ?? null,
+          intro: document.querySelector(".game")?.getAttribute("data-intro") ?? null,
+        }))
+        .catch((e) => ({ unreadable: String(e) }));
+      throw new Error(`Act did not take the gear: ${JSON.stringify(state)}`, { cause: error });
     } finally {
       await mute.keyboard.up(" ");
     }

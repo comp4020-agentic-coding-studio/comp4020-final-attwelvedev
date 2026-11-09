@@ -13,9 +13,27 @@ export interface Viewport {
 export const PHONE: Viewport = { width: 375, height: 812 };
 export const DESKTOP: Viewport = { width: 1280, height: 800 };
 
+// SPEC_CPU_THROTTLE=4 slows every page's CPU four times over (Chrome's own CDP throttle). Off by default.
+// It slows what the PAGE does, not the server, the machine or the other browsers, so it is a rough stand-in
+// for a starved CI runner and not the same thing: it made one spec (door-pill) fail once at 4, and did not
+// reproduce the labels walk or the escape-hud gear failures CI keeps showing at 1, 4, 6 or 8.
+const THROTTLE = Number(process.env.SPEC_CPU_THROTTLE ?? 1);
+
 export async function launch(args: string[] = []): Promise<Browser> {
   try {
-    return await chromium.launch({ channel: "chrome", args });
+    const browser = await chromium.launch({ channel: "chrome", args });
+    if (THROTTLE > 1) {
+      const newContext = browser.newContext.bind(browser);
+      browser.newContext = async (...options) => {
+        const context = await newContext(...options);
+        context.on("page", async (page) => {
+          const session = await context.newCDPSession(page);
+          await session.send("Emulation.setCPUThrottlingRate", { rate: THROTTLE });
+        });
+        return context;
+      };
+    }
+    return browser;
   } catch (error) {
     throw new Error("Google Chrome isn't installed or can't be launched", { cause: error });
   }

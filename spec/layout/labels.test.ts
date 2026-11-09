@@ -88,7 +88,36 @@ async function walkAndSample(page: Page, route: [number, number][]): Promise<Box
     for (;;) {
       if (Date.now() > legEnd) {
         const at = await selfAt(page);
-        throw new Error(`never reached ${tx},${ty} within 30 s; stuck at ${JSON.stringify(at)}`);
+        // what the page said when it stalled, so a failure that only happens on a loaded runner explains
+        // itself: is it connected, past its intro, still painting, and did the clock keep running?
+        const state = await page
+          .evaluate(
+            () =>
+              new Promise((resolve) => {
+                // frames the page paints in 500 ms: 0 is a frozen page, ~30 a live one
+                let frames = 0;
+                const t0 = performance.now();
+                const frame = () => {
+                  frames++;
+                  if (performance.now() - t0 < 500) requestAnimationFrame(frame);
+                  else
+                    resolve({
+                      conn: document.querySelector(".hud-top .conn")?.textContent ?? null,
+                      intro: document.querySelector(".game")?.getAttribute("data-intro") ?? null,
+                      clock: document.querySelector(".hud-clock")?.textContent ?? null,
+                      hint: document.querySelector(".act-hint")?.textContent ?? null,
+                      visible: document.visibilityState,
+                      focus: document.hasFocus(),
+                      framesIn500ms: frames,
+                    });
+                };
+                requestAnimationFrame(frame);
+              }),
+          )
+          .catch((error) => ({ unreadable: String(error) }));
+        throw new Error(
+          `never reached ${tx},${ty} within 30 s; stuck at ${JSON.stringify(at)}; page ${JSON.stringify(state)}`,
+        );
       }
       await take();
       const me = await selfAt(page);
