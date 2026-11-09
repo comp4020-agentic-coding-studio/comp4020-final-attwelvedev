@@ -1670,3 +1670,24 @@ The call that beat the obvious one: the agent offered to replace seven more spec
 whether past failures mean future ones, and we measured instead: `pnpm check:flaky 4` (4 of 4) and four CI attempts on
 the same commit (4 of 4). The rest stay until one fails and the log names it. Replacing on a guess gives up coverage for
 no gain shown.
+
+## 2026-11-10 — A playtest's length was mine, not the game's, and touch without a name
+
+1c2d58c
+
+A product review of the build after playtest 3 read the session's 1.5–2 hours as the game's length and
+called the pitch's "party game" unearned, raising the short-heist preset's confidence and score on it. I
+corrected it: much of that time was me writing notes and asking Hanna questions mid-session, so it was not a
+play time. The review put the short heist back to low confidence, dropped it from the deadline's must-haves,
+and replaced the claim with a measurement the deployed app already makes (`room.clear`'s `ms`). The obvious
+move was to take the number in my own write-up at face value; the correction came from knowing how the
+session was run, which no log records.
+
+The second call shaped the touch design. Hanna's idea for showing Can't see a held hand was a blurred figure
+of the teammate. I accepted the need but not the picture: touch tells you a hand is held and which way it
+pulls, never whose it is, so who it is should be found by communicating. That ruled out the figure and a
+caption (captions are for sounds, and easily missed), and settled on reusing the link the sighted already
+see, drawn from Can't see's own figure, plus a sound only the pair hears ([ADR 0030](doc/adr/0030-holding-hands-is-felt-not-seen.md), proposed).
+Checking the code for it found the server already sends every role its partner's seat (`you.hand`), unread by
+any client: the planned fix replaces it with a direction, and a perception test will fail if a seat leaks
+back in. Both corrections are in `product/2026-11-10-review.md`'s challenge round and in the spec.
