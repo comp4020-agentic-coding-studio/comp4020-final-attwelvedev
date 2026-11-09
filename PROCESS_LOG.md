@@ -1650,3 +1650,23 @@ or tick. Each new guard was shown red by breaking the code it guards (the solve,
 the feed, the redraw guard, the decoder, the job rule, the lint on the real
 room 6). F2 of the same review (a wire-cut spark sent into a dark zone) got the
 same treatment.
+
+## 2026-11-10 — Flaky browser tests replaced, not fixed, and the rest left until they fail
+
+351e71a..9f43c63
+
+A day of fixing PR 3's flaky specs had not held: five of eight CI attempts failed with nearly the same code, each fix
+exposing a new failure on the runner. I changed the question. Instead of making a walk-and-poll test less racy, replace
+it with a test that has no clock, over the same logic, and delete it if a replacement is not cheap and clearly
+red-to-green. The agent had been patching the same shape (a held key, a late key-up, a canvas picture across a 2.4 s
+hold); the logic each guarded already lived in pure code a unit test reaches with a tick count.
+
+Five went: door-pill, spectator's follow, reveal's "I'm ready", escape-hud's gear, game's restarts. Each commit says
+what was broken to turn the new test red and what the replacement gives up. One red check could not fail (a null check
+on a value that is never null) and the commit says so. One comment the agent wrote claimed the page's input counter
+restarts with a room; checking the code showed it does not, so the test and comment were corrected before commit.
+
+The call that beat the obvious one: the agent offered to replace seven more specs that had failed in the past. I asked
+whether past failures mean future ones, and we measured instead: `pnpm check:flaky 4` (4 of 4) and four CI attempts on
+the same commit (4 of 4). The rest stay until one fails and the log names it. Replacing on a guess gives up coverage for
+no gain shown.
