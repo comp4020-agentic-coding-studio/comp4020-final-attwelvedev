@@ -6,7 +6,7 @@
 
 ## Tasks
 
-### Task 265: The wheel keeps its tabs on a short window (B1) — [ ]
+### Task 265: The wheel keeps its tabs on a short window (B1) — [x]
 
 - **Found:** at 1280×560 the comms wheel opens with no Talk / Faces / Soundboard / Marks row. At 1280×800 it's there (`product/2026-11-10-shots/09-wheel-560.png`, `09-wheel-800.png`).
 - **Files:** `src/components/CommsWheel.tsx`, `src/styles/game.css`, `spec/layout/wheel.test.ts`.

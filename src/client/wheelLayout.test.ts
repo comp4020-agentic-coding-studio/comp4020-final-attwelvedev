@@ -7,7 +7,9 @@ import {
   insideOutline,
   layoutFor,
   MIN_TARGET_PX,
+  modeFor,
   PAGES_ALL,
+  placementFor,
   slotCount,
   slotIndexAt,
   slotPos,
@@ -192,6 +194,23 @@ describe("wheelScale on a wide frame", () => {
         expect(s.w * k, `${page} ${w}x${h}`).toBeGreaterThanOrEqual(MIN_TARGET_PX);
         expect(s.h * k, `${page} ${w}x${h}`).toBeGreaterThanOrEqual(MIN_TARGET_PX);
       }
+    }
+  });
+});
+
+// B1 (playtest 3): a 1280×560 window leaves a 1256×337 frame, too short for the wide wheel with
+// its labels above and plate below, even at its 48 px floor.
+describe("a wide frame too short for the stacked wheel", () => {
+  it("puts the labels and plate beside a compact wheel, which then fits the frame unshrunk", () => {
+    expect(placementFor(1256, 577)).toBe("stacked");
+    expect(placementFor(351, 469)).toBe("stacked");
+    expect(placementFor(1256, 337)).toBe("side");
+    expect(modeFor(1256, 337)).toBe("narrow");
+    const k = wheelScale("talk", "narrow", 1256, 337, "side");
+    for (const page of PAGES_ALL) {
+      const e = wheelExtent(page, "narrow", "side");
+      expect(e.height * k, page).toBeLessThanOrEqual(337);
+      expect(e.width * k, page).toBeLessThanOrEqual(1256);
     }
   });
 });

@@ -10,6 +10,7 @@ import {
 } from "../playUi.ts";
 
 const baseUrl = inject("baseUrl");
+const SHORT = { width: 1280, height: 560 }; // playtest 3's window (B1)
 const HOOK_MS = 60_000; // not under vitest.config.ts hookTimeout: seating three takes longer on a CI runner
 let browser: Browser;
 // One room for the file: seating three players takes seconds. Room 1: seat 0
@@ -690,5 +691,74 @@ describe("the comms wheel on a phone", () => {
     await phone.mouse.move(b.x - 300, b.y - 300); // beyond the rim: cancels
     await phone.mouse.up();
     await phone.locator(".wheel").waitFor({ state: "detached" });
+  });
+});
+
+// B1 (playtest 3): at 1280×560 the wheel opened with no page labels. Each desktop seat at that
+// window (the wheel's geometry is the same for every role; the table's Can't hear is a touch
+// phone, whose 1280×560 is a landscape phone and not this bug):
+// all four tabs are in the viewport and the frame, at least 48 px tall, touching no slot, and
+// every page's ring is wholly in the frame. The 1280×800 and 375×812 cases are the ones above.
+describe("the comms wheel on a short window", () => {
+  it("keeps all four page tabs and the whole ring in the frame at 1280×560, on Can't see and Can't speak", async () => {
+    for (const [role, page] of [
+      ["blind", table.byRole.blind],
+      ["mute", table.byRole.mute],
+    ] as const) {
+      const before = page.viewportSize();
+      await page.setViewportSize(SHORT);
+      const c = await frameCentre(page);
+      await page.mouse.move(c.x, c.y);
+      await page.keyboard.down("q");
+      try {
+        await page.locator(".wheel").waitFor({ timeout: 1000 });
+        const frame = await page.locator(".frame").boundingBox();
+        if (!frame) throw new Error("no frame");
+        for (const key of ["1", "2", "3", "4"]) {
+          await page.keyboard.press(key);
+          await page.waitForTimeout(60);
+          const where = `${role} 1280×560 page ${key}`;
+          const m = await page.evaluate(() => {
+            const box = (e: Element) => {
+              const r = e.getBoundingClientRect();
+              return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+            };
+            return {
+              tabs: [...document.querySelectorAll(".wheel-tab")].map((e) => ({
+                text: e.textContent ?? "",
+                ...box(e),
+              })),
+              slots: [...document.querySelectorAll(".wheel-slot")].map(box),
+              ring: box(document.querySelector(".wheel-outline") as Element),
+              vw: window.innerWidth,
+              vh: window.innerHeight,
+            };
+          });
+          expect(m.tabs.length, where).toBe(4);
+          const inFrame = (b: { left: number; right: number; top: number; bottom: number }) =>
+            b.left >= frame.x - 0.5 &&
+            b.right <= frame.x + frame.width + 0.5 &&
+            b.top >= frame.y - 0.5 &&
+            b.bottom <= frame.y + frame.height + 0.5;
+          expect(inFrame(m.ring), `${where}: ring in the frame`).toBe(true);
+          for (const t of m.tabs) {
+            const inView = t.top >= 0 && t.bottom <= m.vh && t.left >= 0 && t.right <= m.vw;
+            expect(inView, `${where}: ${t.text} in the viewport`).toBe(true);
+            expect(inFrame(t), `${where}: ${t.text} in the frame`).toBe(true);
+            expect(t.bottom - t.top, `${where}: ${t.text} height`).toBeGreaterThanOrEqual(48);
+            for (const s of m.slots) {
+              const apart =
+                t.right <= s.left || s.right <= t.left || t.bottom <= s.top || s.bottom <= t.top;
+              expect(apart, `${where}: ${t.text} touches a slot`).toBe(true);
+            }
+          }
+        }
+      } finally {
+        // the table is shared: never leave Q down or the window short for the next case
+        await page.keyboard.press("Escape");
+        await page.keyboard.up("q");
+        if (before) await page.setViewportSize(before);
+      }
+    }
   });
 });

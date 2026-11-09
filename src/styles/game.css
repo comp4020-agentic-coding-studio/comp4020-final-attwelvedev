@@ -1351,6 +1351,27 @@ fieldset.settings {
   text-underline-offset: 3px;
 }
 
+/* a frame too short for labels above and plate below (1280×560): labels in a column to the
+   left, plate to the right. SIDE_TAB_W, SIDE_TAB_H and SIDE_GAP in client/wheelLayout.ts are
+   these sizes; at the narrow floor scale a label is still a 48 px target. */
+.wheel.is-side .wheel-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3em;
+  box-sizing: border-box;
+  width: 160px;
+  height: 50px;
+  padding: 0 var(--s-2);
+  font-size: var(--t-18);
+}
+.wheel.is-side .wheel-plate {
+  left: var(--side-off);
+  top: 0;
+  max-width: 20rem;
+  transform: translateY(-50%);
+}
+
 /* a wheel opened by click takes clicks on its slots and labels (a held one never does:
    the pointer is busy aiming, and must reach nothing underneath) */
 .wheel.is-click .wheel-slot,

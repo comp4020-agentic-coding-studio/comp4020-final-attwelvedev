@@ -7,12 +7,17 @@ import {
   type Mode,
   PAGES_ALL,
   type Page,
+  type Placement,
+  SIDE_GAP,
+  SIDE_TAB_PITCH,
+  SIDE_TAB_W,
   slotIndexAt,
   slotPos,
   tallestHalf,
+  widestHalf,
 } from "./wheelLayout.ts";
 
-export type { Mode, Page } from "./wheelLayout.ts";
+export type { Mode, Page, Placement } from "./wheelLayout.ts";
 
 // The comms wheel's decisions, kept free of the DOM so they can be tested:
 // what each slot is, whether a release sends, and who hears what. Where slots
@@ -106,7 +111,18 @@ const tabPitch = (mode: Mode): number => (mode === "narrow" ? TAB_W_NARROW : TAB
 // changes), just above the tallest outline in this mode.
 const LABEL_HALF_H = 17;
 const LABEL_GAP = 8;
-export function tabXY(page: Page, mode: Mode): { x: number; y: number } {
+// Side placement: a column to the left of the outline, top to bottom in page order.
+export function tabXY(
+  page: Page,
+  mode: Mode,
+  placement: Placement = "stacked",
+): { x: number; y: number } {
+  if (placement === "side") {
+    return {
+      x: -(widestHalf(mode) + SIDE_GAP + SIDE_TAB_W / 2),
+      y: (PAGES.indexOf(page) - 1.5) * SIDE_TAB_PITCH,
+    };
+  }
   return {
     x: (PAGES.indexOf(page) - 1.5) * tabPitch(mode),
     y: -(tallestHalf(mode) + LABEL_GAP + LABEL_HALF_H),
@@ -161,7 +177,19 @@ export function releaseAction(
 }
 
 // Which page label a point is over, if any.
-export function tabAt(page: Page, mode: Mode, dx: number, dy: number): Page | null {
+export function tabAt(
+  page: Page,
+  mode: Mode,
+  dx: number,
+  dy: number,
+  placement: Placement = "stacked",
+): Page | null {
+  if (placement === "side") {
+    const { x } = tabXY(page, mode, placement);
+    if (Math.abs(dx - x) > SIDE_TAB_W / 2) return null;
+    const i = Math.floor((dy + SIDE_TAB_PITCH * 2) / SIDE_TAB_PITCH);
+    return PAGES[i] ?? null;
+  }
   const { y } = tabXY(page, mode);
   if (Math.abs(dy - y) > 20) return null;
   const pitch = tabPitch(mode);
