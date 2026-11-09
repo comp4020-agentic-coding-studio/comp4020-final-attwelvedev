@@ -44,10 +44,31 @@ const title = (page: Page) => page.getByRole("heading", { level: 1 }).innerText(
 const crewRow = (page: Page, name: string) =>
   page.locator(".reveal-crew li").filter({ has: page.getByText(name, { exact: false }) });
 
+// Five tests that only read the reveal card share ONE lobby: seating three players is the slow part (about
+// 6 s here, 12 s on a CI runner), so a lobby per test cost five of them. Each test leaves the page as it found
+// it (the "Who perceives what" fold shut, the viewport back to desktop), so the order does not matter. A
+// test that presses I'm ready, swaps a seat or reloads builds its own lobby below, as before.
 describe("each role's reveal card", () => {
+  let shared: Revealed;
+  beforeAll(async () => {
+    shared = await revealed(["Ana", "Bo", "Cy"]);
+  }, 90_000);
+  afterAll(async () => {
+    await closeAll(shared?.pages ?? []);
+  });
+  // a test leaves the fold shut: a fold left open would change what the next test is told is folded
+  const foldShut = async (pages: Page[]) => {
+    for (const page of pages) {
+      const more = page.getByRole("button", { name: "Who perceives what" });
+      if ((await more.getAttribute("aria-expanded")) === "true") await more.click();
+      await page.locator(".reveal-lines").waitFor({ state: "hidden" });
+    }
+  };
+
   it("says the goal under the role heading and above the facts, for every role, at 1280 and 375", async () => {
+    const { pages } = shared;
     for (const viewport of [DESKTOP, PHONE]) {
-      const { pages } = await revealed(["Ana", "Bo", "Cy"], viewport);
+      for (const page of pages) await page.setViewportSize(viewport);
       for (const page of pages) {
         const goal = page
           .locator(".reveal")
@@ -61,8 +82,9 @@ describe("each role's reveal card", () => {
         expect(box.y).toBeGreaterThanOrEqual(head.y + head.height);
         expect(box.y + box.height).toBeLessThanOrEqual(facts.y);
       }
-      await closeAll(pages);
+      await foldShut(pages);
     }
+    for (const page of pages) await page.setViewportSize(DESKTOP);
   });
 
   it("says one sentence for each role under the goal, and keeps who perceives what folded until pressed", async () => {
@@ -71,7 +93,7 @@ describe("each role's reveal card", () => {
       "You see the map but hear nothing. Watch for faces and marks.",
       "You see and hear everything. Use the soundboard, faces and marks.",
     ];
-    const { pages } = await revealed(["Ana", "Bo", "Cy"]);
+    const { pages } = shared;
     for (const [i, page] of pages.entries()) {
       const line = page.locator(".reveal").getByText(LINES[i] as string, { exact: true });
       await line.waitFor({ timeout: 5000 });
@@ -93,11 +115,10 @@ describe("each role's reveal card", () => {
       expect(await more.getAttribute("aria-expanded")).toBe("false");
       await page.locator(".reveal-lines").waitFor({ state: "hidden" });
     }
-    await closeAll(pages);
   });
 
   it("names who hears what they send, by name, and never says Say, Sound or Show", async () => {
-    const { pages } = await revealed(["Ana", "Bo", "Cy"]);
+    const { pages } = shared;
     const [blind, deaf, mute] = pages as [Page, Page, Page];
     for (const page of pages)
       await page.getByRole("button", { name: "Who perceives what" }).click();
@@ -122,11 +143,11 @@ describe("each role's reveal card", () => {
       expect(text).toContain("You can send");
       expect(text).toContain("You get");
     }
-    await closeAll(pages);
+    await foldShut(pages);
   });
 
   it("tells Can't see their screen goes dark on purpose, and its Play buttons start the cues", async () => {
-    const { pages } = await revealed(["Ana", "Bo", "Cy"]);
+    const { pages } = shared;
     const [blind, deaf] = pages as [Page, Page];
     await blind.getByText("Your screen goes dark. That's on purpose.").waitFor();
     expect(await deaf.getByText("Your screen goes dark.").count()).toBe(0);
@@ -148,11 +169,10 @@ describe("each role's reveal card", () => {
         { timeout: 5000 },
       )
       .toContain("door");
-    await closeAll(pages);
   });
 
   it("shows the room behind the card, visible but blurred", async () => {
-    const { pages } = await revealed(["Ana", "Bo", "Cy"]);
+    const { pages } = shared;
     const deaf = pages[1] as Page;
     const canvas = deaf.locator(".reveal-canvas canvas");
     await expect
@@ -172,7 +192,6 @@ describe("each role's reveal card", () => {
       .toBeGreaterThan(2);
     const blur = await deaf.locator(".reveal-canvas").evaluate((el) => getComputedStyle(el).filter);
     expect(blur).toContain("blur(3px)");
-    await closeAll(pages);
   });
 });
 
