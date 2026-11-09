@@ -1,15 +1,21 @@
 # CI failures on PR 3 (draft): what they were, and where it stands
 
-Rewritten 2026-11-09 after the first green run. The earlier version of this file (commit a52e4d5) recorded
-seven red runs and a list of causes that had been ruled out; it did not find the cause. This one records what
-did.
+Rewritten 2026-11-09 after the first green run, and corrected the same day once its re-run failed. The earlier
+version of this file (commit a52e4d5) recorded seven red runs and a list of causes that had been ruled out; it did
+not find the cause. This one records what did, and what is still open.
 
 ## The state
 
-CI run 42579267291 (commit eb904dd) is green: all eleven steps, including the process-evidence check and both
-secret scans, which had never run on this branch because the `Run the spec` step failed first. The job took
-17 m 23 s of its 20 minute cap. One green run is not proof: the walk failures hit 5 of 7 earlier runs, and the
-unexplained ones below hit once each. See "Re-run" for a second attempt of the same commit.
+CI run 42579267291 (commit eb904dd) passed on its first attempt, the first green run on this branch: all eleven
+steps, including the process-evidence check and both secret scans, which had never run here because the `Run the
+spec` step failed first. It took 17 m 23 s of the 20 minute cap. Attempt 2 of the same commit FAILED, in two files
+that had not failed before: `door-pill` ("shows a pill at the edge toward the door at 1280") and `game` ("gives
+every player a Restart ... back at spawn"). Neither has a cause yet (see "Still unexplained"); commit 5d49130
+makes each explain itself when it fails again.
+
+So one commit has passed once and failed once. The walk, `standing`, `reveal` and `home` tests that the fixes below
+target passed in both attempts, which is encouraging and is two runs. The suite still has load-sensitive tests, and
+the branch should not be called fixed, or merged, on this evidence.
 
 ## What the failures were
 
@@ -43,8 +49,9 @@ were not lost inputs, a stale `seq`, a wrong drawn position or a wall. The figur
 
 ## Still unexplained
 
-Each failed once in a full local check (the one run just before f746849 was committed), then passed 3 of 3 on its own and in 4 of 4
-`pnpm check:flaky` runs. Neither has a cause. `eb904dd` makes each explain itself if it fails again:
+The first two each failed once in a full local check (the one run just before f746849 was committed), then passed 3
+of 3 on their own and in 4 of 4 `pnpm check:flaky` runs. The next two failed in CI attempt 2 only. None has a cause.
+`eb904dd` and `5d49130` make each explain itself if it fails again:
 
 - **reveal, "lets a person take I'm ready back".** Bo's "Ready" never showed on the host within 8 s. Hypothesis, not
   shown: `send` in `src/client/socket.ts` drops a message while the socket is not open, and the reveal flips its
@@ -54,6 +61,16 @@ Each failed once in a full local check (the one run just before f746849 was comm
   guess (the button shows before the first still frame is painted) did not reproduce in 120 tries at 1x, 4x and 8x
   throttle. The failure now reports the canvas size, box, font status and scroll before and after, and whether a
   third frame matches the second.
+- **door-pill, "shows a pill at the edge toward the door at 1280".** Failed in CI attempt 2: the poll for the pill
+  (10 s, every 50 ms) never saw it whole. The pill lasts 4000 ms (`PILL_MS`, `Game.tsx`) and the door opens as the
+  last player reaches the plate, just before the poll starts. A guess that a slow pass (it reads every pixel of
+  the canvas) used up the window is weak: a pass takes 52 to 62 ms here, so CI would need passes about 70 times
+  slower. The failure now reports every pass's start and duration, how long `standOn` took, and any pass that saw
+  a pill of any size.
+- **game, "back at spawn".** Failed in CI attempt 2: after a restart, `settledHash` never equalled the spawn
+  picture within 8 s. `settledHash` returns its last frame whether or not it held still, so "settled on the wrong
+  picture" and "never settled" were indistinguishable in the old message. `settleReport` (`spec/playUi.ts`) now
+  says which, with the figure's `data-self` beside the same reading at the spawn.
 - **spectator.test.ts** ("no msg message within 2000 ms") failed once in seven earlier runs and never reproduced.
 
 ## Ruled out, each with a measurement
@@ -81,7 +98,8 @@ would have changed nothing for them.
   passes. It samples the blind canvas for one exact colour (`f4b9c3`).
 - **Shuffling `spec/layout/hud.test.ts` is not a valid check:** the unmodified file fails under the same seeds.
 - **Local vs CI:** the runner is roughly 2.5 times slower per file than a 12-core laptop (reveal.test.ts is 131 s
-  here, 324 s in CI), and the spec step is most of the workflow's 20 minute cap. The green run used 17 m 23 s.
+  here, 324 s in CI), and the spec step is most of the workflow's 20 minute cap. The green attempt used 17 m 23 s;
+  the failed attempt's spec step took 16 m 22 s.
 - **Running `pnpm check` needs the right port.** A stale `astro dev` held :8080 and `pnpm start:check` exited
   with EADDRINUSE; the suite then ran against that server and failed in files unrelated to the change. Start the
   app yourself on a free port and pass `APP_URL`.
