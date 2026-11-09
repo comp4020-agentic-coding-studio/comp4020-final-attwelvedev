@@ -13,6 +13,10 @@ that had not failed before: `door-pill` ("shows a pill at the edge toward the do
 every player a Restart ... back at spawn"). Neither has a cause yet (see "Still unexplained"); commit 5d49130
 makes each explain itself when it fails again.
 
+CI run 42586723384 (commit cc44612, which added the two reports) failed too, in `labels` room 03 and `door-pill`
+at 1280. `labels` was a real finding (below, fixed in 28083e0); `door-pill` is still unexplained. Three runs of
+nearly the same code: one pass, two failures, in four different files between them.
+
 So one commit has passed once and failed once. The walk, `standing`, `reveal` and `home` tests that the fixes below
 target passed in both attempts, which is encouraging and is two runs. The suite still has load-sensitive tests, and
 the branch should not be called fixed, or merged, on this evidence.
@@ -32,6 +36,13 @@ were not lost inputs, a stale `seq`, a wrong drawn position or a wall. The figur
   moved the figure about 0.04 tile, so it covered 9 tiles in 30 s. Horizontal legs now hold the key and watch
   the figure's x inside the page, sampling the drawn boxes while it moves. Vertical legs stay on taps: a held
   key wedged the figure on the one-tile gap at x 25 in room 05 (found by running it).
+- **labels again, run 42586723384: a held key the page forgot.** The hold added above pressed its key once and
+  waited up to 5 s. Three of 46 passes took 5.2 to 5.4 s each, nearly all in `press`, and the figure stopped at
+  x 17.5, y 6.1. `input.ts` clears every held key on a window blur and a key pressed once is not sent again, so
+  one blur stops a hold for its whole window. `holdTo` now presses its key again on every poll and gives up after
+  1.5 s without movement (28083e0). Shown red: a blur every 400 ms made the old hold fail all four labels tests
+  with passes of about 5.04 s, the CI shape; the new one passed all four. That a blur happens on the runner is not
+  shown; the injected one reproduces its numbers and nothing else did.
 - **escape-hud, "shows what you carry": overshoot.** The walk held a key until x >= 22.2 and stopped when its
   poll saw it; on a loaded runner the key-up came late and the figure was carried past the gear (23.054 to
   23.500), so "Space Take the ..." never showed. It now holds to x >= 20 and nudges onto the gear with short taps
@@ -61,7 +72,14 @@ of 3 on their own and in 4 of 4 `pnpm check:flaky` runs. The next two failed in 
   guess (the button shows before the first still frame is painted) did not reproduce in 120 tries at 1x, 4x and 8x
   throttle. The failure now reports the canvas size, box, font status and scroll before and after, and whether a
   third frame matches the second.
-- **door-pill, "shows a pill at the edge toward the door at 1280".** Failed in CI attempt 2: the poll for the pill
+- **door-pill, "shows a pill at the edge toward the door at 1280".** Failed in CI attempt 2 and again in run
+  42586723384, where the report said: 40 passes in 10 s, passes of 400 to 544 ms (12 to 60 ms here), `standOn` 1204
+  ms, and no pill of any size in any pass. So the pill was not drawn at all, which rules out "a slow pass missed a
+  4 s pill" and leaves "the door never opened". The door opens when all three figures are on their plates (x 2 to 3)
+  at once. A change to `standOn` was tried and dropped: its first versions broke the test (`ack` counts reads, not
+  moves, and the blind figure walked past the 1-tile plate), and once working it passed, but the old `standOn` also
+  passed under the same injected blur, so nothing showed it guards this failure. The failure report now also says
+  where each figure stood after the walk and what its page says the server applied (28083e0). The poll for the pill
   (10 s, every 50 ms) never saw it whole. The pill lasts 4000 ms (`PILL_MS`, `Game.tsx`) and the door opens as the
   last player reaches the plate, just before the poll starts. A guess that a slow pass (it reads every pixel of
   the canvas) used up the window is weak: a pass takes 52 to 62 ms here, so CI would need passes about 70 times
