@@ -291,6 +291,23 @@ describe("restartGame", () => {
     expect(applyInput(game, 1, { seq: 1, move: { x: 0, y: 0 }, act: false })).toBe(true);
   });
 
+  it("a restart forgets the old room's held input, and a seat then walks on its next one", () => {
+    // Replaces the browser test "lets a player move again after a restart": it held D on two pages and compared
+    // canvas hashes inside 800 ms. What it guards: the old room's held input must not carry into the new room (a
+    // seat walking east would drift off the spawn by itself), and the new room takes the seat's next input. (The
+    // page's seq keeps counting across a restart, so a lower seq is a case of this test's own making, not a page's.)
+    const game = startGame(lobby("a", "b", "c"), firstJob);
+    applyInput(game, 1, { seq: 50, move: { x: 1, y: 0 }, act: false });
+    for (let i = 0; i < 10; i++) tickGame(game);
+    restartGame(game);
+    const spawn = { ...game.world.players[1].pos };
+    for (let i = 0; i < 10; i++) tickGame(game);
+    expect(game.world.players[1].pos, "no input, so it stays on the spawn").toEqual(spawn);
+    expect(applyInput(game, 1, { seq: 51, move: { x: 1, y: 0 }, act: false })).toBe(true);
+    for (let i = 0; i < 10; i++) tickGame(game);
+    expect(game.world.players[1].pos.x).toBeGreaterThan(spawn.x + 1);
+  });
+
   it("seeds each new world afresh, so a restart draws new station answers (FR5)", () => {
     const game = startGame(lobby("a", "b", "c"), rooms);
     const seeds = new Set([game.world.seed]);
