@@ -52,7 +52,7 @@ import {
 import { afterRestart } from "../client/restart.ts";
 import { loadSettings, type Settings as SettingsState, saveSettings } from "../client/settings.ts";
 import type { ConnectionState, GameSocket } from "../client/socket.ts";
-import { browserSpeech } from "../client/speech.ts";
+import { browserSpeech, speakWhile } from "../client/speech.ts";
 import { isHighContrast, NET, setContrast, setHue } from "../client/tokens.ts";
 import { installUiSounds, savedSettings, uiSound } from "../client/uiSound.ts";
 import { quickSlot } from "../client/wheel.ts";
@@ -920,25 +920,28 @@ function Hud({
   useEffect(() => {
     const speech = browserSpeech(role, () => live.current.settings.speech);
     if (role !== "blind") preloadFaces();
-    return socket.on("msg", (m) => {
-      const now = performance.now();
-      const { settings: s, forceCaptions } = live.current;
-      if (m.method === "callout" || m.method === "text") {
-        speech.say(m.method === "callout" ? CALLOUT_WORD[m.callout] : m.text);
-      } else if (m.method === "clip" && s.sound && !forceCaptions) {
-        audio.current?.playClip(m.clip);
-      } else {
-        const pop = popOfMessage(m, now);
-        if (pop) rt.pops.push(pop);
-      }
-      // text to Can't speak is always shown, since reading it is their only way
-      const caption = captionFor(m);
-      const wanted = s.captions || forceCaptions || (m.method === "text" && role !== "blind");
-      if (caption && wanted) {
-        const line = { id: ++live.current.lineId, ...caption, until: now + CAPTION_MS };
-        setLines((old) => [...old.filter((l) => l.until > now), line].slice(-3));
-      }
-    });
+    // the cleanup empties the speech queue: this game unmounts when the next reveal opens (B2)
+    return speakWhile(speech, (say) =>
+      socket.on("msg", (m) => {
+        const now = performance.now();
+        const { settings: s, forceCaptions } = live.current;
+        if (m.method === "callout" || m.method === "text") {
+          say(m.method === "callout" ? CALLOUT_WORD[m.callout] : m.text);
+        } else if (m.method === "clip" && s.sound && !forceCaptions) {
+          audio.current?.playClip(m.clip);
+        } else {
+          const pop = popOfMessage(m, now);
+          if (pop) rt.pops.push(pop);
+        }
+        // text to Can't speak is always shown, since reading it is their only way
+        const caption = captionFor(m);
+        const wanted = s.captions || forceCaptions || (m.method === "text" && role !== "blind");
+        if (caption && wanted) {
+          const line = { id: ++live.current.lineId, ...caption, until: now + CAPTION_MS };
+          setLines((old) => [...old.filter((l) => l.until > now), line].slice(-3));
+        }
+      }),
+    );
   }, [socket, role, rt, audio]);
 
   useEffect(

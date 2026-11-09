@@ -563,15 +563,12 @@ export function tickGame(
   nickname: (seat: Seat) => string = () => "Bot",
 ): { views: Map<Seat, RoleView>; cleared: boolean; sent: BotSent[]; caught: Caught[] } {
   if (game.paused) return { views: new Map(), cleared: false, sent: [], caught: [] };
-  const acted = botsAct(
-    game.world.room,
-    game.world,
-    game.roles,
-    game.bots,
-    game.cooldowns,
-    now,
-    nickname,
-  );
+  // bots act only while the room is played: once it is cleared nothing a bot says is relayed, so
+  // no bot line reaches the next room's reveal (playtest 3, B2)
+  const acted =
+    game.world.status === "playing"
+      ? botsAct(game.world.room, game.world, game.roles, game.bots, game.cooldowns, now, nickname)
+      : { inputs: {}, sent: [], refused: 0 };
   for (const seat of botSeatsOf(game)) {
     const input = acted.inputs[seat];
     if (input) applyInput(game, seat, input);

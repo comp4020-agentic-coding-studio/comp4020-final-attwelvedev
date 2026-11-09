@@ -9,6 +9,7 @@ interface Synth<U> {
 
 export interface Speech {
   say(text: string): void;
+  stop(): void; // empties the queue: nothing already said is spoken after this
 }
 
 // Reads Say text aloud: for Can't see, who needs it, and Can't speak, who can
@@ -34,6 +35,24 @@ export function createSpeech<U>(options: {
       startedAt = t;
       synth.speak(options.utter(text));
     },
+    stop() {
+      options.synth?.cancel();
+    },
+  };
+}
+
+// Speaks what `listen` hands it until the returned cleanup runs, which also empties the queue.
+// The browser's queue is global and outlives the game that filled it: a game ends (unmounts) when
+// the next room's reveal opens, and a line queued in the room just cleared must not be spoken over
+// it (playtest 3, B2).
+export function speakWhile(
+  speech: Speech,
+  listen: (say: (text: string) => void) => () => void,
+): () => void {
+  const off = listen((text) => speech.say(text));
+  return () => {
+    off();
+    speech.stop();
   };
 }
 

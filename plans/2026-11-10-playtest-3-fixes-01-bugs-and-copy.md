@@ -20,7 +20,7 @@
 - **Break check:** a script restores the old sizing rule; the 560 case goes red.
 - **Depends on:** none.
 
-### Task 266: No bot line after the room ends (B2) — [ ]
+### Task 266: No bot line after the room ends (B2) — [x]
 
 - **Found:** in playtest 3, a bot kept sending callouts or talking on the next role reveal.
 - **Files:** to be found. Start at `src/game/bots/brain.ts:1159` (the bot's one `cleared` line) and `src/net/attach.ts` (where bot sends are relayed), then `src/client/speech.ts` (the spoken-line queue).
