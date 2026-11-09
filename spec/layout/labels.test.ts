@@ -159,12 +159,18 @@ describe.each(ROOMS)("labels never cover a plaque (room $n)", ({ n, plaques, rou
   it("keeps every chip off every plaque, at 1280 and 375", async () => {
     const table = await playRoom(browser, url);
     try {
-      // the mute seat is on desktop and the deaf seat on the phone (playRoom): both are sighted
-      for (const [name, page] of [
-        ["1280", table.byRole.mute],
-        ["375", table.byRole.deaf],
-      ] as const) {
-        const samples = await walkAndSample(page, route);
+      // the mute seat is on desktop and the deaf seat on the phone (playRoom): both are sighted. They walk
+      // AT ONCE: two pages, two seats, no plate or station worked, so neither waits on the other, and one
+      // after the other doubled the test (the phone walk alone is 7 to 15 s, 21 to 36 s for the test).
+      const walked = await Promise.all(
+        (
+          [
+            ["1280", table.byRole.mute],
+            ["375", table.byRole.deaf],
+          ] as const
+        ).map(async ([name, page]) => ({ name, samples: await walkAndSample(page, route) })),
+      );
+      for (const { name, samples } of walked) {
         expect(samples.length, `${name}: boxes were published`).toBeGreaterThan(0);
         let plaquesSeen = 0;
         for (const s of samples) {
