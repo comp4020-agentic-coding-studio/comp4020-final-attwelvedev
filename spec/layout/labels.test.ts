@@ -84,8 +84,11 @@ async function walkAndSample(page: Page, route: [number, number][]): Promise<Box
   // read inside the page on every frame, and keeps sampling what is drawn while it walks. A pass of the loop
   // below takes 100 to 300 ms on a loaded runner (CI run 42565070043), up to a tile of travel at 4 tiles a
   // second, and a 45 ms tap moved the figure about 0.04 tile there: 9 tiles in 30 s. A held key walks at the
-  // game's own speed however slow the passes are. A window that loses focus drops the key and the wait runs
-  // out after 5 s; the loop's next pass then holds it again.
+  // game's own speed however slow the passes are. The page drops every held key when its window loses focus
+  // (input.ts: blur clears them) and a key pressed once is not sent again, so the key is pressed again on every
+  // poll, as escape-hud's walk does; pressing a key that is already down changes nothing. Without that, one
+  // blur stopped the figure and the wait ran its whole 5 s: three passes of 5.2 to 5.4 s in CI run 42586723384.
+  // It also gives up early when the figure has not moved for 1.5 s, so a hold that is not working costs 1.5 s.
   const holdTo = async (key: string, axis: number, dir: number, target: number) => {
     let walking = true;
     const sampler = (async () => {
@@ -95,19 +98,23 @@ async function walkAndSample(page: Page, route: [number, number][]): Promise<Box
       }
     })();
     try {
-      await page.keyboard.down(key);
-      await page
-        .waitForFunction(
-          (a) => {
-            const raw =
-              document.querySelector("canvas[data-camera]")?.getAttribute("data-self") ?? "";
-            const v = Number(raw.split(",")[a.axis]);
-            return !Number.isNaN(v) && (a.dir > 0 ? v >= a.target - 0.4 : v <= a.target + 0.4);
-          },
-          { axis, dir, target },
-          { polling: "raf", timeout: 5000 },
-        )
-        .catch(() => undefined);
+      const at = async () => {
+        const raw = (await page.locator("canvas[data-camera]").getAttribute("data-self")) ?? "";
+        return Number(raw.split(",")[axis]);
+      };
+      let last = await at();
+      let movedAt = Date.now();
+      const deadline = Date.now() + 5000;
+      while (Date.now() < deadline) {
+        await page.keyboard.down(key);
+        const v = await at();
+        if (!Number.isNaN(v) && (dir > 0 ? v >= target - 0.4 : v <= target + 0.4)) break;
+        if (Math.abs(v - last) > 0.01) {
+          last = v;
+          movedAt = Date.now();
+        } else if (Date.now() - movedAt > 1500) break; // not moving: back to the loop, which corrects and holds again
+        await page.waitForTimeout(40);
+      }
     } finally {
       await page.keyboard.up(key);
       walking = false;

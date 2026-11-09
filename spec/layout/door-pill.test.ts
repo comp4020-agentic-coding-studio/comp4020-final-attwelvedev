@@ -144,6 +144,20 @@ describe("a door opening off screen, drawn as an edge pill", () => {
       const standing = Date.now();
       for (const role of ROLES) await standOn(table.byRole[role], role);
       const polling = Date.now();
+      // where each figure stood when the walk ended, and what its page says the server applied: the door
+      // opens only when all three are on their plates at once (x 2 to 3), and the blind page publishes no
+      // position, so its inputs sent are the only sign. Kept for the report below.
+      const onPlates = await Promise.all(
+        ROLES.map(async (role) => {
+          const info = await table.byRole[role]
+            .evaluate(() => ({
+              self: document.querySelector("canvas[data-self]")?.getAttribute("data-self") ?? null,
+              net: document.querySelector("canvas[data-net]")?.getAttribute("data-net") ?? null,
+            }))
+            .catch(() => null);
+          return `${role} ${JSON.stringify(info)}`;
+        }),
+      );
       const seen = await Promise.all(
         roles.map(async ([name, role]) => {
           const label = `${name} at ${width}`;
@@ -178,7 +192,7 @@ describe("a door opening off screen, drawn as an edge pill", () => {
             const seenAny = passes.filter((q) => q.box !== null);
             throw new Error(
               `${label}: the door pill was never whole: ${passes.length} passes in ${Date.now() - polling} ms, ` +
-                `standOn took ${polling - standing} ms, slowest passes ${JSON.stringify(slowest)}, ` +
+                `standOn took ${polling - standing} ms, after it: ${onPlates.join("; ")}, slowest passes ${JSON.stringify(slowest)}, ` +
                 `a pill of any size in ${seenAny.length} passes ${JSON.stringify(seenAny.slice(0, 4))}; ` +
                 `the pill lasts 4000 ms, so a first pass later than that missed it`,
               { cause: error },
