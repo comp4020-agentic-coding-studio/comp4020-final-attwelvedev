@@ -89,10 +89,15 @@ of 3 on their own and in 4 of 4 `pnpm check:flaky` runs. The next two failed in 
   (Two earlier attempts at `standOn` were dropped: one counted `ack`, which counts reads and not moves, and one
   walked the blind figure past the plate.) The earlier "a slow pass missed a 4 s pill" idea is ruled out: no pill of
   any size was drawn at all.
-- **game, "back at spawn".** Failed in CI attempt 2: after a restart, `settledHash` never equalled the spawn
-  picture within 8 s. `settledHash` returns its last frame whether or not it held still, so "settled on the wrong
-  picture" and "never settled" were indistinguishable in the old message. `settleReport` (`spec/playUi.ts`) now
-  says which, with the figure's `data-self` beside the same reading at the spawn.
+- **game, "back at spawn": replaced (commit after 4d9d045).** Failed in CI attempt 2: after a restart,
+  `settledHash` never equalled the spawn picture within 8 s. `settledHash` returns its last frame whether or not it
+  held still, so "settled on the wrong picture" and "never settled" were the same failure and the cause was never
+  found. The test now reads the page's `data-self` instead (a number: the spawn, more than a tile away, back on the
+  spawn and still there 300 ms later) and `settleReport` is gone. Shown red under a restart that leaves everyone in
+  place and under a figure that never moves; passes at 4x and 8x throttle. The picture is no longer compared, and
+  nothing else checked it. Two other tests in `game.test.ts` compare canvas hashes the same way ("leaves everyone
+  where they are when one person says No", "lets a player move again after a restart", the latter with a raw
+  `canvasHash` in an 800 ms loop); neither has failed and they are unchanged.
 - **spectator.test.ts** ("no msg message within 2000 ms") failed once in seven earlier runs and never reproduced.
 
 ## Ruled out, each with a measurement
