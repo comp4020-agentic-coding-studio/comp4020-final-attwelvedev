@@ -85,6 +85,9 @@ async function walkAndSample(page: Page, route: [number, number][]): Promise<Box
   // the plaque it was sent to look at and prove nothing.
   for (const [tx, ty] of route) {
     const legEnd = Date.now() + 30_000;
+    // how long each pass of this leg took and where the figure was after it, so a stall says whether
+    // the walk ran out of passes (slow ones) or the figure stopped moving (the same x again and again)
+    const passes: { ms: number; take: number; read: number; press: number; x: number }[] = [];
     for (;;) {
       if (Date.now() > legEnd) {
         const at = await selfAt(page);
@@ -121,12 +124,25 @@ async function walkAndSample(page: Page, route: [number, number][]): Promise<Box
               }),
           )
           .catch((error) => ({ unreadable: String(error) }));
+        const slowest = [...passes].sort((a, b) => b.ms - a.ms).slice(0, 3);
+        const walk = {
+          passes: passes.length,
+          medianMs: [...passes].map((q) => q.ms).sort((a, b) => a - b)[passes.length >> 1] ?? null,
+          slowest,
+          xFirst: passes[0]?.x ?? null,
+          xLast: passes[passes.length - 1]?.x ?? null,
+          // distinct x values seen: few of them means the figure stopped, many means it kept going
+          distinctX: new Set(passes.map((q) => q.x)).size,
+        };
         throw new Error(
-          `never reached ${tx},${ty} within 30 s; stuck at ${JSON.stringify(at)}; page ${JSON.stringify(state)}`,
+          `never reached ${tx},${ty} within 30 s; stuck at ${JSON.stringify(at)}; walk ${JSON.stringify(walk)}; page ${JSON.stringify(state)}`,
         );
       }
+      const t0 = Date.now();
       await take();
+      const t1 = Date.now();
       const me = await selfAt(page);
+      const t2 = Date.now();
       if (!me) {
         await page.waitForTimeout(60);
         continue;
@@ -141,6 +157,8 @@ async function walkAndSample(page: Page, route: [number, number][]): Promise<Box
       if (Math.abs(off) > 0.1) await press(alongX ? (dy > 0 ? "s" : "w") : dx > 0 ? "d" : "a");
       else if (alongX) await press(dx > 0 ? "d" : "a");
       else await press(dy > 0 ? "s" : "w");
+      const t3 = Date.now();
+      passes.push({ ms: t3 - t0, take: t1 - t0, read: t2 - t1, press: t3 - t2, x: me.x });
     }
     // at the waypoint, read what is drawn over a few frames (a count of samples, not a clock)
     for (let i = 0; i < 8; i++) {

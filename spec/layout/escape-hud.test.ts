@@ -147,19 +147,10 @@ describe("the gear slot", () => {
       (await mute.locator("canvas[data-self]").getAttribute("data-self")) ?? "";
     await walk(mute, "w", async () => Number((await at()).split(",")[1]) < 3);
     await walk(mute, "d", async () => Number((await at()).split(",")[0]) >= 22.2, 10_000);
-    await expect
-      .poll(() => mute.locator(".act-hint").textContent(), { timeout: 3000 })
-      .toMatch(/^Space Take the /);
-    // Act is read when the client samples input: hold Space until the slot shows the gear
-    await mute.keyboard.down(" ");
-    try {
-      await expect
-        .poll(() => mute.locator(".gear-slot").textContent(), { timeout: 3000 })
-        .toMatch(/UV torch|Stethoscope|Earpiece|Goggles/);
-    } catch (error) {
-      // Act did nothing: say where the figure was, what the hint said and whether the page was live, so
-      // a failure that only happens on a loaded runner explains itself
-      const state = await mute
+    // where the walk stopped: the gear is at x 22, so a figure well past it has overshot
+    const stoppedAt = await at();
+    const pageState = () =>
+      mute
         .evaluate(() => ({
           self: document.querySelector("canvas[data-self]")?.getAttribute("data-self") ?? null,
           net: document.querySelector("canvas[data-net]")?.getAttribute("data-net") ?? null,
@@ -169,6 +160,27 @@ describe("the gear slot", () => {
           intro: document.querySelector(".game")?.getAttribute("data-intro") ?? null,
         }))
         .catch((e) => ({ unreadable: String(e) }));
+    try {
+      await expect
+        .poll(() => mute.locator(".act-hint").textContent(), { timeout: 3000 })
+        .toMatch(/^Space Take the /);
+    } catch (error) {
+      // the hint never offered the gear: the walk stopped at `stoppedAt` and the page is now here
+      throw new Error(
+        `no Take hint: walk stopped at ${stoppedAt}; page now ${JSON.stringify(await pageState())}`,
+        { cause: error },
+      );
+    }
+    // Act is read when the client samples input: hold Space until the slot shows the gear
+    await mute.keyboard.down(" ");
+    try {
+      await expect
+        .poll(() => mute.locator(".gear-slot").textContent(), { timeout: 3000 })
+        .toMatch(/UV torch|Stethoscope|Earpiece|Goggles/);
+    } catch (error) {
+      // Act did nothing: say where the figure was, what the hint said and whether the page was live, so
+      // a failure that only happens on a loaded runner explains itself
+      const state = await pageState();
       throw new Error(`Act did not take the gear: ${JSON.stringify(state)}`, { cause: error });
     } finally {
       await mute.keyboard.up(" ");
