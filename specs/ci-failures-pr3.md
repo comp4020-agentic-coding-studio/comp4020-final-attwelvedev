@@ -6,21 +6,21 @@ not find the cause. This one records what did, and what is still open.
 
 ## The state
 
-CI run 42579267291 (commit eb904dd) passed on its first attempt, the first green run on this branch: all eleven
-steps, including the process-evidence check and both secret scans, which had never run here because the `Run the
-spec` step failed first. It took 17 m 23 s of the 20 minute cap. Attempt 2 of the same commit FAILED, in two files
-that had not failed before: `door-pill` ("shows a pill at the edge toward the door at 1280") and `game` ("gives
-every player a Restart ... back at spawn"). Neither has a cause yet (see "Still unexplained"); commit 5d49130
-makes each explain itself when it fails again.
+Five CI runs of nearly the same code, one pass and four failures:
 
-CI runs 42586723384 (cc44612) and 42595732106 (1c936f2, a `workflow_dispatch`; the pull_request trigger fired for
-neither a81c081 nor 1c936f2, cause unknown) failed in `labels` room 03 and `door-pill` at 1280. Both now have a
-shown cause (below) and a fix that is not yet in a CI run. Four runs of nearly the same code: one pass, three
-failures, in five different files between them.
+| run | commit | result | failed |
+|---|---|---|---|
+| 42579267291 attempt 1 | eb904dd | pass | (17 m 23 s of the 20 minute cap) |
+| 42579267291 attempt 2 | eb904dd | fail | door-pill, game |
+| 42586723384 | cc44612 | fail | labels (room 03), door-pill |
+| 42595732106 (`workflow_dispatch`) | 1c936f2 | fail | labels (room 03), door-pill |
+| 42605097983 | 882c113 | fail | spectator, game |
 
-So one commit has passed once and failed once. The walk, `standing`, `reveal` and `home` tests that the fixes below
-target passed in both attempts, which is encouraging and is two runs. The suite still has load-sensitive tests, and
-the branch should not be called fixed, or merged, on this evidence.
+The pull_request trigger did not fire for a81c081 or 1c936f2 (cause unknown; it fired for 882c113), hence the
+dispatch. Every failure above now has a shown cause and a fix, in commits 3c03d5d and 0f65cf1 and earlier (see "What
+the failures were"). Those two are the newest and are not yet in a CI run, so none of this is confirmed on the
+runner. One commit passed once and failed once; do not call the branch fixed, or merge it, until several runs in a
+row are green.
 
 ## What the failures were
 
@@ -47,6 +47,25 @@ were not lost inputs, a stale `seq`, a wrong drawn position or a wall. The figur
   so the catch is shown and that it caused the CI failure is inferred. An earlier version of this file blamed a
   dropped key on a window blur and 28083e0 added a press-every-poll hold for it; the injected blur reproduced a
   similar slowdown, but the cause was the camera. That change is harmless and stays.
+- **game, "back at spawn" (CI run 42605097983, and my own replacement of it): a deterministic failure my local runs
+  hid.** The first version compared canvas pictures after a "settle" that returns its last frame whether or not it
+  held still (attempt 2 of 42579267291). The replacement read `data-self` but moved the figure right after the
+  restart's vote was accepted, while the restarted room's start (2.4 s as CI runs the app) still locks input, so the
+  figure stayed on the spawn: `moved away from the spawn: expected 0 to be greater than 1`. Reproduced 3 of 3 by
+  running the app without `INTRO_MS=0`, which `pnpm start:check` sets and CLAUDE.md tells you to use, so every
+  local check passed. It now waits for the restart from the server's tick in `data-net` (below what it was, then at
+  least 1). `data-intro="done"` was tried first and does not work: it still reads the old room's `done` for a
+  moment after a restart. Passes with the real intro, with `INTRO_MS=0`, at 8x throttle and with the restart
+  reaching the world 600 ms late; red under a restart that leaves everyone in place and a figure that never moves.
+  The picture is no longer compared, and nothing else checked it. Two other tests in `game.test.ts` compare canvas
+  hashes the same way and are unchanged (neither has failed).
+- **spectator, "receives the msgs the followed seat receives" (two CI failures, `no "msg" message within 2000
+  ms`): a race in the test.** It sent one callout without waiting for the server to handle `spectate`, and a
+  callout sent before that reaches nobody the spectator follows and is lost. With the follow made to take effect
+  400 ms late the old test failed 3 of 3 with the CI message at the CI line. It now sends the callout again every
+  200 ms until the spectator gets one (a callout has no cooldown, so a repeat is never refused). Waiting for a
+  view whose `you.seat` is the followed seat was tried first and failed under the same late follow: the view
+  takes its seat from the `spectate` message itself.
 - **escape-hud, "shows what you carry": overshoot.** The walk held a key until x >= 22.2 and stopped when its
   poll saw it; on a loaded runner the key-up came late and the figure was carried past the gear (23.054 to
   23.500), so "Space Take the ..." never showed. It now holds to x >= 20 and nudges onto the gear with short taps
@@ -89,16 +108,8 @@ of 3 on their own and in 4 of 4 `pnpm check:flaky` runs. The next two failed in 
   (Two earlier attempts at `standOn` were dropped: one counted `ack`, which counts reads and not moves, and one
   walked the blind figure past the plate.) The earlier "a slow pass missed a 4 s pill" idea is ruled out: no pill of
   any size was drawn at all.
-- **game, "back at spawn": replaced (commit after 4d9d045).** Failed in CI attempt 2: after a restart,
-  `settledHash` never equalled the spawn picture within 8 s. `settledHash` returns its last frame whether or not it
-  held still, so "settled on the wrong picture" and "never settled" were the same failure and the cause was never
-  found. The test now reads the page's `data-self` instead (a number: the spawn, more than a tile away, back on the
-  spawn and still there 300 ms later) and `settleReport` is gone. Shown red under a restart that leaves everyone in
-  place and under a figure that never moves; passes at 4x and 8x throttle. The picture is no longer compared, and
-  nothing else checked it. Two other tests in `game.test.ts` compare canvas hashes the same way ("leaves everyone
-  where they are when one person says No", "lets a player move again after a restart", the latter with a raw
-  `canvasHash` in an 800 ms loop); neither has failed and they are unchanged.
-- **spectator.test.ts** ("no msg message within 2000 ms") failed once in seven earlier runs and never reproduced.
+- **Nothing else is unexplained as of 0f65cf1.** The previous entries for `game` and `spectator.test.ts` moved to
+  "What the failures were" below.
 
 ## Ruled out, each with a measurement
 
