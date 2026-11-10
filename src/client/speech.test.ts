@@ -97,8 +97,11 @@ describe("an ask shown as a caption line", () => {
     expect(askShownAsLine("blind", true, true)).toBe(true);
     expect(askShownAsLine("blind", true, false)).toBe(false);
   });
-  it("Can't speak always reads it; Can't hear gets no line", () => {
-    expect(askShownAsLine("mute", true, false)).toBe(true);
-    expect(askShownAsLine("deaf", false, true)).toBe(false);
+  it("Can't speak and Can't hear get no line, whatever the settings", () => {
+    for (const speechOn of [true, false])
+      for (const captionsOn of [true, false]) {
+        expect(askShownAsLine("mute", speechOn, captionsOn)).toBe(false);
+        expect(askShownAsLine("deaf", speechOn, captionsOn)).toBe(false);
+      }
   });
 });

@@ -68,11 +68,10 @@ export function browserSpeech(role: Role, enabled: () => boolean): Speech {
   });
 }
 
-// Whether an ask is also shown as a caption line. Can't speak reads it always (text is their only way);
-// Can't see gets it when spoken lines are off (a silent ask would be lost without trace) or captions
-// are on. Can't hear gets a Desperate face instead (BT1, BT2).
+// Whether an ask is also shown as a caption line. Can't see gets it when spoken lines are off (a
+// silent ask would be lost without trace) or captions are on. Can't hear gets a Desperate face
+// instead (BT1, BT2), and Can't speak gets no words at all (owner, 2026-11-11).
 export function askShownAsLine(role: Role, speechOn: boolean, captionsOn: boolean): boolean {
-  if (role === "mute") return true;
   if (role === "blind") return !speechOn || captionsOn;
   return false;
 }

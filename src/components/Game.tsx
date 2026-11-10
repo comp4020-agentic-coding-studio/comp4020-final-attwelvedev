@@ -952,10 +952,10 @@ function Hud({
     );
   }, [socket, role, rt, audio]);
 
-  // An ask said (new, or said again by the bot's clock): Can't see hears it, Can't speak reads it
-  // (text is always shown to them). Can't hear is asked by a face from the bot instead, and gets no words (BT1, BT2).
+  // An ask said (new, or said again by the bot's clock): only Can't see gets it, spoken or as a line.
+  // Can't hear is asked by a face from the bot instead (BT1, BT2); Can't speak gets no words or lines.
   useEffect(() => {
-    if (role === "deaf") return;
+    if (role !== "blind") return;
     const speech = browserSpeech(role, () => live.current.settings.speech);
     const said = new Map<string, number>();
     const off = socket.on("view", (m) => {
