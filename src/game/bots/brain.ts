@@ -52,6 +52,7 @@ import {
 } from "./decode.ts";
 import { type AlarmWindow, forecastFor } from "./forecast.ts";
 import {
+  canDo,
   claimJobs,
   clueTarget,
   exitTile,
@@ -114,6 +115,11 @@ export interface BotMemory {
   count: Count | null; // a sync lock's counter: the digit it last texted, and when
   remarked: Record<string, number>; // a person-pressed station: the ask count its marks were last re-sent at
   asks: Record<string, AskClock>; // the asks it is making, keyed "<kind>:<station>:<to>" (asks.ts)
+  // BJ2: each person's station or watch job (by job index): when it became theirs to work, or last
+  // moved, in ticks. After TAKEOVER_TICKS without a move the job goes to a bot.
+  idleSince: Record<number, number>;
+  takenOver: Set<number>; // job indexes taken from a person: kept for good, even if they start later
+  notice: { to: Seat; station: string; at: number } | null; // its own "I'll do this one." (game ms)
   lastHeardAt: number; // the latest message it was sent or sent itself (game ms): an ask never lands within 2 s
 }
 export interface BotTurn {
@@ -172,6 +178,9 @@ const WORK_KINDS = new Set<Job["target"]["kind"]>([
 // jobs up once it has been open this long without being solved, and goes back to its beat (FR1 of
 // review fixes A: an uncovered cache never blocks a room for good)
 export const CACHE_GIVE_UP_TICKS = 1200;
+// BJ2: a person's station or watch job with no progress this long (60 s) is taken over by a bot
+export const TAKEOVER_TICKS = 1200;
+const NOTICE_MS = 3000; // "I'll do this one." stays up this long
 const PERCEIVED_TICKS = 40; // a hazard seen or heard in the last 2 s is planned around (A3)
 
 // The hazards this bot has seen or heard lately: all it may plan around, since a role that
@@ -268,6 +277,9 @@ export function createBotMemory(
     toldPlate: null,
     count: null,
     asks: {},
+    idleSince: {},
+    takenOver: new Set(),
+    notice: null,
     remarked: {},
     lastHeardAt: Number.NEGATIVE_INFINITY,
   };
@@ -563,6 +575,7 @@ function observe(room: Room, view: RoleView, inbox: ChannelMessage[], m: BotMemo
   }
   perceiveCaches(room, view, known);
   giveUpCaches(room, view, known, m);
+  takeOver(room, view, known, m);
   // an alarm speeds the guards up and holds the cameras on: the forecast needs its windows
   if (view.alarm && m.alarmFrom === null) m.alarmFrom = view.tick;
   if (!view.alarm && m.alarmFrom !== null) {
@@ -638,6 +651,59 @@ function giveUpCaches(room: Room, view: RoleView, known: Known, m: BotMemory): v
   }
 }
 
+// BJ2: a person's job left without progress for TAKEOVER_TICKS goes to the lowest bot seat that can
+// do it (`canDo`). The clock starts when the job becomes theirs to work (the first station or watch
+// job in their queue not yet done) and restarts each time the station is seen to move. Every bot
+// computes this from the same static plan and the station as it perceives it, so they agree while
+// they perceive the station alike (the overnight log, bp04/305, has the case they may not). The job
+// is moved in this bot's copy of the queues and is never moved back.
+function takeOver(room: Room, view: RoleView, known: Known, m: BotMemory): void {
+  if (m.humans.size === 0) return;
+  const queues = queuesOf(room, m, view.role);
+  const roles = rolesOf(m, view.role);
+  for (const person of m.humans) {
+    const job = queues[person].find(
+      (j) =>
+        !j.all &&
+        j.cache === undefined &&
+        (j.target.kind === "station" || j.target.kind === "watch") &&
+        !isDone(room, j, known, undefined, person),
+    );
+    if (!job) continue;
+    const id =
+      job.target.kind === "station" ? job.target.id : (job.target as { station: string }).station;
+    const moved = known.stations[id]?.changedAt ?? Number.NEGATIVE_INFINITY;
+    const since = Math.max(m.idleSince[job.index] ?? view.tick, moved);
+    m.idleSince[job.index] = since;
+    if (view.tick - since < TAKEOVER_TICKS) continue;
+    const to = ([0, 1, 2] as const).find(
+      (s) => !m.humans.has(s) && canDo(roles[s] as Role, job, room),
+    );
+    if (to === undefined) continue; // nobody can: the asks just continue
+    queues[person].splice(queues[person].indexOf(job), 1);
+    const at = Math.min(m.ptr[to], queues[to].length);
+    queues[to].splice(at, 0, job);
+    m.takenOver.add(job.index);
+    m.markedFor = null; // marks made for the person are theirs: the new owner reads the lamps afresh
+    if (to === m.seat) m.notice = { to: person, station: id, at: view.tick * TICK_MS };
+  }
+}
+
+// A station job a bot took over whose watch job it holds as well (the only bot that could press the
+// switches is the one watching their lamps): it watches, marks the button for itself (`workSend`),
+// and goes to press it only while such a mark of its own is waiting.
+function selfWatch(room: Room, m: BotMemory, known: Known, queue: Job[], job: Job): Job | null {
+  if (job.target.kind !== "station" || m.takenOver.size === 0) return null;
+  const id = job.target.id;
+  const watch = queue.find(
+    (j) =>
+      j.target.kind === "watch" && j.target.station === id && !isDone(room, j, known, undefined),
+  );
+  if (!watch || !(m.takenOver.has(job.index) || m.takenOver.has(watch.index))) return null;
+  const b = known.stations[id];
+  return b && b.marked[b.used] === undefined ? watch : null;
+}
+
 // A send-back shuts every chamber again: what was perceived of them is forgotten, and re-learned
 // from the door (if seen) or the owner's view.
 function forgetCaches(room: Room, view: RoleView, known: Known, m: BotMemory): void {
@@ -678,7 +744,8 @@ function currentJob(
     m.cacheDone.add(`${seat}:${j.index}`); // done by being there: leaving does not undo it
     return false;
   });
-  return active ?? queue.slice(m.ptr[seat]).find((j) => j.cache === undefined) ?? null;
+  const beatJob = active ?? queue.slice(m.ptr[seat]).find((j) => j.cache === undefined) ?? null;
+  return (beatJob && selfWatch(room, m, known, queue, beatJob)) ?? beatJob;
 }
 
 function rolesOf(m: BotMemory, own: Role): readonly [Role, Role, Role] {
@@ -1234,12 +1301,23 @@ function thinkSighted(
   const input = view.alarm
     ? idle(m)
     : press(room, view, m, known, pos, towedWalk(led, moveSelf(room, view, m, known, pos)));
-  const ask = askWanted(room, view, m, known, pos, now);
+  const ask = noticeOf(m, now) ?? askWanted(room, view, m, known, pos, now);
   send = workSend(room, view, m, known, pos);
   if (send) return { input, send: stamp(m, send, now), ask };
   if (view.role === "deaf") send = guideBlind(room, view, m, known, now);
   else if (view.role === "mute") send = muteClip(room, view, m, now);
   return { input, send: stamp(m, send, now), ask };
+}
+
+// BJ2: "I'll do this one." to the person whose job this bot took, for a few seconds (once).
+function noticeOf(m: BotMemory, now: number): Ask | null {
+  const n = m.notice;
+  if (!n) return null;
+  if (now - n.at >= NOTICE_MS) {
+    m.notice = null;
+    return null;
+  }
+  return { kind: "taking-over", from: m.seat, to: n.to, station: n.station, saidAt: n.at };
 }
 
 // The ask for `kind` while the bot wants it (asks.ts): sent every tick it is wanted, so the game
@@ -1457,7 +1535,17 @@ function workSend(
   const lamps = `${o.id}:${b.shows.join()}`; // per station: two watchers' lamps may read alike
   if (next === undefined || m.markedFor === lamps) return null;
   const at = tilesOf(o.params?.buttons)[next];
-  if (!at || cool) return null;
+  if (!at) return null;
+  // a bot that took over the pressing too (BJ2) notes the button for itself: nobody else needs it
+  const mine = queuesOf(room, m, view.role)[m.seat].some(
+    (j) => j.target.kind === "station" && j.target.id === o.id && m.takenOver.size > 0,
+  );
+  if (mine) {
+    m.markedFor = lamps;
+    b.marked.push(at);
+    return null;
+  }
+  if (cool) return null;
   m.markedFor = lamps;
   m.lastMarkAt = view.tick * TICK_MS;
   return { method: "mark", id: "x", at: centreOf(at) };

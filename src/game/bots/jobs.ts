@@ -401,6 +401,12 @@ const canReceiveAll = (role: Role, signals: Signal[]) =>
   signals.every((sig) => sig === "none" || canReceive(role, SIGNAL_METHOD[sig]));
 const distance = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
 
+// May a seat of this role do the job at all: eligible, and it can receive what the job needs (BJ1).
+// A takeover (BJ2) re-claims a person's job for the lowest bot seat this holds for.
+export function canDo(role: Role, job: Job, room: Room): boolean {
+  return eligible(role, job) && canReceiveAll(role, needs(job, room));
+}
+
 // Splits the room's jobs between the three seats, one job per seat per beat, as
 // each seat's queue in beat order. In each beat humans choose first, the job
 // nearest where they stand; each job left goes to the bot whose role prefers it,

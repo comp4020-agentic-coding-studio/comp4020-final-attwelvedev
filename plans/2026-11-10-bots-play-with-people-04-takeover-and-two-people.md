@@ -35,7 +35,7 @@ export interface AskClock { firstAt: number; lastAt: number; count: number; prog
 
 ## Tasks
 
-### Task 305: A bot takes over a person's idle job (BJ2) — [ ]
+### Task 305: A bot takes over a person's idle job (BJ2) — [x]
 
 - **Behaviour:** each bot tracks, for each job a **person** owns (from `m.queues`), when it was first asked for (the ask clock's `firstAt`, or when the job became current) and the last progress (the same progress signal as Task 304).
   - **Takeover:** after `TAKEOVER_TICKS = 1200` (60 s) with no progress, the job is re-claimed **deterministically**: the eligible bot with the lowest seat, using `eligible` and `needs` for bots. Every bot computes the same answer from what it perceives. If they could disagree, because one bot hasn't seen the station, log it and make the rule depend only on shared events (the ask's `firstAt` is the bot's own; prefer the job becoming current, which every bot computes the same).

@@ -4,7 +4,7 @@ import { type RoleView, viewFor } from "../perception.ts";
 import { type CacheSpec, cacheOf } from "../rooms/format.ts";
 import { loadRooms } from "../rooms/load.ts";
 import { syncCacheDoors } from "../sim/cache.ts";
-import { forceUncover } from "../sim/stations.ts";
+import { forceUncover, tilesOf } from "../sim/stations.ts";
 import { step } from "../sim/step.ts";
 import { roomWith } from "../sim/testing.ts";
 import { createWorld, TICK_MS } from "../sim/world.ts";
@@ -2273,5 +2273,76 @@ describe("every station a person works is asked for (Task 304)", () => {
     const steer = asks.filter((a) => a.kind === "steer-me");
     expect(steer.length).toBeGreaterThan(0);
     expect(steer.every((a) => a.to === 1 && a.from === 0)).toBe(true);
+  });
+});
+
+describe("a bot takes over a person's idle job (BJ2, Task 305)", () => {
+  // Room 6 with three bots until the radio is solved; then Can't speak (seat 2), who owns the
+  // switches, becomes a person who stands still, or who presses one marked button at `pressAt` ticks.
+  const run = (pressAt?: number) => {
+    const r = room("06-lights-out");
+    const world = createWorld(r, 1, [...ROLES3]);
+    const humans = new Set<Seat>();
+    const bots: Partial<Record<Seat, BotSeat>> = {};
+    for (const s of [0, 1, 2] as const)
+      bots[s] = { memory: createBotMemory(s, humans, ROLES3), inbox: [] };
+    const cd = { until: {} };
+    let asks: ReturnType<typeof botsAct>["sentAsks"] = [];
+    const act = () =>
+      botsAct(
+        r,
+        world,
+        ROLES3,
+        bots,
+        cd,
+        world.tick * TICK_MS,
+        () => "Bot",
+        world.tick === 0 ? new Set<Seat>([0, 1, 2]) : new Set<Seat>(),
+        asks,
+      );
+    while (world.tick < 8000 && world.stations.Q1?.solved !== true)
+      step(world, act().inputs, TICK_MS);
+    expect(world.stations.Q1?.solved, "the radio is solved").toBe(true);
+    delete bots[2];
+    humans.add(2);
+    for (const b of Object.values(bots)) (b as BotSeat).memory.queues = null;
+    const from = world.tick;
+    const notices: { to: Seat; from: Seat; tick: number }[] = [];
+    let solvedAt: number | null = null;
+    while (world.tick < from + 3000 && solvedAt === null) {
+      const out = act();
+      asks = out.sentAsks;
+      for (const a of out.sentAsks)
+        if (a.kind === "taking-over") notices.push({ to: a.to, from: a.from, tick: world.tick });
+      const press = pressAt !== undefined && world.tick - from === pressAt;
+      // the person's one press: they stand on the first button and press it
+      if (press) {
+        const b = tilesOf(r.objects.find((o) => o.id === "Q2")?.params?.buttons)[0] as {
+          x: number;
+          y: number;
+        };
+        world.players[2].pos = { x: b.x + 0.5, y: b.y + 0.5 };
+      }
+      out.inputs[2] = { seq: world.tick + 1, move: { x: 0, y: 0 }, act: press };
+      step(world, out.inputs, TICK_MS);
+      if (world.stations.Q2?.solved) solvedAt = world.tick - from;
+    }
+    return { notices, solvedAt };
+  };
+
+  it("after 60 s a bot takes the switches, says so to the person, and solves them", () => {
+    const { notices, solvedAt } = run();
+    expect(notices.length, "a takeover notice").toBeGreaterThan(0);
+    expect(notices.every((n) => n.to === 2 && n.from !== 2)).toBe(true);
+    expect(notices[0]?.tick).toBeGreaterThanOrEqual(1200);
+    expect(solvedAt, "the switches are solved").not.toBeNull();
+  });
+
+  it("a person who makes progress at 50 s resets the clock", () => {
+    const { notices } = run(1000);
+    expect(notices.length, "a takeover notice").toBeGreaterThan(0);
+    expect(notices[0]?.tick, "no takeover before 60 s after the press").toBeGreaterThanOrEqual(
+      2200,
+    );
   });
 });
