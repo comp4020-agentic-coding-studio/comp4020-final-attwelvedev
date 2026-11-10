@@ -1848,3 +1848,48 @@ describe("the line-up tap needs sight of the person too (F1, Task 281)", () => {
     expect(texts.length, texts.join(" | ")).toBeLessThanOrEqual(1);
   });
 });
+
+describe("a bot Can't see on a long straight run (F7, Task 283)", () => {
+  // A direction is said once (FR10), so on a run of 20+ tiles nothing reached the blind bot for more than
+  // IDLE_MS (5 s), it held ("nobody is steering"), and the guide's stuck rule then said stop and go.
+  it("walks a 30-tile corridor to the exit without holding or being called stuck", () => {
+    const grid = [
+      "##################################",
+      "#2..............................3#",
+      "#1..............................E#",
+      "##################################",
+    ];
+    const r = roomWith(grid, {}, { hints: { jobs: [{ beat: 1, goTo: "E", all: true }] } });
+    const world = createWorld(r);
+    const roles: [Role, Role, Role] = ["blind", "deaf", "mute"];
+    const bots: Record<Seat, BotSeat> = {
+      0: { memory: createBotMemory(0, new Set(), roles), inbox: [] },
+      1: { memory: createBotMemory(1, new Set(), roles), inbox: [] },
+      2: { memory: createBotMemory(2, new Set(), roles), inbox: [] },
+    };
+    let held = 0;
+    let stuck = 0;
+    let started = false;
+    for (let i = 0; i < 400 && world.players[0].pos.x < 32; i++) {
+      // the guide walks beside the blind, so it always sees it
+      const out = botsAct(
+        r,
+        world,
+        roles,
+        bots,
+        { until: {} },
+        world.tick * TICK_MS,
+        (s) => `Bot ${s}`,
+      );
+      step(world, out.inputs, TICK_MS);
+      if (bots[1].memory.guide.moving) started = true;
+      if (started && bots[0].memory.holding && world.players[0].pos.x < 32) held++;
+      for (const s of out.sent)
+        if (s.message.method === "callout" && s.message.callout === "stop") stuck++;
+    }
+    expect(started).toBe(true);
+    expect(Math.floor(world.players[0].pos.x), "reached the end").toBeGreaterThanOrEqual(32);
+    expect(held, "ticks the blind bot held mid-run").toBe(0);
+    expect(stuck, "stops said").toBe(0);
+  });
+});

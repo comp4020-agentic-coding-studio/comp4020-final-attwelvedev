@@ -97,7 +97,7 @@ The same shape applies to any `.hud-alert` that appears or goes mid-game (lag, g
 - **Break check:** by script, make the gap constant at `NUDGE_MS * 4` and cap `nudges` at 1 (the old one-nudge shape); the cadence test goes red.
 - **Depends on:** Task 281 (same file, run it first).
 
-### Task 283: A bot Can't see isn't left holding on long runs (F7) — [ ]
+### Task 283: A bot Can't see isn't left holding on long runs (F7) — [x]
 
 **Finding (confirmed, LOW):**
 - `brain.ts` (about 309): a moving blind bot with no callout for more than `IDLE_MS` (5000 ms) sets `holding`.

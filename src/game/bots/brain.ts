@@ -1658,6 +1658,20 @@ function guideBlind(
     callout = WORD[headingWord(g.heading)] as Callout;
     g.nudges++;
   }
+  // a bot Can't see holds after IDLE_MS with nothing heard ("nobody is steering"), and on a long straight
+  // run nothing is said (FR10): the guide keeps it walking by saying the heading again every IDLE_MS / 2.
+  // Bot to bot only; a person is never repeated at this way. Not on a plate, where a fresh direction
+  // would walk it off the hum it is about to hold (F7).
+  if (
+    !callout &&
+    !tap &&
+    blindIsBot &&
+    g.moving &&
+    now - g.lastSentAt >= IDLE_MS / 2 &&
+    !mapsOf(room).plateAt.has(key(tile))
+  ) {
+    callout = WORD[headingWord(g.heading)] as Callout;
+  }
   if (callout) {
     g.lastSentAt = now;
     g.lastSent = callout;
