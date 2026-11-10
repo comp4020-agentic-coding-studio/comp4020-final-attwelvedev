@@ -1,6 +1,6 @@
 import { cacheOf, inRect, type Room } from "../rooms/format.ts";
 import { platePart } from "../sim/braille.ts";
-import type { Role, Seat, Vec } from "../types.ts";
+import { canReceive, type Method, type Role, type Seat, type Vec } from "../types.ts";
 import type { StationBelief } from "./decode.ts";
 
 // A room's hints (metadata key `hints`) say what the team has to do, beat by
@@ -370,6 +370,35 @@ const eligible = (role: Role, job: Job) =>
     (job.target.kind === "station" || job.target.kind === "watch") &&
     job.target.hearing === true
   );
+// What a seat doing a job must be able to *receive* from a teammate (BJ1, ADR 0031): a person given
+// a job whose signal their role cannot receive has no way to learn the answer.
+export type Signal = "callout" | "text" | "mark" | "none";
+const SIGNAL_METHOD: Record<Exclude<Signal, "none">, Method> = {
+  callout: "callout",
+  text: "text",
+  mark: "mark",
+};
+
+export function needs(job: Job, room: Room): Signal[] {
+  const t = job.target;
+  const stationType = (id: string) => room.objects.find((o) => o.id === id)?.params?.type;
+  if (t.kind === "listen") return stationType(t.station) === "dial" ? ["callout"] : ["none"];
+  if (t.kind === "watch") return ["mark"];
+  if (t.kind !== "station") return ["none"];
+  const o = room.objects.find((x) => x.id === t.id);
+  const type = o?.params?.type;
+  if (type === "dial") return ["callout"];
+  if (type === "sync") return ["text"];
+  if (type === "radio" || type === "wires" || type === "keypad") {
+    const plated = platePart(room, t.id) !== undefined;
+    const earpiece = type === "keypad" && String(o?.params?.clue ?? "").startsWith("g");
+    return plated || earpiece ? ["text"] : ["none"];
+  }
+  return ["none"];
+}
+
+const canReceiveAll = (role: Role, signals: Signal[]) =>
+  signals.every((sig) => sig === "none" || canReceive(role, SIGNAL_METHOD[sig]));
 const distance = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
 
 // Splits the room's jobs between the three seats, one job per seat per beat, as
@@ -415,7 +444,9 @@ export function claimJobs(room: Room, jobs: Job[], seats: SeatInfo[]): Record<Se
       .filter((s) => s.human)
       .sort((a, b) => count(a.seat) - count(b.seat) || a.seat - b.seat);
     for (const who of humans) {
-      const options = left.filter((j) => eligible(who.role, j));
+      const options = left.filter(
+        (j) => eligible(who.role, j) && canReceiveAll(who.role, needs(j, room)),
+      );
       if (options.length === 0) continue;
       const rank = (j: Job) =>
         (who.pos ? distance(who.pos, jobTile(room, j, who.seat)) * 10 : 0) +

@@ -24,7 +24,7 @@
 
 ## Tasks
 
-### Task 296: The stand-in person (BG1 harness) — [ ]
+### Task 296: The stand-in person (BG1 harness) — [x]
 
 - **Behaviour:** a stand-in seat is the bot brain with person limits. Its memory is built with **every stand-in seat included in `humans`**, so the bots and the stand-ins' own job claims treat it as a person.
   - It sees and acts only through its own role's view, as any bot does.
@@ -40,7 +40,7 @@
 - **Break check:** set the delay to 0 by script; the first test goes red.
 - **Depends on:** none.
 
-### Task 297: `spec/rooms-people.test.ts` and its known-failing list (BG1) — [ ]
+### Task 297: `spec/rooms-people.test.ts` and its known-failing list (BG1) — [x]
 
 - **Behaviour:** for every shipped room, every rotation, and each seat in turn as the single stand-in, `solveRoom(room, roles, budgetS, { standIns: new Set([seat]) })` must pass the same assertions as `spec/rooms.test.ts`. The test title names the room, the rotation and the stand-in's role.
 - **First, measure:** run every combination on today's code. Each failure becomes a `NOT_YET` entry, keyed `"<room>|<rotation>|<role>"`. Each entry has its measured cause (not cleared after N s, caught N times, or stalled at job X) and the phase expected to fix it (02, 03 or 04), mapped from the spec's §3 table. Log the count.
@@ -49,7 +49,7 @@
 - **Break check:** remove one entry by script; that combination goes red.
 - **Depends on:** Task 296.
 
-### Task 298: A person only gets jobs whose signals they can receive (BJ1) — [ ]
+### Task 298: A person only gets jobs whose signals they can receive (BJ1) — [x]
 
 - **Behaviour:** `needs(job, room): Signal[]` names what a seat doing a job must **receive**:
   - a dial station, or a dial's `listen` job: the turner needs the listener's `callout`

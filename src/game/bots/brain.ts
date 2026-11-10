@@ -858,15 +858,13 @@ function goalFor(
   // stands at that ink and lights it for the others (a teammate who has no reading job of its own).
   // (Only for the bot's own seat: the same function works out where the Can't-see seat it guides goes.
   // A seat whose own job is to work a wire panel reads the ink in doing it, so it keeps that job.)
-  const readsInk = queue
-    .slice(m.ptr[seat])
-    .some(
-      (j) =>
-        j.target.kind === "station" &&
-        known.stations[j.target.id]?.answer !== undefined &&
-        room.objects.find((o) => o.id === (j.target as { id: string }).id)?.params?.numbered ===
-          true,
-    );
+  const readsInk = queue.slice(m.ptr[seat]).some(
+    (j) =>
+      j.target.kind === "station" &&
+      known.stations[j.target.id]?.answer !== undefined &&
+      platePart(room, j.target.id) === undefined && // a plated panel's ink is blank (inkPost)
+      room.objects.find((o) => o.id === (j.target as { id: string }).id)?.params?.numbered === true,
+  );
   const post = seat === m.seat && view.gear === "uv" && !readsInk ? inkPost(room, known) : null;
   if (post) return { goal: post, job: null };
   if (!queued) return { goal: lookAtDoor(room, known, from, exitTile(room, seat)), job: queued };

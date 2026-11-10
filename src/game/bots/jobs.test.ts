@@ -14,6 +14,7 @@ import {
   type Job,
   jobTile,
   type Known,
+  needs,
   parseJob,
 } from "./jobs.ts";
 
@@ -655,5 +656,50 @@ describe("a read job", () => {
       expect(queues[blind].map((j) => j.target.kind)).toEqual(["read"]);
       for (const s of [0, 1, 2] as const) if (s !== blind) expect(queues[s]).toEqual([]);
     }
+  });
+});
+
+// BJ1 (ADR 0031): a person is only given a job whose signal their role can receive.
+describe("a person's jobs and the signals they need", () => {
+  const shipped = loadRooms("./rooms");
+  const orders: [Role, Role, Role][] = [
+    ["blind", "deaf", "mute"],
+    ["deaf", "mute", "blind"],
+    ["mute", "blind", "deaf"],
+  ];
+  for (const id of ["04", "06", "07"]) {
+    const room = shipped.find((r) => r.id.startsWith(id));
+    if (!room) throw new Error(`room ${id} is missing`);
+    for (const roles of orders) {
+      it(`${room.id} with ${roles.join("/")}: a person who cannot hear is given no text or callout job`, () => {
+        const deafSeat = roles.indexOf("deaf") as Seat;
+        const info = roles.map((role, seat) => ({
+          seat: seat as Seat,
+          role,
+          human: seat === deafSeat,
+        }));
+        const jobs = hintsOf(room);
+        const queues = claimJobs(room, jobs, info);
+        const unreceivable = (j: Job) =>
+          needs(j, room).some((s) => s === "text" || s === "callout");
+        expect(queues[deafSeat].filter(unreceivable)).toEqual([]);
+        // the work is still done: a bot holds each such job instead
+        const bots = ([0, 1, 2] as Seat[]).filter((s) => s !== deafSeat);
+        const mine = jobs.filter((j) => unreceivable(j) && !j.all && j.target.kind !== "keepsake");
+        for (const j of mine) {
+          expect(
+            bots.some((s) => queues[s].includes(j)),
+            `job ${j.index} is held by a bot`,
+          ).toBe(true);
+        }
+      });
+    }
+  }
+
+  it("names each station's signal", () => {
+    const room = shipped.find((r) => r.id.startsWith("04"));
+    if (!room) throw new Error("room 4 missing");
+    const all = hintsOf(room).flatMap((j) => needs(j, room));
+    expect(all).toContain("callout");
   });
 });

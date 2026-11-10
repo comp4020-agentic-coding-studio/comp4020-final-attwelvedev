@@ -28,14 +28,12 @@ const NOT_YET: Record<string, string> = {
     "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
   "03-watchers|2|blind":
     "not cleared after 240 s, caught 38, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
+  "04-the-safe|1|deaf":
+    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: Task 298 (BJ1) took away the jobs a Can't hear person cannot receive, and this still stalls, so the cause is the stop/steer protocol (BT1, BJ3) or a station's missing ask: phase 03 audits it",
   "04-the-safe|0|blind":
     "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
-  "04-the-safe|0|deaf":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 02/03: a Can't hear person is given a job they can't receive (BJ1, Task 298), or is never told the stop/steer protocol",
   "04-the-safe|0|mute":
     "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't speak person is never asked for the digit text or the x mark (BT1)",
-  "04-the-safe|1|deaf":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 02/03: a Can't hear person is given a job they can't receive (BJ1, Task 298), or is never told the stop/steer protocol",
   "04-the-safe|1|mute":
     "not cleared after 240 s, caught 31, refused 0; fixed in phase 03: a Can't speak person is never asked for the digit text or the x mark (BT1)",
   "04-the-safe|1|blind":
@@ -44,8 +42,6 @@ const NOT_YET: Record<string, string> = {
     "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't speak person is never asked for the digit text or the x mark (BT1)",
   "04-the-safe|2|blind":
     "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
-  "04-the-safe|2|deaf":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 02/03: a Can't hear person is given a job they can't receive (BJ1, Task 298), or is never told the stop/steer protocol",
   "05-the-gallery|0|blind":
     "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
   "05-the-gallery|1|blind":
@@ -54,24 +50,18 @@ const NOT_YET: Record<string, string> = {
     "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
   "06-lights-out|0|blind":
     "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
-  "06-lights-out|0|deaf":
-    "not cleared after 240 s, caught 11, refused 0; fixed in phase 02/03: a Can't hear person is given a job they can't receive (BJ1, Task 298), or is never told the stop/steer protocol",
-  "06-lights-out|1|deaf":
-    "not cleared after 240 s, caught 10, refused 0; fixed in phase 02/03: a Can't hear person is given a job they can't receive (BJ1, Task 298), or is never told the stop/steer protocol",
   "06-lights-out|1|blind":
     "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
   "06-lights-out|2|blind":
     "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
-  "06-lights-out|2|deaf":
-    "not cleared after 240 s, caught 11, refused 0; fixed in phase 02/03: a Can't hear person is given a job they can't receive (BJ1, Task 298), or is never told the stop/steer protocol",
   "07-night-shift|0|blind":
     "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
   "07-night-shift|0|deaf":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 02/03: a Can't hear person is given a job they can't receive (BJ1, Task 298), or is never told the stop/steer protocol",
+    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: Task 298 (BJ1) took away the jobs a Can't hear person cannot receive, and this still stalls, so the cause is the stop/steer protocol (BT1, BJ3) or a station's missing ask: phase 03 audits it",
   "07-night-shift|0|mute":
     "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't speak person is never asked for the digit text or the x mark (BT1)",
   "07-night-shift|1|deaf":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 02/03: a Can't hear person is given a job they can't receive (BJ1, Task 298), or is never told the stop/steer protocol",
+    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: Task 298 (BJ1) took away the jobs a Can't hear person cannot receive, and this still stalls, so the cause is the stop/steer protocol (BT1, BJ3) or a station's missing ask: phase 03 audits it",
   "07-night-shift|1|mute":
     "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't speak person is never asked for the digit text or the x mark (BT1)",
   "07-night-shift|1|blind":
@@ -81,7 +71,7 @@ const NOT_YET: Record<string, string> = {
   "07-night-shift|2|blind":
     "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
   "07-night-shift|2|deaf":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 02/03: a Can't hear person is given a job they can't receive (BJ1, Task 298), or is never told the stop/steer protocol",
+    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: Task 298 (BJ1) took away the jobs a Can't hear person cannot receive, and this still stalls, so the cause is the stop/steer protocol (BT1, BJ3) or a station's missing ask: phase 03 audits it",
   "08-music-room|0|blind":
     "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
   "08-music-room|0|mute":
@@ -97,11 +87,11 @@ const NOT_YET: Record<string, string> = {
   "09-the-vault|0|blind":
     "not cleared after 240 s, caught 10, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
   "09-the-vault|0|deaf":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 02/03: a Can't hear person is given a job they can't receive (BJ1, Task 298), or is never told the stop/steer protocol",
+    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: Task 298 (BJ1) took away the jobs a Can't hear person cannot receive, and this still stalls, so the cause is the stop/steer protocol (BT1, BJ3) or a station's missing ask: phase 03 audits it",
   "09-the-vault|0|mute":
     "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't speak person is never asked for the digit text or the x mark (BT1)",
   "09-the-vault|1|deaf":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 02/03: a Can't hear person is given a job they can't receive (BJ1, Task 298), or is never told the stop/steer protocol",
+    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: Task 298 (BJ1) took away the jobs a Can't hear person cannot receive, and this still stalls, so the cause is the stop/steer protocol (BT1, BJ3) or a station's missing ask: phase 03 audits it",
   "09-the-vault|1|mute":
     "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't speak person is never asked for the digit text or the x mark (BT1)",
   "09-the-vault|1|blind":
@@ -111,7 +101,7 @@ const NOT_YET: Record<string, string> = {
   "09-the-vault|2|blind":
     "not cleared after 240 s, caught 10, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
   "09-the-vault|2|deaf":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 02/03: a Can't hear person is given a job they can't receive (BJ1, Task 298), or is never told the stop/steer protocol",
+    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: Task 298 (BJ1) took away the jobs a Can't hear person cannot receive, and this still stalls, so the cause is the stop/steer protocol (BT1, BJ3) or a station's missing ask: phase 03 audits it",
 };
 
 describe("two bots and a stand-in person clear every room", () => {
