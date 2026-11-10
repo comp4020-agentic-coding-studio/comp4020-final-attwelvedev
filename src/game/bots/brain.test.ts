@@ -9,7 +9,7 @@ import { step } from "../sim/step.ts";
 import { roomWith } from "../sim/testing.ts";
 import { createWorld, TICK_MS } from "../sim/world.ts";
 import type { Role, Seat } from "../types.ts";
-import { askFor, CACHE_GIVE_UP_TICKS, createBotMemory, think } from "./brain.ts";
+import { askFor, CACHE_GIVE_UP_TICKS, createBotMemory, TAKEOVER_TICKS, think } from "./brain.ts";
 import { type BotSeat, botsAct } from "./crew.ts";
 import { claimJobs, hintsOf } from "./jobs.ts";
 import { solveRoom } from "./solve.ts";
@@ -2353,6 +2353,122 @@ describe("a bot takes over a person's idle job (BJ2, Task 305)", () => {
     expect(notices.length, "a takeover notice").toBeGreaterThan(0);
     expect(notices[0]?.tick, "no takeover before 60 s after the press").toBeGreaterThanOrEqual(
       2200,
+    );
+  });
+});
+
+describe("the takeover clock is fair (Task 310, review F1 and F2 of bp04)", () => {
+  // Room 6 with three bots until the radio is solved, then a person in Can't speak's seat (as the
+  // BJ2 tests above): `takeOver` is run through the real observe path with that person's queue edited.
+  const setup = () => {
+    const r = room("06-lights-out");
+    const world = createWorld(r, 1, [...ROLES3]);
+    const humans = new Set<Seat>([2]);
+    const mem = createBotMemory(1, humans, ROLES3);
+    return { r, world, mem };
+  };
+  const seeStation = (
+    r: ReturnType<typeof room>,
+    world: ReturnType<typeof createWorld>,
+    mem: ReturnType<typeof createBotMemory>,
+    tick: number,
+  ) => {
+    world.tick = tick;
+    return think(r, viewFor(world, 1, "deaf", false), [], mem, tick * TICK_MS);
+  };
+
+  it("a person with a 70 s gear job first: the clock starts when it is done, not before", () => {
+    const { r, world, mem } = setup();
+    seeStation(r, world, mem, 1); // the bot builds its queues on its first look
+    const queue = mem.queues as NonNullable<typeof mem.queues>;
+    // a take job in front of the person's station job, not yet done
+    const station = queue[2].find((j) => j.target.kind === "station");
+    expect(station, "the person has a station job").toBeDefined();
+    const gear = { index: 99, beat: 1, target: { kind: "take", gear: "g1" }, all: false } as never;
+    queue[2].unshift(gear);
+    for (let t = 1; t <= 1500; t += 50) seeStation(r, world, mem, t);
+    expect(mem.takenOver.size, "no takeover while the earlier gear job is open").toBe(0);
+    expect(
+      mem.idleSince[(station as { index: number }).index],
+      "no idle clock yet",
+    ).toBeUndefined();
+  });
+
+  it("once the gear job is done, 60 s of idleness at the station is what is measured", () => {
+    const { r, world, mem } = setup();
+    seeStation(r, world, mem, 1);
+    const queue = mem.queues as NonNullable<typeof mem.queues>;
+    const station = queue[2].find((j) => j.target.kind === "station") as { index: number };
+    queue[2] = queue[2].filter((j) => j.target.kind !== "take"); // no earlier open job
+    let tookAt = -1;
+    for (let t = 2; t <= 3000 && tookAt < 0; t += 10) {
+      world.tick = t;
+      think(r, viewFor(world, 1, "deaf", false), [], mem, t * TICK_MS);
+      if (mem.takenOver.has(station.index)) tookAt = t;
+    }
+    expect(tookAt, "taken over after the clock ran").toBeGreaterThanOrEqual(TAKEOVER_TICKS);
+  });
+
+  it("a person holding gear a bot needs is asked to hand it over after the takeover window, and no take is made", () => {
+    // room 4, a person as Can't speak (seat 2) takes the stethoscope and keeps it; the Can't hear bot
+    // (seat 1) needs it handed on to Can't see
+    const r = room("04-the-safe");
+    const world = createWorld(r, 1, [...ROLES3]);
+    const humans = new Set<Seat>([2]);
+    const bots: Partial<Record<Seat, BotSeat>> = {};
+    for (const s of [0, 1] as const)
+      bots[s] = { memory: createBotMemory(s, humans, ROLES3), inbox: [] };
+    const cd = { until: {} };
+    // the person took the stethoscope at the start, and stands where it was with it
+    const stetho = world.gear.find((g) => g.item === "stethoscope");
+    if (stetho) Object.assign(stetho, { heldBy: 2, at: null });
+    let asks: ReturnType<typeof botsAct>["sentAsks"] = [];
+    const given: { tick: number; kind: string }[] = [];
+    for (let t = 0; t < TAKEOVER_TICKS * 3; t++) {
+      const out = botsAct(
+        r,
+        world,
+        ROLES3,
+        bots,
+        cd,
+        t * TICK_MS,
+        () => "Bot",
+        t === 0 ? new Set<Seat>([0, 1, 2]) : new Set<Seat>(),
+        asks,
+      );
+      asks = out.sentAsks;
+      for (const a of out.sentAsks)
+        if (a.kind === "hand-over-gear") given.push({ tick: t, kind: a.kind });
+      // the person walks onto the gear, takes it and then stands still with it
+      out.inputs[2] = { seq: t + 1, move: { x: 0, y: 0 }, act: false };
+      step(world, out.inputs, TICK_MS);
+    }
+    const held = world.gear.find((g) => g.item === "stethoscope")?.heldBy;
+    expect(held, "the person still holds it: a bot never takes gear from a teammate").toBe(2);
+    expect(given.length, "the bot asked them to hand it over").toBeGreaterThan(0);
+    expect(given[0]?.tick, "not before the takeover window").toBeGreaterThanOrEqual(TAKEOVER_TICKS);
+  });
+
+  it("a message from the person restarts the clock: a bot that cannot see the station does not time out while they work it", () => {
+    const { r, world, mem } = setup();
+    seeStation(r, world, mem, 1);
+    const queue = mem.queues as NonNullable<typeof mem.queues>;
+    const station = queue[2].find((j) => j.target.kind === "station") as { index: number };
+    // the person's own text arrives every 30 s: well inside 60 s of each other, for 4 minutes
+    const text = (at: number): ChannelMessage =>
+      ({
+        method: "text",
+        text: "ok",
+        from: { seat: 2, role: "mute", nickname: "P" },
+        sentAt: at * TICK_MS,
+      }) as ChannelMessage;
+    for (let t = 2; t <= 4800; t += 50) {
+      world.tick = t;
+      const inbox = t % 600 === 2 ? [text(t)] : [];
+      think(r, viewFor(world, 1, "deaf", false), inbox, mem, t * TICK_MS);
+    }
+    expect(mem.takenOver.has(station.index), "no takeover while the person keeps sending").toBe(
+      false,
     );
   });
 });

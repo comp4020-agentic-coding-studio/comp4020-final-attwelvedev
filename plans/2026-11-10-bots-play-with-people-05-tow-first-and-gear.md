@@ -76,7 +76,7 @@
   **Human review:** a real playtest of rooms 4, 7 and 8 with you as Can't see (towed), and room 7 with you as Can't hear (goggles). The stand-in is a proxy; this is the check.
 - **Depends on:** Task 308.
 
-### Task 310: The takeover clock is fair (review F1, F2 of bp04) — [ ]
+### Task 310: The takeover clock is fair (review F1, F2 of bp04) — [x]
 
 - **Owner decision (2026-11-11):** fix both. For F1 the owner asked what happens when a person is carrying gear a bot needs; the answer must be in the design, not left implied.
 - **F1, the clock starts too early.** `takeOver` in `brain.ts` takes the person's first undone station or watch job and starts its clock the first time a bot sees it, even if the person's earlier gear, tow, door or lever jobs are not finished. A person still carrying gear then loses their station while busy.

@@ -118,6 +118,7 @@ export interface BotMemory {
   // BJ2: each person's station or watch job (by job index): when it became theirs to work, or last
   // moved, in ticks. After TAKEOVER_TICKS without a move the job goes to a bot.
   idleSince: Record<number, number>;
+  heardFrom: Partial<Record<Seat, number>>; // the tick each seat's latest message was seen (a sign of progress, BJ2)
   takenOver: Set<number>; // job indexes taken from a person: kept for good, even if they start later
   notice: { to: Seat; station: string; at: number } | null; // its own "I'll do this one." (game ms)
   lastHeardAt: number; // the latest message it was sent or sent itself (game ms): an ask never lands within 2 s
@@ -279,6 +280,7 @@ export function createBotMemory(
     count: null,
     asks: {},
     idleSince: {},
+    heardFrom: {},
     takenOver: new Set(),
     notice: null,
     remarked: {},
@@ -310,7 +312,13 @@ export function think(
   now: number,
 ): BotTurn {
   memory.seq++;
-  for (const msg of inbox) memory.lastHeardAt = Math.max(memory.lastHeardAt, msg.sentAt);
+  for (const msg of inbox) {
+    memory.lastHeardAt = Math.max(memory.lastHeardAt, msg.sentAt);
+    memory.heardFrom[msg.from.seat] = Math.max(
+      memory.heardFrom[msg.from.seat] ?? Number.NEGATIVE_INFINITY,
+      view.tick,
+    );
+  }
   if (view.tiles) memory.tiles = view.tiles;
   if (view.role === "blind") return thinkBlind(view, inbox, memory, now);
   return thinkSighted(room, view, inbox, memory, now);
@@ -673,9 +681,32 @@ function takeOver(room: Room, view: RoleView, known: Known, m: BotMemory): void 
         !isDone(room, j, known, undefined, person),
     );
     if (!job) continue;
+    // F1: the clock starts when the job is the person's to work, not while an earlier job in their queue
+    // (gear to carry, a tow, a door, a lever) is still open: that is time spent on the way. A person
+    // holding gear a bot needs is a limit the asks live with (a bot cannot take gear from a teammate).
+    const earlier = queues[person]
+      .slice(0, queues[person].indexOf(job))
+      .some(
+        (j) =>
+          !j.all &&
+          j.cache === undefined &&
+          j.target.kind !== "tile" &&
+          j.target.kind !== "exit" &&
+          !isDone(room, j, known, undefined, person),
+      );
+    if (earlier) {
+      delete m.idleSince[job.index];
+      continue;
+    }
     const id =
       job.target.kind === "station" ? job.target.id : (job.target as { station: string }).station;
-    const moved = known.stations[id]?.changedAt ?? Number.NEGATIVE_INFINITY;
+    // F2: any evidence of progress this bot can perceive restarts it: the station seen to change, and
+    // the person's own asks and sends (a bot that cannot see the station would otherwise time out while
+    // they work it). Every bot hears the same messages, so their copies of the queues agree.
+    const moved = Math.max(
+      known.stations[id]?.changedAt ?? Number.NEGATIVE_INFINITY,
+      m.heardFrom[person] ?? Number.NEGATIVE_INFINITY,
+    );
     const since = Math.max(m.idleSince[job.index] ?? view.tick, moved);
     m.idleSince[job.index] = since;
     if (view.tick - since < TAKEOVER_TICKS) continue;
@@ -1431,6 +1462,20 @@ function askWanted(
 ): Ask | null {
   const job = currentJob(room, m, known, view.role, m.seat, pos);
   if (!job) return null;
+  // A person holds gear this bot's job needs and does not hand it on: after the takeover window it asks
+  // them to, and keeps asking on the clock. A bot never takes gear from a teammate (owner, 2026-11-11),
+  // so if the person never does, the room waits: the known limit (overnight log, bp05/310).
+  if (job.target.kind === "take" || job.target.kind === "give" || job.target.kind === "sill") {
+    const held = known.gear?.[job.target.gear]?.heldBy;
+    if (held !== null && held !== undefined && held !== m.seat && m.humans.has(held)) {
+      const since = Math.max(m.idleSince[job.index] ?? view.tick, m.heardFrom[held] ?? -1);
+      m.idleSince[job.index] = since;
+      if (view.tick - since < TAKEOVER_TICKS) return null;
+      return askFor(m, "hand-over-gear", held, job.target.gear, now, false, false);
+    }
+    delete m.idleSince[job.index];
+    return null;
+  }
   const id =
     job.target.kind === "station"
       ? job.target.id

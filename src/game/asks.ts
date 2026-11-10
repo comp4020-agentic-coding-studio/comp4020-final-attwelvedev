@@ -11,7 +11,8 @@ export type AskKind =
   | "press-marked"
   | "strike-marked"
   | "count-turn"
-  | "taking-over";
+  | "taking-over"
+  | "hand-over-gear";
 
 export interface Ask {
   kind: AskKind;
@@ -53,6 +54,10 @@ export const ASK_COPY: Record<AskKind, { say: string; chip: string }> = {
     chip: "Needs: the count, by text",
   },
   "taking-over": { say: "I'll do this one.", chip: "I'll do this one" },
+  "hand-over-gear": {
+    say: "Pass me the gear: stand beside me and press G.",
+    chip: "Needs: the gear handed over",
+  },
 };
 
 export const REASK_MS = [8000, 16000, 30000] as const; // gaps after the 1st, 2nd and every later ask
