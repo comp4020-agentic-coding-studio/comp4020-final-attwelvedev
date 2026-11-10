@@ -3,7 +3,7 @@
 - **Date:** 2026-11-10
 - **Status:** Approved
 - **Spec:** `specs/2026-11-10-playtest-3-fixes.md`, approved by the user on 2026-11-10 in `/brainstorm-feature`. Read it first: it holds FR1–FR11, B1–B5 and T1–T3, the demo script and the reasons.
-- **ADR:** `doc/adr/0030-holding-hands-is-felt-not-seen.md` (proposed). The user accepts it when reviewing phase 03.
+- **ADR:** `doc/adr/0030-holding-hands-is-felt-not-seen.md`, accepted by the user on 2026-11-10.
 - **Tier:** mixed:
   - phase 03 (touch) is Architecture
   - phases 02 and 04 are Slices
@@ -54,7 +54,7 @@ Each phase stands alone, so if one parks, the others still run. Units run in thi
 - `pnpm check` green on the branch tip, and `pnpm check:flaky 4` green for any new browser spec.
 - `review/QUEUE-p3.md` lists every human review, with screenshots.
 - The playtest-3 table (`playtests/2026-11-08-playtest-03.md`) still matches: a parked task's row says "parked" with the log line's date.
-- `PROCESS_LOG.md` has one entry for the run, citing its commits. ADR 0030 stays `proposed` until the user accepts it.
+- `PROCESS_LOG.md` has one entry for the run, citing its commits. ADR 0030 is accepted (2026-11-10).
 
 ## 5. Coverage
 
