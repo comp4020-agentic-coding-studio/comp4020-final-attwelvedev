@@ -1,3 +1,4 @@
+import { ASK_QUIET_MS, type Ask, type AskClock, type AskKind, reaskDue } from "../asks.ts";
 import {
   type Callout,
   type ChannelMessage,
@@ -107,10 +108,13 @@ export interface BotMemory {
   toTell: number[]; // digits of the earpiece's code (or a braille plate's number) still to text, one a turn
   toldPlate: string | null; // a Can't-see bot: the braille cells it last texted (read again after a send-back)
   count: Count | null; // a sync lock's counter: the digit it last texted, and when
+  asks: Record<string, AskClock>; // the asks it is making, keyed "<kind>:<station>:<to>" (asks.ts)
+  lastHeardAt: number; // the latest message it was sent or sent itself (game ms): an ask never lands within 2 s
 }
 export interface BotTurn {
   input: PlayerInput;
   send: Outgoing | null;
+  ask?: Ask | null; // an ask to say this tick (asks.ts): it goes to the asked seat's view only
 }
 
 interface Exec {
@@ -258,6 +262,8 @@ export function createBotMemory(
     toTell: [],
     toldPlate: null,
     count: null,
+    asks: {},
+    lastHeardAt: Number.NEGATIVE_INFINITY,
   };
 }
 
@@ -285,6 +291,7 @@ export function think(
   now: number,
 ): BotTurn {
   memory.seq++;
+  for (const msg of inbox) memory.lastHeardAt = Math.max(memory.lastHeardAt, msg.sentAt);
   if (view.tiles) memory.tiles = view.tiles;
   if (view.role === "blind") return thinkBlind(view, inbox, memory, now);
   return thinkSighted(room, view, inbox, memory, now);
@@ -1195,10 +1202,72 @@ function thinkSighted(
     ? idle(m)
     : press(room, view, m, known, pos, towedWalk(led, moveSelf(room, view, m, known, pos)));
   send = workSend(room, view, m, known, pos);
-  if (send) return { input, send: stamp(m, send, now) };
+  const ask = view.role === "mute" ? turnerAsk(room, view, m, known, pos, now) : null;
+  if (send) return { input, send: stamp(m, send, now), ask };
   if (view.role === "deaf") send = guideBlind(room, view, m, known, now);
   else if (view.role === "mute") send = muteClip(room, view, m, now);
-  return { input, send: stamp(m, send, now) };
+  return { input, send: stamp(m, send, now), ask };
+}
+
+// The ask for `kind` while the bot wants it (asks.ts): sent every tick it is wanted, so the game
+// keeps it live and the chip stays up; `saidAt` (game ms) is when it was last *said*, which the
+// clock moves on (the first time, then by `reaskDue`). Progress (`progressed`) restarts the gap;
+// `atSpot` holds it while the person is doing the thing. Null while it is not wanted yet (a first
+// ask never lands within the quiet window of a message).
+export function askFor(
+  m: BotMemory,
+  kind: AskKind,
+  to: Seat,
+  station: string,
+  now: number,
+  atSpot: boolean,
+  progressed: boolean,
+): Ask | null {
+  const k = `${kind}:${station}:${to}`;
+  let c = m.asks[k];
+  if (!c) {
+    if (now - m.lastHeardAt < ASK_QUIET_MS) return null;
+    c = m.asks[k] = { firstAt: now, lastAt: now, count: 1, progressAt: Number.NEGATIVE_INFINITY };
+  } else {
+    if (progressed) c.progressAt = now;
+    if (reaskDue(c, now, m.lastHeardAt, atSpot)) {
+      c.lastAt = now;
+      c.count++;
+    }
+  }
+  return { kind, from: m.seat, to, station, saidAt: c.lastAt };
+}
+
+// Smoke use of the ask (Task 299): a Can't speak turner at a real safe whose listener is a person
+// asks them to say Stop on the click. The listener at the safe's back is the spot.
+function turnerAsk(
+  room: Room,
+  view: RoleView,
+  m: BotMemory,
+  known: Known,
+  pos: Vec,
+  now: number,
+): Ask | null {
+  const job = currentJob(room, m, known, view.role, m.seat, pos);
+  if (job?.target.kind !== "station") return null;
+  const id = job.target.id;
+  const o = room.objects.find((x) => x.id === id);
+  const b = known.stations[id];
+  if (o?.params?.type !== "dial" || o.params.teach === true || !b || b.solved) return null;
+  const listener = rolesOf(m, view.role).indexOf("blind");
+  if (listener < 0 || !m.humans.has(listener as Seat)) return null;
+  const them = m.bodies[listener as Seat];
+  const theirs = them && currentJob(room, m, known, view.role, listener as Seat, them);
+  const atSpot =
+    !!them &&
+    theirs?.target.kind === "listen" &&
+    theirs.target.station === id &&
+    tileOf(them).x === theirs.target.tile.x &&
+    tileOf(them).y === theirs.target.tile.y;
+  const c = m.asks[`stop-on-click:${id}:${listener}`];
+  const progressed =
+    !!c && b.changedAt * TICK_MS > c.progressAt && b.changedAt * TICK_MS > c.lastAt;
+  return askFor(m, "stop-on-click", listener as Seat, id, now, atSpot, progressed);
 }
 
 // What a seat's work has it tell the others (P3): a radio's digit, as text, once (a radio that
@@ -1390,7 +1459,10 @@ function nearestIs(m: BotMemory, to: number): boolean {
 }
 
 function stamp(m: BotMemory, send: Outgoing | null, now: number): Outgoing | null {
-  if (send) m.lastSpokeAt = now;
+  if (send) {
+    m.lastSpokeAt = now;
+    m.lastHeardAt = Math.max(m.lastHeardAt, now);
+  }
   return send;
 }
 

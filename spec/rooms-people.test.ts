@@ -31,7 +31,7 @@ const NOT_YET: Record<string, string> = {
   "04-the-safe|1|deaf":
     "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: Task 298 (BJ1) took away the jobs a Can't hear person cannot receive, and this still stalls, so the cause is the stop/steer protocol (BT1, BJ3) or a station's missing ask: phase 03 audits it",
   "04-the-safe|0|blind":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
+    "not cleared after 240 s, caught 0, refused 0 (Task 300: Q1 solved, Q2 not, the person stops at 21.6, 4.6 and never reaches the safe's back at 23, 1); the turner now makes a stop-on-click ask, but the person is never asked to be steered there; fixed in phase 03 (BJ3, BT1 per station)",
   "04-the-safe|0|mute":
     "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't speak person is never asked for the digit text or the x mark (BT1)",
   "04-the-safe|1|mute":

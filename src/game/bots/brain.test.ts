@@ -2008,3 +2008,54 @@ describe("the bot keep-alive never reaches a person (F1 of the phase 05 review, 
     expect(heard.length, heard.join(" ")).toBeLessThanOrEqual(changes + 1);
   });
 });
+
+describe("a bot asks a person for what it needs (Task 299)", () => {
+  // Room 4's Q2: the Can't speak turner turns the dial and waits for the listener's Stop. Three bots
+  // play to the listen tile; there seat 0 becomes a person (or stays a bot) and stands still.
+  const asksOf = (person: boolean) => {
+    const r = room("04-the-safe");
+    const world = createWorld(r, 1, [...ROLES3]);
+    const humans = new Set<Seat>();
+    const bots: Partial<Record<Seat, BotSeat>> = {};
+    for (const s of [0, 1, 2] as const)
+      bots[s] = { memory: createBotMemory(s, humans, ROLES3), inbox: [] };
+    const cd = { until: {} };
+    const act = () =>
+      botsAct(
+        r,
+        world,
+        ROLES3,
+        bots,
+        cd,
+        world.tick * TICK_MS,
+        () => "Bot",
+        world.tick === 0 ? new Set<Seat>([0, 1, 2]) : new Set<Seat>(),
+      );
+    const there = () => {
+      const p = world.players[0].pos;
+      return Math.floor(p.x) === 23 && Math.floor(p.y) === 1 && world.gear[0]?.heldBy === 0;
+    };
+    while (world.tick < 6000 && !there()) step(world, act().inputs, TICK_MS);
+    expect(there(), "Can't see reached Q2's listen tile").toBe(true);
+    if (person) {
+      delete bots[0];
+      humans.add(0);
+    }
+    const asks: { kind: string; to: Seat; from: Seat; at: number }[] = [];
+    const end = world.tick + 400;
+    while (world.tick < end && world.stations.Q2?.solved !== true) {
+      const out = act();
+      for (const a of out.sentAsks) asks.push({ ...a, at: world.tick * TICK_MS });
+      if (person) out.inputs[0] = { seq: world.tick + 1, move: { x: 0, y: 0 }, act: false };
+      step(world, out.inputs, TICK_MS);
+    }
+    return asks;
+  };
+
+  it("the turner asks a person at the safe's back for Stop; no ask when the listener is a bot", () => {
+    const asks = asksOf(true);
+    expect(asks.length, "an ask was made").toBeGreaterThan(0);
+    expect(asks[0]).toMatchObject({ kind: "stop-on-click", to: 0, from: 2 });
+    expect(asksOf(false)).toEqual([]);
+  });
+});

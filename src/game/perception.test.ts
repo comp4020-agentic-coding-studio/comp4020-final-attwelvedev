@@ -14,6 +14,7 @@ import { step } from "./sim/step.ts";
 import { gather, place, tap, withChamber, worldFrom, worldWith } from "./sim/testing.ts";
 import { decodeSeen } from "./sim/visibility.ts";
 import { createWorld, TICK_MS } from "./sim/world.ts";
+import type { Role } from "./types.ts";
 
 const GRID = [
   "##############################",
@@ -2468,5 +2469,27 @@ describe("viewFor: grip and release reach the pair only", () => {
     expect(w.holding).toEqual({ 2: 1 });
     expect(cues(w, 2, "grip")).toHaveLength(1);
     expect(cues(w, 0, "grip"), "Can't see, beside but not holding").toEqual([]);
+  });
+});
+
+describe("viewFor: an ask reaches the asked seat only (BT1)", () => {
+  const room1 = loadRooms()[0];
+  const rotations: [Role, Role, Role][] = [
+    ["blind", "deaf", "mute"],
+    ["deaf", "mute", "blind"],
+    ["mute", "blind", "deaf"],
+  ];
+  it("seat 0 asked by seat 2: only seat 0's view has it, with no station and no value", () => {
+    for (const roles of rotations) {
+      const w = createWorld(room1, 1, [...roles]);
+      const asks = [
+        { kind: "stop-on-click", from: 2, to: 0, station: "Q2", saidAt: 1000 },
+      ] as const;
+      const seen = ([0, 1, 2] as const).map((s) => viewFor(w, s, roles[s], false, asks).you.asks);
+      expect(seen[0], roles.join()).toEqual([{ from: 2, kind: "stop-on-click", saidAt: 20 }]);
+      expect(seen[1], roles.join()).toBeUndefined();
+      expect(seen[2], roles.join()).toBeUndefined();
+      expect(JSON.stringify(seen[0])).not.toContain("Q2");
+    }
   });
 });

@@ -282,7 +282,7 @@ function sendRevealViews(code: string): void {
     if (who)
       hub.sendTo(who, {
         t: "view",
-        view: viewFor(game.world, seat, game.roles[seat] as Role, true),
+        view: viewFor(game.world, seat, game.roles[seat] as Role, true, game.asks),
       });
     running.full.delete(seat);
   }

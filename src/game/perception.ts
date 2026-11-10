@@ -1,3 +1,4 @@
+import type { Ask, AskKind } from "./asks.ts";
 import type { Stamp } from "./channels.ts";
 import { intersectLight, subtractRects } from "./clip.ts";
 import { visiblePolygon } from "./cone.ts";
@@ -228,6 +229,9 @@ export interface RoleView {
     pos?: Vec;
     motion?: { moving: boolean; blocked: boolean };
     hand?: { dir: Vec; leads: boolean; pulling: boolean };
+    // what a bot is asking this seat to do (asks.ts), this seat's own view only: who asks and what
+    // kind, never a station or a value. `saidAt` is the tick it was last said, so a re-say is new.
+    asks?: { from: Seat; kind: AskKind; saidAt: number }[];
   };
   tiles?: string[];
   hue?: string; // the room's wall hue (room meta), only on a full view, with `tiles`: room layout, no perception
@@ -1254,7 +1258,13 @@ function handOf(world: World, seat: Seat): RoleView["you"]["hand"] {
   };
 }
 
-export function viewFor(world: World, seat: Seat, role: Role, full: boolean): RoleView {
+export function viewFor(
+  world: World,
+  seat: Seat,
+  role: Role,
+  full: boolean,
+  asks: readonly Ask[] = [],
+): RoleView {
   const view: RoleView = {
     tick: world.tick,
     ack: world.players[seat].lastSeq,
@@ -1273,6 +1283,13 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
   };
   const hand = handOf(world, seat);
   if (hand) view.you.hand = hand; // own state, felt not seen (ADR 0030)
+  const mine = asks.filter((a) => a.to === seat);
+  if (mine.length)
+    view.you.asks = mine.map((a) => ({
+      from: a.from,
+      kind: a.kind,
+      saidAt: Math.round((a.saidAt ?? 0) / TICK_MS),
+    }));
   const cache = cacheFor(world, seat);
   if (cache) view.cache = cache;
   const kept = keepsakeFor(world, seat);

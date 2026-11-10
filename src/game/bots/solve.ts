@@ -1,3 +1,4 @@
+import type { Ask } from "../asks.ts";
 import { cacheOf, type Room, secretDoors } from "../rooms/format.ts";
 import { forceUncover } from "../sim/stations.ts";
 import { step } from "../sim/step.ts";
@@ -46,6 +47,7 @@ export function solveRoom(
     else if (!humans.has(seat))
       bots[seat] = { memory: createBotMemory(seat, humans, roles), inbox: [] };
   }
+  let asks: Ask[] = []; // what the bots asked last tick: the stand-ins see theirs
   let caught = 0;
   let refused = 0;
   let messages = 0;
@@ -53,7 +55,8 @@ export function solveRoom(
   while (world.tick < budget && world.status !== "cleared") {
     const now = world.tick * TICK_MS;
     const full = world.tick === 0 ? new Set<Seat>([0, 1, 2]) : new Set<Seat>();
-    const turn = botsAct(room, world, roles, bots, cooldowns, now, (s) => `Bot ${s}`, full);
+    const turn = botsAct(room, world, roles, bots, cooldowns, now, (s) => `Bot ${s}`, full, asks);
+    asks = turn.sentAsks;
     refused += turn.refused;
     messages += turn.sent.length;
     for (const s of turn.sent) sentBy[s.from]++;

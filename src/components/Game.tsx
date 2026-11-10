@@ -57,6 +57,7 @@ import { browserSpeech, speakWhile } from "../client/speech.ts";
 import { isHighContrast, NET, setContrast, setHue } from "../client/tokens.ts";
 import { installUiSounds, savedSettings, uiSound } from "../client/uiSound.ts";
 import { quickSlot } from "../client/wheel.ts";
+import { ASK_COPY } from "../game/asks.ts";
 import { FACE_POP_MS, type Stamp } from "../game/channels.ts";
 import { botRef } from "../game/crew.ts";
 import type { BriefingCue } from "../game/cues.ts";
@@ -240,20 +241,21 @@ function useDraw(
         }
       }
       let labels: Scene["labels"];
-      if (!flat && rt.labelsOn && role !== "blind" && rt.tiles && rt.self) {
+      if (!flat && role !== "blind" && rt.tiles && rt.self) {
         const seenNow = view.seen ? seenOf(view.seen) : null;
         rt.labels = labelsFor(
           view.entities,
           rt.tiles,
           rt.self,
-          true,
+          rt.labelsOn,
           (at) => inSight(seenNow, at),
           rt.labelsAll ? undefined : ESCAPE_KINDS,
           size.w >= 720 ? LABEL_CAP.desktop : LABEL_CAP.phone,
           rt.metKinds,
           { seat: view.you.seat, phone: size.w < 720, act: view.act }, // the hold-hands chip (FR6, F4)
+          view.you.asks, // what a bot asks of you: a chip on the bot, past the cap (Task 301)
         );
-        for (const l of rt.labels) rt.roomKinds.add(l.kind);
+        for (const l of rt.labels) if (l.kind !== "ask") rt.roomKinds.add(l.kind);
         labels = rt.labels;
       }
       // the side-job chip is DOM over the canvas: a label chip must not sit half under it, so its box
@@ -324,7 +326,7 @@ function useDraw(
         const alarm = view.alarm ? "on" : "off";
         if (el.dataset.alarm !== alarm) el.dataset.alarm = alarm;
         // and which first-room labels are on show, which are only ever drawn
-        const shownLabels = rt.labelsOn ? rt.labels.map((l) => l.kind).join(" ") : "";
+        const shownLabels = rt.labels.map((l) => l.kind).join(" ");
         if ((el.dataset.labels ?? "") !== shownLabels) el.dataset.labels = shownLabels;
         // and where you are drawn, which is the point the light is cast from
         if (scene.self) {
@@ -950,6 +952,34 @@ function Hud({
       }),
     );
   }, [socket, role, rt, audio]);
+
+  // An ask said (new, or said again by the bot's clock): Can't see hears it, Can't speak reads it
+  // (text is always shown to them). Can't hear gets the chip only: they receive no words (BT1, BT2).
+  useEffect(() => {
+    if (role === "deaf") return;
+    const speech = browserSpeech(role, () => live.current.settings.speech);
+    const said = new Map<string, number>();
+    const off = socket.on("view", (m) => {
+      const now = performance.now();
+      for (const a of m.view.you.asks ?? []) {
+        const k = `${a.from}:${a.kind}`;
+        if (said.get(k) === a.saidAt) continue;
+        said.set(k, a.saidAt);
+        const text = ASK_COPY[a.kind].say;
+        speech.say(text);
+        if (role === "mute") {
+          const from = reveal.crew.find((c) => c.seat === a.from);
+          const who = { role: from?.role ?? "deaf", name: from?.nickname ?? "Bot" };
+          const line = { id: ++live.current.lineId, ...who, text, until: now + CAPTION_MS };
+          setLines((old) => [...old.filter((l) => l.until > now), line].slice(-3));
+        }
+      }
+    });
+    return () => {
+      off();
+      speech.stop();
+    };
+  }, [socket, role, reveal.crew]);
 
   useEffect(
     () =>

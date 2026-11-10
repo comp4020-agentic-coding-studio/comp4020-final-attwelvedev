@@ -124,3 +124,14 @@ Open three tabs (or a phone and two tabs), create a lobby in one, join with the 
 - **What happened:** the camera maths for every room at 1280×800, 1024×768 and 375×812 (and a sweep of 320–2560 × 500–1400) has the intro starting *below* the follow camera's zoom: it only ever zooms in, and no figure is under the top bar when the HUD has faded in. What did show: on a phone, rooms 3–9 start with the team at the room's west wall, half under the frame's 12 px left bezel.
 - **Evidence:** branch `auto/playtest-3-parked-p3fix06-task294`: `review/p3-294-measure.txt` (the table), `review/p3-294-before-04-the-safe-{375,1280,1280-blind}.png` (real canvas, real intro, at the cover's end).
 - **What I need from you:** the window size and room where you saw "starts zoomed in, HUD over the players, then zooms out", and whether it was a first start or a restart. Then the plan's fix (fit the reveal's backdrop to the frame) can be built against a reproduction.
+
+## Bots and people
+
+### Task 301: the ask chip and the spoken ask (BT1, BT2)
+
+- **What to look at:** a bot's ask of you. Sighted seats: a chip on the asking bot's figure, "Needs: Stop on the click", never covering the side-job chip. Can't see: the ask spoken ("Listen for the click. Say Stop: wheel, Talk, Stop."). Can't speak: also a caption. Can't hear: the chip only.
+- **How to start it locally:** `pnpm build && PORT=8191 INTRO_MS=0 pnpm start:check`, open three tabs on `http://localhost:8191`, make a team, start, and play room 4 with you as Can't see and two bots (swap seats if needed). At the safe the Can't speak bot's turner asks you to say Stop; the ask repeats at 8 s, then 16 s, then every 30 s. (Until phase 03, the bots only ask in this one place.)
+- **Screenshots:** `review/bp-301-ask-chip-1280.png`, `review/bp-301-ask-chip-375.png` (room 1 with a person as Can't speak and a made-up ask: the real layout and copy, not room 4).
+- **A pass looks like:** the chip reads at a glance, sits on the bot that asks, does not hide the plate chip or the figures' hand-hold chip; the spoken line is clear and does not talk over a callout.
+- **What I judged:** the chip and caption both render at both widths; the phone's chip sits close to the hold-hands chip but they do not overlap. Not judged: the spoken ask in a real three-tab game.
+

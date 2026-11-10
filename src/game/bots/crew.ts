@@ -1,3 +1,4 @@
+import type { Ask } from "../asks.ts";
 import { type ChannelMessage, type CooldownState, type Outgoing, route } from "../channels.ts";
 import { viewFor } from "../perception.ts";
 import type { Room } from "../rooms/format.ts";
@@ -16,7 +17,8 @@ export interface BotSeat {
 
 export interface Person {
   hear(inbox: ChannelMessage[], now: number): ChannelMessage[];
-  speak(send: Outgoing | null, now: number): Outgoing | null;
+  // `asks`: the live asks made of this seat (asks.ts); what a person was not told to send waits for one
+  speak(send: Outgoing | null, now: number, asks: readonly Ask[]): Outgoing | null;
 }
 
 export interface BotSent {
@@ -39,16 +41,23 @@ export function botsAct(
   now: number,
   nickname: (seat: Seat) => string,
   full: ReadonlySet<Seat> = new Set(),
-): { inputs: Partial<Record<Seat, PlayerInput>>; sent: BotSent[]; refused: number } {
+  asks: readonly Ask[] = [], // the asks live last tick: each seat sees those made of it
+): {
+  inputs: Partial<Record<Seat, PlayerInput>>;
+  sent: BotSent[];
+  refused: number;
+  sentAsks: Ask[];
+} {
   const inputs: Partial<Record<Seat, PlayerInput>> = {};
   const sent: BotSent[] = [];
   let refused = 0;
+  const sentAsks: Ask[] = [];
   const order = ([0, 1, 2] as const)
     .filter((s) => bots[s])
     .sort((a, b) => Number(roles[a] === "blind") - Number(roles[b] === "blind") || a - b);
   for (const seat of order) {
     const bot = bots[seat] as BotSeat;
-    const view = viewFor(world, seat, roles[seat], full.has(seat));
+    const view = viewFor(world, seat, roles[seat], full.has(seat), asks);
     // the bot is given its own role's view and inbox and nothing else (clues FR5, ADR 0018)
     const turn = think(
       room,
@@ -57,8 +66,14 @@ export function botsAct(
       bot.memory,
       now,
     );
-    if (bot.person) turn.send = bot.person.speak(turn.send, now);
+    if (bot.person)
+      turn.send = bot.person.speak(
+        turn.send,
+        now,
+        asks.filter((a) => a.to === seat),
+      );
     inputs[seat] = turn.input;
+    if (turn.ask) sentAsks.push(turn.ask);
     if (!turn.send) continue;
     const result = route(roles as [Role, Role, Role], seat, turn.send, cooldowns, now);
     if (!result.ok) {
@@ -79,5 +94,5 @@ export function botsAct(
       cooldown: result.cooldownKey ? { method: turn.send.method, until: result.until } : null,
     });
   }
-  return { inputs, sent, refused };
+  return { inputs, sent, refused, sentAsks };
 }

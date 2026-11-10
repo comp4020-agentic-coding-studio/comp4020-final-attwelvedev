@@ -24,20 +24,33 @@ describe("the stand-in person", () => {
     expect(person.hear([], (STANDIN_DELAY_TICKS + 1) * TICK_MS)).toHaveLength(0);
   });
 
-  it("sends no stop at a safe's back, hearing the tumbler (no ask yet)", () => {
+  it("sends no stop at a safe's back, hearing the tumbler (no ask made)", () => {
     const person = createStandIn(0, new Set([0]), ROLES).person;
-    expect(person?.speak({ method: "callout", callout: "stop" }, 0)).toBeNull();
+    expect(person?.speak({ method: "callout", callout: "stop" }, 0, [])).toBeNull();
     // steering is allowed
     const steer = { method: "callout", callout: "left" } as const;
-    expect(person?.speak(steer, 0)).toEqual(steer);
+    expect(person?.speak(steer, 0, [])).toEqual(steer);
   });
 
-  it("never sends a digit text when it reads a plate, nor an x mark (no ask yet)", () => {
+  it("never sends a digit text when it reads a plate, nor an x mark (no ask made)", () => {
     const person = createStandIn(0, new Set([0]), ROLES).person;
-    expect(person?.speak({ method: "text", text: "7" }, 0)).toBeNull();
-    expect(person?.speak({ method: "mark", id: "x", at: { x: 1, y: 1 } }, 0)).toBeNull();
+    expect(person?.speak({ method: "text", text: "7" }, 0, [])).toBeNull();
+    expect(person?.speak({ method: "mark", id: "x", at: { x: 1, y: 1 } }, 0, [])).toBeNull();
     const chat = { method: "text", text: "hello" } as const;
-    expect(person?.speak(chat, 0)).toEqual(chat);
+    expect(person?.speak(chat, 0, [])).toEqual(chat);
+  });
+
+  it("sends a suppressed signal only after an ask of its kind has been live for the delay", () => {
+    const person = createStandIn(0, new Set([0]), ROLES).person;
+    const stop = { method: "callout", callout: "stop" } as const;
+    const ask = [{ kind: "stop-on-click", from: 2, to: 0 }] as const;
+    expect(person?.speak(stop, 1000, ask)).toBeNull(); // just asked
+    expect(person?.speak(stop, 1000 + (STANDIN_DELAY_TICKS - 1) * TICK_MS, ask)).toBeNull();
+    expect(person?.speak(stop, 1000 + STANDIN_DELAY_TICKS * TICK_MS, ask)).toEqual(stop);
+    // a different kind of ask does not unlock it, and the ask ending takes it away again
+    const other = [{ kind: "read-plate", from: 2, to: 0 }] as const;
+    expect(person?.speak(stop, 9000, other)).toBeNull();
+    expect(person?.speak(stop, 9000 + STANDIN_DELAY_TICKS * TICK_MS, [])).toBeNull();
   });
 
   it("solveRoom without stand-ins is unchanged, and with one the safe room does not clear", () => {

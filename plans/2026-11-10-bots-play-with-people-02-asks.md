@@ -34,7 +34,7 @@ export function needs(job: Job, room: Room): Signal[];
 
 ## Tasks
 
-### Task 299: The ask and its clock (BT1, BT3) — [ ]
+### Task 299: The ask and its clock (BT1, BT3) — [x]
 
 - **Behaviour:**
   - **`src/game/asks.ts` (pure):** `AskKind`, `Ask`, `ASK_COPY`, `REASK_MS`, `ASK_QUIET_MS`, `AskClock` and `reaskDue`, as overview §4.
@@ -58,7 +58,7 @@ export function needs(job: Job, room: Room): Signal[];
 - **Break check:** make `reaskDue` ignore `atSpot` by script; the hold test goes red.
 - **Depends on:** phase 01.
 
-### Task 300: Asks reach the asked seat only (BT1 delivery) — [ ]
+### Task 300: Asks reach the asked seat only (BT1 delivery) — [x]
 
 - **Behaviour:**
   - `botsAct` collects each bot's `turn.ask` into `sentAsks`, part of its return value (add the field; keep the existing ones).
@@ -74,7 +74,7 @@ export function needs(job: Job, room: Room): Signal[];
 - **Break check:** send asks to every seat by script; the perception test goes red.
 - **Depends on:** Task 299.
 
-### Task 301: The chip and the spoken ask (BT1, BT2) — [ ]
+### Task 301: The chip and the spoken ask (BT1, BT2) — [ ] (review queued)
 
 - **Behaviour:**
   - **Client chip:** a label of kind `ask`, with `ASK_COPY[kind].chip`, anchored on the asking bot's figure, for each entry in `view.you.asks`. It's sighted only, because Can't see's frame draws no labels.
