@@ -26,6 +26,7 @@ import {
   laserBeam,
   laserOn,
   laserParams,
+  num,
 } from "./sim/hazards.ts";
 import { blocksSight, lineOfSight, soundReaches } from "./sim/sight.ts";
 import {
@@ -129,6 +130,7 @@ export interface EntityView {
     solved: boolean;
     parts: { key: StationPartKey; at: Vec[] }[];
     furniture?: true; // only its parts are in sight, not where it shows its state: `shows` is empty
+    range?: number; // a radio: how many bands its dial has (room layout, the sim's `range`, 10 if unset)
     cut?: number[]; // a wires panel: the indices of its cut wires, state like `shows` (never in a furniture-only view)
     teach?: true; // a teaching station (clues FR7)
     practice?: true; // its practice lever is on: dimmed, and its keys and bells only play (Task 38)
@@ -458,6 +460,7 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
           shows: stationShows(world, s),
           solved: s.solved,
           ...(s.type === "wires" && s.input.length > 0 ? { cut: [...s.input] } : {}),
+          ...(s.type === "radio" ? { range: num(o.params, "range", 10) } : {}),
           parts: stationParts(o),
           ...(o.params?.teach === true ? { teach: true as const } : {}),
           ...(typeof o.params?.practice === "string" && world.levers[o.params.practice]

@@ -92,3 +92,11 @@ Open three tabs (or a phone and two tabs), create a lobby in one, join with the 
 - **Screenshots:** `review/p3-280-goal-mute-1280.png`, `review/p3-280-goal-deaf-375.png`, `review/p3-280-goal-mute-375.png`.
 - **A pass:** the line reads at a glance in the phone's bar and doesn't crowd the live light or the menu.
 - **My judgement:** the full wording fits at 375 with room to spare (218 px), 14 px bold condensed like the room label, so I kept the full line, not the short fallback.
+
+### Task 285: the radio draws its own range of ticks (F5)
+
+- **What to look at:** the radio's band now has one tick per band: 6 on room 6's teaching radio (Q1, range 6), 8 on the plated radio Q3 (range 8), 10 where no range is set. The needle's chip still carries the number (all numbers don't fit: the band is ~22 px wide at 375).
+- **Start it:** `BENCH=1 pnpm build && BENCH=1 node server.ts`, open `http://localhost:8080/bench?room=06&still=1` (room 6's Q1, top left; the screenshots set its needle to band 4). Live: `pnpm build && pnpm start`, three tabs, play to room 6.
+- **Screenshots:** `review/p3-285-radio-1280.png`, `review/p3-285-radio-375.png`.
+- **A pass:** at 375 the six ticks read as separate marks and the needle sits plainly on one of them.
+- **My judgement:** at 375 the six ticks are distinct and the chip reads 4 under the 4th; fewer ticks are easier to count than ten were.

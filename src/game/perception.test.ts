@@ -1026,6 +1026,37 @@ describe("viewFor: stations, gear and signals", () => {
   const wiresWorld = () =>
     worldWith(["##########", "#1..Q....#", "#2.......#", "#3.......#", "##########"], WIRES);
 
+  // F5 (Task 285): the radio's band count is room layout, the same for every sighted role; Can't see is
+  // sent no station, so no range either
+  it("a radio carries its range in a sighted view, and only a radio does", () => {
+    const radio = (range?: number) =>
+      worldWith(["##########", "#1..Q....#", "#2.......#", "#3.......#", "##########"], {
+        Q1: {
+          type: "radio",
+          pads: [
+            [3, 2],
+            [5, 2],
+          ],
+          ...(range === undefined ? {} : { range }),
+        },
+      });
+    const w = radio(8);
+    for (const [seat, role] of [
+      [1, "deaf"],
+      [2, "mute"],
+    ] as const) {
+      expect(
+        viewFor(w, seat, role, false).entities.find((e) => e.id === "Q1")?.station?.range,
+      ).toBe(8);
+    }
+    expect(
+      viewFor(radio(), 1, "deaf", false).entities.find((e) => e.id === "Q1")?.station?.range,
+    ).toBe(10);
+    expect(JSON.stringify(viewFor(w, 0, "blind", false))).not.toContain("range");
+    const wires = viewFor(wiresWorld(), 1, "deaf", false).entities.find((e) => e.id === "Q1");
+    expect(wires?.station && "range" in wires.station).toBe(false);
+  });
+
   it("a sighted viewer sees wire colours in sight; Can't see is shown no station at all", () => {
     const w = wiresWorld();
     const colours = w.stations.Q1?.answer.slice(2);

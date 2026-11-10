@@ -791,10 +791,10 @@ function stationStanding(
     ctx.fillRect(face.x - s * 0.36, face.y - s * 0.13, s * 0.72, s * 0.26);
     ctx.strokeRect(face.x - s * 0.36, face.y - s * 0.13, s * 0.72, s * 0.26);
     if (!st.furniture) {
-      // ten ticks along the band, counted 1 to 10 from the left (playtest 3 FR7); the needle on its
-      // band, and under it the number of the tick it is on (ten numbers do not fit the band side by
-      // side at the 11 px floor, so the needle carries its own)
-      const range = 10;
+      // a tick per band, counted 1 to `range` from the left (playtest 3 FR7; ten if none is sent); the
+      // needle on its band, and under it the number of the tick it is on (ten numbers do not fit the
+      // band side by side at the 11 px floor, so the needle carries its own)
+      const range = st.range ?? 10;
       const at = st.shows[0] ?? 0;
       const tickX = (i: number) => face.x - s * 0.26 + (i / (range - 1)) * s * 0.52;
       ctx.lineWidth = 1;

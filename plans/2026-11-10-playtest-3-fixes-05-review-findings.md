@@ -124,7 +124,7 @@ The same shape applies to any `.hud-alert` that appears or goes mid-game (lag, g
 - **Break check:** put back the outline-only clamp by script; the unit test goes red.
 - **Depends on:** none.
 
-### Task 285: The radio draws its own range of ticks (F5) — [ ]
+### Task 285: The radio draws its own range of ticks (F5) — [ ] (review queued)
 
 **Finding (confirmed, LOW):**
 - `src/client/render/stations.ts` (about 797) has `const range = 10;` and builds the ticks and `tickX` from it.
