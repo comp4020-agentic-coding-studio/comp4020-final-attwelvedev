@@ -593,22 +593,25 @@ body.playing main {
   }
 }
 
-/* in a game the transient alerts (voice lagging, a new host, who left or came back, how a vote ended) take no
-   height: a zero-height layer between the top bar and the frame, its notes overlaying the frame's top. In the
-   column they shortened the frame while they showed, and the canvas rescaled when one went (Task 279: the
-   restart vote's note left just after the swoop landed, and the whole view jumped). */
+/* in a game the transient alerts (voice lagging, a new host, who left or came back, how a vote ended) sit in
+   the frame's top column (.top-stack), under the side-job chip and the open plate and over the cache moment and
+   an open vote: they flow under each other, so none covers another (Task 292). The column overlays the frame,
+   so an alert coming or going never resizes it (Task 279: a note in the HUD's column once jolted the whole
+   view). An alert has no control, so it lets clicks through. */
 .hud-alerts {
-  position: relative;
-  z-index: 5; /* over the frame's overlays (3), under the top bar (6) and its menu */
-  flex: none;
-  height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-1);
+}
+.top-stack > .hud-alerts {
+  pointer-events: none;
 }
 .hud-alerts:empty {
   display: none;
 }
 .hud-alerts > .hud-alert {
-  position: relative;
-  margin: var(--s-2) auto 0;
+  margin: 0;
   width: fit-content;
   max-width: calc(100% - 2 * var(--s-3) - 24px);
   box-shadow: var(--lift);
@@ -1628,13 +1631,10 @@ fieldset.settings {
   }
 }
 
-/* a restart vote: a card at the top centre of the map, so people keep moving while they decide */
+/* a restart vote: a card at the top centre of the map, so people keep moving while they decide; in the frame's
+   top column, under anything above it there (Task 292) */
 .vote-prompt {
-  position: absolute;
-  top: var(--s-2);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 3;
+  align-self: center;
   display: grid;
   gap: var(--s-2);
   width: min(calc(100% - var(--s-4)), 26rem);
@@ -1914,13 +1914,12 @@ fieldset.settings {
   font-weight: 700;
 }
 /* what a cache's opening or stash says, at the top centre of the map for a few seconds, like a vote
-   card: it never blocks play */
+   card: it never blocks play. In the frame's top column, so it sits under the chip on every width */
+.top-stack > .cache-moment {
+  pointer-events: none;
+}
 .cache-moment {
-  position: absolute;
-  top: var(--s-2);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 3;
+  align-self: center;
   display: flex;
   align-items: center;
   gap: var(--s-2);
@@ -1938,12 +1937,6 @@ fieldset.settings {
 .cache-moment p {
   margin: 0;
   overflow-wrap: anywhere;
-}
-/* a phone's frame is too narrow for the chip and the card side by side: the card goes under the chip */
-@media (max-width: 719px) {
-  .cache-moment {
-    top: calc(var(--s-2) + 4.5rem);
-  }
 }
 /* phone: the gear slot is a 48 px button at the world's bottom right, clear of the touch controls */
 .gear-btn {

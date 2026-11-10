@@ -1285,54 +1285,6 @@ function Hud({
         <p class="hud-hint hud-goal-wide">Get all three onto the exit.</p>
       )}
 
-      <div class="hud-alerts">
-        {voice.lagging && (
-          <p class="hud-alert" role="status">
-            Voice lagging
-          </p>
-        )}
-
-        {hostNote && (
-          <p class="hud-alert" role="status">
-            {hostNote}
-          </p>
-        )}
-
-        {replaced && (
-          <p class="hud-alert" role="status">
-            {replaced}
-          </p>
-        )}
-
-        {goneNote && (
-          <p class="hud-alert" role="status">
-            {goneNote}
-          </p>
-        )}
-
-        {back && (
-          <p class="hud-alert" role="status">
-            {back} is back.
-          </p>
-        )}
-
-        {voteNote && (
-          <p class="hud-alert" role="status">
-            {voteNote}
-          </p>
-        )}
-
-        {gone.length > 0 && (
-          <p class="hud-alert" role="status">
-            {gone
-              .map((g) =>
-                g.how === "left" ? `${g.name} left the game.` : `${g.name} lost connection.`,
-              )
-              .join(" ")}
-          </p>
-        )}
-      </div>
-
       <div class="frame">
         <span class="notch" aria-hidden="true">
           <RoleShape role={role} size={22} mono />
@@ -1343,17 +1295,74 @@ function Hud({
             role="img"
             aria-label={role === "blind" ? "No map. Listen to the room." : "Map of the room"}
           />
-          {/* the side-job chip and the open plate share one column, so the plate sits under the chip at whatever
-            height the chip has (a riddle wraps to two lines); neither covers the other */}
+          {/* one column at the frame's top: the side-job chip, the open plate, the transient alerts, the cache
+            moment and an open vote flow under each other, so none covers another or takes its clicks (Task 292).
+            The column is an overlay: nothing in it resizes the frame (Task 279) */}
           <div class="top-stack">
             <SideJob cache={cache} keepsake={keepsake} />
             {braille && <BrailleCard cells={braille.cells} teach={braille.teach} />}
-          </div>
-          {moment && (
-            <div class="cache-moment" role="status">
-              <p>{moment}</p>
+            <div class="hud-alerts">
+              {voice.lagging && (
+                <p class="hud-alert" role="status">
+                  Voice lagging
+                </p>
+              )}
+
+              {hostNote && (
+                <p class="hud-alert" role="status">
+                  {hostNote}
+                </p>
+              )}
+
+              {replaced && (
+                <p class="hud-alert" role="status">
+                  {replaced}
+                </p>
+              )}
+
+              {goneNote && (
+                <p class="hud-alert" role="status">
+                  {goneNote}
+                </p>
+              )}
+
+              {back && (
+                <p class="hud-alert" role="status">
+                  {back} is back.
+                </p>
+              )}
+
+              {voteNote && (
+                <p class="hud-alert" role="status">
+                  {voteNote}
+                </p>
+              )}
+
+              {gone.length > 0 && (
+                <p class="hud-alert" role="status">
+                  {gone
+                    .map((g) =>
+                      g.how === "left" ? `${g.name} left the game.` : `${g.name} lost connection.`,
+                    )
+                    .join(" ")}
+                </p>
+              )}
             </div>
-          )}
+            {moment && (
+              <div class="cache-moment" role="status">
+                <p>{moment}</p>
+              </div>
+            )}
+            {vote && (
+              <VotePrompt
+                vote={vote}
+                seat={me as Seat}
+                crew={reveal.crew}
+                secondsLeft={voteLeft}
+                onCast={(yes) => socket.send({ t: "vote.cast", yes })}
+              />
+            )}
+          </div>
           <Captions lines={lines} cues={cues} />
           {!cleared && (
             <div class="hud-dock">
@@ -1424,15 +1433,6 @@ function Hud({
             <p class="caught-banner" role="alert">
               {caught}
             </p>
-          )}
-          {vote && (
-            <VotePrompt
-              vote={vote}
-              seat={me as Seat}
-              crew={reveal.crew}
-              secondsLeft={voteLeft}
-              onCast={(yes) => socket.send({ t: "vote.cast", yes })}
-            />
           )}
           {pause && (
             <Disconnect

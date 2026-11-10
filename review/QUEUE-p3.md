@@ -108,3 +108,13 @@ Open three tabs (or a phone and two tabs), create a lobby in one, join with the 
 - **Screenshots:** `review/p3-288-spectator-blind-1280.png`, `review/p3-288-spectator-blind-375.png` (Can't see leading Can't hear in room 1).
 - **A pass:** watching Can't see this way reads well: you understand you are seeing what they get, and the link reads as their hand.
 - **My judgement:** it matches Can't see's own frame exactly, inside the spectator bezel. One thing to consider: a watcher loses the room while following Can't see, which is FR4's point but may surprise someone who wanted to watch the room; "Whole room" is one tap away.
+
+## Phase 06
+
+### Task 292: alerts stack with the cards at the frame's top (review F3)
+
+- **What to look at:** an alert ("Voice lagging", "Bo is now the host.", how a vote ended) and an open restart vote at the same time, with a side-job chip. They now flow down one column at the map's top: chip, (Can't see's braille plate), alerts, cache moment, vote card. None covers another, and the vote's buttons take their clicks (alerts let clicks through).
+- **Start it:** `pnpm install && pnpm build && pnpm start`. Three windows on `http://localhost:8080` (one at phone width, 375×812), make a lobby, start room 1, ready. In one window: Menu → Restart room → "Sure? Ask to restart room". A real alert needs a lagging voice or a host change; the screenshots inject the app's own alert markup into `.hud-alerts`.
+- **Screenshots:** `review/p3-292-alert-vote-1280.png` (Can't speak, who asked), `review/p3-292-alert-vote-375.png` (Can't hear on the phone, with the vote's buttons).
+- **A pass:** the stacked alert and vote read well together, and the vote card is not too low on the phone.
+- **My judgement:** nothing overlaps at either width, and the buttons are clear. The cost: on a phone, with the chip open and two alerts, the vote card starts about 280 px down and covers the middle of the map (it used to sit at the top, under the alerts). If that is too much, the next step would be collapsing the chip while a vote is open.
