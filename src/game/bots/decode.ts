@@ -11,7 +11,7 @@ import {
   WIRE_RULES,
 } from "../sim/stations.ts";
 import type { StationType } from "../sim/world.ts";
-import type { Vec } from "../types.ts";
+import type { Seat, Vec } from "../types.ts";
 
 // What a bot has worked out about one station (clues FR5), from its own view and what teammates
 // send it, never from the simulation. A station type's decoder (phases 05 to 10) turns this into
@@ -34,6 +34,9 @@ export interface StationBelief {
   symbols: Partial<Record<string, number>>; // a vault: each solved wing's symbol, by its motif
   order: string[] | null; // a vault's order clue, read: the wings' motifs in socket order
   plate: number | null; // the number a braille plate carries for it, as Can't see texted it
+  askedAt?: number; // game ms its ask (read-plate, plate-first, stop-on-click) was first said
+  askedTo?: Seat; // the person it asked
+  held: ChannelMessage[]; // a person's digits, held until they have settled (SETTLE_MS)
   plateFrom: number | null; // an earpiece keypad: how many digits it had been sent when it saw the plate read
 }
 
@@ -53,6 +56,7 @@ export const emptyBelief = (): StationBelief => ({
   shows: [],
   marked: [],
   numbers: [],
+  held: [],
   plateFrom: null,
   changedAt: Number.NEGATIVE_INFINITY,
   rule: null,
@@ -77,6 +81,40 @@ export function readBraille(cells: number[][]): number | null {
   return values.some((v) => v < 0) ? null : Number(values.join(""));
 }
 
+// BS1-BS3: what a station takes from a person. A digit or a `stop` from a seat held by a person
+// counts only when this bot asked that seat for it and the message was sent after the ask (the
+// ask is cleared on a send-back, so it is also since the last one). A bot's message, and a sync
+// lock's count (it only ever acts on a fresh "1"), pass as before. A person's digits are held until
+// SETTLE_MS after the last, so a corrected digit comes in behind the first and wins.
+export const SETTLE_MS = 2000;
+export function admit(
+  inbox: ChannelMessage[],
+  b: StationBelief,
+  o: RoomObject,
+  humans: ReadonlySet<Seat>,
+  now: number,
+): ChannelMessage[] {
+  if (o.params?.type === "sync") return inbox;
+  const asked = (m: ChannelMessage) =>
+    b.askedTo === m.from.seat && b.askedAt !== undefined && m.sentAt >= b.askedAt;
+  const out: ChannelMessage[] = [];
+  for (const m of inbox) {
+    const person = humans.has(m.from.seat);
+    if (!person) out.push(m);
+    else if (m.method === "callout" && m.callout === "stop") {
+      if (asked(m)) out.push(m);
+    } else if (m.method === "text" && readNumber(m.text) !== null) {
+      if (asked(m)) b.held.push(m);
+    } else out.push(m);
+  }
+  const last = b.held.at(-1);
+  if (last && now - last.sentAt >= SETTLE_MS) {
+    out.push(...b.held);
+    b.held = [];
+  }
+  return out;
+}
+
 // The only text a bot reads (P3): a single digit.
 export function readNumber(text: string): number | null {
   return /^\d$/.test(text.trim()) ? Number(text.trim()) : null;
@@ -97,6 +135,7 @@ export function beliefFrom(
     told: new Set(prior.told),
     marked: [...prior.marked],
     numbers: [...prior.numbers],
+    held: [...prior.held],
     heard: [...prior.heard],
     symbols: { ...prior.symbols },
   };
@@ -252,6 +291,8 @@ const keypad: Decoder = (view, _inbox, b, o, now, plated) => {
     if (plated !== undefined) {
       const reading = view.entities?.some((e) => e.kind === "braille" && e.state === "on");
       if (reading && b.plateFrom === null) b.plateFrom = b.numbers.length;
+      // asked of a person (plate-first): the first digit after the ask is the plate's
+      if (b.askedAt !== undefined && b.plateFrom === null) b.plateFrom = 0;
       if (b.numbers.length >= len) {
         const from = b.plateFrom !== null && b.plateFrom < b.numbers.length ? b.plateFrom : null;
         const told = b.numbers.map((d) => d - 1);

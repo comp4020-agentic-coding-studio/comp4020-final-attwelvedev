@@ -8,6 +8,7 @@ import { step } from "../sim/step.ts";
 import { place, roomWith } from "../sim/testing.ts";
 import { createWorld, TICK_MS } from "../sim/world.ts";
 import {
+  admit,
   beliefFrom,
   bellsStep,
   COUNT_TICKS,
@@ -1214,5 +1215,89 @@ describe("a plate-held keypad key and wire (Task 77)", () => {
     const none = emptyBelief();
     DECODERS.wires?.(view, [], none, o("Q2"), 0, 0);
     expect(none.answer).toEqual([null]);
+  });
+});
+
+describe("a person's digits and words count only when asked for (BS1-BS3)", () => {
+  const radioRoom = roomWith(["#########", "#1.Q....#", "#2......#", "#3......#", "#########"], {
+    Q1: {
+      type: "radio",
+      pads: [
+        [2, 2],
+        [4, 2],
+      ],
+      range: 8,
+    },
+  });
+  const Q = radioRoom.objects.find((x) => x.id === "Q1");
+  if (!Q) throw new Error("no Q1");
+  const dialObj = {
+    ...Q,
+    params: {
+      type: "dial",
+      pads: [
+        [3, 1],
+        [5, 1],
+      ],
+      digits: 2,
+    },
+  };
+  const from = (seat: 0 | 1 | 2, m: Outgoing, sentAt: number): ChannelMessage =>
+    ({
+      ...m,
+      from: { seat, role: seat === 0 ? "blind" : "mute", nickname: "P" },
+      sentAt,
+    }) as ChannelMessage;
+  const humans = new Set<0 | 1 | 2>([0]);
+  const asked = (at: number): StationBelief => ({ ...emptyBelief(), askedAt: at, askedTo: 0 });
+
+  it("ignores a digit sent before the ask", () => {
+    const b = asked(5000);
+    const out = admit([from(0, { method: "text", text: "4" }, 1000)], b, Q, humans, 9000);
+    expect(out).toEqual([]);
+    expect(b.held).toEqual([]);
+  });
+  it("takes a digit sent after the ask, once it has settled for 2 s", () => {
+    const b = asked(5000);
+    const d = from(0, { method: "text", text: "4" }, 6000);
+    expect(admit([d], b, Q, humans, 6500)).toEqual([]);
+    expect(admit([], b, Q, humans, 8000)).toEqual([d]);
+  });
+  it("takes a corrected digit sent within 2 s: both arrive, in order, the last wins", () => {
+    const b = asked(5000);
+    const first = from(0, { method: "text", text: "4" }, 6000);
+    const fix = from(0, { method: "text", text: "6" }, 7500);
+    admit([first], b, Q, humans, 6000);
+    expect(admit([fix], b, Q, humans, 8000)).toEqual([]); // 2 s not yet since the fix
+    const got = admit([], b, Q, humans, 9500);
+    const radio = { ...emptyBelief(), shows: [5, 2] };
+    for (const m of got) radio.numbers.push(Number((m as { text: string }).text));
+    expect(radio.numbers.at(-1)).toBe(6);
+  });
+  it("forgets digits on a send-back (the ask is cleared with them)", () => {
+    const b = asked(5000);
+    admit([from(0, { method: "text", text: "4" }, 6000)], b, Q, humans, 6000);
+    b.held = [];
+    b.askedAt = undefined;
+    b.askedTo = undefined;
+    expect(admit([from(0, { method: "text", text: "4" }, 7000)], b, Q, humans, 20000)).toEqual([]);
+  });
+  it("never counts a digit from the other person, who was not asked", () => {
+    const b = asked(5000);
+    const both = new Set<0 | 1 | 2>([0, 2]);
+    const out = admit([from(2, { method: "text", text: "4" }, 6000)], b, Q, both, 20000);
+    expect(out).toEqual([]);
+  });
+  it("passes a bot's digit as before", () => {
+    const b = emptyBelief();
+    const d = from(0, { method: "text", text: "4" }, 0);
+    expect(admit([d], b, Q, new Set(), 0)).toEqual([d]);
+  });
+  it("the dial ignores a person's stop sent before the ask, and takes one after it", () => {
+    const stop = (at: number) => from(0, { method: "callout", callout: "stop" }, at);
+    const before = admit([stop(1000)], asked(5000), dialObj, humans, 9000);
+    expect(before).toEqual([]);
+    const after = admit([stop(6000)], asked(5000), dialObj, humans, 9000);
+    expect(after).toHaveLength(1);
   });
 });

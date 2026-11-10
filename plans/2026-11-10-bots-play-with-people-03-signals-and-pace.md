@@ -46,7 +46,7 @@ export interface BotTurn { input: PlayerInput; send: Outgoing | null; ask?: Ask 
 
 ## Tasks
 
-### Task 302: A person's digits and words count only when asked for (BS1–BS3) — [ ]
+### Task 302: A person's digits and words count only when asked for (BS1–BS3) — [x]
 
 - **Behaviour:**
   - `numbers` becomes `{ n: number; from: Seat; at: number }[]` (update every reader). Each station belief also keeps `askedAt?: number` and `askedTo?: Seat`, set when this bot's ask for that station is first said.

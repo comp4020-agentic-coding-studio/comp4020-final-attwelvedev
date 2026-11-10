@@ -24,6 +24,7 @@ import {
   type Vec,
 } from "../types.ts";
 import {
+  admit,
   beliefFrom,
   bellsStep,
   bellToMark,
@@ -400,8 +401,14 @@ function readStations(
 ): void {
   known.roles = rolesOf(m, view.role);
   const stations = room.objects.filter((o) => o.kind === "station");
-  for (const o of stations)
-    known.stations[o.id] = beliefFrom(view, inbox, o, known.stations[o.id] ?? emptyBelief());
+  // what each station takes from a person is only what it asked for (decode.ts: admit)
+  const nowMs = view.tick * TICK_MS;
+  const admitted: Record<string, ChannelMessage[]> = {};
+  for (const o of stations) {
+    const prior = known.stations[o.id] ?? emptyBelief();
+    admitted[o.id] = admit(inbox, prior, o, m.humans, nowMs);
+    known.stations[o.id] = beliefFrom(view, admitted[o.id] as ChannelMessage[], o, prior);
+  }
   linkedFrom(room, view, known.stations);
   for (const o of stations) {
     const b = known.stations[o.id] as StationBelief;
@@ -413,8 +420,10 @@ function readStations(
         (id) => known.stations[id]?.solved !== true && !m.cacheGaveUp.has(id),
       );
     const heard = aside
-      ? inbox.filter((m) => !(m.method === "callout" && m.callout === "stop"))
-      : inbox;
+      ? (admitted[o.id] as ChannelMessage[]).filter(
+          (m) => !(m.method === "callout" && m.callout === "stop"),
+        )
+      : (admitted[o.id] as ChannelMessage[]);
     // a keypad takes only the chimes of its own clue: another keypad's (a cache's, heard from the same
     // vent) names a different clue by its bearing and would spoil its code (ADR 0024)
     const own = o.params?.clue;
@@ -1151,17 +1160,18 @@ function thinkSighted(
     if (last && Math.hypot(view.you.pos.x - last.x, view.you.pos.y - last.y) > 1.5) {
       forgetPlans(m);
       m.markedFor = null;
+      m.asks = {};
       known.read = {}; // a plate read before says something else now
       forgetCaches(room, view, known, m); // every chamber is shut again
       // sent back: every unsolved station has a fresh answer, so what was heard of it is stale
-      for (const [id, b] of Object.entries(known.stations)) {
+      for (const b of Object.values(known.stations)) {
         if (b.solved) continue;
-        // an earpiece's keypad: the digits told were the old code (a radio's digit is kept)
-        const clue = room.objects.find((o) => o.id === id)?.params?.clue;
-        if (String(clue ?? "").startsWith("g")) {
-          b.numbers = [];
-          b.plateFrom = null;
-        }
+        // what a person told or was asked is about the old room state: every station asks afresh
+        b.numbers = [];
+        b.held = [];
+        b.askedAt = undefined;
+        b.askedTo = undefined;
+        b.plateFrom = null;
         b.told = new Set();
         b.answer = [];
         b.heard = [];
@@ -1228,6 +1238,12 @@ export function askFor(
   if (!c) {
     if (now - m.lastHeardAt < ASK_QUIET_MS) return null;
     c = m.asks[k] = { firstAt: now, lastAt: now, count: 1, progressAt: Number.NEGATIVE_INFINITY };
+    // the station takes a person's digit or stop only from the asked seat, sent after this (BS1)
+    const sb = m.known?.stations[station];
+    if (sb && sb.askedAt === undefined) {
+      sb.askedAt = now;
+      sb.askedTo = to;
+    }
   } else {
     if (progressed) c.progressAt = now;
     if (reaskDue(c, now, m.lastHeardAt, atSpot)) {
