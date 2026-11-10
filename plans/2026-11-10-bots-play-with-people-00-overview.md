@@ -85,7 +85,7 @@ export interface BotTurn { input: PlayerInput; send: Outgoing | null; ask?: Ask 
 | [x] 01 | `-01-stand-in-and-jobs.md` | 296–298 (BG1 harness and known-failing list, BJ1) | `Unit done: bp01` | p3fix06 done |
 | [x] 02 (reviews queued) | `-02-asks.md` | 299–301 (BT1–BT3, the chip, spoken asks) | `Unit done: bp02` | 01 |
 | [x] 03 (review queued; 35 NOT_YET entries still undiagnosed, see the overnight log) | `-03-signals-and-pace.md` | 302–304 (BS1–BS3, BP1–BP2, each station's ask, BJ3) | `Unit done: bp03` | 02 |
-| [ ] 04 | `-04-takeover-and-two-people.md` | 305–306 (BJ2, the two-stand-in runs, empty `NOT_YET`, docs) | `Unit done: bp04` | 03 |
+| [x] 04 (task 306 parked in part: NOT_YET has 29 one-person and 18 two-person entries, see the overnight log bp04/306; reviews queued) | `-04-takeover-and-two-people.md` | 305–306 (BJ2, the two-stand-in runs, empty `NOT_YET`, docs) | `Unit done: bp04` | 03 |
 
 ## 6. Definition of Done (feature)
 
