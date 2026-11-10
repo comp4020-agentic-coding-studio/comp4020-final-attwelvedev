@@ -1726,6 +1726,21 @@ describe("a guide says a direction once, and repeats it with backoff while no pr
     expect(ticks[1], ticks.join(", ")).toBeGreaterThanOrEqual(51 + 2000 / TICK_MS);
   });
 
+  it("a repeat waits 2 s after a work text too, so it never cuts off a digit (Task 291)", () => {
+    // a work text (a digit, sent through `stamp`) goes out at 2.5 s, half a second before the first
+    // repeat is due: on a person's client a callout 50 ms later would supersede it (speech.ts)
+    const run = guided(
+      OPEN,
+      10_000 / TICK_MS,
+      (_heard, p) => p,
+      (t, memory) => {
+        if (t === 51) memory.lastSpokeAt = t * TICK_MS;
+      },
+    );
+    const ticks = run.said.map((s) => s.tick);
+    expect(ticks[1], ticks.join(", ")).toBeGreaterThanOrEqual(51 + 2000 / TICK_MS);
+  });
+
   it("a new heading resets the backoff and is said at once (Task 282)", () => {
     const L = [
       "#############",

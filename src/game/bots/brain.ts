@@ -1690,7 +1690,9 @@ function guideBlind(
       g.nudges = 0;
     }
     const gap = NUDGE_MS * 2 ** Math.min(g.nudges, 2);
-    const quiet = Math.max(g.lastSentAt, m.lastFlavourAt) + NUDGE_QUIET_MS;
+    // (a work text such as a digit counts too, through `stamp`'s lastSpokeAt: a repeat on its heels
+    // would cut it off on a person's client, Task 291)
+    const quiet = Math.max(g.lastSentAt, m.lastFlavourAt, m.lastSpokeAt) + NUDGE_QUIET_MS;
     nudgeAt = Math.max(Math.max(g.lastSentAt, g.progressAt) + gap, quiet);
   } else if (g.moving && g.nudges < 1 && progress(g, p) < PROGRESS) {
     nudgeAt = g.lastSentAt + NUDGE_MS;

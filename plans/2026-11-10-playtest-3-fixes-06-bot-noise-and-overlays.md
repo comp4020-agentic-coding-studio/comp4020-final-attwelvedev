@@ -47,7 +47,7 @@
 - **Break check:** remove the human check by script; the new test goes red.
 - **Depends on:** Task 289 (same file).
 
-### Task 291: A nudge doesn't cut off the bot's last line (review F4) — [ ]
+### Task 291: A nudge doesn't cut off the bot's last line (review F4) — [x]
 
 **Finding:**
 - The 2 s quiet window before a repeat looks only at `g.lastSentAt` and `m.lastFlavourAt`.
