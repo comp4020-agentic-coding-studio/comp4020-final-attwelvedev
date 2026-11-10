@@ -46,6 +46,7 @@
 | [x] 03 (reviews queued: 275, 276, 277; ADR 0030 to accept) | `-03-touch.md` | 274–277 (FR1–FR6) | `Unit done: p3fix03` | none |
 | [x] 04 (task 278 parked: did not reproduce) | `-04-intro-jerk.md` | 278 (B4) | `Unit done: p3fix04` | none; last, because it may only reproduce and park |
 | [x] 05 (reviews queued: 279, 280, 285, 288) | `-05-review-findings.md` | 279–288 (B4 restart, T3, F1–F9) | `Unit done: p3fix05` | none (the user's rulings of 2026-11-10) |
+| [x] 06 (review queued: 292; task 294 parked) | `-06-bot-noise-and-overlays.md` | 289–295 (bot noise, F1–F5) | `Unit done: p3fix06` | none |
 
 Each phase stands alone, so if one parks, the others still run. Units run in this order: 01, 02, 03, 04.
 
@@ -85,6 +86,11 @@ Each phase stands alone, so if one parks, the others still run. Units run in thi
 | F6 a plated radio reading 10 | 286 |
 | F4 the hold-hands chip follows the act hint; F8 the identity test's reach | 287 |
 | F9 / FR4 a spectator following Can't see | 288 |
+| Phase 06: a bot guide's noise at a person listening at a safe | 289 |
+| Phase 06: the keep-alive reaching a person (F1); a nudge cutting off a digit (F4) | 290, 291 |
+| Phase 06: alerts over their neighbours (F3); the phone bar growing mid-game (F2) | 292, 293 |
+| Phase 06: the intro starting zoomed in under the HUD | 294 (parked: did not reproduce) |
+| Phase 06: the reveal flake (F5) | 295 |
 
 ## 6. Risks
 

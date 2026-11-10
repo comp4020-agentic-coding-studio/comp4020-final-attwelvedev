@@ -104,7 +104,7 @@
 - **Break check:** as above.
 - **Depends on:** Task 292 (same CSS area).
 
-### Task 294: The intro never starts with the team under the HUD — [ ]
+### Task 294: The intro never starts with the team under the HUD — [ ] (parked)
 
 **What the user saw:** "when the room is not wide enough, the room starts zoomed in, so the game HUD fades in over the players, obscuring them. The animation then zooms out and pans to the players."
 
@@ -138,7 +138,7 @@
 - **Break check:** put the whole-window `introFit` back by script; the unit test goes red.
 - **Depends on:** none.
 
-### Task 295: The reveal flake is fixed at its cause (review F5) — [ ]
+### Task 295: The reveal flake is fixed at its cause (review F5) — [x]
 
 **Finding:**
 - Task 284 was committed with `pnpm check` red on `spec/layout/reveal.test.ts` "…the game's canvas is visible within 1.5 s". It passed 4/4 alone.
