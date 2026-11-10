@@ -53,9 +53,22 @@ describe("the ask clock (BT3)", () => {
 });
 
 describe("ask copy", () => {
-  it("carries no digit and no game value in any form", () => {
+  it("is non-empty and carries no digit and no game value in any form", () => {
     for (const [kind, c] of Object.entries(ASK_COPY)) {
+      expect(c.say.length, kind).toBeGreaterThan(0);
       expect(c.say, kind).not.toMatch(/\d/);
     }
+  });
+
+  it("names the route wherever the person has to send something (Task 313)", () => {
+    const route: Partial<Record<keyof typeof ASK_COPY, RegExp>> = {
+      "stop-on-click": /wheel, Talk, Stop/,
+      "read-plate": /Text/,
+      "plate-first": /text/,
+      "press-marked": /button/,
+      "strike-marked": /bell/,
+    };
+    for (const [kind, re] of Object.entries(route))
+      expect(ASK_COPY[kind as keyof typeof ASK_COPY].say, kind).toMatch(re as RegExp);
   });
 });
