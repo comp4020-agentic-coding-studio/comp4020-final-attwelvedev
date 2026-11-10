@@ -1893,3 +1893,57 @@ describe("a bot Can't see on a long straight run (F7, Task 283)", () => {
     expect(stuck, "stops said").toBe(0);
   });
 });
+
+describe("a bot guide stays put and quiet while a person listens at a safe (Task 289)", () => {
+  // Room 4, a person playing Can't see with two bots: led to the back of Q2, they stood still to listen,
+  // and the guide walked left and right and kept sending them taps. Three bots play the room up to
+  // the listen tile; there the person takes over Can't see and stands still where they arrived.
+  it("over 20 s at Q2's listen tile: no direction or tap to the listener, and the guide settles", () => {
+    const r = room("04-the-safe");
+    const world = createWorld(r, 1, [...ROLES3]);
+    const humans = new Set<Seat>();
+    const bots: Partial<Record<Seat, BotSeat>> = {};
+    for (const s of [0, 1, 2] as const)
+      bots[s] = { memory: createBotMemory(s, humans, ROLES3), inbox: [] };
+    const cd = { until: {} };
+    const act = () =>
+      botsAct(
+        r,
+        world,
+        ROLES3,
+        bots,
+        cd,
+        world.tick * TICK_MS,
+        (s) => `Bot ${s}`,
+        world.tick === 0 ? new Set<Seat>([0, 1, 2]) : new Set<Seat>(),
+      );
+    const there = () => {
+      const p = world.players[0].pos;
+      return Math.floor(p.x) === 23 && Math.floor(p.y) === 1 && world.gear[0]?.heldBy === 0;
+    };
+    while (world.tick < 6000 && !there()) step(world, act().inputs, TICK_MS);
+    expect(there(), "Can't see reached Q2's listen tile").toBe(true);
+    delete bots[0];
+    humans.add(0); // the person, who stands still from here
+    const told: string[] = [];
+    const tiles: string[] = [];
+    const end = world.tick + 400;
+    while (world.tick < end && world.stations.Q2?.solved !== true) {
+      const out = act();
+      for (const s of out.sent) {
+        if (s.from !== 1 || !s.receivers.includes(0)) continue;
+        const m = s.message;
+        if (m.method === "callout" && m.callout !== "stop" && m.callout !== "wait")
+          told.push(m.callout);
+        if (m.method === "text" && m.text.startsWith("Tap")) told.push(m.text);
+      }
+      out.inputs[0] = { seq: world.tick + 1, move: { x: 0, y: 0 }, act: false };
+      step(world, out.inputs, TICK_MS);
+      const g = world.players[1].pos;
+      const t = `${Math.floor(g.x)},${Math.floor(g.y)}`;
+      if (tiles.at(-1) !== t) tiles.push(t);
+    }
+    expect(told, told.join(" | ")).toEqual([]);
+    expect(tiles.length - 1, `the guide's tiles: ${tiles.join(" ")}`).toBeLessThanOrEqual(1);
+  });
+});

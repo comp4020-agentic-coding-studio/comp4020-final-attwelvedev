@@ -7,7 +7,7 @@
 
 ## Tasks
 
-### Task 289: A bot guide stays put and quiet while a person listens at a safe — [ ]
+### Task 289: A bot guide stays put and quiet while a person listens at a safe — [x]
 
 **What the user saw (room 4, them as Can't see, two bots):**
 - The bot Can't hear led them to the back of the safe (the listen tile, `[23,1]` for Q2).

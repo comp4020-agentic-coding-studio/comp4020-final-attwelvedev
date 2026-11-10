@@ -1405,6 +1405,12 @@ function moveSelf(room: Room, view: RoleView, m: BotMemory, known: Known, pos: V
   // station or gear job (it parks the Can't-see seat while it works one: guideBlind).
   const busy = job !== null && WORK_KINDS.has(job.target.kind);
   const lost = view.role === "deaf" && m.guide.est && !busy ? blindOutOfSight(view, m) : null;
+  // a guide with nothing of its own left but the exit holds still while the Can't-see seat listens at
+  // a safe: walking off and back to keep them in sight is noise to a person standing there (Task 289)
+  const idleGuide = job === null || job.target.kind === "exit";
+  if (view.role === "deaf" && idleGuide && blindListening(room, m, known, view.role, m.guide.est)) {
+    return follow(room, view, m, known, pos, tile);
+  }
   if (lost) return follow(room, view, m, known, pos, centreOf(tileOf(lost)));
 
   // pushing: stand behind the crate and walk into it until it is where it belongs
@@ -1422,6 +1428,26 @@ function moveSelf(room: Room, view: RoleView, m: BotMemory, known: Known, pos: V
     }
   }
   return follow(room, view, m, known, pos, goal);
+}
+
+// Is a person playing Can't see standing on the tile of their listen job, while that safe is unsolved?
+// They are listening for the tumbler: the guide says nothing to move them (Task 289). (A bot listener
+// is left to the rules it had: it hears no noise, and its caches are proven with them.)
+function blindListening(
+  room: Room,
+  m: BotMemory,
+  known: Known,
+  own: Role,
+  at: Vec | null,
+): boolean {
+  const b = rolesOf(m, own).indexOf("blind");
+  if (b < 0 || b === m.seat || !at || !m.humans.has(b as Seat)) return false;
+  const job = currentJob(room, m, known, own, b as Seat, at);
+  if (job?.target.kind !== "listen" || known.stations[job.target.station]?.solved === true)
+    return false;
+  // (to the tile's edge inclusive: the view rounds a sim's 23.99999 up to 24, still on the tile)
+  const t = job.target.tile;
+  return Math.abs(at.x - (t.x + 0.5)) <= 0.5 && Math.abs(at.y - (t.y + 0.5)) <= 0.5;
 }
 
 // Where the guide last put the Can't-see seat, if it cannot see them now.
@@ -1552,6 +1578,8 @@ function guideBlind(
       callout = "wait";
       g.moving = false;
     }
+  } else if (!g.moving && blindListening(room, m, known, view.role, p)) {
+    // stopped at a safe's back to listen: no direction, tap or repeat until the safe opens (Task 289)
   } else if (
     g.moving &&
     g.still >= STUCK_TICKS &&
