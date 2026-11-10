@@ -1089,6 +1089,23 @@ describe("lintPlates", () => {
     expect(plates(plateRoom("06-x", { Q1: RADIO, o1: { for: "Q1", part: 0 } }))).toEqual([]);
   });
 
+  // F6 (Task 286): at range 10 a band could read 10, which the plate can't give as a single digit
+  it("a plated radio with more than 9 bands fails: the plate must read a single digit", () => {
+    const RADIO = {
+      type: "radio",
+      pads: [
+        [5, 1],
+        [7, 1],
+      ],
+      range: 10,
+    };
+    const issues = plates(plateRoom("06-x", { Q1: RADIO, o1: { for: "Q1", part: 0 } }));
+    expect(
+      issues.some((i) => /o1.*Q1.*single digit/.test(i)),
+      issues.join(" | "),
+    ).toBe(true);
+  });
+
   it("a plate in rooms 1 to 3 fails", () => {
     const r = plateRoom("02-x", { Q1: DIAL, o1: { for: "Q1", part: 0 } });
     expect(plates(r, [])).toEqual(["plate o1: rooms 1 to 3 have no braille plates"]);

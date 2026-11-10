@@ -190,7 +190,8 @@ function platedRadio(range: number, r: () => number): number[] {
   const digit = 1 + int(3);
   const settings: number[] = [];
   while (settings.length < 3) {
-    const v = 1 + int(range - 1);
+    // at most 8: the plate shows a band + 1, as one digit (F6), so 9 bands are the most it can name
+    const v = 1 + int(Math.min(range, 9) - 1);
     if (!settings.includes(v)) settings.push(v);
   }
   const wrong = () => {

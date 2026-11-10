@@ -1,7 +1,7 @@
 import { parseJob, rawJobs } from "../bots/jobs.ts";
 import { type RoleView, viewFor } from "../perception.ts";
 import { TUNE_MAX_TICKS } from "../sim/chimes.ts";
-import { cameraParams, laserBeam, laserParams } from "../sim/hazards.ts";
+import { cameraParams, laserBeam, laserParams, num } from "../sim/hazards.ts";
 import { noteOf, numberOfText, PIP_TICKS, restOf, tilesOf } from "../sim/stations.ts";
 import { step } from "../sim/step.ts";
 import { type GearItem, patrolOf, type StationState, TICK_MS, type World } from "../sim/world.ts";
@@ -936,6 +936,10 @@ export function lintPlates(
       );
     } else if (parts === undefined) {
       out.push(`plate ${id} is for ${forId} (${String(p.type)}), which a plate cannot carry`);
+    } else if (p.type === "radio" && num(p, "range", 10) > 9) {
+      out.push(
+        `plate ${id} is for ${forId}, a radio with ${num(p, "range", 10)} bands: the plate must read a single digit (at most 9 bands)`,
+      );
     } else if (typeof part !== "number" || !Number.isInteger(part) || part < 0 || part >= parts) {
       out.push(
         `plate ${id} carries part ${String(part)} of ${forId} (${String(p.type)}), which has ${parts}`,

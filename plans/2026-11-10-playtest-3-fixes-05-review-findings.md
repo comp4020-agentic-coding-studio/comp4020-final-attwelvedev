@@ -140,7 +140,7 @@ The same shape applies to any `.hud-alert` that appears or goes mid-game (lag, g
 - **Break check:** put back `const range = 10` by script; the render test goes red.
 - **Depends on:** none.
 
-### Task 286: A plated radio can't read 10 (F6, latent) — [ ]
+### Task 286: A plated radio can't read 10 (F6, latent) — [x]
 
 **Finding (confirmed, LOW, latent):**
 - `platedRadio` can pick a setting up to `range − 1`, which is 9 at range 10. The plate shows that +1, so it can read 10.
