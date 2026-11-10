@@ -1278,51 +1278,53 @@ function Hud({
 
       {role === "blind" && <p class="hud-hint">No map. Listen. Get to the exit with the others.</p>}
 
-      {voice.lagging && (
-        <p class="hud-alert" role="status">
-          Voice lagging
-        </p>
-      )}
+      <div class="hud-alerts">
+        {voice.lagging && (
+          <p class="hud-alert" role="status">
+            Voice lagging
+          </p>
+        )}
 
-      {hostNote && (
-        <p class="hud-alert" role="status">
-          {hostNote}
-        </p>
-      )}
+        {hostNote && (
+          <p class="hud-alert" role="status">
+            {hostNote}
+          </p>
+        )}
 
-      {replaced && (
-        <p class="hud-alert" role="status">
-          {replaced}
-        </p>
-      )}
+        {replaced && (
+          <p class="hud-alert" role="status">
+            {replaced}
+          </p>
+        )}
 
-      {goneNote && (
-        <p class="hud-alert" role="status">
-          {goneNote}
-        </p>
-      )}
+        {goneNote && (
+          <p class="hud-alert" role="status">
+            {goneNote}
+          </p>
+        )}
 
-      {back && (
-        <p class="hud-alert" role="status">
-          {back} is back.
-        </p>
-      )}
+        {back && (
+          <p class="hud-alert" role="status">
+            {back} is back.
+          </p>
+        )}
 
-      {voteNote && (
-        <p class="hud-alert" role="status">
-          {voteNote}
-        </p>
-      )}
+        {voteNote && (
+          <p class="hud-alert" role="status">
+            {voteNote}
+          </p>
+        )}
 
-      {gone.length > 0 && (
-        <p class="hud-alert" role="status">
-          {gone
-            .map((g) =>
-              g.how === "left" ? `${g.name} left the game.` : `${g.name} lost connection.`,
-            )
-            .join(" ")}
-        </p>
-      )}
+        {gone.length > 0 && (
+          <p class="hud-alert" role="status">
+            {gone
+              .map((g) =>
+                g.how === "left" ? `${g.name} left the game.` : `${g.name} lost connection.`,
+              )
+              .join(" ")}
+          </p>
+        )}
+      </div>
 
       <div class="frame">
         <span class="notch" aria-hidden="true">

@@ -575,6 +575,26 @@ body.playing main {
   }
 }
 
+/* in a game the transient alerts (voice lagging, a new host, who left or came back, how a vote ended) take no
+   height: a zero-height layer between the top bar and the frame, its notes overlaying the frame's top. In the
+   column they shortened the frame while they showed, and the canvas rescaled when one went (Task 279: the
+   restart vote's note left just after the swoop landed, and the whole view jumped). */
+.hud-alerts {
+  position: relative;
+  z-index: 5; /* over the frame's overlays (3), under the top bar (6) and its menu */
+  flex: none;
+  height: 0;
+}
+.hud-alerts:empty {
+  display: none;
+}
+.hud-alerts > .hud-alert {
+  position: relative;
+  margin: var(--s-2) auto 0;
+  width: fit-content;
+  max-width: calc(100% - 2 * var(--s-3) - 24px);
+  box-shadow: var(--lift);
+}
 .hud-alert {
   flex: none;
   margin: var(--s-1) var(--s-3) 0;

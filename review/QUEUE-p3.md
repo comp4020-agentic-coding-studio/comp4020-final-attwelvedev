@@ -72,3 +72,14 @@ Open three tabs (or a phone and two tabs), create a lobby in one, join with the 
 - **Screenshots:** `review/p3-277-hold-1280.png`, `review/p3-277-hold-375.png` (bench, room 2, Can't speak moved beside Can't hear, the chip passed in as the game passes it).
 - **A pass:** the chip sits clearly on the teammate, doesn't cover either face badly, and plays well against the other chips.
 - **What I judged:** it reads whole at both widths. The chip's tail sits on the teammate's head and overlaps the edge of your own figure's hat at this distance (they are one tile apart), which is the label renderer's usual placement; acceptable, but worth your eye.
+
+## Phase 05
+
+### Task 279: the restart jerk (B4, re-opened)
+
+- **What to look at:** restart a room by vote and watch the intro replay. The vote's note ("Restarting the room.") now floats over the top of the map instead of pushing it down, so when it goes (3 s after the vote, ~0.6 s after the swoop lands) nothing resizes.
+- **Measured before the fix** (real intro, room 1, per rAF): the note made the frame 636→603 px at 1280 (433→401 at 375); it went at vote+3.07 s and the frame grew back in one frame, the camera's scale value stepping 191.8→192.2 and easing to 208.3. **After:** frame 636 / canvas 624 (433 / 421 at 375) and the camera constant from the swoop's end to +4 s.
+- **Start it:** `pnpm install && pnpm build && pnpm start`, open `http://localhost:8080` in three Chrome windows, make a lobby, play room 1, Menu → Restart room → Sure, the other two vote Restart room.
+- **Screenshots:** `review/p3-279-restart-1280.png`, `review/p3-279-restart-375.png` (the note over the frame, mid-swoop).
+- **A pass:** on your Mac in Chrome, for a sighted seat, the replayed intro lands and nothing jumps when the note goes. The note reads clearly and does not hide anything you need.
+- **My judgement:** the note sits centred at the top of the map, under the bar, readable at both widths; it covers a strip of wall at the top of room 1 for 3 s. The same layer now carries every in-game alert (voice lagging, new host, left/back), so none of them resizes the map either.
