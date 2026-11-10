@@ -58,7 +58,7 @@ The same shape applies to any `.hud-alert` that appears or goes mid-game (lag, g
 - **Break check:** by script, move the phone line back under the bar; the wheel spec goes red at 375.
 - **Depends on:** none.
 
-### Task 281: The edge "Tap" never repeats forever (F1) — [ ]
+### Task 281: The edge "Tap" never repeats forever (F1) — [x]
 
 **Finding (confirmed, MEDIUM):**
 - When the guide can't see the player, `brain.ts` (about 1520) sets `p = est` while `g.moving` is false, and nothing changes `est`.

@@ -1570,7 +1570,10 @@ function guideBlind(
     const a =
       step !== "wait" && !blindIsBot && !lineUp ? approach(g, p, tile, step, now, stepTick) : null;
     const onGoal = tile.x === goal.x && tile.y === goal.y;
-    const edge = step === "wait" && onGoal && !blindIsBot && !g.moving ? edgeWord(p, tile) : null;
+    // only for a person in sight: out of it, nothing moves the estimate after a tap, so the same tap
+    // would be asked for forever (F1)
+    const edge =
+      seen && step === "wait" && onGoal && !blindIsBot && !g.moving ? edgeWord(p, tile) : null;
     if (edge) {
       // a person at the very edge of their goal's tile (the view rounds 29.99999 up onto it, the sim
       // does not): tap them to its middle, or they wait there forever for a plate that is not pressed
@@ -1596,7 +1599,7 @@ function guideBlind(
         g.tapAt = now;
         g.nextTick = stepTick + 10;
       }
-    } else if (!blindIsBot && needsLineUp(room, g, p, tile, step)) {
+    } else if (!blindIsBot && seen && needsLineUp(room, g, p, tile, step)) {
       // A person cannot hold a direction to within a tenth of a tile, and a lane one tile wide
       // allows no more: stop them, then ask for a tap toward the middle of the lane, and look
       // again. Said in words, since a tap is smaller than any call.

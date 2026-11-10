@@ -1721,3 +1721,49 @@ describe("a person at the very edge of their goal's tile is tapped onto it (Task
     expect(texts).toContain("Tap right.");
   });
 });
+
+describe("the edge tap needs sight of the person (F1, Task 281)", () => {
+  // Out of sight and stopped, the guide's estimate of a person never moves: a tap moves nobody in its
+  // model. So if the estimate sits near its tile's edge, the same "Tap …" fired every 16 ticks forever.
+  it("a stopped person out of sight, reckoned 0.4 off the middle of their goal tile, is tapped at most once in 100 ticks", () => {
+    // the guide (2) is sealed off below: a wall between it and Can't see (1), so it never sees them
+    const grid = ["#########", "#1...p..#", "#########", "#2.....3#", "#########"];
+    const r = roomWith(grid, {}, { hints: { jobs: [{ beat: 1, goTo: "p1", prefer: "blind" }] } });
+    const world = createWorld(r);
+    const roles: [Role, Role, Role] = ["blind", "deaf", "mute"];
+    const memory = createBotMemory(1, new Set([0]), roles);
+    memory.guide.est = { x: 5.1, y: 1.5 }; // on the plate's tile (x 5), 0.4 left of its middle
+    const texts: string[] = [];
+    for (let t = 1; t <= 100; t++) {
+      world.tick = t;
+      const view = viewFor(world, 1, "deaf", true);
+      expect(view.entities.some((e) => e.kind === "player" && e.seat === 0)).toBe(false);
+      const turn = think(r, view, [], memory, t * TICK_MS);
+      if (turn.send?.method === "text" && turn.send.text.startsWith("Tap"))
+        texts.push(turn.send.text);
+    }
+    expect(texts.length, texts.join(" | ")).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("the line-up tap needs sight of the person too (F1, Task 281)", () => {
+  it("a stopped person out of sight, reckoned 0.3 off a one-tile lane's middle, is tapped at most once in 100 ticks", () => {
+    // Can't see (1) in a one-tile corridor to the exit, the guide (2) sealed off below it
+    const grid = ["#########", "#1.....E#", "#########", "#2.....3#", "#########"];
+    const r = roomWith(grid, {}, { hints: { jobs: [{ beat: 1, goTo: "E", all: true }] } });
+    const world = createWorld(r);
+    const roles: [Role, Role, Role] = ["blind", "deaf", "mute"];
+    const memory = createBotMemory(1, new Set([0]), roles);
+    memory.guide.est = { x: 1.5, y: 1.8 }; // 0.3 below the middle of the lane
+    const texts: string[] = [];
+    for (let t = 1; t <= 100; t++) {
+      world.tick = t;
+      const view = viewFor(world, 1, "deaf", true);
+      expect(view.entities.some((e) => e.kind === "player" && e.seat === 0)).toBe(false);
+      const turn = think(r, view, [], memory, t * TICK_MS);
+      if (turn.send?.method === "text" && turn.send.text.startsWith("Tap"))
+        texts.push(turn.send.text);
+    }
+    expect(texts.length, texts.join(" | ")).toBeLessThanOrEqual(1);
+  });
+});
