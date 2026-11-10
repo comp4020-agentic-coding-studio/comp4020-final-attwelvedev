@@ -1,4 +1,3 @@
-import { ASK_COPY, type AskKind } from "../game/asks.ts";
 import type { EntityView } from "../game/perception.ts";
 import { inReach } from "../game/sim/gear.ts";
 import type { Vec } from "../game/types.ts";
@@ -139,16 +138,8 @@ export function labelsFor(
   // your seat, for the hold-hands chip on a free teammate in reach (FR6), and whether this is a phone
   // and what the server says Space does here (`view.act`): the chip shows only when that is "Hold hands" (F4)
   me?: { seat: number; phone: boolean; act?: string },
-  // what bots ask of you (`view.you.asks`): a chip on each asking bot's figure, always shown (past `max`,
-  // and even with the other labels off), since a person needs to know what is wanted of them
-  asks: readonly { from: number; kind: AskKind }[] = [],
 ): Label[] {
-  const asking: Label[] = [];
-  for (const a of asks) {
-    const bot = entities.find((e) => e.kind === "player" && e.seat === a.from);
-    if (bot) asking.push({ kind: "ask", text: ASK_COPY[a.kind].chip, at: bot.pos });
-  }
-  if (!enabled) return asking;
+  if (!enabled) return [];
   const nearest = new Map<string, { at: Vec; d: number }>();
   const offer = (kind: string, at: Vec) => {
     const d = Math.hypot(at.x - near.x, at.y - near.y);
@@ -211,5 +202,5 @@ export function labelsFor(
       text: kind === "canhold" && me?.phone ? HOLD_PHONE : (LABEL_COPY[kind] ?? kind),
       at,
     }));
-  return [...asking, ...chips]; // an ask is first: it is placed before any other chip, so it keeps its place
+  return chips;
 }

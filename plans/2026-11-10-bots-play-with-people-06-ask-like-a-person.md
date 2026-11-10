@@ -28,7 +28,7 @@
 
 ## Tasks
 
-### Task 312: A Can't hear person is asked by a face, and the chip goes (BT1, BT2, decisions 1, 2, 5) — [ ]
+### Task 312: A Can't hear person is asked by a face, and the chip goes (BT1, BT2, decisions 1, 2, 5) — [x]
 
 - **Behaviour:**
   - Remove the `ask` chip: delete the `asking` list in `labelsFor`, the `asks` parameter, the `"ask"` label kind and its placement code, its `rt.roomKinds` exception in `Game.tsx`, its ASK_COPY `chip` strings, and the tests that pin them (replace, never weaken: each now asserts there is no chip).

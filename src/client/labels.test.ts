@@ -363,45 +363,11 @@ describe("labelsFor: a teammate you can hold hands with", () => {
   });
 });
 
-describe("labelsFor: a bot's ask (BT2)", () => {
+describe("labelsFor: a bot's ask is no chip (Task 312)", () => {
   const bot: EntityView = { id: "p2", kind: "player", seat: 2, pos: { x: 6.5, y: 4.5 } };
-  const asks = [{ from: 2, kind: "stop-on-click" as const }];
 
-  it("is a chip on the asking bot's figure with the chip copy, even when the cap is full", () => {
-    const full = labelsFor(
-      [plate, crate, door, bot],
-      undefined,
-      me,
-      true,
-      undefined,
-      undefined,
-      1,
-      undefined,
-      undefined,
-      asks,
-    );
-    const ask = full.find((l) => l.kind === "ask");
-    expect(ask).toEqual({ kind: "ask", text: "Needs: Stop on the click", at: bot.pos });
-    // the cap of 1 held for the others, and the ask was not counted against it
-    expect(full.filter((l) => l.kind !== "ask")).toHaveLength(1);
-    expect(full[0]?.kind, "an ask is placed first").toBe("ask");
-  });
-
-  it("shows with the other labels switched off, and not at all when nobody asks", () => {
-    expect(
-      labelsFor(
-        [bot],
-        undefined,
-        me,
-        false,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        asks,
-      ),
-    ).toHaveLength(1);
+  it("a bot's figure has no chip of its own, with Labels on or off", () => {
+    expect(labelsFor([bot], undefined, me, false)).toEqual([]);
     expect(labelsFor([plate, bot], undefined, me, true).some((l) => l.kind === "ask")).toBe(false);
   });
 });

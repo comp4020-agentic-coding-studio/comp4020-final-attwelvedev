@@ -56,7 +56,6 @@ describe("ask copy", () => {
   it("carries no digit and no game value in any form", () => {
     for (const [kind, c] of Object.entries(ASK_COPY)) {
       expect(c.say, kind).not.toMatch(/\d/);
-      expect(c.chip, kind).not.toMatch(/\d/);
     }
   });
 });

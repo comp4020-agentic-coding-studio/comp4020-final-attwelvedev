@@ -253,9 +253,8 @@ function useDraw(
           size.w >= 720 ? LABEL_CAP.desktop : LABEL_CAP.phone,
           rt.metKinds,
           { seat: view.you.seat, phone: size.w < 720, act: view.act }, // the hold-hands chip (FR6, F4)
-          view.you.asks, // what a bot asks of you: a chip on the bot, past the cap (Task 301)
         );
-        for (const l of rt.labels) if (l.kind !== "ask") rt.roomKinds.add(l.kind);
+        for (const l of rt.labels) rt.roomKinds.add(l.kind);
         labels = rt.labels;
       }
       // the side-job chip is DOM over the canvas: a label chip must not sit half under it, so its box
@@ -954,7 +953,7 @@ function Hud({
   }, [socket, role, rt, audio]);
 
   // An ask said (new, or said again by the bot's clock): Can't see hears it, Can't speak reads it
-  // (text is always shown to them). Can't hear gets the chip only: they receive no words (BT1, BT2).
+  // (text is always shown to them). Can't hear is asked by a face from the bot instead, and gets no words (BT1, BT2).
   useEffect(() => {
     if (role === "deaf") return;
     const speech = browserSpeech(role, () => live.current.settings.speech);

@@ -2127,6 +2127,8 @@ describe("a bot works at a person's pace (Task 303)", () => {
 });
 
 describe("every station a person works is asked for (Task 304)", () => {
+  // the Desperate faces the bots sent the person in the last `play`, with when (game ms)
+  let faces: { from: Seat; at: number }[] = [];
   // A three-bot game in `roomId` run to `tick`, then `person` becomes a person; returns each ask the
   // bots make of each seat in the next `ticks`. A person here does nothing (their body stays put).
   const play = (
@@ -2161,9 +2163,13 @@ describe("every station a person works is asked for (Task 304)", () => {
     for (const b of Object.values(bots)) (b as BotSeat).memory.queues = null;
     const asks: { kind: string; to: Seat; from: Seat; at: number }[] = [];
     const end = world.tick + ticks;
+    faces = [];
     while (world.tick < end) {
       const out = act();
       for (const a of out.sentAsks) asks.push({ ...a, at: world.tick * TICK_MS });
+      for (const s of out.sent)
+        if (s.message.method === "face" && s.message.id === "f06" && s.receivers.includes(person))
+          faces.push({ from: s.from, at: world.tick * TICK_MS });
       out.inputs[person] = { seq: world.tick + 1, move: { x: 0, y: 0 }, act: false };
       step(world, out.inputs, TICK_MS);
     }
@@ -2283,6 +2289,29 @@ describe("every station a person works is asked for (Task 304)", () => {
     const steer = asks.filter((a) => a.kind === "steer-me");
     expect(steer.length).toBeGreaterThan(0);
     expect(steer.every((a) => a.to === 1 && a.from === 0)).toBe(true);
+  });
+
+  // Task 312: a Can't hear person is asked by a Desperate face from the asking bot, on the ask clock
+  it("a Can't see bot at a standstill sends the Can't hear person a face at the first ask, about 8 s and 16 s", () => {
+    play("01-first-steps", ROLES3, 1, (w) => w.tick > 400, 1100);
+    expect(faces.length, faces.map((f) => f.at).join()).toBeGreaterThanOrEqual(3);
+    expect(faces.every((f) => f.from === 0)).toBe(true);
+    const gap1 = (faces[1]?.at as number) - (faces[0]?.at as number);
+    const gap2 = (faces[2]?.at as number) - (faces[1]?.at as number);
+    expect(gap1, "first re-ask").toBeGreaterThanOrEqual(7500);
+    expect(gap1).toBeLessThanOrEqual(10_000);
+    expect(gap2, "second re-ask").toBeGreaterThanOrEqual(15_500);
+    expect(gap2).toBeLessThanOrEqual(18_000);
+  });
+
+  it("count-turn for a Can't hear person goes as a face too", () => {
+    play("09-the-vault", ROLES3, 1, (w) => w.stations.Q4?.solved === true, 900);
+    expect(faces.length).toBeGreaterThan(0);
+  });
+
+  it("no face goes to a person who is not Can't hear", () => {
+    play("04-the-safe", ROLES3, 0, (w) => w.tick > 400, 300);
+    expect(faces).toEqual([]);
   });
 });
 

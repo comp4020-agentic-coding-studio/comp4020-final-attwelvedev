@@ -1,7 +1,8 @@
 import type { Seat } from "./types.ts";
 
 // A bot's ask of a person (ADR 0031): what it needs, and how to send it. An ask is a private,
-// per-seat view field (`you.asks`), never a channel message, so it reaches the asked seat only.
+// per-seat view field (`you.asks`), never a channel message, so it reaches the asked seat only (Can't
+// hear is asked by a Desperate face from the bot instead: Task 312).
 // Its copy is fixed and carries no game information: no digit, no value (BT2).
 export type AskKind =
   | "stop-on-click"
@@ -22,42 +23,19 @@ export interface Ask {
   saidAt?: number; // game ms it was last said: the clock moves it, a view shows it as a tick
 }
 
-// `say` is what Can't see or Can't speak hears or reads, and always names the route; `chip` is the
-// short sighted form.
-export const ASK_COPY: Record<AskKind, { say: string; chip: string }> = {
-  "stop-on-click": {
-    say: "Listen for the click. Say Stop: wheel, Talk, Stop.",
-    chip: "Needs: Stop on the click",
-  },
-  "read-plate": {
-    say: "Read the plate and text me its number: open Text, type it, send.",
-    chip: "Needs: the plate's number",
-  },
-  "plate-first": {
-    say: "Read the braille plate first, then tell me what it says by text.",
-    chip: "Needs: the plate read first",
-  },
-  "steer-me": {
-    say: "Steer me: wheel, Talk, then Left, Right, Up or Down.",
-    chip: "Needs: steering",
-  },
-  "press-marked": {
-    say: "Press the marked button.",
-    chip: "Needs: the marked button pressed",
-  },
-  "strike-marked": {
-    say: "Strike the marked bell.",
-    chip: "Needs: the marked bell struck",
-  },
-  "count-turn": {
-    say: "Text me the count: type each number, one at a time.",
-    chip: "Needs: the count, by text",
-  },
-  "taking-over": { say: "I'll do this one.", chip: "I'll do this one" },
-  "hand-over-gear": {
-    say: "Pass me the gear: stand beside me and press G.",
-    chip: "Needs: the gear handed over",
-  },
+// `say` is what Can't see hears or Can't speak reads, in the words a teammate would use; it names
+// the route and carries no digit or value. `steer-me` and `count-turn` go to Can't hear only, who is
+// asked by a Desperate face and gets no words: their `say` is a test fixture, never shown.
+export const ASK_COPY: Record<AskKind, { say: string }> = {
+  "stop-on-click": { say: "Listen for the click, then say Stop: wheel, Talk, Stop." },
+  "read-plate": { say: "Read the plate and text me its number: Text, type it, send." },
+  "plate-first": { say: "Read the braille plate first, then text me what it says." },
+  "steer-me": { say: "Steer me: wheel, Talk, then Left, Right, Up or Down." },
+  "press-marked": { say: "Press the marked button for me." },
+  "strike-marked": { say: "Strike the marked bell for me." },
+  "count-turn": { say: "Text me the count: type each number, one at a time." },
+  "taking-over": { say: "I'll do this one." },
+  "hand-over-gear": { say: "Pass me the gear: stand beside me and press G." },
 };
 
 export const REASK_MS = [8000, 16000, 30000] as const; // gaps after the 1st, 2nd and every later ask

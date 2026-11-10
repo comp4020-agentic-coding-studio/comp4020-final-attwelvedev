@@ -115,6 +115,7 @@ export interface BotMemory {
   count: Count | null; // a sync lock's counter: the digit it last texted, and when
   remarked: Record<string, number>; // a person-pressed station: the ask count its marks were last re-sent at
   asks: Record<string, AskClock>; // the asks it is making, keyed "<kind>:<station>:<to>" (asks.ts)
+  faced: Record<string, number>; // a Can't hear person's ask, by key: the saying (game ms) its face went out for
   // BJ2: each person's station or watch job (by job index): when it became theirs to work, or last
   // moved, in ticks. After TAKEOVER_TICKS without a move the job goes to a bot.
   idleSince: Record<number, number>;
@@ -279,6 +280,7 @@ export function createBotMemory(
     toldPlate: null,
     count: null,
     asks: {},
+    faced: {},
     idleSince: {},
     heardFrom: {},
     takenOver: new Set(),
@@ -374,7 +376,7 @@ function thinkBlind(view: RoleView, inbox: ChannelMessage[], m: BotMemory, now: 
     m.toTell.push(...String(plate).split("").map(Number));
   }
   const digit = tumbler ? undefined : m.toTell.shift();
-  const send: Outgoing | null = tumbler
+  const said: Outgoing | null = tumbler
     ? { method: "callout", callout: "stop" }
     : digit !== undefined
       ? { method: "text", text: String(digit) }
@@ -393,7 +395,12 @@ function thinkBlind(view: RoleView, inbox: ChannelMessage[], m: BotMemory, now: 
     const progressed = !!c && m.lastCalloutAt > c.progressAt && m.lastCalloutAt > c.lastAt;
     ask = askFor(m, "steer-me", steerer as Seat, "steer", now, false, progressed);
   }
-  return { input: { ...idle(m, m.holding || led ? ZERO : m.heading), act: read }, send, ask };
+  const send = said ?? stamp(m, askFace(view, m, ask), now); // (a digit was never stamped)
+  return {
+    input: { ...idle(m, m.holding || led ? ZERO : m.heading), act: read },
+    send,
+    ask,
+  };
 }
 
 // --- Seeing roles ------------------------------------------------------------
@@ -1340,6 +1347,7 @@ function thinkSighted(
       m.markedFor = null;
       m.remarked = {};
       m.asks = {};
+      m.faced = {};
       known.read = {}; // a plate read before says something else now
       forgetCaches(room, view, known, m); // every chamber is shut again
       // sent back: every unsolved station has a fresh answer, so what was heard of it is stale
@@ -1392,10 +1400,24 @@ function thinkSighted(
     : press(room, view, m, known, pos, towedWalk(led, moveSelf(room, view, m, known, pos)));
   const ask = noticeOf(m, now) ?? askWanted(room, view, m, known, pos, now);
   send = workSend(room, view, m, known, pos);
-  if (send) return { input, send: stamp(m, send, now), ask };
-  if (view.role === "deaf") send = guideBlind(room, view, m, known, now);
-  else if (view.role === "mute") send = muteClip(room, view, m, now);
+  if (!send) {
+    if (view.role === "deaf") send = guideBlind(room, view, m, known, now);
+    else if (view.role === "mute") send = muteClip(room, view, m, now);
+  }
+  send ??= askFace(view, m, ask);
   return { input, send: stamp(m, send, now), ask };
+}
+
+// A Can't hear person is asked by a Desperate face, as any player's face is sent (Task 312, owner
+// 2026-11-11): once for each saying of the ask (the first, then the clock's re-asks). It waits a
+// tick if the bot has something else to send. A takeover notice is not an ask for help.
+function askFace(view: RoleView, m: BotMemory, ask: Ask | null): Outgoing | null {
+  if (!ask || ask.kind === "taking-over" || ask.saidAt === undefined) return null;
+  if (rolesOf(m, view.role)[ask.to] !== "deaf") return null;
+  const k = `${ask.kind}:${ask.station}:${ask.to}`;
+  if (m.faced[k] === ask.saidAt) return null;
+  m.faced[k] = ask.saidAt;
+  return { method: "face", id: "f06" };
 }
 
 // BJ2: "I'll do this one." to the person whose job this bot took, for a few seconds (once).

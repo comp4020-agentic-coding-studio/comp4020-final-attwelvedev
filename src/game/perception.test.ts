@@ -2486,10 +2486,13 @@ describe("viewFor: an ask reaches the asked seat only (BT1)", () => {
         { kind: "stop-on-click", from: 2, to: 0, station: "Q2", saidAt: 1000 },
       ] as const;
       const seen = ([0, 1, 2] as const).map((s) => viewFor(w, s, roles[s], false, asks).you.asks);
-      expect(seen[0], roles.join()).toEqual([{ from: 2, kind: "stop-on-click", saidAt: 20 }]);
+      // Can't hear is asked by a face from the bot: its view carries no ask, no words and no kind
+      expect(seen[0], roles.join()).toEqual(
+        roles[0] === "deaf" ? undefined : [{ from: 2, kind: "stop-on-click", saidAt: 20 }],
+      );
       expect(seen[1], roles.join()).toBeUndefined();
       expect(seen[2], roles.join()).toBeUndefined();
-      expect(JSON.stringify(seen[0])).not.toContain("Q2");
+      expect(JSON.stringify(seen[0] ?? null)).not.toContain("Q2");
     }
   });
 });

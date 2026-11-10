@@ -1283,7 +1283,8 @@ export function viewFor(
   };
   const hand = handOf(world, seat);
   if (hand) view.you.hand = hand; // own state, felt not seen (ADR 0030)
-  const mine = asks.filter((a) => a.to === seat);
+  // a Can't hear seat is asked by a face from the bot, never by words or a kind (Task 312)
+  const mine = role === "deaf" ? [] : asks.filter((a) => a.to === seat);
   if (mine.length)
     view.you.asks = mine.map((a) => ({
       from: a.from,
