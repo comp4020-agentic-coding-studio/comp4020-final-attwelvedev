@@ -187,3 +187,12 @@ Open three tabs (or a phone and two tabs), create a lobby in one, join with the 
 
 - **Task 308, room 7's goggles to Can't hear:** parked on branch `auto/playtest-3-parked-bp05-task308`. Claiming gear by the role clears room 7 for a person as Can't hear but breaks the Task 48 torch test's premise and leaves a person as Can't speak stalled: a person watcher's marks have no ask a bot can send. **Owner question:** may a person at the goggles (Can't hear) be asked to mark the switches (a new ask kind), or should room 7's hints change so a bot watches for them? Details in `plans/2026-11-07-overnight.md` under `bp05/308`.
 - **Task 309, the guard is not empty:** 19 one-person and 15 two-person entries remain, each with a diagnosed cause in `spec/rooms-people.test.ts`. Owner questions: room 3 needs a tow hint or a different guide rule near a camera; the rest are guide faults (a person passing a one-tile gap, rotation 0) that need a stand-aside rule in the guide.
+
+### bp06 / Task 312-315: a bot asks like a person (review queued)
+
+- **What to look at:** no chip over any bot, with Labels on or off. As Can't see you hear the ask and read it as a caption; as Can't hear a Desperate face pops over the asking bot (1.5 s) and pops again at about 8 s, 16 s, then every 30 s while nothing changes.
+- **Start it:** `pnpm build && pnpm start`, open three tabs at `http://localhost:8080`, make one lobby with a single human and two bots, and play. Case A: you are Can't see in room 4 (a Can't speak bot turns the dial: hear "Listen for the click, then say Stop", read the caption). Case B: you are Can't hear in room 1 with a Can't see bot: stand still and watch whether its face makes you look, and whether it is clear enough to steer it.
+- **Screenshots:** not saved. Setting up a real asking bot in a headless browser was beyond this run's budget, so the render has not been looked at by me; the face is drawn by the same path as every player's face (`pops` in `Game.tsx`), which was not changed. The old `spec/layout/ask-chip.test.ts` was deleted with the chip.
+- **A pass looks like:** you act on the ask without being told what it means. A Can't hear person who cannot tell what a face wants is the known finding (see the overnight log, bp06/314: room 5 rotation 1 as Can't hear no longer clears in the stand-in run, owner question: how does a Can't hear person learn what a bot needs?).
+- **Judged:** green checks and unit tests only.
+

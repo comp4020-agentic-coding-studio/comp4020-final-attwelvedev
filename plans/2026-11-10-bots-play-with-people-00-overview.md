@@ -87,6 +87,7 @@ export interface BotTurn { input: PlayerInput; send: Outgoing | null; ask?: Ask 
 | [x] 03 (review queued; 35 NOT_YET entries still undiagnosed, see the overnight log) | `-03-signals-and-pace.md` | 302–304 (BS1–BS3, BP1–BP2, each station's ask, BJ3) | `Unit done: bp03` | 02 |
 | [x] 04 (task 306 parked in part: NOT_YET has 29 one-person and 18 two-person entries, see the overnight log bp04/306; reviews queued) | `-04-takeover-and-two-people.md` | 305–306 (BJ2, the two-stand-in runs, empty `NOT_YET`, docs) | `Unit done: bp04` | 03 |
 | [x] 05 (task 308 parked, NOT_YET 19 and NOT_YET_TWO 15 remain with diagnosed causes; reviews queued) | `-05-tow-first-and-gear.md` | 307-311 (tow a Can't-see person, room 7 gear by role, empty NOT_YET, a fair takeover clock, asks and callouts for Can't see) | `Unit done: bp05` | 04 |
+| [x] 06 (reviews queued; NOT_YET 20 one-person, 15 two-person) | `-06-ask-like-a-person.md` | 312-315 (a bot asks like a person: line or caption, a Desperate face for Can't hear, no chip) | `Unit done: bp06` | 05 |
 
 ## 6. Definition of Done (feature)
 

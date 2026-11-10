@@ -62,7 +62,7 @@
 - **Break check:** by script, hand it the kind again; a "does not act on the kind" test goes red.
 - **Acceptance:** `pnpm check` green; the `NOT_YET` counts before and after are logged; time both rooms files.
 
-### Task 315: ADR 0031 and the spec say what changed — [ ]
+### Task 315: ADR 0031 and the spec say what changed — [x]
 
 - **Behaviour:** amend `doc/adr/0031-bots-play-at-a-persons-pace-and-teach-what-they-need.md` (add a dated amendment, do not rewrite history) and `specs/2026-11-10-bots-play-with-people.md` (BT1, BT2): a bot asks as a person would, by a spoken line or caption, or by a Desperate face for Can't hear; there is no chip. Update CLAUDE.md and DESIGN.md wherever the chip is described. Log the reversal in the decisions log under `bp06/ADR`.
 - **Acceptance:** no remaining mention of an "ask chip" in CLAUDE.md, DESIGN.md, the spec or the ADR's current-state text, except the dated amendment.

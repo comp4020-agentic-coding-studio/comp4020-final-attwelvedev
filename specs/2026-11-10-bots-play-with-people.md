@@ -40,12 +40,12 @@ A read-only survey of every room × every human seat (2026-11-10, summarised in 
   - "Read the plate, then text me its number."
   - "Plate's number first, then the tune."
 
-  The ask goes to the person whose signal it needs, in a channel that person receives: text or voice for Can't see and Can't speak. A person who receives no words (Can't hear) gets the chip (BT2) only.
-- **BT2.** The person the ask is for also sees an **ask chip** on the bot that asked, if they're sighted.
-  - It uses the existing label chip.
-  - It stays up until the ask is answered.
-  - **A chip says what to do and how, never game information.** No digit, band, wire, note or answer is ever on a chip. This keeps ADR 0007 and ADR 0011 intact: Can't hear still receives no text-borne information.
-  - The other person, in a two-person game, doesn't see chips meant for someone else.
+   The ask goes to the person whose signal it needs, in the form that person receives, as a person would ask: a spoken line (and a caption) for Can't see and Can't speak. A person who receives no words (Can't hear) sees a Desperate face (`f06`) pop over the asking bot (BT2). *Amended 2026-11-11: there is no chip.*
+- **BT2.** *(Amended 2026-11-11, owner ruling: a bot asks exactly as a person would, with no bot-only UI.)* A Can't hear person is asked by a **Desperate face** sent by the bot like any player's face, repeated on the BT3 clock.
+  - It is an ordinary face message: it shows over the bot and appears in the Can't hear person's feed as faces do.
+  - It repeats at 8 s, 16 s, then every 30 s until there is progress.
+  - **It says nothing but that the bot needs something.** No digit, band, wire, note or answer travels with it. This keeps ADR 0007 and ADR 0011 intact. It may be mistaken for a teammate's panic; accepted.
+  - The other person, in a two-person game, does not see words meant for someone else.
 - **BT3. Re-asks:** an unanswered ask repeats at **8 s, then 16 s, then every 30 s** while there's no progress on it.
   - **Progress** is measured on the station or job, not on who made it, so a teammate helping counts.
   - Progress resets the cadence.
@@ -64,7 +64,7 @@ A read-only survey of every room × every human seat (2026-11-10, summarised in 
 **Jobs**
 - **BJ1. Assignment:** a person is never assigned a job unless they can **receive every signal it needs**, not just work the station. For example, Can't hear is never given the safe, the plated radio or the plated wires. Such jobs go to a bot that can.
 - **BJ2. Takeover:** if a person's job makes no progress for **~60 s** after its first ask, a bot that can do it takes it over and says so (through BT1's channels). If no bot can, the asks continue.
-- **BJ3. Steering:** where a person is the only one who can steer the Can't see bot (a human Can't hear), the Can't see bot asks for steering. Its chip reads "Steer me: send directions from the wheel (Q)", and it re-asks under BT3 instead of silently freezing.
+- **BJ3. Steering:** where a person is the only one who can steer the Can't see bot (a human Can't hear), the Can't see bot asks for steering by a Desperate face, and it re-asks under BT3 instead of silently freezing.
 
 **Guard**
 - **BG1. A human stand-in in `spec/rooms.test.ts`.** A scripted "person":
@@ -82,10 +82,10 @@ A read-only survey of every room × every human seat (2026-11-10, summarised in 
 ### 2.2 Non-functional requirements
 
 - **Bots stay perception-only (ADR 0018).** Late credit uses the bot's own turn log, never the simulation's state.
-- **Perception (ADR 0007, ADR 0011).** No new channel. Asks travel by existing methods to roles that receive them. Chips carry no game information (BT2).
+- **Perception (ADR 0007, ADR 0011).** No new channel. Asks travel by existing methods to roles that receive them. A face carries no game information (BT2).
 - **Logging.** Asks are ordinary channel messages, so there are no new log fields. Any new socket event goes through `logGame`.
 - **Test time.** BG1 roughly triples or quadruples `spec/rooms.test.ts` (today ~15 s). It must stay under the slowest browser spec file; if not, split it into its own file per CLAUDE.md "Tests".
-- **Accessibility.** Ask chips meet the label chip's existing rules: 11 px floor, not clipped, at 375 and 1280.
+- **Accessibility.** An ask is a spoken line with a caption; Can't hear gets a face, drawn the way every player's face is.
 
 ### 2.3 Out of scope
 
@@ -138,8 +138,8 @@ From the 2026-11-10 survey: code reading plus `claimJobs` run read-only for ever
   - "After the ask" is a per-station mark in the bot's memory.
 - **Asks (BT1–BT3):**
   - An ask is a structured bot intent: `{ need, how, to: seat, station }`.
-  - It's rendered as a text or callout to the target, or only as a chip when the target receives no words.
-  - The chip goes through the existing labels path, drawn on the asking bot's figure, for the target seat only. Its copy is fixed per kind of need, so it can never carry game information.
+  - It is rendered as a spoken line or caption to the target, or as a Desperate face when the target receives no words.
+  - Its words are fixed per kind of need, so they can never carry game information. *(Amended 2026-11-11: the chip is dropped.)*
   - Re-ask state lives per ask: `askedAt`, `count`, last progress, and an `atSpot` hold. Its gap follows 8 s, 16 s, then 30 s.
   - The 2 s quiet window uses every message the bot perceives.
 - **Signals (BS1–BS3):**
@@ -160,7 +160,7 @@ From the 2026-11-10 survey: code reading plus `claimJobs` run read-only for ever
 
 ### 4.1 UI design
 
-**Design pass skipped:** the ask chip reuses the existing label chip (`src/client/labels.ts`, the same renderer as "Space: hold hands"), anchored on the asking bot. Its copy follows DESIGN.md's copy rules.
+**Design pass skipped:** *(amended 2026-11-11)* the ask has no component of its own: a line and caption, or a face drawn as every face is. Copy follows DESIGN.md's copy rules.
 
 ## 5. Probes raised and resolved
 
@@ -168,7 +168,7 @@ From the 2026-11-10 survey: code reading plus `claimJobs` run read-only for ever
 | --- | --- | --- | --- |
 | 1 | gap | The person misses the ask (looks away, reading braille) | BT3 re-ask at 8/16/30 s, held at the spot, reset on progress (user) |
 | 2 | ambiguity | "Tell me what you need": what or how? | The ask states how: the wheel option or key (user) |
-| 3 | contradiction | A chip on Can't hear's screen against "Can't hear receives no text" | A chip says what or how, never game information (approved) |
+| 3 | contradiction | A bot's ask on Can't hear's screen against "Can't hear receives no text" | A face says only that something is needed, never game information (approved; amended 2026-11-11) |
 | 4 | gap | A person given a job they can't receive (R4, R6, R7) | BJ1: never assign it (user) |
 | 5 | gap | A person who never does their job stalls the room | BJ2: takeover at ~60 s (user) |
 | 6 | gap | Stray, early or stale digits get the team caught | BS1–BS3: from the asked seat, after the ask, since the send-back, 2 s settle (user) |
@@ -185,12 +185,12 @@ From the 2026-11-10 survey: code reading plus `claimJobs` run read-only for ever
   1. BG1's stand-in **first**, red on today's code. It is the measure for every later phase.
   2. Then BJ1 (assignment).
   3. Then BS1–BS3 (signals).
-  4. Then BT1–BT3 (asks and chip).
+  4. Then BT1–BT3 (asks and faces).
   5. Then BP1–BP2 (pace).
   6. Then BJ2–BJ3 (takeover, steering).
 
   Each phase should turn some of BG1's failing rooms green.
-- **Don't re-open:** penalties stay; voice stays out of scope; the chip carries no game information; the cadences above (tune them only by measurement, logged).
+- **Don't re-open:** penalties stay; voice stays out of scope; an ask carries no game information; the cadences above (tune them only by measurement, logged).
 - **Phase 06** (`plans/2026-11-10-playtest-3-fixes-06-…`) touches `brain.ts` (guide quiet at the listen tile, keep-alive, quiet window). Start this work after p3fix06 is merged into the branch.
 - **Risk:** stricter signal acceptance (BS1) could break today's all-bot clears where a bot relied on an unasked digit. `spec/rooms.test.ts` all-bot runs must stay green throughout.
 - ADR 0031 is accepted (2026-11-10).

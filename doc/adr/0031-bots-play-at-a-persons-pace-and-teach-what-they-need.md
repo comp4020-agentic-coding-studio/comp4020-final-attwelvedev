@@ -43,3 +43,7 @@ Bots treat each teammate according to whether it's a person:
 - Every new station type or room must say what a person must send and how a bot asks for it, or the stand-in test fails. This adds friction for new rooms, on purpose.
 - `spec/rooms.test.ts` gets slower (roughly 3–4×). It may need its own file.
 - Bots still don't understand voice. Every ask names a wheel option, and that's a promise the copy must keep.
+
+## Amendment, 2026-11-11 (the ask chip is reversed)
+
+The decision "a sighted person also gets a chip on the bot" is withdrawn. In the owner's playtest the chip floated above the Can't see bot, moved jerkily, showed even with Labels off, and no human has such a thing. The owner ruled that a bot asks exactly as a person would, with no exceptions and no bot-only UI: Can't see and Can't speak get a spoken line and a caption; Can't hear sees a Desperate face (`f06`) pop over the asking bot, sent like any player's face and repeated on the ask clock. It may be mistaken for a teammate's panic, which is accepted. The stand-in as Can't hear is told no ask kind and infers from the face and its own view. Some Can't hear combinations may stop clearing: that is a finding, kept in `NOT_YET` with its cause. The rest of this record stands.
