@@ -290,7 +290,7 @@ whose screen is whose from across a room by the tab and the line, and the rim ke
 on every side without a heavy border. The side-job chip starts past the tab, never under it. A
 spectator's bezel is dashed (a 2 px `--ui-muted` dashed outline inset on the bezel) with no rim and
 no tab, since a watcher plays no role. The Can't-see viewport is
-`--ink` with their own figure at the centre (see 4.2); the dim ring is only for a feed that has no figure to show.
+`--ink` with their own figure at the centre (see 4.2); the dim ring is only for a feed that has no figure to show. A spectator following Can't see gets the same frame inside the dashed spectator bezel: black, Can't see's dimmed figure and the hand's link (FR4); following a sighted seat or nobody, the whole room.
 
 ## Components
 

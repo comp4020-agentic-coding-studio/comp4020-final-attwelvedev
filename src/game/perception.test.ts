@@ -801,7 +801,12 @@ describe("spectatorView: a full view regardless of the followed role", () => {
     expect(view.role).toBe("blind");
     expect(view.tiles).toHaveLength(5);
     expect(view.entities.filter((e) => e.kind === "player")).toHaveLength(3);
-    expect(view.you).toEqual({ seat: 0, pos: { x: 10.5, y: 1.5 } });
+    // and Can't see's own motion, for Can't see's frame (FR4, Task 288); not held, so no hand
+    expect(view.you).toEqual({
+      seat: 0,
+      pos: { x: 10.5, y: 1.5 },
+      motion: { moving: false, blocked: false },
+    });
     expect(view.sounds.some((s) => s.kind === "footsteps")).toBe(true);
   });
 
@@ -2384,6 +2389,18 @@ describe("viewFor: the hand is touch, with no identity", () => {
         `seat ${seat}: ${got.join(", ")}`,
       ).toEqual([]);
     }
+  });
+
+  // F9 (Task 288, FR4 option b): a watcher following Can't see sees Can't see's frame, the link included,
+  // so the spectator view carries that seat's hand (the same touch, no identity) and its motion
+  it("a spectator following a held Can't see gets its hand, and following a sighted seat or nobody, none", () => {
+    const w = hold();
+    const v = spectatorView(w, 0, ["blind", "deaf", "mute"], true);
+    expect(Object.keys(v.you.hand ?? {}).sort()).toEqual(["dir", "leads", "pulling"]);
+    expect(v.you.hand).toEqual(viewFor(w, 0, "blind", false).you.hand);
+    expect(v.you.motion).toEqual({ moving: false, blocked: false });
+    expect(spectatorView(w, 1, ["blind", "deaf", "mute"], true).you.hand).toBeUndefined();
+    expect(spectatorView(w, null, ["blind", "deaf", "mute"], true).you.hand).toBeUndefined();
   });
 
   it("a pair in a tug of war is pulling at both ends", () => {

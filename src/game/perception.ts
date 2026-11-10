@@ -1365,6 +1365,13 @@ export function spectatorView(
   };
   if (full) view.tiles = maskCache(world, world.room.grid); // a watcher sees the room, masked like the sighted
   if (full && typeof world.room.meta.hue === "string") view.hue = world.room.meta.hue;
+  if (follow !== null && role === "blind") {
+    // a watcher following Can't see sees Can't see's frame (FR4): its figure's motion and the hand it
+    // holds, as touch with no identity (ADR 0030); the room stays sent, so switching is instant
+    view.you.motion = motionOf(world, seat);
+    const hand = handOf(world, seat);
+    if (hand) view.you.hand = hand;
+  }
   const braille = follow === null ? undefined : brailleFor(world, seat, role);
   if (braille) view.braille = braille; // a watcher of Can't see reads over their shoulder
   const moment = cacheEventOf(world);

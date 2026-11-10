@@ -167,7 +167,7 @@ The same shape applies to any `.hud-alert` that appears or goes mid-game (lag, g
 - **Break check:** drop the `act` gate by script; the F4 test goes red. Add a `with: seat` field to Can't see's `you` by script; the F8 test goes red.
 - **Depends on:** none.
 
-### Task 288: A spectator following Can't see sees Can't see's frame (F9, FR4, option b) — [ ]
+### Task 288: A spectator following Can't see sees Can't see's frame (F9, FR4, option b) — [ ] (review queued)
 
 **Finding (confirmed, LOW):**
 - `spectatorView` (`perception.ts` about 1331) never sets `you.hand`.

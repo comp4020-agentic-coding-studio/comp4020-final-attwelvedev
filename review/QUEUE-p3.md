@@ -100,3 +100,11 @@ Open three tabs (or a phone and two tabs), create a lobby in one, join with the 
 - **Screenshots:** `review/p3-285-radio-1280.png`, `review/p3-285-radio-375.png`.
 - **A pass:** at 375 the six ticks read as separate marks and the needle sits plainly on one of them.
 - **My judgement:** at 375 the six ticks are distinct and the chip reads 4 under the 4th; fewer ticks are easier to count than ten were.
+
+### Task 288: a spectator following Can't see sees Can't see's frame (F9, FR4 option b)
+
+- **What to look at:** a watcher who follows the Can't see seat now gets Can't see's frame: black, the dimmed own figure in the middle, and the hand's link while they hold hands. Following Can't hear, Can't speak or Whole room is unchanged (the full room). The spectator chrome (dashed grey bezel, no role tab, the Follow buttons) stays.
+- **Start it:** `pnpm install && pnpm build && pnpm start`. Three windows on `http://localhost:8080`, make a lobby, start room 1. A fourth window joins with the code and presses Watch, then Follow → the Can't see player. In the Can't see window, press Space next to a teammate to hold hands.
+- **Screenshots:** `review/p3-288-spectator-blind-1280.png`, `review/p3-288-spectator-blind-375.png` (Can't see leading Can't hear in room 1).
+- **A pass:** watching Can't see this way reads well: you understand you are seeing what they get, and the link reads as their hand.
+- **My judgement:** it matches Can't see's own frame exactly, inside the spectator bezel. One thing to consider: a watcher loses the room while following Can't see, which is FR4's point but may surprise someone who wanted to watch the room; "Whole room" is one tap away.

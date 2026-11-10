@@ -286,7 +286,8 @@ export const SUNRISE_STEPS = 24;
 function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
   ctx.clearRect(0, 0, scene.w, scene.h);
   setRise(scene.rise ?? 1, scene.tiles?.length);
-  if ((scene.role === "blind" && !scene.spectator) || !scene.tiles) {
+  // Can't see's black frame: their own page, and a watcher following them (FR4: the scene carries `own`)
+  if ((scene.role === "blind" && (!scene.spectator || scene.own)) || !scene.tiles) {
     ctx.fillStyle = COLOR.ink;
     ctx.fillRect(0, 0, scene.w, scene.h);
     if (scene.own) {

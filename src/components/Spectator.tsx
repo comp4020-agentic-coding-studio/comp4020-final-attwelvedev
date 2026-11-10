@@ -253,6 +253,16 @@ export function Spectator({
         spectator: true,
         noSelf: v.you.pos === undefined, // the whole room: nobody is followed
       };
+      if (v.role === "blind" && v.you.pos !== undefined) {
+        // following Can't see: Can't see's frame, its dimmed figure and the hand it holds (FR4)
+        const me = v.entities.find((e) => e.kind === "player" && e.seat === v.you.seat);
+        scene.own = {
+          facing: me?.facing ?? { x: 0, y: 1 },
+          moving: v.you.motion?.moving ?? false,
+          blocked: v.you.motion?.blocked ?? false,
+        };
+        if (v.you.hand) scene.hand = v.you.hand;
+      }
       const i = intro.current;
       const f = i ? introAt(performance.now() - i.at, i.reduced, i.ms) : null;
       if (f && !f.done) {
