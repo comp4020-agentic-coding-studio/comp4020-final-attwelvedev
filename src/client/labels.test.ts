@@ -302,11 +302,19 @@ describe("labelsFor: a teammate you can hold hands with", () => {
     pos: { x, y },
     ...extra,
   });
-  const chips = (es: EntityView[], phone = false) =>
+  // `act`: what the server says Space does here (view.act); in these cases, take their hand
+  const chips = (es: EntityView[], phone = false, act: string | null = "Hold hands") =>
     labelsFor(es, undefined, you.pos, true, undefined, ESCAPE_KINDS, 3, undefined, {
       seat: 1,
       phone,
+      act: act ?? undefined,
     });
+
+  // F4 (Task 287): Space takes gear underfoot, or a sill, before a hand; the server's hint knows which
+  it("gives no chip when Space would do something else: standing on gear with an empty hand", () => {
+    expect(chips([you, mate(3.5, 4.5)], false, "Take the goggles")).toEqual([]);
+    expect(chips([you, mate(3.5, 4.5)], false, null)).toEqual([]); // no hint at all
+  });
 
   it("labels a free teammate within reach, and says Space on desktop only", () => {
     const desk = chips([you, mate(3.5, 4.5)]);
@@ -325,10 +333,15 @@ describe("labelsFor: a teammate you can hold hands with", () => {
     expect(chips([you, mate(3.5, 4.5, { holding: 0 })]).map((l) => l.kind)).not.toContain(
       "canhold",
     );
+    // you in a pair: the server's hint is "Let go" (or something else), never "Hold hands"
     const held = { ...you, heldBy: 0 as const };
-    expect(chips([held, mate(3.5, 4.5)]).map((l) => l.kind)).not.toContain("canhold");
+    expect(chips([held, mate(3.5, 4.5)], false, "Let go").map((l) => l.kind)).not.toContain(
+      "canhold",
+    );
     const leading = { ...you, holding: 0 as const };
-    expect(chips([leading, mate(3.5, 4.5)]).map((l) => l.kind)).not.toContain("canhold");
+    expect(chips([leading, mate(3.5, 4.5)], false, null).map((l) => l.kind)).not.toContain(
+      "canhold",
+    );
   });
 
   it("never labels yourself, and without your seat offers no chip", () => {

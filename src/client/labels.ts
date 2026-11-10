@@ -136,7 +136,8 @@ export function labelsFor(
   max = Number.POSITIVE_INFINITY, // keep only this many chips: new kinds first, then the nearest
   met?: ReadonlySet<string>,
   // your seat, for the hold-hands chip on a free teammate in reach (FR6), and whether this is a phone
-  me?: { seat: number; phone: boolean },
+  // and what the server says Space does here (`view.act`): the chip shows only when that is "Hold hands" (F4)
+  me?: { seat: number; phone: boolean; act?: string },
 ): Label[] {
   if (!enabled) return [];
   const nearest = new Map<string, { at: Vec; d: number }>();
@@ -168,10 +169,10 @@ export function labelsFor(
     };
     offer(kind, mid);
   }
-  // a free teammate in hand reach, while you are free too: Space would take their hand
-  const self = me && entities.find((e) => e.kind === "player" && e.seat === me.seat);
+  // Space would take a hand: the server says so (it knows gear underfoot or a sill comes first, and that
+  // you are free); the chip goes on the free teammate in reach whose hand it would be
   const paired = (e: EntityView) => e.holding !== undefined || e.heldBy !== undefined;
-  if (self && !paired(self)) {
+  if (me?.act === "Hold hands") {
     for (const e of entities) {
       if (e.kind !== "player" || e.seat === me.seat || paired(e)) continue;
       if (inReach(near, e.pos) && visible(e.pos)) offer("canhold", e.pos); // `near`: where you are

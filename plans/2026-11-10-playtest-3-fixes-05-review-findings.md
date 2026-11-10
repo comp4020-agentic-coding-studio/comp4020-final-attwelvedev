@@ -153,7 +153,7 @@ The same shape applies to any `.hud-alert` that appears or goes mid-game (lag, g
 - **Break check:** remove the lint rule by script; the lint test goes red.
 - **Depends on:** none.
 
-### Task 287: "Space: hold hands" only when Space would hold hands (F4), and the identity test's reach (F8) — [ ]
+### Task 287: "Space: hold hands" only when Space would hold hands (F4), and the identity test's reach (F8) — [x]
 
 **Finding F4 (confirmed, LOW):**
 - `src/client/labels.ts` (about 171) shows the chip when both of you are free, within reach and visible.

@@ -2355,6 +2355,37 @@ describe("viewFor: the hand is touch, with no identity", () => {
     }
   });
 
+  // F8 (Task 287): the test above checks five field names. This one walks everything under Can't see's
+  // `you`, at either end of a held pair, and fails on any key path not listed here, so a new field (say
+  // `with: 1`) fails until it is added on purpose and checked against ADR 0030.
+  const YOU_PATHS = [
+    "seat", // your own seat, never the partner's (the test above checks that)
+    "motion",
+    "motion.moving",
+    "motion.blocked",
+    "hand",
+    "hand.dir",
+    "hand.dir.x",
+    "hand.dir.y",
+    "hand.leads",
+    "hand.pulling",
+  ] as const;
+  it("Can't see's `you` has only known fields, at either end of a pair (no new one can carry the partner)", () => {
+    const paths = (o: unknown, at = ""): string[] =>
+      o !== null && typeof o === "object" && !Array.isArray(o)
+        ? Object.entries(o).flatMap(([k, v]) => [`${at}${k}`, ...paths(v, `${at}${k}.`)])
+        : [];
+    for (const seat of [0, 1] as const) {
+      const w = hold();
+      const got = paths(viewFor(w, seat, "blind", true).you);
+      const known = new Set<string>(YOU_PATHS);
+      expect(
+        got.filter((p) => !known.has(p)),
+        `seat ${seat}: ${got.join(", ")}`,
+      ).toEqual([]);
+    }
+  });
+
   it("a pair in a tug of war is pulling at both ends", () => {
     const w = hold();
     step(
