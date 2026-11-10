@@ -1238,6 +1238,7 @@ function Hud({
           <span aria-hidden="true">◆ {loot}</span>
         </span>
         <Connection state={state} rttMs={rttMs} />
+        {role !== "blind" && <span class="hud-goal">Get all three onto the exit.</span>}
         <span class="hud-watching">
           <button
             type="button"
@@ -1276,7 +1277,13 @@ function Hud({
         />
       </header>
 
-      {role === "blind" && <p class="hud-hint">No map. Listen. Get to the exit with the others.</p>}
+      {/* the goal, always in sight: Can't see's own words, and the reveal's goal for the sighted (T3). On a phone
+        the sighted line is in the top bar (.hud-goal), so the map loses no height; from 720 px it is here */}
+      {role === "blind" ? (
+        <p class="hud-hint">No map. Listen. Get to the exit with the others.</p>
+      ) : (
+        <p class="hud-hint hud-goal-wide">Get all three onto the exit.</p>
+      )}
 
       <div class="hud-alerts">
         {voice.lagging && (

@@ -319,6 +319,7 @@ The favicon (`public/favicon.svg`, with `public/favicon-32.png` for browsers wit
 - `Captions`: what was said and what the room sounds like, with the sender's shape and name and a `DirArrow` where the sound came from. A polite live region.
 - `Connection`: the live light: a shape and words ("Live", "Weak 180 ms", "Offline"), never colour alone.
 - `HudMenu`: the menu: its first line names the room in full ("Room 4 of 9: The Safe", muted, 14 px), then settings, the restart proposals, Leave.
+- Every role's goal line, bold, in every room: Can't see's "No map. Listen. Get to the exit with the others." under the top bar (`.hud-hint`), and the reveal's "Get all three onto the exit." for Can't hear and Can't speak: under the bar from 720 px (`.hud-goal-wide`), and on a phone inside the bar's second row beside the live light (`.hud-goal`, 14 px), so the phone's map keeps its height.
 - The game's top bar names the room left of the clock (`.hud-room-game`, muted, 14 px, ellipsis): "4 · The Safe" from 720 px, "4/9" below it; screen readers hear "Room 4 of 9: The Safe".
 - In-game alerts (`.hud-alert` in `.hud-alerts`: voice lagging, a new host, who left or came back, how a vote ended): a panel pill with a `--danger` left bar, centred over the top of the map under the bar. They take no height, so one coming or going never resizes the map (a restart vote's note leaving once jolted the whole view).
 - `VotePrompt`: the vote card at the top of the map, not an overlay, so people keep moving; each voter named, the time as a bar and a number.

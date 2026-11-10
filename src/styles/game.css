@@ -538,6 +538,24 @@ body.playing main {
   color: var(--ui);
   font-weight: 700;
 }
+/* the sighted goal line (T3): in the top bar on a phone, beside the live light on the bar's second row,
+   so the map keeps its height; from 720 px it is the .hud-hint under the bar, like Can't see's */
+.hud-goal {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: var(--t-14);
+  line-height: 1.2;
+}
+@media (min-width: 720px) {
+  .hud-goal {
+    display: none;
+  }
+}
+@media (max-width: 719.98px) {
+  .hud-goal-wide {
+    display: none;
+  }
+}
 
 /* who is watching: a button that opens a list under the bar */
 .hud-watching {

@@ -19,7 +19,7 @@ The driver (`overnight/run20.sh`) rebases `auto/playtest-3` onto `origin/main` b
 
 ## Tasks
 
-### Task 279: The restart jerk (B4, re-opened) — [ ]
+### Task 279: The restart jerk (B4, re-opened) — [ ] (review queued)
 
 **Leading hypothesis (from reading the code; confirm it by measuring, don't assume it):**
 - A passed vote's `vote.end` handler (`src/components/Game.tsx`, the restart-vote `useEffect`, about line 1000) calls `setVoteNote(outcomeText(...))` and clears it after **3000 ms**.
@@ -44,7 +44,7 @@ The same shape applies to any `.hud-alert` that appears or goes mid-game (lag, g
 - **Break check:** by script, put `.hud-alert` back in the flow; the spec goes red.
 - **Depends on:** none.
 
-### Task 280: The goal line for the sighted, in the phone's top bar (T3, un-parked) — [ ]
+### Task 280: The goal line for the sighted, in the phone's top bar (T3, un-parked) — [ ] (review queued)
 
 - **Start from the parked commit:** `git cherry-pick 41ba3d4` from `auto/playtest-3-parked-p3fix01-task271`, with `-n`, since you'll amend it. Drop its `PARKED` wording and its `review/QUEUE-p3.md` hunk if it conflicts.
 - **The change:** on a phone width (< 720 px, the same breakpoint the HUD uses), render the sighted line inside `.hud-top`, not as `.hud-hint` under it, so the map frame loses no height. On desktop, keep the `.hud-hint`. Can't see's line is unchanged everywhere.

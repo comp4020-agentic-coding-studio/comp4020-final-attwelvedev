@@ -83,3 +83,12 @@ Open three tabs (or a phone and two tabs), create a lobby in one, join with the 
 - **Screenshots:** `review/p3-279-restart-1280.png`, `review/p3-279-restart-375.png` (the note over the frame, mid-swoop).
 - **A pass:** on your Mac in Chrome, for a sighted seat, the replayed intro lands and nothing jumps when the note goes. The note reads clearly and does not hide anything you need.
 - **My judgement:** the note sits centred at the top of the map, under the bar, readable at both widths; it covers a strip of wall at the top of room 1 for 3 s. The same layer now carries every in-game alert (voice lagging, new host, left/back), so none of them resizes the map either.
+
+### Task 280: the goal line for the sighted, in the phone's top bar (T3)
+
+- **What to look at:** Can't hear and Can't speak see "Get all three onto the exit." On a phone it sits in the top bar's second row, beside "Live" and left of the menu button; from 720 px it is under the bar, where Can't see's line is.
+- **Measured:** at 375 the bar stays 92 px tall and the map frame 433 px, the same as without the line (under the bar it cost 30 px and pushed the phone's wheel plate out of the frame, which is why Task 271 parked).
+- **Start it:** `pnpm install && pnpm build && pnpm start`, three windows on `http://localhost:8080` (one at phone width in devtools' device mode), make a lobby, start room 1.
+- **Screenshots:** `review/p3-280-goal-mute-1280.png`, `review/p3-280-goal-deaf-375.png`, `review/p3-280-goal-mute-375.png`.
+- **A pass:** the line reads at a glance in the phone's bar and doesn't crowd the live light or the menu.
+- **My judgement:** the full wording fits at 375 with room to spare (218 px), 14 px bold condensed like the room label, so I kept the full line, not the short fallback.
