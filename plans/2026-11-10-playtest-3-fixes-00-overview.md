@@ -45,6 +45,7 @@
 | [x] 02 (review queued: 272) | `-02-radio-and-callouts.md` | 272–273 (FR7–FR9, FR10–FR11) | `Unit done: p3fix02` | none (runs after 01 only to keep commits ordered) |
 | [x] 03 (reviews queued: 275, 276, 277; ADR 0030 to accept) | `-03-touch.md` | 274–277 (FR1–FR6) | `Unit done: p3fix03` | none |
 | [x] 04 (task 278 parked: did not reproduce) | `-04-intro-jerk.md` | 278 (B4) | `Unit done: p3fix04` | none; last, because it may only reproduce and park |
+| [x] 05 (reviews queued: 279, 280, 285, 288) | `-05-review-findings.md` | 279–288 (B4 restart, T3, F1–F9) | `Unit done: p3fix05` | none (the user's rulings of 2026-11-10) |
 
 Each phase stands alone, so if one parks, the others still run. Units run in this order: 01, 02, 03, 04.
 
@@ -74,7 +75,16 @@ Each phase stands alone, so if one parks, the others still run. Units run in thi
 | FR3 grip and release sounds | 276 |
 | FR5 nothing names the holder | 274 (the perception test), 275 (no HUD text) |
 | FR6 "Space: hold hands" in reach | 277 |
-| B4 the intro's jerk | 278 |
+| B4 the intro's jerk | 278 (parked), 279 (the restart path: fixed) |
+| T3 goal line, in the phone's top bar | 280 |
+| F1 the edge tap repeating forever | 281 |
+| F3 / FR11 (changed) repeat nudges with backoff | 282 |
+| F7 a bot Can't see held on long runs | 283 |
+| F2 right-click side wheel off the frame | 284 |
+| F5 the radio's own range of ticks | 285 |
+| F6 a plated radio reading 10 | 286 |
+| F4 the hold-hands chip follows the act hint; F8 the identity test's reach | 287 |
+| F9 / FR4 a spectator following Can't see | 288 |
 
 ## 6. Risks
 
