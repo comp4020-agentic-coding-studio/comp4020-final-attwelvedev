@@ -33,7 +33,7 @@
 - **Break check:** remove the listen-tile guard by script; the test goes red.
 - **Depends on:** none.
 
-### Task 290: The bot keep-alive never reaches a person (review F1, MEDIUM) — [ ]
+### Task 290: The bot keep-alive never reaches a person (review F1, MEDIUM) — [x]
 
 **Finding:**
 - `brain.ts` (about 1665–1674): when the Can't see seat is a bot, the guide re-sends the heading every `IDLE_MS / 2` (2.5 s).

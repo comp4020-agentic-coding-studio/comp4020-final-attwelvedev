@@ -1947,3 +1947,49 @@ describe("a bot guide stays put and quiet while a person listens at a safe (Task
     expect(tiles.length - 1, `the guide's tiles: ${tiles.join(" ")}`).toBeLessThanOrEqual(1);
   });
 });
+
+describe("the bot keep-alive never reaches a person (F1 of the phase 05 review, Task 290)", () => {
+  // `route` sends a callout to every seat whose role receives it: a person playing Can't speak beside a
+  // bot Can't see heard the heading again every 2.5 s on a long run, which breaks FR10.
+  it("a person as Can't speak hears no more callouts on a 30-tile corridor than the heading changes and one nudge", () => {
+    const grid = [
+      "##################################",
+      "#2..............................3#",
+      "#1..............................E#",
+      "##################################",
+    ];
+    const r = roomWith(grid, {}, { hints: { jobs: [{ beat: 1, goTo: "E", all: true }] } });
+    const world = createWorld(r);
+    const roles: [Role, Role, Role] = ["blind", "deaf", "mute"];
+    const humans = new Set<Seat>([2]);
+    const bots: Partial<Record<Seat, BotSeat>> = {
+      0: { memory: createBotMemory(0, humans, roles), inbox: [] },
+      1: { memory: createBotMemory(1, humans, roles), inbox: [] },
+    };
+    const heard: string[] = [];
+    let changes = 0;
+    let heading = "";
+    for (let i = 0; i < 400 && world.players[0].pos.x < 32; i++) {
+      const out = botsAct(
+        r,
+        world,
+        roles,
+        bots,
+        { until: {} },
+        world.tick * TICK_MS,
+        (s) => `Bot ${s}`,
+      );
+      for (const s of out.sent) {
+        if (s.message.method !== "callout" || !s.receivers.includes(2)) continue;
+        heard.push(s.message.callout);
+        if (s.message.callout !== heading) changes++;
+        heading = s.message.callout;
+      }
+      out.inputs[2] = { seq: i + 1, move: { x: 0, y: 0 }, act: false };
+      step(world, out.inputs, TICK_MS);
+    }
+    expect(Math.floor(world.players[0].pos.x), "reached the end").toBeGreaterThanOrEqual(32);
+    // a bot Can't see is nudged once (FR11's backoff is for a person who makes no progress)
+    expect(heard.length, heard.join(" ")).toBeLessThanOrEqual(changes + 1);
+  });
+});

@@ -13,7 +13,15 @@ import { laserBeam } from "../sim/hazards.ts";
 import { stationParts, tilesOf } from "../sim/stations.ts";
 import { decodeSeen } from "../sim/visibility.ts";
 import { createWorld, SPEED_TPS, type StationType, TICK_MS, type World } from "../sim/world.ts";
-import { canSend, type PlayerInput, ROLES, type Role, type Seat, type Vec } from "../types.ts";
+import {
+  canReceive,
+  canSend,
+  type PlayerInput,
+  ROLES,
+  type Role,
+  type Seat,
+  type Vec,
+} from "../types.ts";
 import {
   beliefFrom,
   bellsStep,
@@ -1430,6 +1438,11 @@ function moveSelf(room: Room, view: RoleView, m: BotMemory, known: Known, pos: V
   return follow(room, view, m, known, pos, goal);
 }
 
+// Does any seat a person plays receive callouts? (The keep-alive is bot to bot only: Task 290.)
+function personHearsCallouts(m: BotMemory, roles: readonly [Role, Role, Role]): boolean {
+  return [...m.humans].some((s) => canReceive(roles[s], "callout"));
+}
+
 // Is a person playing Can't see standing on the tile of their listen job, while that safe is unsolved?
 // They are listening for the tumbler: the guide says nothing to move them (Task 289). (A bot listener
 // is left to the rules it had: it hears no noise, and its caches are proven with them.)
@@ -1689,11 +1702,14 @@ function guideBlind(
   // a bot Can't see holds after IDLE_MS with nothing heard ("nobody is steering"), and on a long straight
   // run nothing is said (FR10): the guide keeps it walking by saying the heading again every IDLE_MS / 2.
   // Bot to bot only; a person is never repeated at this way. Not on a plate, where a fresh direction
-  // would walk it off the hum it is about to hold (F7).
+  // would walk it off the hum it is about to hold (F7). And not when a person receives callouts at all:
+  // `route` sends one to every role that receives it, so a person playing Can't speak would hear the
+  // heading every 2.5 s (Task 290). The stuck rule recovers a held bot then, at a cost in time.
   if (
     !callout &&
     !tap &&
     blindIsBot &&
+    !personHearsCallouts(m, roles) &&
     g.moving &&
     now - g.lastSentAt >= IDLE_MS / 2 &&
     !mapsOf(room).plateAt.has(key(tile))
