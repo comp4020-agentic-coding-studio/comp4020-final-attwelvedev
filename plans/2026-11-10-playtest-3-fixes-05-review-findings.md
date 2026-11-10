@@ -110,7 +110,7 @@ The same shape applies to any `.hud-alert` that appears or goes mid-game (lag, g
 - **Break check:** remove the keep-alive by script; the test goes red.
 - **Depends on:** Task 282 (same function).
 
-### Task 284: Right-click opens the side wheel inside the frame (F2) — [ ]
+### Task 284: Right-click opens the side wheel inside the frame (F2) — [x]
 
 **Finding (confirmed, MEDIUM):**
 - `src/components/CommsWheel.tsx` (about 316–327) clamps a mouse-opened centre using only the outline's `halfW*k` (and `halfH*k + 40`).

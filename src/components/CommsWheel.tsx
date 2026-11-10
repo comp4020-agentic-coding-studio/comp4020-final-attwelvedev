@@ -29,6 +29,7 @@ import {
   insideOutline,
   type Mode,
   modeFor,
+  mouseCentre,
   outlineOf,
   type Placement,
   placementFor,
@@ -313,18 +314,13 @@ export function CommsWheel({
     // is clamped by the biggest page's extent in this mode and every page fits wherever it opened.
     let centre: Vec = { x: w / 2, y: hgt / 2 };
     if (h.source === "mouse" && box) {
-      let halfW = 0;
-      let halfH = 0;
-      for (const p of PAGES) {
-        const o = outlineOf(p, h.mode);
-        const k = wheelScale(p, h.mode, w, hgt, h.placement);
-        halfW = Math.max(halfW, (o.kind === "circle" ? o.r : o.halfW) * k);
-        halfH = Math.max(halfH, (o.kind === "circle" ? o.r : o.halfH) * k + 40);
-      }
-      centre = {
-        x: w > 2 * halfW ? Math.max(halfW, Math.min(w - halfW, h.origin.x - box.left)) : w / 2,
-        y: hgt > 2 * halfH ? Math.max(halfH, Math.min(hgt - halfH, h.origin.y - box.top)) : hgt / 2,
-      };
+      centre = mouseCentre(
+        { x: h.origin.x - box.left, y: h.origin.y - box.top },
+        w,
+        hgt,
+        h.mode,
+        h.placement,
+      );
     }
     h.centre = { x: (box?.left ?? 0) + centre.x, y: (box?.top ?? 0) + centre.y };
     setShown({ page: h.page, centre, aim: null, tab: null, finger: null });

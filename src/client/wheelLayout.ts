@@ -282,3 +282,38 @@ export function wheelScale(
   }
   return Math.max(floorOf(mode), Math.min(1, fit));
 }
+
+// Where a wheel opened under the mouse is centred, in frame pixels. Stays put through page changes, so it
+// is clamped by the biggest page's extent: stacked, the outline's half (and the labels and plate above
+// and below it); side, the label column to the left and the plate to the right, which differ, so each
+// side is clamped on its own. A frame too small for that centres it.
+export function mouseCentre(
+  origin: { x: number; y: number },
+  w: number,
+  h: number,
+  mode: Mode,
+  placement: Placement,
+): { x: number; y: number } {
+  let halfW = 0;
+  let halfH = 0;
+  for (const p of PAGES_ALL) {
+    const o = outlineOf(p, mode);
+    const k = wheelScale(p, mode, w, h, placement);
+    halfW = Math.max(halfW, (o.kind === "circle" ? o.r : o.halfW) * k);
+    halfH = Math.max(halfH, (o.kind === "circle" ? o.r : o.halfH) * k + 40);
+  }
+  if (placement === "side") {
+    const k = Math.max(...PAGES_ALL.map((p) => wheelScale(p, mode, w, h, placement)));
+    const left = (widestHalf(mode) + SIDE_GAP + SIDE_TAB_W) * k; // the label column
+    const right = (widestHalf(mode) + SIDE_GAP + SIDE_PLATE_W) * k; // the plate
+    const up = Math.max(tallestHalf(mode), 1.5 * SIDE_TAB_PITCH + SIDE_TAB_H / 2) * k;
+    return {
+      x: w >= left + right ? Math.max(left, Math.min(w - right, origin.x)) : (w + left - right) / 2,
+      y: h >= 2 * up ? Math.max(up, Math.min(h - up, origin.y)) : h / 2,
+    };
+  }
+  return {
+    x: w > 2 * halfW ? Math.max(halfW, Math.min(w - halfW, origin.x)) : w / 2,
+    y: h > 2 * halfH ? Math.max(halfH, Math.min(h - halfH, origin.y)) : h / 2,
+  };
+}

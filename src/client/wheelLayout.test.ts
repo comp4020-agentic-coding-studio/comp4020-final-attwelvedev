@@ -8,14 +8,20 @@ import {
   layoutFor,
   MIN_TARGET_PX,
   modeFor,
+  mouseCentre,
   PAGES_ALL,
   placementFor,
+  SIDE_GAP,
+  SIDE_TAB_H,
+  SIDE_TAB_PITCH,
+  SIDE_TAB_W,
   slotCount,
   slotIndexAt,
   slotPos,
   slotSize,
   wheelExtent,
   wheelScale,
+  widestHalf,
 } from "./wheelLayout.ts";
 
 const MODES = ["wide", "narrow"] as const;
@@ -212,5 +218,46 @@ describe("a wide frame too short for the stacked wheel", () => {
       expect(e.height * k, page).toBeLessThanOrEqual(337);
       expect(e.width * k, page).toBeLessThanOrEqual(1256);
     }
+  });
+});
+
+// F2 (Task 284): a right-click near the frame's edge opened the side wheel with its label column off the
+// frame: the centre was clamped by the outline alone, not the labels to its left and the plate to its right.
+describe("a mouse-opened wheel's centre keeps the whole wheel in the frame (F2)", () => {
+  const W = 1280;
+  const H = 337;
+  const placement = placementFor(W, H);
+  const mode = modeFor(W, H);
+  const k = Math.max(...PAGES_ALL.map((p) => wheelScale(p, mode, W, H, placement)));
+  const half = widestHalf(mode);
+  const tabsLeft = -(half + SIDE_GAP + SIDE_TAB_W); // the label column's left edge, unscaled
+  const plateRight = half + SIDE_GAP + 320; // the plate's right edge at its 20rem max-width
+  const tabsHalfH = 1.5 * SIDE_TAB_PITCH + SIDE_TAB_H / 2;
+
+  it("is the side placement on a 1280×337 frame", () => {
+    expect(placement).toBe("side");
+  });
+
+  for (const [what, origin] of [
+    ["near the left edge", { x: 5, y: H / 2 }],
+    ["near the right edge", { x: W - 5, y: H / 2 }],
+    ["near the top", { x: W / 2, y: 3 }],
+    ["near the bottom", { x: W / 2, y: H - 3 }],
+  ] as const) {
+    it(`opened ${what}: the labels and the plate are inside the frame`, () => {
+      const c = mouseCentre(origin, W, H, mode, placement);
+      expect(c.x + tabsLeft * k, "labels' left edge").toBeGreaterThanOrEqual(0);
+      expect(c.x + plateRight * k, "plate's right edge").toBeLessThanOrEqual(W);
+      expect(c.y - tabsHalfH * k, "labels' top").toBeGreaterThanOrEqual(0);
+      expect(c.y + tabsHalfH * k, "labels' bottom").toBeLessThanOrEqual(H);
+    });
+  }
+
+  it("stacked keeps its clamp: a wide tall frame opened near the left edge", () => {
+    const m = modeFor(1280, 800);
+    expect(placementFor(1280, 800)).toBe("stacked");
+    const c = mouseCentre({ x: 5, y: 400 }, 1280, 800, m, "stacked");
+    expect(c.x).toBeGreaterThan(5);
+    expect(c.y).toBe(400);
   });
 });

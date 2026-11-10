@@ -761,4 +761,38 @@ describe("the comms wheel on a short window", () => {
       }
     }
   });
+
+  // F2 (Task 284): held under the right mouse button near the frame's left edge, the side wheel's label
+  // column opened off the frame (its centre was clamped by the outline alone)
+  it("a right-click near the left edge at 1280×560 keeps the labels and the plate in the frame", async () => {
+    const page = table.byRole.mute;
+    const before = page.viewportSize();
+    await page.setViewportSize(SHORT);
+    const frame = await page.locator(".frame").boundingBox();
+    if (!frame) throw new Error("no frame");
+    const y = frame.y + frame.height / 2;
+    await page.mouse.move(frame.x + 20, y);
+    await page.mouse.down({ button: "right" });
+    try {
+      await page.locator(".wheel").waitFor({ timeout: 1000 });
+      for (const sel of [
+        ".wheel-tabs li:first-child",
+        ".wheel-tabs li:last-child",
+        ".wheel-plate",
+      ]) {
+        const box = await page.locator(sel).boundingBox();
+        if (!box) throw new Error(sel);
+        expect(box.x, `${sel} left`).toBeGreaterThanOrEqual(frame.x - 0.5);
+        expect(box.x + box.width, `${sel} right`).toBeLessThanOrEqual(frame.x + frame.width + 0.5);
+        expect(box.y, `${sel} top`).toBeGreaterThanOrEqual(frame.y - 0.5);
+        expect(box.y + box.height, `${sel} bottom`).toBeLessThanOrEqual(
+          frame.y + frame.height + 0.5,
+        );
+      }
+    } finally {
+      await page.keyboard.press("Escape");
+      await page.mouse.up({ button: "right" });
+      if (before) await page.setViewportSize(before);
+    }
+  });
 });
