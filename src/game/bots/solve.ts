@@ -5,6 +5,7 @@ import { createWorld, TICK_MS, type World } from "../sim/world.ts";
 import type { Role, Seat } from "../types.ts";
 import { createBotMemory } from "./brain.ts";
 import { type BotSeat, botsAct } from "./crew.ts";
+import { createStandIn } from "./standin.ts";
 
 export interface SolveResult {
   world: World;
@@ -23,6 +24,9 @@ export function solveRoom(
   budgetS = 600,
   opts: {
     humans?: ReadonlySet<Seat>;
+    // Seats played by a stand-in person (standin.ts): the bot brain with a person's limits. They are
+    // in `humans` for every seat's memory, so jobs and pacing treat them as people.
+    standIns?: ReadonlySet<Seat>;
     // Stand in for the person who uncovers a cache (ADR 0024): on the first tick any seat reaches the
     // chamber's columns, the harness makes the same world change an Act on the motif tile makes.
     // The bots never uncover one themselves.
@@ -31,13 +35,16 @@ export function solveRoom(
     uncoverWhenReached?: true | number;
   } = {},
 ): SolveResult {
-  const humans = opts.humans ?? new Set<Seat>();
+  const standIns = opts.standIns ?? new Set<Seat>();
+  const humans = new Set<Seat>([...(opts.humans ?? []), ...standIns]);
   const world = createWorld(room, 1, [...roles]);
   const sentBy: [number, number, number] = [0, 0, 0];
   const cooldowns = { until: {} };
   const bots: Partial<Record<Seat, BotSeat>> = {};
   for (const seat of [0, 1, 2] as const) {
-    if (!humans.has(seat)) bots[seat] = { memory: createBotMemory(seat, humans, roles), inbox: [] };
+    if (standIns.has(seat)) bots[seat] = createStandIn(seat, humans, roles);
+    else if (!humans.has(seat))
+      bots[seat] = { memory: createBotMemory(seat, humans, roles), inbox: [] };
   }
   let caught = 0;
   let refused = 0;

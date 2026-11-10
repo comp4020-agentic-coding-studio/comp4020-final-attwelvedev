@@ -1,4 +1,4 @@
-import { type ChannelMessage, type CooldownState, route } from "../channels.ts";
+import { type ChannelMessage, type CooldownState, type Outgoing, route } from "../channels.ts";
 import { viewFor } from "../perception.ts";
 import type { Room } from "../rooms/format.ts";
 import type { World } from "../sim/world.ts";
@@ -10,6 +10,13 @@ import { type BotMemory, think } from "./brain.ts";
 export interface BotSeat {
   memory: BotMemory;
   inbox: ChannelMessage[];
+  // A stand-in person (standin.ts): what it hears arrives late, and it sends only what it was asked.
+  person?: Person;
+}
+
+export interface Person {
+  hear(inbox: ChannelMessage[], now: number): ChannelMessage[];
+  speak(send: Outgoing | null, now: number): Outgoing | null;
 }
 
 export interface BotSent {
@@ -43,7 +50,14 @@ export function botsAct(
     const bot = bots[seat] as BotSeat;
     const view = viewFor(world, seat, roles[seat], full.has(seat));
     // the bot is given its own role's view and inbox and nothing else (clues FR5, ADR 0018)
-    const turn = think(room, view, bot.inbox.splice(0), bot.memory, now);
+    const turn = think(
+      room,
+      view,
+      bot.person ? bot.person.hear(bot.inbox.splice(0), now) : bot.inbox.splice(0),
+      bot.memory,
+      now,
+    );
+    if (bot.person) turn.send = bot.person.speak(turn.send, now);
     inputs[seat] = turn.input;
     if (!turn.send) continue;
     const result = route(roles as [Role, Role, Role], seat, turn.send, cooldowns, now);
