@@ -2115,3 +2115,74 @@ describe("a bot works at a person's pace (Task 303)", () => {
     expect(Math.min(...g)).toBeLessThan(20);
   });
 });
+
+describe("every station a person works is asked for (Task 304)", () => {
+  // A three-bot game in `roomId` run to `tick`, then `person` becomes a person; returns each ask the
+  // bots make of each seat in the next `ticks`. A person here does nothing (their body stays put).
+  const play = (
+    roomId: string,
+    roles: [Role, Role, Role],
+    person: Seat,
+    run: (w: ReturnType<typeof createWorld>) => boolean,
+    ticks = 600,
+  ) => {
+    const r = room(roomId);
+    const world = createWorld(r, 1, [...roles]);
+    const humans = new Set<Seat>();
+    const bots: Partial<Record<Seat, BotSeat>> = {};
+    for (const s of [0, 1, 2] as const)
+      bots[s] = { memory: createBotMemory(s, humans, roles), inbox: [] };
+    const cd = { until: {} };
+    const act = () =>
+      botsAct(
+        r,
+        world,
+        roles,
+        bots,
+        cd,
+        world.tick * TICK_MS,
+        () => "Bot",
+        world.tick === 0 ? new Set<Seat>([0, 1, 2]) : new Set<Seat>(),
+      );
+    while (world.tick < 8000 && !run(world)) step(world, act().inputs, TICK_MS);
+    expect(run(world), "reached the setup").toBe(true);
+    delete bots[person];
+    humans.add(person);
+    for (const b of Object.values(bots)) (b as BotSeat).memory.queues = null;
+    const asks: { kind: string; to: Seat; from: Seat; at: number }[] = [];
+    const end = world.tick + ticks;
+    while (world.tick < end) {
+      const out = act();
+      for (const a of out.sentAsks) asks.push({ ...a, at: world.tick * TICK_MS });
+      out.inputs[person] = { seq: world.tick + 1, move: { x: 0, y: 0 }, act: false };
+      step(world, out.inputs, TICK_MS);
+    }
+    return asks;
+  };
+
+  it("a Can't speak turner asks the Can't see person for Stop, and not the other seat (safes)", () => {
+    const asks = play(
+      "04-the-safe",
+      ROLES3,
+      0,
+      (w) => {
+        const p = w.players[0].pos;
+        return Math.floor(p.x) === 23 && Math.floor(p.y) === 1 && w.gear[0]?.heldBy === 0;
+      },
+      300,
+    );
+    expect(asks.length).toBeGreaterThan(0);
+    expect(asks.every((a) => a.kind === "stop-on-click" && a.to === 0)).toBe(true);
+  });
+
+  it("a Can't see person who is not at the safe's back is still the one asked", () => {
+    const asks = play(
+      "04-the-safe",
+      ROLES3,
+      0,
+      (w) => w.tick > 2200 || w.stations.Q1?.solved === true,
+      300,
+    );
+    for (const a of asks) expect(a.to).not.toBe(1);
+  });
+});

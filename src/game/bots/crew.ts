@@ -19,6 +19,8 @@ export interface Person {
   hear(inbox: ChannelMessage[], now: number): ChannelMessage[];
   // `asks`: the live asks made of this seat (asks.ts); what a person was not told to send waits for one
   speak(send: Outgoing | null, now: number, asks: readonly Ask[]): Outgoing | null;
+  // what the body does this tick: a person obeys "Tap left." with one step that way
+  move?(input: PlayerInput, now: number): PlayerInput;
 }
 
 export interface BotSent {
@@ -72,7 +74,7 @@ export function botsAct(
         now,
         asks.filter((a) => a.to === seat),
       );
-    inputs[seat] = turn.input;
+    inputs[seat] = bot.person?.move ? bot.person.move(turn.input, now) : turn.input;
     if (turn.ask) sentAsks.push(turn.ask);
     if (!turn.send) continue;
     const result = route(roles as [Role, Role, Role], seat, turn.send, cooldowns, now);

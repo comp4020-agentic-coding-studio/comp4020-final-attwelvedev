@@ -1,7 +1,7 @@
 import type { Ask, AskKind } from "../asks.ts";
 import type { ChannelMessage, Outgoing } from "../channels.ts";
 import { TICK_MS } from "../sim/world.ts";
-import type { Role, Seat } from "../types.ts";
+import type { Role, Seat, Vec } from "../types.ts";
 import { createBotMemory } from "./brain.ts";
 import type { BotSeat } from "./crew.ts";
 
@@ -38,6 +38,13 @@ export const SUPPRESSED_SIGNALS: {
   },
 ];
 
+const DIRS: Record<string, Vec> = {
+  left: { x: -1, y: 0 },
+  right: { x: 1, y: 0 },
+  up: { x: 0, y: -1 },
+  down: { x: 0, y: 1 },
+};
+
 export function createStandIn(
   seat: Seat,
   humans: ReadonlySet<Seat>,
@@ -46,18 +53,34 @@ export function createStandIn(
   const late: { due: number; msg: ChannelMessage }[] = [];
   // an ask is heard late like a message: it counts once it has been live for the delay
   const liveSince = new Map<AskKind, number>();
+  const taps: { due: number; dir: Vec }[] = [];
   return {
     memory: createBotMemory(seat, humans, roles),
     inbox: [],
     person: {
       hear(inbox, now) {
-        for (const msg of inbox) late.push({ due: now + STANDIN_DELAY_TICKS * TICK_MS, msg });
+        const delay = STANDIN_DELAY_TICKS * TICK_MS;
+        for (const msg of inbox) {
+          // "Tap left." is words a person obeys with one short step that way (the guide's lining-up
+          // taps). The blind brain reads callouts only, so the stand-in takes the step itself.
+          const tap =
+            msg.method === "text" ? /^tap (left|right|up|down)\.?$/i.exec(msg.text.trim()) : null;
+          if (tap)
+            taps.push({ due: now + delay, dir: DIRS[(tap[1] as string).toLowerCase()] as Vec });
+          else late.push({ due: now + delay, msg });
+        }
         const ready: ChannelMessage[] = [];
         for (let i = 0; i < late.length; ) {
           if (late[i].due <= now) ready.push(...late.splice(i, 1).map((l) => l.msg));
           else i++;
         }
         return ready;
+      },
+      move(input, now) {
+        const i = taps.findIndex((t) => t.due <= now);
+        if (i < 0) return input;
+        const [tap] = taps.splice(i, 1);
+        return { ...input, move: (tap as { dir: Vec }).dir };
       },
       speak(send, now, asks) {
         for (const kind of [...liveSince.keys()])
