@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Role } from "../game/types.ts";
-import { createSpeech, SUPERSEDE_MS, speakWhile } from "./speech.ts";
+import { askShownAsLine, createSpeech, SUPERSEDE_MS, speakWhile } from "./speech.ts";
 
 function fake() {
   const log: string[] = [];
@@ -88,5 +88,17 @@ describe("speakWhile", () => {
     stop(); // the next reveal opens
     expect(listener.say).toBeNull();
     expect(f.log.at(-1)).toBe("cancel");
+  });
+});
+
+describe("an ask shown as a caption line", () => {
+  it("Can't see reads it when spoken lines are off, or when captions are on", () => {
+    expect(askShownAsLine("blind", false, false)).toBe(true);
+    expect(askShownAsLine("blind", true, true)).toBe(true);
+    expect(askShownAsLine("blind", true, false)).toBe(false);
+  });
+  it("Can't speak always reads it; Can't hear gets the chip only", () => {
+    expect(askShownAsLine("mute", true, false)).toBe(true);
+    expect(askShownAsLine("deaf", false, true)).toBe(false);
   });
 });

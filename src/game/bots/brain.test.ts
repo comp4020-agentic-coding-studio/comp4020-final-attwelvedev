@@ -1675,18 +1675,28 @@ describe("a guide says a direction once, and repeats it with backoff while no pr
   // FR11 as the user changed it after the review (2026-11-10): repeats back off, 3 s, 6 s, 12 s, then every 12 s
   const STEPS = 3000 / TICK_MS; // 60 ticks
   const gaps = (ticks: number[]) => ticks.slice(1).map((t, i) => t - (ticks[i] as number));
-  it("a person who never moves hears the direction again after 3, 6, 12 and 12 s: four repeats in 40 s (Task 282)", () => {
-    const run = guided(OPEN, 40_000 / TICK_MS, (_heard, p) => p);
+  it("a person who never moves hears the direction again after 3, 6 and 12 s, then nothing for a minute (FR11, 2026-11-11)", () => {
+    const run = guided(OPEN, 60_000 / TICK_MS, (_heard, p) => p);
     const ticks = run.said.map((s) => s.tick);
     expect(run.said.every((s) => s.word === "right")).toBe(true);
-    expect(ticks).toHaveLength(5); // the direction, then exactly four repeats
+    expect(ticks).toHaveLength(4); // the direction, then exactly three repeats
     const g = gaps(ticks);
-    for (const [i, want] of [STEPS, 2 * STEPS, 4 * STEPS, 4 * STEPS].entries()) {
+    for (const [i, want] of [STEPS, 2 * STEPS, 4 * STEPS].entries()) {
       expect(
         Math.abs((g[i] as number) - want),
         `gap ${i + 1}: ${g.join(", ")}`,
       ).toBeLessThanOrEqual(1);
     }
+  });
+
+  it("once quiet, a step along the heading makes the guide speak again", () => {
+    const stepAt = 40_000 / TICK_MS;
+    let n = 0;
+    const run = guided(OPEN, 60_000 / TICK_MS, (_heard, p) =>
+      ++n === stepAt ? { x: p.x + 0.3, y: p.y } : p,
+    );
+    expect(run.said.filter((s) => s.tick <= stepAt)).toHaveLength(4);
+    expect(run.said.filter((s) => s.tick > stepAt).length).toBeGreaterThan(0);
   });
 
   it("progress resets the backoff: a person creeping along is not repeated at, and once they stop it starts over at 3 s (Task 282)", () => {

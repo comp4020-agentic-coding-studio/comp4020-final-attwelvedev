@@ -196,6 +196,7 @@ function perceivedHazards(known: Known, tick: number): ReadonlySet<string> {
 const newNav = (): Nav => ({ key: "", plan: [], i: 0, expect: null });
 const ZERO: Vec = { x: 0, y: 0 };
 const STEP_LEN = (SPEED_TPS * TICK_MS) / 1000;
+const NUDGES_MAX = 3; // repeats of a direction (at 3 s, 6 s, 12 s) before the guide is quiet (FR11)
 const NUDGE_MS = 3000; // a person who has made no progress this long after a direction hears it again (FR11)
 const NUDGE_QUIET_MS = 2000; // and only once nothing has been sent for this long
 const PROGRESS = 0.25; // tiles along the heading that count as progress
@@ -1981,7 +1982,7 @@ function guideBlind(
   void job;
 
   // a direction is said once (FR10). A person who makes no progress along it hears it again after
-  // 3 s, 6 s, 12 s, then every 12 s; progress (PROGRESS tiles past the last mark) or a new direction
+  // 3 s, 6 s, 12 s, then nothing until they move; progress (PROGRESS tiles past the last mark) or a new direction
   // starts that over, and a repeat waits for 2 s with nothing sent (FR11, as changed on 2026-11-10).
   // A bot Can't see is nudged once, as before: the stuck rule handles it.
   let nudgeAt = Number.POSITIVE_INFINITY;
@@ -1996,7 +1997,12 @@ function guideBlind(
     // (a work text such as a digit counts too, through `stamp`'s lastSpokeAt: a repeat on its heels
     // would cut it off on a person's client, Task 291)
     const quiet = Math.max(g.lastSentAt, m.lastFlavourAt, m.lastSpokeAt) + NUDGE_QUIET_MS;
-    nudgeAt = Math.max(Math.max(g.lastSentAt, g.progressAt) + gap, quiet);
+    // after the 12 s repeat the guide is quiet until they move or a new direction is planned (FR11, as
+    // changed on 2026-11-11): a person standing still is not told the same word for as long as they stand
+    nudgeAt =
+      g.nudges >= NUDGES_MAX
+        ? Number.POSITIVE_INFINITY
+        : Math.max(Math.max(g.lastSentAt, g.progressAt) + gap, quiet);
   } else if (g.moving && g.nudges < 1 && progress(g, p) < PROGRESS) {
     nudgeAt = g.lastSentAt + NUDGE_MS;
   }

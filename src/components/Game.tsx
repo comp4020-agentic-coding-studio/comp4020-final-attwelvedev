@@ -53,7 +53,7 @@ import {
 import { afterRestart } from "../client/restart.ts";
 import { loadSettings, type Settings as SettingsState, saveSettings } from "../client/settings.ts";
 import type { ConnectionState, GameSocket } from "../client/socket.ts";
-import { browserSpeech, speakWhile } from "../client/speech.ts";
+import { askShownAsLine, browserSpeech, speakWhile } from "../client/speech.ts";
 import { isHighContrast, NET, setContrast, setHue } from "../client/tokens.ts";
 import { installUiSounds, savedSettings, uiSound } from "../client/uiSound.ts";
 import { quickSlot } from "../client/wheel.ts";
@@ -967,7 +967,8 @@ function Hud({
         said.set(k, a.saidAt);
         const text = ASK_COPY[a.kind].say;
         speech.say(text);
-        if (role === "mute") {
+        const { settings: st } = live.current;
+        if (askShownAsLine(role, st.speech, st.captions)) {
           const from = reveal.crew.find((c) => c.seat === a.from);
           const who = { role: from?.role ?? "deaf", name: from?.nickname ?? "Bot" };
           const line = { id: ++live.current.lineId, ...who, text, until: now + CAPTION_MS };

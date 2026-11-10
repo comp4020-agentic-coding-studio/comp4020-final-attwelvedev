@@ -43,7 +43,7 @@ FR7 to FR9 make the radio count from 1 everywhere (a slice).
 FR10 and FR11 make bots speak a direction once (a slice).
 
 - **FR10.** A bot that guides a teammate says a direction when it **changes**, not again every 1.5 s (`REPEAT_MS`, `src/game/bots/brain.ts:169`).
-- **FR11.** If the guided player has made no progress along a direction, the bot repeats it after about 3 s, then 6 s, then 12 s, then every 12 s while they're still stuck. Any progress, or a new direction, resets it to 3 s. A repeat waits until the bot has sent nothing for 2 s. Every room still clears with bots in every rotation. *(Changed by the user on 2026-11-10, after the final review's F3: one nudge left a person who missed it with nothing; it was "repeats once".)*
+- **FR11.** If the guided player has made no progress along a direction, the bot repeats it after about 3 s, then 6 s, then 12 s, then not again until they move or a new direction is planned (changed on 2026-11-11: the owner heard it on a loop while standing still). Any progress, or a new direction, resets it to 3 s. A repeat waits until the bot has sent nothing for 2 s. Every room still clears with bots in every rotation. *(Changed by the user on 2026-11-10, after the final review's F3: one nudge left a person who missed it with nothing; it was "repeats once".)*
 
 **Bugs (each fixed with a failing test first, per `CLAUDE.md`):**
 

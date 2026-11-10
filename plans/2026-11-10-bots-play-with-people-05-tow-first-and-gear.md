@@ -93,7 +93,7 @@
 - **Acceptance:** tests pass, `spec/rooms.test.ts` green in every rotation, `spec/rooms-people.test.ts` no worse than before.
 - **Depends on:** Task 307 (shared brain code; do 310 after 309's measurements so a takeover change is not confused with a tow change).
 
-### Task 311: Can't see gets an ask without spoken lines; the guide stops repeating callouts at a person who is not moving (owner playtest, 2026-11-11) — [ ]
+### Task 311: Can't see gets an ask without spoken lines; the guide stops repeating callouts at a person who is not moving (owner playtest, 2026-11-11) — [x]
 
 - **What the owner saw** (`pnpm dev --host` on `auto/playtest-3`, room 4, the real safe, the owner as Can't see, a bot as Can't speak at the dials): no ask ever arrived. They had "spoken lines" off, because the bot Can't hear kept sending direction callouts while they stood still. Captions were on.
 - **Cause found by reading the code (confirm with a test):** `Game.tsx` (the `view` effect near line 956) speaks an ask through `browserSpeech`, and `createSpeech` (`src/client/speech.ts`) drops every line when "spoken lines" is off. Only `role === "mute"` also gets the ask as a caption line. Can't see has no chip and no caption for an ask, so with speech off an ask is lost without trace.
