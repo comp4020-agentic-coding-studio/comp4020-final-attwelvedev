@@ -118,3 +118,9 @@ Open three tabs (or a phone and two tabs), create a lobby in one, join with the 
 - **Screenshots:** `review/p3-292-alert-vote-1280.png` (Can't speak, who asked), `review/p3-292-alert-vote-375.png` (Can't hear on the phone, with the vote's buttons).
 - **A pass:** the stacked alert and vote read well together, and the vote card is not too low on the phone.
 - **My judgement:** nothing overlaps at either width, and the buttons are clear. The cost: on a phone, with the chip open and two alerts, the vote card starts about 280 px down and covers the middle of the map (it used to sit at the top, under the alerts). If that is too much, the next step would be collapsing the chip while a vote is open.
+
+### Task 294: parked (the intro starting zoomed in did not reproduce)
+
+- **What happened:** the camera maths for every room at 1280×800, 1024×768 and 375×812 (and a sweep of 320–2560 × 500–1400) has the intro starting *below* the follow camera's zoom: it only ever zooms in, and no figure is under the top bar when the HUD has faded in. What did show: on a phone, rooms 3–9 start with the team at the room's west wall, half under the frame's 12 px left bezel.
+- **Evidence:** branch `auto/playtest-3-parked-p3fix06-task294`: `review/p3-294-measure.txt` (the table), `review/p3-294-before-04-the-safe-{375,1280,1280-blind}.png` (real canvas, real intro, at the cover's end).
+- **What I need from you:** the window size and room where you saw "starts zoomed in, HUD over the players, then zooms out", and whether it was a first start or a restart. Then the plan's fix (fit the reveal's backdrop to the frame) can be built against a reproduction.
