@@ -135,3 +135,11 @@ Open three tabs (or a phone and two tabs), create a lobby in one, join with the 
 - **A pass looks like:** the chip reads at a glance, sits on the bot that asks, does not hide the plate chip or the figures' hand-hold chip; the spoken line is clear and does not talk over a callout.
 - **What I judged:** the chip and caption both render at both widths; the phone's chip sits close to the hold-hands chip but they do not overlap. Not judged: the spoken ask in a real three-tab game.
 
+
+### Task 304: every station's ask, re-marking, and the blind bot's steering ask (BT1 per station, BT3, BJ3)
+
+- **What to look at:** you as Can't see in room 4, and as Can't hear or Can't speak in rooms 6 and 8, each with two bots. The asks tell you what to do, and the repeats are spaced (8 s, 16 s, then 30 s), not naggy. Room 4 as Can't see: the turner asks you to say Stop on the click, and the Can't see bot asks to be steered when you are Can't hear.
+- **How to start it locally:** `pnpm build && PORT=8191 INTRO_MS=0 pnpm start:check`, open three tabs on `http://localhost:8191`, make a team and start. The host starts as Can't see: use the reveal's swap to take another seat, or play the rooms in order.
+- **Screenshots:** `review/bp-304-asks-room6-{1280,375}.png` (Can't speak: "Needs: the marked button pressed" on Bot Jinx), `review/bp-304-asks-room8-{1280,375}.png` (Can't hear: "Needs: steering" chip on the Can't see bot), `review/bp-304-asks-room4-{1280,375}.png` (room 4 as Can't see: the ask is spoken, so no chip is on this view).
+- **A pass looks like:** each chip names one thing to do and where it comes from, never a digit; a re-ask holds while you stand at the spot; the Can't see bot stops marching blind when nobody steers it and asks instead.
+- **What I judged:** the chips render at both widths and read clearly. Not judged: the spoken asks in a real three-tab game, how naggy the 8/16/30 s cadence feels, and the Can't see view of room 4 (no chip by design).

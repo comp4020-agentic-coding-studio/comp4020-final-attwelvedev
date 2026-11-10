@@ -9,7 +9,7 @@ import { step } from "../sim/step.ts";
 import { roomWith } from "../sim/testing.ts";
 import { createWorld, TICK_MS } from "../sim/world.ts";
 import type { Role, Seat } from "../types.ts";
-import { CACHE_GIVE_UP_TICKS, createBotMemory, think } from "./brain.ts";
+import { askFor, CACHE_GIVE_UP_TICKS, createBotMemory, think } from "./brain.ts";
 import { type BotSeat, botsAct } from "./crew.ts";
 import { claimJobs, hintsOf } from "./jobs.ts";
 import { solveRoom } from "./solve.ts";
@@ -2175,14 +2175,103 @@ describe("every station a person works is asked for (Task 304)", () => {
     expect(asks.every((a) => a.kind === "stop-on-click" && a.to === 0)).toBe(true);
   });
 
-  it("a Can't see person who is not at the safe's back is still the one asked", () => {
-    const asks = play(
-      "04-the-safe",
-      ROLES3,
-      0,
-      (w) => w.tick > 2200 || w.stations.Q1?.solved === true,
-      300,
-    );
-    for (const a of asks) expect(a.to).not.toBe(1);
+  it("a Can't see person is asked for a plate's digit, never a Can't hear seat (plated stations)", () => {
+    const asks = play("05-the-gallery", ROLES3, 0, (w) => w.stations.Q2?.solved === true, 900);
+    const plate = asks.filter((a) => a.kind === "read-plate");
+    expect(plate.length).toBeGreaterThan(0);
+    expect(plate.every((a) => a.to === 0)).toBe(true);
+  });
+
+  it("the earpiece's presser asks Can't see for the plate first", () => {
+    const asks = play("08-music-room", ROLES3, 0, (w) => w.stations.Q1?.solved === true, 1500);
+    const first = asks.filter((a) => a.kind === "plate-first");
+    expect(first.length).toBeGreaterThan(0);
+    expect(first.every((a) => a.to === 0)).toBe(true);
+  });
+
+  it("a bells watcher asks the striker, a person, to strike the marked bell", () => {
+    const asks = play("08-music-room", ROLES3, 1, (w) => w.stations.Q2?.solved === true, 1500);
+    const strike = asks.filter((a) => a.kind === "strike-marked");
+    expect(strike.length).toBeGreaterThan(0);
+    expect(strike.every((a) => a.to === 1)).toBe(true);
+  });
+
+  it("a switches watcher asks the presser, a person, to press the marked button", () => {
+    const asks = play("06-lights-out", ROLES3, 2, (w) => w.stations.Q1?.solved === true, 900);
+    expect(asks.filter((a) => a.kind === "press-marked").length).toBeGreaterThan(0);
+    expect(asks.every((a) => a.to !== 1 || a.kind !== "press-marked")).toBe(true);
+  });
+
+  it("the sync lock's key holder asks the person who counts for the count", () => {
+    const asks = play("09-the-vault", ROLES3, 1, (w) => w.stations.Q4?.solved === true, 900);
+    const count = asks.filter((a) => a.kind === "count-turn");
+    expect(count.length).toBeGreaterThan(0);
+    expect(count.every((a) => a.to === 1)).toBe(true);
+  });
+
+  // Room 6's Q2 with Can't hear watching the lamps and Can't speak a person who never presses: the
+  // `mark` messages the watcher sends, with when.
+  const marksAt = (atSpot: boolean) => {
+    const r = room("06-lights-out");
+    const roles = ROLES3;
+    const world = createWorld(r, 1, [...roles]);
+    const humans = new Set<Seat>();
+    const bots: Partial<Record<Seat, BotSeat>> = {};
+    for (const s of [0, 1, 2] as const)
+      bots[s] = { memory: createBotMemory(s, humans, roles), inbox: [] };
+    const cd = { until: {} };
+    const act = () =>
+      botsAct(
+        r,
+        world,
+        roles,
+        bots,
+        cd,
+        world.tick * TICK_MS,
+        () => "Bot",
+        world.tick === 0 ? new Set<Seat>([0, 1, 2]) : new Set<Seat>(),
+      );
+    while (world.tick < 8000 && world.stations.Q1?.solved !== true)
+      step(world, act().inputs, TICK_MS);
+    expect(world.stations.Q1?.solved, "the radio is solved").toBe(true);
+    delete bots[2];
+    humans.add(2);
+    for (const b of Object.values(bots)) (b as BotSeat).memory.queues = null;
+    const marks: number[] = [];
+    const end = world.tick + 400;
+    while (world.tick < end && world.stations.Q2?.solved !== true) {
+      const out = act();
+      for (const m of out.sent)
+        if (m.message.method === "mark" && m.from === 1) marks.push(world.tick * TICK_MS);
+      if (atSpot) (bots[1] as BotSeat).memory.bodies[2] = { x: 0, y: 0 };
+      out.inputs[2] = { seq: world.tick + 1, move: { x: 0, y: 0 }, act: false };
+      step(world, out.inputs, TICK_MS);
+    }
+    return marks;
+  };
+
+  it("a switch mark is re-sent at about 8 s when nobody presses", () => {
+    const marks = marksAt(false);
+    expect(marks.length, marks.join()).toBeGreaterThanOrEqual(2);
+    const gap = (marks[1] as number) - (marks[0] as number);
+    expect(gap).toBeGreaterThanOrEqual(7000);
+    expect(gap).toBeLessThanOrEqual(10000);
+  });
+
+  it("a person at the spot gets no re-ask, and one who leaves is asked again", () => {
+    const m = createBotMemory(1, new Set<Seat>([0]), ROLES3);
+    const saidAt = (now: number, spot: boolean) =>
+      askFor(m, "press-marked", 0, "Q2", now, spot, false)?.saidAt;
+    const first = saidAt(10_000, true);
+    expect(saidAt(20_000, true), "held at the spot past 8 s").toBe(first);
+    expect(saidAt(40_000, true), "held at the spot past 24 s").toBe(first);
+    expect(saidAt(41_000, false), "asked again once they leave").toBe(41_000);
+  });
+
+  it("a Can't see bot with a person as its only steerer asks them to steer, and not the other seat", () => {
+    const asks = play("01-first-steps", ROLES3, 1, (w) => w.tick > 400, 400);
+    const steer = asks.filter((a) => a.kind === "steer-me");
+    expect(steer.length).toBeGreaterThan(0);
+    expect(steer.every((a) => a.to === 1 && a.from === 0)).toBe(true);
   });
 });

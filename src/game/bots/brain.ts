@@ -1618,7 +1618,12 @@ function moveSelf(room: Room, view: RoleView, m: BotMemory, known: Known, pos: V
   // a guide with nothing of its own left but the exit holds still while the Can't-see seat listens at
   // a safe: walking off and back to keep them in sight is noise to a person standing there (Task 289)
   const idleGuide = job === null || job.target.kind === "exit";
-  if (view.role === "deaf" && idleGuide && blindListening(room, m, known, view.role, m.guide.est)) {
+  // (a person's reckoned place is a guess, since they walk on while the stop is on its way and out of
+  // sight nothing says where they stopped: they are listening only while they are in view)
+  const seatB = rolesOf(m, view.role).indexOf("blind");
+  const reckoned =
+    m.humans.has(seatB as Seat) && blindOutOfSight(view, m) !== null ? null : m.guide.est;
+  if (view.role === "deaf" && idleGuide && blindListening(room, m, known, view.role, reckoned)) {
     return follow(room, view, m, known, pos, tile);
   }
   if (lost) return follow(room, view, m, known, pos, centreOf(tileOf(lost)));
@@ -1793,7 +1798,10 @@ function guideBlind(
       callout = "wait";
       g.moving = false;
     }
-  } else if (!g.moving && blindListening(room, m, known, view.role, p)) {
+  } else if (
+    !g.moving &&
+    blindListening(room, m, known, view.role, blindIsBot || seen ? p : null)
+  ) {
     // stopped at a safe's back to listen: no direction, tap or repeat until the safe opens (Task 289)
   } else if (
     g.moving &&
@@ -1971,7 +1979,9 @@ function approach(
     const same = g.heading.x === delta.x && g.heading.y === delta.y;
     return same && along <= g.lead + 0.05 && along > -0.3 ? { stop: true } : null;
   }
-  if (along > 1.5) return null; // a long way: a run
+  // a long way: a run (one that cannot be stopped short of the goal, for how far this person coasts
+  // after "stop", is taps all the way)
+  if (along > Math.max(1.5, g.lead + 0.3)) return null;
   const ready = stepTick >= g.nextTick && now - g.tapAt >= TAP_NEAR_MS;
   if (Math.abs(along) <= 0.3) return null; // there already
   if (!ready) return {};

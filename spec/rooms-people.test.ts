@@ -11,75 +11,75 @@ import type { Seat } from "../src/game/types.ts";
 const rooms = loadRooms();
 const NOT_YET: Record<string, string> = {
   "03-watchers|0|blind":
-    "not cleared after 240 s, caught 2, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
+    "caught 2 times, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "03-watchers|1|blind":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
+    "caught 1 times, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "03-watchers|2|blind":
-    "not cleared after 240 s, caught 38, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
+    "caught 2 times, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "04-the-safe|1|deaf":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: Task 298 (BJ1) took away the jobs a Can't hear person cannot receive, and this still stalls, so the cause is the stop/steer protocol (BT1, BJ3) or a station's missing ask: phase 03 audits it",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "04-the-safe|0|blind":
-    "not cleared after 240 s, caught 0, refused 0 (Task 300: Q1 solved, Q2 not, the person stops at 21.6, 4.6 and never reaches the safe's back at 23, 1); the turner now makes a stop-on-click ask, but the person is never asked to be steered there; fixed in phase 03 (BJ3, BT1 per station)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "04-the-safe|1|blind":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "04-the-safe|2|blind":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "05-the-gallery|0|blind":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "05-the-gallery|1|blind":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "05-the-gallery|2|blind":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "06-lights-out|0|blind":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "06-lights-out|1|blind":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "06-lights-out|2|blind":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "07-night-shift|0|blind":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "07-night-shift|0|deaf":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: Task 298 (BJ1) took away the jobs a Can't hear person cannot receive, and this still stalls, so the cause is the stop/steer protocol (BT1, BJ3) or a station's missing ask: phase 03 audits it",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "07-night-shift|0|mute":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't speak person is never asked for the digit text or the x mark (BT1)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "07-night-shift|1|deaf":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: Task 298 (BJ1) took away the jobs a Can't hear person cannot receive, and this still stalls, so the cause is the stop/steer protocol (BT1, BJ3) or a station's missing ask: phase 03 audits it",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "07-night-shift|1|mute":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't speak person is never asked for the digit text or the x mark (BT1)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "07-night-shift|1|blind":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "07-night-shift|2|mute":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't speak person is never asked for the digit text or the x mark (BT1)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "07-night-shift|2|blind":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "07-night-shift|2|deaf":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: Task 298 (BJ1) took away the jobs a Can't hear person cannot receive, and this still stalls, so the cause is the stop/steer protocol (BT1, BJ3) or a station's missing ask: phase 03 audits it",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "08-music-room|0|blind":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "08-music-room|0|mute":
-    "not cleared after 240 s, caught 1, refused 0; fixed in phase 03: a Can't speak person is never asked for the digit text or the x mark (BT1)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "08-music-room|1|mute":
-    "not cleared after 240 s, caught 1, refused 0; fixed in phase 03: a Can't speak person is never asked for the digit text or the x mark (BT1)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "08-music-room|1|blind":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "08-music-room|2|mute":
-    "not cleared after 240 s, caught 1, refused 0; fixed in phase 03: a Can't speak person is never asked for the digit text or the x mark (BT1)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "08-music-room|2|blind":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "09-the-vault|0|blind":
-    "not cleared after 240 s, caught 10, refused 0; fixed in phase 03: a Can't see person is never asked for the plate digit, the stop or to be steered (BT1, BJ3)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "09-the-vault|0|deaf":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: Task 298 (BJ1) took away the jobs a Can't hear person cannot receive, and this still stalls, so the cause is the stop/steer protocol (BT1, BJ3) or a station's missing ask: phase 03 audits it",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "09-the-vault|0|mute":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't speak person is never asked for the digit text or the x mark (BT1)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "09-the-vault|1|deaf":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: Task 298 (BJ1) took away the jobs a Can't hear person cannot receive, and this still stalls, so the cause is the stop/steer protocol (BT1, BJ3) or a station's missing ask: phase 03 audits it",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "09-the-vault|1|mute":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't speak person is never asked for the digit text or the x mark (BT1)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "09-the-vault|2|mute":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: a Can't speak person is never asked for the digit text or the x mark (BT1)",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
   "09-the-vault|2|deaf":
-    "not cleared after 240 s, caught 0, refused 0; fixed in phase 03: Task 298 (BJ1) took away the jobs a Can't hear person cannot receive, and this still stalls, so the cause is the stop/steer protocol (BT1, BJ3) or a station's missing ask: phase 03 audits it",
+    "not cleared after 240 s, measured after phase 03 (Task 304): every ask is wired, the stand-in obeys taps, and this combination still does not clear; the cause is not yet diagnosed per combination, so phase 04 (takeover BJ2 and its re-measure) takes it on",
 };
 
 describe("two bots and a stand-in person clear every room", () => {

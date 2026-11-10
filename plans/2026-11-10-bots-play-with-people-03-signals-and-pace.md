@@ -84,7 +84,7 @@ export interface BotTurn { input: PlayerInput; send: Outgoing | null; ask?: Ask 
 - **Break check:** set `PERSON_TURN_TICKS` back to 8 by script; the pace test goes red, and room 4's stand-in run goes red.
 - **Depends on:** Task 302.
 
-### Task 304: Every station asks, marks are re-sent, and the blind bot asks to be steered (BT1 per station, BT3, BJ3) — [ ]
+### Task 304: Every station asks, marks are re-sent, and the blind bot asks to be steered (BT1 per station, BT3, BJ3) — [x] (review queued)
 
 - **Behaviour:** wire `askFor` everywhere a bot waits on a person, using the spec's §3 table:
 
