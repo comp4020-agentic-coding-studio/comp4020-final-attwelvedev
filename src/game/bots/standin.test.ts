@@ -73,6 +73,41 @@ describe("the stand-in person", () => {
     expect(person?.speak(null, 1000 + delay + TICK_MS, ask)).toBeNull(); // sent once
   });
 
+  // Task 314: a Can't hear stand-in is told no ask kind; it has a bot's Desperate face and its own view
+  const face = (from: Seat, sentAt: number): ChannelMessage => ({
+    method: "face",
+    id: "f06",
+    from: { seat: from, role: "blind", nickname: "Bot" },
+    sentAt,
+  });
+  const DEAF: [Role, Role, Role] = ["blind", "deaf", "mute"];
+  const stop = { method: "callout", callout: "stop" } as const;
+
+  it("as Can't hear it calls Stop after a bot's face arrives, and not without one", () => {
+    const delay = STANDIN_DELAY_TICKS * TICK_MS;
+    const none = createStandIn(1, new Set([1]), DEAF).person;
+    expect(none?.speak(stop, 0, [])).toBeNull();
+    expect(none?.speak(null, 5 * delay, [])).toBeNull();
+    const seen = createStandIn(1, new Set([1]), DEAF).person;
+    seen?.hear([face(0, 1000)], 1000);
+    expect(seen?.speak(stop, 1000 + delay, [])).toBeNull(); // heard late, reacted late
+    expect(seen?.speak(null, 1000 + 2 * delay, [])).toEqual(stop);
+  });
+
+  it("as Can't hear it is not unlocked by the ask kind, only by the face", () => {
+    const person = createStandIn(1, new Set([1]), DEAF).person;
+    const ask = [{ kind: "stop-on-click", from: 0, to: 1 }] as const;
+    const delay = STANDIN_DELAY_TICKS * TICK_MS;
+    expect(person?.speak(stop, 0, ask)).toBeNull();
+    expect(person?.speak(null, 5 * delay, ask)).toBeNull();
+  });
+
+  it("a face with nothing waiting makes it do nothing", () => {
+    const person = createStandIn(1, new Set([1]), DEAF).person;
+    person?.hear([face(0, 0)], 0);
+    expect(person?.speak(null, 5000, [])).toBeNull();
+  });
+
   it("solveRoom without stand-ins is unchanged, and with one the safe room clears by an ask", () => {
     const rooms = loadRooms("./rooms");
     const r1 = rooms.find((r) => r.id.startsWith("01"));

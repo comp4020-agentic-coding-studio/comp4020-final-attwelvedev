@@ -44,7 +44,7 @@
 - **Break check:** by script, make the bot send no face; the brain test goes red. Put the chip back; the labels test goes red.
 - **Acceptance:** `spec/rooms.test.ts` green in every rotation (all-bot runs have no person, so no asks and no faces), `pnpm check` green.
 
-### Task 313: The words of an ask are said the way a person would say them (decision 1) — [ ]
+### Task 313: The words of an ask are said the way a person would say them (decision 1) — [x]
 
 - **Behaviour:** rewrite `ASK_COPY.say` for the kinds Can't see and Can't speak receive (`stop-on-click`, `read-plate`, `plate-first`, `press-marked`, `strike-marked`, `taking-over`) in the plain words a teammate would use, each still naming the route and never carrying a digit, band, wire, note or answer. Keep them short; a caption is on screen for `CAPTION_MS`.
   - `steer-me` and `count-turn` go only to Can't hear, who gets no words: their `say` is never shown. Keep the text only as a test fixture and say so in a comment, or remove it if nothing uses it (check `Game.tsx` and the tests).
@@ -53,7 +53,7 @@
 - **Tests first (red):** the copy test: every `say` is non-empty, contains no digit, and each names a route (wheel, Talk, Text, a button) where one is needed.
 - **Break check:** put a digit in one line by script; the test goes red.
 
-### Task 314: The stand-in as Can't hear infers from sight (decision 4) — [ ]
+### Task 314: The stand-in as Can't hear infers from sight (decision 4) — [x]
 
 - **Behaviour:** `standin.ts` gives a stand-in as Can't hear **no ask kind**. Today it reads `you.asks`; after Task 312 a Can't hear view has none. It sees a Desperate face over a bot and its own view of the room, and acts as a person would: if a face comes from a Can't see bot that is standing still, steer it (callouts toward its goal as the guide does for a person); if a bot's face comes while a counter or a switches/bells watcher is waiting on it, do that job. Write down in a comment exactly which conclusions the stand-in draws and from what it sees. If an inference cannot be drawn from what a real person would see, the stand-in does **not** act: that is the finding.
   - Re-measure `spec/rooms-people.test.ts` with every Can't hear combination. For each that stops clearing, keep or add its `NOT_YET` entry with the measured cause and the phrase `owner question: how does a Can't hear person learn what a bot needs?` (overview §1 rule 1: a measured new failure is written down with why). Do not give the stand-in the kind.

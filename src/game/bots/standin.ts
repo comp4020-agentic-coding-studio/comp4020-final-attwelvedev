@@ -38,6 +38,17 @@ export const SUPPRESSED_SIGNALS: {
   },
 ];
 
+// A Can't hear stand-in is told no ask kind (Task 314, owner 2026-11-11): a Can't hear person is asked
+// by a Desperate face popping over a bot, and has only that and their own view. The stand-in draws
+// exactly two conclusions, both from what it sees:
+//   - a Desperate face (f06) arrived from a bot, and the person has a number read and waiting to be
+//     sent (a sync count, kept because nobody asked) or a mark they were about to make: it sends it;
+//   - steering needs no conclusion: a person who sees a Can't see bot stand still steers it, which is
+//     what the guide the brain runs already does for the Can't hear seat.
+// With no face, or a face and nothing waiting, it does nothing. It cannot tell what the bot wants
+// beyond that: a room that stalls for want of that knowledge is the finding (rooms-people NOT_YET).
+export const FACE_LIVE_MS = 10_000; // a face stays a reason to send for about this long
+
 const DIRS: Record<string, Vec> = {
   left: { x: -1, y: 0 },
   right: { x: 1, y: 0 },
@@ -54,6 +65,8 @@ export function createStandIn(
   // an ask is heard late like a message: it counts once it has been live for the delay
   const liveSince = new Map<AskKind, number>();
   const taps: { due: number; dir: Vec }[] = [];
+  const deaf = roles[seat] === "deaf";
+  let faceAt: number | null = null; // when a bot's Desperate face last reached this person
   // a Stop is a reaction to a sound (the tumbler): a person says it about a second after hearing it,
   // which is what the bot's late credit (BP2) is for. One is held at a time.
   let stopDue: number | null = null;
@@ -66,6 +79,7 @@ export function createStandIn(
       hear(inbox, now) {
         const delay = STANDIN_DELAY_TICKS * TICK_MS;
         for (const msg of inbox) {
+          if (msg.method === "face" && msg.id === "f06" && msg.from.seat !== seat) faceAt = now;
           // "Tap left." is words a person obeys with one short step that way (the guide's lining-up
           // taps). The blind brain reads callouts only, so the stand-in takes the step itself.
           const tap =
@@ -88,6 +102,14 @@ export function createStandIn(
         return { ...input, move: (tap as { dir: Vec }).dir };
       },
       speak(send, now, asks) {
+        const unlocked = (askedBy: AskKind[]) =>
+          deaf
+            ? faceAt !== null && now - faceAt < FACE_LIVE_MS
+            : askedBy.some(
+                (k) =>
+                  now - (liveSince.get(k) ?? Number.POSITIVE_INFINITY) >=
+                  STANDIN_DELAY_TICKS * TICK_MS,
+              );
         for (const kind of [...liveSince.keys()])
           if (!asks.some((a) => a.kind === kind)) liveSince.delete(kind);
         for (const a of asks) if (!liveSince.has(a.kind)) liveSince.set(a.kind, now);
@@ -97,13 +119,7 @@ export function createStandIn(
         }
         const first = kept[0];
         const keptHeld = first ? SUPPRESSED_SIGNALS.find((s) => s.is(first)) : undefined;
-        if (
-          first &&
-          keptHeld?.askedBy.some(
-            (k) =>
-              now - (liveSince.get(k) ?? Number.POSITIVE_INFINITY) >= STANDIN_DELAY_TICKS * TICK_MS,
-          )
-        ) {
+        if (first && keptHeld && unlocked(keptHeld.askedBy)) {
           // (the kept signal waits a turn if the bot has something else to send)
           if (!send) return kept.shift() as Outgoing;
         }
@@ -111,11 +127,7 @@ export function createStandIn(
         const held = SUPPRESSED_SIGNALS.find((s) => s.is(send));
         if (!held) return send;
         if (held.name === "stop callout") {
-          const asked = held.askedBy.some(
-            (k) =>
-              now - (liveSince.get(k) ?? Number.POSITIVE_INFINITY) >= STANDIN_DELAY_TICKS * TICK_MS,
-          );
-          if (!asked) return null;
+          if (!unlocked(held.askedBy)) return null;
           stopDue ??= now + STANDIN_DELAY_TICKS * TICK_MS;
           return null;
         }

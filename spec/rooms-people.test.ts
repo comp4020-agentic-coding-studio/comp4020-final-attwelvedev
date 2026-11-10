@@ -22,6 +22,8 @@ const NOT_YET: Record<string, string> = {
     "not cleared after 240 s, measured in phase 05 (Task 309): room 4 rotation 1 with a person as Can't hear: the person takes the dial's turner jobs and the Can't see bot is guided out of sight; the stand-in's Stop reaches the dial but the room stalls before the second safe (not diagnosed further; parked, overnight log bp05/309)",
   "05-the-gallery|0|blind":
     "not cleared after 240 s, measured in phase 05 (Task 309): a person as Can't see in room 05: the tow reaches the first tile (rotations that clear in rooms 2, 4, 5, 7 and 9 show the tow works), but the room stalls later in the same lane/gap guide fault as room 4 rotation 0, or at a tile the guide taps to without landing (parked, overnight log bp05/309)",
+  "05-the-gallery|1|deaf":
+    "not cleared after 240 s, measured in phase 06 (Task 314): room 5 rotation 1 with a person as Can't hear, who is no longer told the ask's kind and infers from a bot's face: Q1 to Q3 are solved and the person and the Can't see bot stand in the exit (34, 1-2), but the Can't speak bot is still at (30, 3) with its own cache job (Q4) waiting on something the person cannot tell from a face; owner question: how does a Can't hear person learn what a bot needs? (overnight log bp06/314)",
   "05-the-gallery|2|blind":
     "not cleared after 240 s, measured in phase 05 (Task 309): a person as Can't see in room 05: the tow reaches the first tile (rotations that clear in rooms 2, 4, 5, 7 and 9 show the tow works), but the room stalls later in the same lane/gap guide fault as room 4 rotation 0, or at a tile the guide taps to without landing (parked, overnight log bp05/309)",
   "06-lights-out|0|blind":
