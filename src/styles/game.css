@@ -454,6 +454,29 @@ body.playing main {
   font-stretch: 75%;
   font-weight: 700;
 }
+/* the bar's status row (Task 293): its items join the bar's one line from 720 px. On a phone it is the bar's
+   second row, a grid that never wraps: the clock, loot, the connection, the goal line, who is watching and
+   the menu. The goal line gives way first (an ellipsis: the whole line is in its title and read in full),
+   then the connection's words (the same). A wrapping row grew the bar by 71 px mid-game and shrank the map
+   when the lamp, "Offline. Retrying…" and a watcher showed. */
+.hud-status {
+  display: contents;
+}
+@media (max-width: 719.98px) {
+  .hud-status {
+    flex: 1 0 100%;
+    display: grid;
+    grid-template-columns: auto auto minmax(0, max-content) minmax(0, 1fr) auto auto;
+    align-items: center;
+    column-gap: var(--s-2);
+  }
+  .hud-status > .conn {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
 .hud-room {
   flex: 1;
   min-width: 0;
@@ -539,10 +562,16 @@ body.playing main {
   font-weight: 700;
 }
 /* the sighted goal line (T3): in the top bar on a phone, beside the live light on the bar's second row,
-   so the map keeps its height; from 720 px it is the .hud-hint under the bar, like Can't see's */
+   so the map keeps its height; from 720 px it is the .hud-hint under the bar, like Can't see's. One line
+   that gives way with an ellipsis, never a wrap: the lamp, "Offline. Retrying…" and "N watching" can join
+   that row mid-game, and a wrapping line grew the bar by 71 px and shrank the map (Task 293). The whole
+   line stays in its title and for a screen reader (Game.tsx). */
 .hud-goal {
   flex: 1 1 0;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--t-14);
   line-height: 1.2;
 }

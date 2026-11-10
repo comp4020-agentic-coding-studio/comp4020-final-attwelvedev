@@ -19,7 +19,7 @@ export function Connection({ state, rttMs }: { state: ConnectionState; rttMs: nu
           ? "Offline. Retrying…"
           : "Connecting…";
   return (
-    <p class={`conn conn-${state}`} role="status">
+    <p class={`conn conn-${state}`} role="status" title={text}>
       <span class="conn-dot" aria-hidden="true">
         {DOT[state]}
       </span>{" "}

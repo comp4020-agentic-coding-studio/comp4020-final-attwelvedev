@@ -87,7 +87,7 @@
 - **Break check:** remove the stacking by script; the overlap assertion goes red.
 - **Depends on:** none.
 
-### Task 293: The phone's top bar never grows mid-game (review F2, UNCLEAR: measure first) — [ ]
+### Task 293: The phone's top bar never grows mid-game (review F2, UNCLEAR: measure first) — [x]
 
 **Finding (not confirmed from source):**
 - `.hud-goal` has `flex: 1 1 0`, so it shrinks and wraps on its row instead of moving to a new one.

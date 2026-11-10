@@ -1231,50 +1231,58 @@ function Hud({
           </span>
         </span>
         <span class="sr-only">{roomTitle}</span>
-        <span class="hud-clock" role="timer" aria-label="Time">
-          {clock}
-        </span>
-        <span class="hud-loot" role="img" aria-label={`Loot ${loot}`}>
-          <span aria-hidden="true">◆ {loot}</span>
-        </span>
-        <Connection state={state} rttMs={rttMs} />
-        {role !== "blind" && <span class="hud-goal">Get all three onto the exit.</span>}
-        <span class="hud-watching">
-          <button
-            type="button"
-            class="hud-btn"
-            aria-expanded={watchOpen}
-            aria-controls="hud-watching"
-            disabled={watching.length === 0}
-            hidden={watching.length === 0}
-            onClick={() => setWatchOpen(!watchOpen)}
-          >
-            {watching.length} watching
-          </button>
-          {watchOpen && watching.length > 0 && (
-            <ul class="hud-watching-list" id="hud-watching" aria-label="Watching">
-              {watching.map((name, n) => (
-                <li key={`${n}:${name}`}>{name}</li>
-              ))}
-            </ul>
+        {/* the bar's status row: on a phone a row of its own that never wraps (Task 293); from 720 px its
+          items sit in the bar's one line as before */}
+        <div class="hud-status">
+          <span class="hud-clock" role="timer" aria-label="Time">
+            {clock}
+          </span>
+          <span class="hud-loot" role="img" aria-label={`Loot ${loot}`}>
+            <span aria-hidden="true">◆ {loot}</span>
+          </span>
+          <Connection state={state} rttMs={rttMs} />
+          {role !== "blind" && (
+            <span class="hud-goal" title="Get all three onto the exit.">
+              Get all three onto the exit.
+            </span>
           )}
-        </span>
-        <HudMenu
-          title={roomTitle}
-          onAsk={ask}
-          onLeave={onLeave}
-          settings={
-            <Settings
-              role={role}
-              settings={settings}
-              onChange={change}
-              maskNoiseAvailable={real.maskNoise}
-              maskNoiseDefault={real.maskDefault}
-              othersSoundOff={real.soundOff}
-              voiceOn={real.voice}
-            />
-          }
-        />
+          <span class="hud-watching">
+            <button
+              type="button"
+              class="hud-btn"
+              aria-expanded={watchOpen}
+              aria-controls="hud-watching"
+              disabled={watching.length === 0}
+              hidden={watching.length === 0}
+              onClick={() => setWatchOpen(!watchOpen)}
+            >
+              {watching.length} watching
+            </button>
+            {watchOpen && watching.length > 0 && (
+              <ul class="hud-watching-list" id="hud-watching" aria-label="Watching">
+                {watching.map((name, n) => (
+                  <li key={`${n}:${name}`}>{name}</li>
+                ))}
+              </ul>
+            )}
+          </span>
+          <HudMenu
+            title={roomTitle}
+            onAsk={ask}
+            onLeave={onLeave}
+            settings={
+              <Settings
+                role={role}
+                settings={settings}
+                onChange={change}
+                maskNoiseAvailable={real.maskNoise}
+                maskNoiseDefault={real.maskDefault}
+                othersSoundOff={real.soundOff}
+                voiceOn={real.voice}
+              />
+            }
+          />
+        </div>
       </header>
 
       {/* the goal, always in sight: Can't see's own words, and the reveal's goal for the sighted (T3). On a phone
