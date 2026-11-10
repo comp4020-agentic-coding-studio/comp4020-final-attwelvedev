@@ -165,8 +165,9 @@ function drawPill(ctx: CanvasRenderingContext2D, scene: Scene, pop: FacePop, box
     ctx.fillText(glyph, cursor, y + PILL_H / 2 + 1);
   }
   if (hasPicture && pop.img) {
-    // the face hangs off the pill, on a white plate, so it is readable at a glance
-    const fy = y - FACE_PX - 2;
+    // the face hangs off the pill, on a white plate, so it is readable at a glance: above it, or
+    // below a pill in the top half, where above would be off the frame (playtest 3, B3)
+    const fy = y + PILL_H / 2 < scene.h / 2 ? y + PILL_H + 5 : y - FACE_PX - 2;
     ctx.fillStyle = COLOR.ui;
     ctx.beginPath();
     ctx.roundRect(x + w - FACE_PX - 6, fy - 3, FACE_PX + 6, FACE_PX + 6, SHELL.r);

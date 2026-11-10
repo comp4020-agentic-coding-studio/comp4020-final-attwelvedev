@@ -1,3 +1,4 @@
+import type { Ask } from "../asks.ts";
 import { cacheOf, type Room, secretDoors } from "../rooms/format.ts";
 import { forceUncover } from "../sim/stations.ts";
 import { step } from "../sim/step.ts";
@@ -5,6 +6,7 @@ import { createWorld, TICK_MS, type World } from "../sim/world.ts";
 import type { Role, Seat } from "../types.ts";
 import { createBotMemory } from "./brain.ts";
 import { type BotSeat, botsAct } from "./crew.ts";
+import { createStandIn } from "./standin.ts";
 
 export interface SolveResult {
   world: World;
@@ -23,6 +25,9 @@ export function solveRoom(
   budgetS = 600,
   opts: {
     humans?: ReadonlySet<Seat>;
+    // Seats played by a stand-in person (standin.ts): the bot brain with a person's limits. They are
+    // in `humans` for every seat's memory, so jobs and pacing treat them as people.
+    standIns?: ReadonlySet<Seat>;
     // Stand in for the person who uncovers a cache (ADR 0024): on the first tick any seat reaches the
     // chamber's columns, the harness makes the same world change an Act on the motif tile makes.
     // The bots never uncover one themselves.
@@ -31,14 +36,18 @@ export function solveRoom(
     uncoverWhenReached?: true | number;
   } = {},
 ): SolveResult {
-  const humans = opts.humans ?? new Set<Seat>();
+  const standIns = opts.standIns ?? new Set<Seat>();
+  const humans = new Set<Seat>([...(opts.humans ?? []), ...standIns]);
   const world = createWorld(room, 1, [...roles]);
   const sentBy: [number, number, number] = [0, 0, 0];
   const cooldowns = { until: {} };
   const bots: Partial<Record<Seat, BotSeat>> = {};
   for (const seat of [0, 1, 2] as const) {
-    if (!humans.has(seat)) bots[seat] = { memory: createBotMemory(seat, humans, roles), inbox: [] };
+    if (standIns.has(seat)) bots[seat] = createStandIn(seat, humans, roles);
+    else if (!humans.has(seat))
+      bots[seat] = { memory: createBotMemory(seat, humans, roles), inbox: [] };
   }
+  let asks: Ask[] = []; // what the bots asked last tick: the stand-ins see theirs
   let caught = 0;
   let refused = 0;
   let messages = 0;
@@ -46,7 +55,8 @@ export function solveRoom(
   while (world.tick < budget && world.status !== "cleared") {
     const now = world.tick * TICK_MS;
     const full = world.tick === 0 ? new Set<Seat>([0, 1, 2]) : new Set<Seat>();
-    const turn = botsAct(room, world, roles, bots, cooldowns, now, (s) => `Bot ${s}`, full);
+    const turn = botsAct(room, world, roles, bots, cooldowns, now, (s) => `Bot ${s}`, full, asks);
+    asks = turn.sentAsks;
     refused += turn.refused;
     messages += turn.sent.length;
     for (const s of turn.sent) sentBy[s.from]++;

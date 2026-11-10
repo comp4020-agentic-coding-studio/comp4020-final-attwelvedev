@@ -173,6 +173,19 @@ describe("tabAt", () => {
   it("finds nothing in the middle of the wheel", () => {
     expect(tabAt("talk", "wide", 0, 0)).toBeNull();
   });
+
+  it("finds each label in the side column, clear of every outline, and nothing in the middle", () => {
+    for (const page of ["talk", "faces", "clips", "marks"] as const) {
+      const { x, y } = tabXY(page, "narrow", "side");
+      expect(tabAt(page, "narrow", x, y, "side"), page).toBe(page);
+      for (const p of ["talk", "faces", "clips", "marks"] as const) {
+        const o = outlineOf(p, "narrow");
+        const half = o.kind === "circle" ? o.r : o.halfW;
+        expect(x + 80, `${page} beside ${p}`).toBeLessThanOrEqual(-half);
+      }
+    }
+    expect(tabAt("talk", "narrow", 0, 0, "side")).toBeNull();
+  });
 });
 
 describe("receiversOf", () => {

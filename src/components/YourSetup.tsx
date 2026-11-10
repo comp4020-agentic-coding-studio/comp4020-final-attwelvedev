@@ -50,7 +50,7 @@ export function YourSetup({
         </div>
       </fieldset>
       {check("Always show captions", "captions")}
-      {check("Earplugs or earmuffs", "earplugs")}
+      {check("Ears blocked (earplugs or earmuffs)", "earplugs")}
       {check("Sleep mask or blindfold", "mask")}
     </form>
   );

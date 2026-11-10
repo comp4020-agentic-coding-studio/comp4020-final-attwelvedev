@@ -4,12 +4,12 @@ import { type RoleView, viewFor } from "../perception.ts";
 import { type CacheSpec, cacheOf } from "../rooms/format.ts";
 import { loadRooms } from "../rooms/load.ts";
 import { syncCacheDoors } from "../sim/cache.ts";
-import { forceUncover } from "../sim/stations.ts";
+import { forceUncover, tilesOf } from "../sim/stations.ts";
 import { step } from "../sim/step.ts";
 import { roomWith } from "../sim/testing.ts";
 import { createWorld, TICK_MS } from "../sim/world.ts";
 import type { Role, Seat } from "../types.ts";
-import { CACHE_GIVE_UP_TICKS, createBotMemory, think } from "./brain.ts";
+import { askFor, CACHE_GIVE_UP_TICKS, createBotMemory, TAKEOVER_TICKS, think } from "./brain.ts";
 import { type BotSeat, botsAct } from "./crew.ts";
 import { claimJobs, hintsOf } from "./jobs.ts";
 import { solveRoom } from "./solve.ts";
@@ -1605,5 +1605,933 @@ describe("cache jobs (ADR 0024)", () => {
   it("a bot never Acts on a motif tile (FR1): three bots in room 4 open no cache", () => {
     const run = solveRoom(room("04-the-safe"), ROLES3, 120);
     expect(run.world.cacheUncovered).toEqual([]);
+  });
+});
+
+describe("a guide says a direction once, and repeats it with backoff while no progress (FR10-FR11, Tasks 273, 282)", () => {
+  const ROLES: [Role, Role, Role] = ["blind", "deaf", "mute"];
+  const DIRS: Record<string, { x: number; y: number }> = {
+    up: { x: 0, y: -1 },
+    down: { x: 0, y: 1 },
+    left: { x: -1, y: 0 },
+    right: { x: 1, y: 0 },
+  };
+  const OPEN = [
+    "##############################",
+    "#2...........................#",
+    "#1..........................E#",
+    "#3...........................#",
+    "##############################",
+  ];
+  type Pos = { x: number; y: number };
+  // A person playing Can't see, moved by hand each tick from what the guide last said to them
+  // (`heard`, a callout, or a "Tap x." text once). The guide stands on them, so it always sees them.
+  const guided = (
+    grid: string[],
+    ticks: number,
+    walk: (heard: string | null, pos: Pos, tap: string | null) => Pos,
+    onTick?: (tick: number, memory: ReturnType<typeof createBotMemory>) => void,
+  ) => {
+    const r = roomWith(grid, {}, { hints: { jobs: [{ beat: 1, goTo: "E", all: true }] } });
+    const world = createWorld(r);
+    const memory = createBotMemory(1, new Set([0]), ROLES);
+    const said: { word: string; tick: number }[] = [];
+    let heard: string | null = null;
+    let tap: string | null = null;
+    for (let t = 1; t <= ticks; t++) {
+      world.tick = t;
+      world.players[0].pos = walk(heard, { ...world.players[0].pos }, tap);
+      tap = null;
+      world.players[1].pos = { ...world.players[0].pos };
+      onTick?.(t, memory);
+      const turn = think(r, viewFor(world, 1, "deaf", true), [], memory, t * TICK_MS);
+      if (turn.send?.method === "callout") {
+        said.push({ word: turn.send.callout, tick: t });
+        heard = turn.send.callout;
+      }
+      if (turn.send?.method === "text") tap = /^Tap (\w+)\./.exec(turn.send.text)?.[1] ?? null;
+    }
+    return { said, at: world.players[0].pos };
+  };
+  const along = (heard: string | null, p: Pos, speed: number): Pos => {
+    const d = heard ? DIRS[heard] : undefined;
+    return d ? { x: p.x + d.x * speed, y: p.y + d.y * speed } : p;
+  };
+
+  it("says the direction exactly once over 10 s while the person walks that way", () => {
+    const run = guided(OPEN, 200, (heard, p) => along(heard, p, 0.1));
+    expect(run.said.map((s) => s.word)).toEqual(["right"]);
+    expect(run.at.x).toBeGreaterThan(15); // and they did walk it
+  });
+
+  it("a person walking against the heading is told it again after 3 s, then backs off", () => {
+    const run = guided(OPEN, 60 + 60 + 200, (heard, p) =>
+      heard === null ? p : { x: Math.max(1.5, p.x - 0.02), y: p.y },
+    );
+    // 16 s: said at 0, then repeats at 3 s and 9 s (no progress, walking the other way)
+    expect(run.said.map((s) => s.word)).toEqual(["right", "right", "right"]);
+  });
+
+  // FR11 as the user changed it after the review (2026-11-10): repeats back off, 3 s, 6 s, 12 s, then every 12 s
+  const STEPS = 3000 / TICK_MS; // 60 ticks
+  const gaps = (ticks: number[]) => ticks.slice(1).map((t, i) => t - (ticks[i] as number));
+  it("a person who never moves hears the direction again after 3, 6 and 12 s, then nothing for a minute (FR11, 2026-11-11)", () => {
+    const run = guided(OPEN, 60_000 / TICK_MS, (_heard, p) => p);
+    const ticks = run.said.map((s) => s.tick);
+    expect(run.said.every((s) => s.word === "right")).toBe(true);
+    expect(ticks).toHaveLength(4); // the direction, then exactly three repeats
+    const g = gaps(ticks);
+    for (const [i, want] of [STEPS, 2 * STEPS, 4 * STEPS].entries()) {
+      expect(
+        Math.abs((g[i] as number) - want),
+        `gap ${i + 1}: ${g.join(", ")}`,
+      ).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("once quiet, a step along the heading makes the guide speak again", () => {
+    const stepAt = 40_000 / TICK_MS;
+    let n = 0;
+    const run = guided(OPEN, 60_000 / TICK_MS, (_heard, p) =>
+      ++n === stepAt ? { x: p.x + 0.3, y: p.y } : p,
+    );
+    expect(run.said.filter((s) => s.tick <= stepAt)).toHaveLength(4);
+    expect(run.said.filter((s) => s.tick > stepAt).length).toBeGreaterThan(0);
+  });
+
+  it("progress resets the backoff: a person creeping along is not repeated at, and once they stop it starts over at 3 s (Task 282)", () => {
+    // they stand through the 3 s and 6 s repeats (the next would be 12 s away), then creep along the
+    // heading for 20 s, a quarter tile every ~1 s, then stand. (Standing after progress, the stuck rule
+    // says "stop" and the direction again: that word, not a repeat, starts the cadence.)
+    let t = 0;
+    const run = guided(OPEN, 40_000 / TICK_MS, (heard, p) => {
+      t++;
+      return heard && t > 200 && t <= 600 ? along(heard, p, 0.012) : p;
+    });
+    const words = run.said.filter((s) => s.word === "right").map((s) => s.tick);
+    const label = run.said.map((s) => `${s.word}@${s.tick}`).join(", ");
+    expect(
+      words.filter((tick) => tick > 210 && tick <= 600),
+      `creeping: ${label}`,
+    ).toEqual([]);
+    const after = words.filter((tick) => tick > 600);
+    expect(after.length, label).toBeGreaterThanOrEqual(2);
+    expect(
+      Math.abs((after[1] as number) - (after[0] as number) - STEPS),
+      label,
+    ).toBeLessThanOrEqual(1);
+  });
+
+  it("a repeat waits until nothing has been sent for 2 s (Task 282)", () => {
+    // a flavour line goes out at 2.5 s, half a second before the first repeat is due
+    const run = guided(
+      OPEN,
+      10_000 / TICK_MS,
+      (_heard, p) => p,
+      (t, memory) => {
+        if (t === 51) memory.lastFlavourAt = t * TICK_MS;
+      },
+    );
+    const ticks = run.said.map((s) => s.tick);
+    expect(ticks[1], ticks.join(", ")).toBeGreaterThanOrEqual(51 + 2000 / TICK_MS);
+  });
+
+  it("a repeat waits 2 s after a work text too, so it never cuts off a digit (Task 291)", () => {
+    // a work text (a digit, sent through `stamp`) goes out at 2.5 s, half a second before the first
+    // repeat is due: on a person's client a callout 50 ms later would supersede it (speech.ts)
+    const run = guided(
+      OPEN,
+      10_000 / TICK_MS,
+      (_heard, p) => p,
+      (t, memory) => {
+        if (t === 51) memory.lastSpokeAt = t * TICK_MS;
+      },
+    );
+    const ticks = run.said.map((s) => s.tick);
+    expect(ticks[1], ticks.join(", ")).toBeGreaterThanOrEqual(51 + 2000 / TICK_MS);
+  });
+
+  it("a new heading resets the backoff and is said at once (Task 282)", () => {
+    const L = [
+      "#############",
+      "#2..........#",
+      "#1..........#",
+      "#3..........#",
+      "##########.##",
+      "##########.##",
+      "##########E##",
+      "#############",
+    ];
+    // stand still long enough to back off to 12 s, then walk with the guide
+    let t = 0;
+    const run = guided(L, 1200, (heard, p, tap) => {
+      t++;
+      if (t < 25_000 / TICK_MS) return p;
+      return tap ? along(tap, p, 0.2) : along(heard, p, 0.2);
+    });
+    const down = run.said.find((s) => s.word === "down");
+    expect(down).toBeDefined();
+    // standing at the corner after the turn: the first repeat of "down" comes 3 s later, not 12
+    const s2 = guided(L, 1200, (heard, p, tap) => {
+      if (heard === "down") return p; // freeze once told down
+      return tap ? along(tap, p, 0.2) : along(heard, p, 0.2);
+    });
+    const downs = s2.said.filter((s) => s.word === "down").map((s) => s.tick);
+    expect(downs.length).toBeGreaterThanOrEqual(2);
+    expect(Math.abs((downs[1] as number) - (downs[0] as number) - STEPS)).toBeLessThanOrEqual(1);
+  });
+
+  it("a turn sends the new word at once, and each word once", () => {
+    const L = [
+      "#############",
+      "#2..........#",
+      "#1..........#",
+      "#3..........#",
+      "##########.##",
+      "##########.##",
+      "##########E##",
+      "#############",
+    ];
+    const run = guided(L, 400, (heard, p, tap) =>
+      tap ? along(tap, p, 0.2) : along(heard, p, 0.2),
+    );
+    const words = run.said.map((s) => s.word);
+    // right, then down once the way turns; a stop between (at the corner, or to line them up with
+    // the lane) is a new instruction, but the same word is never said twice in a row
+    expect(words.filter((w) => DIRS[w])[0]).toBe("right");
+    expect(words).toContain("down");
+    expect(words.slice(words.indexOf("down")).every((w) => w !== "right")).toBe(true);
+    for (let i = 1; i < words.length; i++) expect(words[i]).not.toBe(words[i - 1]);
+    expect(Math.floor(run.at.y)).toBe(6); // they got to the exit's tile
+  });
+});
+
+describe("a person at the very edge of their goal's tile is tapped onto it (Task 273)", () => {
+  // the sim's sums leave a person at 29.99999…, which the view rounds to 30.000: on the plate's tile
+  // by what the guide sees, and off it by what the sim presses. The guide taps them to the middle.
+  it("taps a person toward the plate's centre rather than waiting forever", () => {
+    const grid = ["#########", "#2......#", "#1...p..#", "#3......#", "#########"];
+    const r = roomWith(grid, {}, { hints: { jobs: [{ beat: 1, goTo: "p1", prefer: "blind" }] } });
+    const world = createWorld(r);
+    const roles: [Role, Role, Role] = ["blind", "deaf", "mute"];
+    const memory = createBotMemory(1, new Set([0]), roles);
+    world.players[1].pos = { x: 3.5, y: 1.5 };
+    world.players[2].pos = { x: 1.5, y: 3.5 };
+    const texts: string[] = [];
+    for (let t = 1; t <= 60; t++) {
+      world.tick = t;
+      world.players[0].pos = { x: 4.9999999999999, y: 2.5 }; // left of x = 5, the plate's tile
+      const turn = think(r, viewFor(world, 1, "deaf", true), [], memory, t * TICK_MS);
+      if (turn.send?.method === "text") texts.push(turn.send.text);
+    }
+    expect(texts).toContain("Tap right.");
+  });
+});
+
+describe("the edge tap needs sight of the person (F1, Task 281)", () => {
+  // Out of sight and stopped, the guide's estimate of a person never moves: a tap moves nobody in its
+  // model. So if the estimate sits near its tile's edge, the same "Tap …" fired every 16 ticks forever.
+  it("a stopped person out of sight, reckoned 0.4 off the middle of their goal tile, is tapped at most once in 100 ticks", () => {
+    // the guide (2) is sealed off below: a wall between it and Can't see (1), so it never sees them
+    const grid = ["#########", "#1...p..#", "#########", "#2.....3#", "#########"];
+    const r = roomWith(grid, {}, { hints: { jobs: [{ beat: 1, goTo: "p1", prefer: "blind" }] } });
+    const world = createWorld(r);
+    const roles: [Role, Role, Role] = ["blind", "deaf", "mute"];
+    const memory = createBotMemory(1, new Set([0]), roles);
+    memory.guide.est = { x: 5.1, y: 1.5 }; // on the plate's tile (x 5), 0.4 left of its middle
+    const texts: string[] = [];
+    for (let t = 1; t <= 100; t++) {
+      world.tick = t;
+      const view = viewFor(world, 1, "deaf", true);
+      expect(view.entities.some((e) => e.kind === "player" && e.seat === 0)).toBe(false);
+      const turn = think(r, view, [], memory, t * TICK_MS);
+      if (turn.send?.method === "text" && turn.send.text.startsWith("Tap"))
+        texts.push(turn.send.text);
+    }
+    expect(texts.length, texts.join(" | ")).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("the line-up tap needs sight of the person too (F1, Task 281)", () => {
+  it("a stopped person out of sight, reckoned 0.3 off a one-tile lane's middle, is tapped at most once in 100 ticks", () => {
+    // Can't see (1) in a one-tile corridor to the exit, the guide (2) sealed off below it
+    const grid = ["#########", "#1.....E#", "#########", "#2.....3#", "#########"];
+    const r = roomWith(grid, {}, { hints: { jobs: [{ beat: 1, goTo: "E", all: true }] } });
+    const world = createWorld(r);
+    const roles: [Role, Role, Role] = ["blind", "deaf", "mute"];
+    const memory = createBotMemory(1, new Set([0]), roles);
+    memory.guide.est = { x: 1.5, y: 1.8 }; // 0.3 below the middle of the lane
+    const texts: string[] = [];
+    for (let t = 1; t <= 100; t++) {
+      world.tick = t;
+      const view = viewFor(world, 1, "deaf", true);
+      expect(view.entities.some((e) => e.kind === "player" && e.seat === 0)).toBe(false);
+      const turn = think(r, view, [], memory, t * TICK_MS);
+      if (turn.send?.method === "text" && turn.send.text.startsWith("Tap"))
+        texts.push(turn.send.text);
+    }
+    expect(texts.length, texts.join(" | ")).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("a bot Can't see on a long straight run (F7, Task 283)", () => {
+  // A direction is said once (FR10), so on a run of 20+ tiles nothing reached the blind bot for more than
+  // IDLE_MS (5 s), it held ("nobody is steering"), and the guide's stuck rule then said stop and go.
+  it("walks a 30-tile corridor to the exit without holding or being called stuck", () => {
+    const grid = [
+      "##################################",
+      "#2..............................3#",
+      "#1..............................E#",
+      "##################################",
+    ];
+    const r = roomWith(grid, {}, { hints: { jobs: [{ beat: 1, goTo: "E", all: true }] } });
+    const world = createWorld(r);
+    const roles: [Role, Role, Role] = ["blind", "deaf", "mute"];
+    const bots: Record<Seat, BotSeat> = {
+      0: { memory: createBotMemory(0, new Set(), roles), inbox: [] },
+      1: { memory: createBotMemory(1, new Set(), roles), inbox: [] },
+      2: { memory: createBotMemory(2, new Set(), roles), inbox: [] },
+    };
+    let held = 0;
+    let stuck = 0;
+    let started = false;
+    for (let i = 0; i < 400 && world.players[0].pos.x < 32; i++) {
+      // the guide walks beside the blind, so it always sees it
+      const out = botsAct(
+        r,
+        world,
+        roles,
+        bots,
+        { until: {} },
+        world.tick * TICK_MS,
+        (s) => `Bot ${s}`,
+      );
+      step(world, out.inputs, TICK_MS);
+      if (bots[1].memory.guide.moving) started = true;
+      if (started && bots[0].memory.holding && world.players[0].pos.x < 32) held++;
+      for (const s of out.sent)
+        if (s.message.method === "callout" && s.message.callout === "stop") stuck++;
+    }
+    expect(started).toBe(true);
+    expect(Math.floor(world.players[0].pos.x), "reached the end").toBeGreaterThanOrEqual(32);
+    expect(held, "ticks the blind bot held mid-run").toBe(0);
+    expect(stuck, "stops said").toBe(0);
+  });
+});
+
+describe("a bot guide stays put and quiet while a person listens at a safe (Task 289)", () => {
+  // Room 4, a person playing Can't see with two bots: led to the back of Q2, they stood still to listen,
+  // and the guide walked left and right and kept sending them taps. Three bots play the room up to
+  // the listen tile; there the person takes over Can't see and stands still where they arrived.
+  it("over 20 s at Q2's listen tile: no direction or tap to the listener, and the guide settles", () => {
+    const r = room("04-the-safe");
+    const world = createWorld(r, 1, [...ROLES3]);
+    const humans = new Set<Seat>();
+    const bots: Partial<Record<Seat, BotSeat>> = {};
+    for (const s of [0, 1, 2] as const)
+      bots[s] = { memory: createBotMemory(s, humans, ROLES3), inbox: [] };
+    const cd = { until: {} };
+    const act = () =>
+      botsAct(
+        r,
+        world,
+        ROLES3,
+        bots,
+        cd,
+        world.tick * TICK_MS,
+        (s) => `Bot ${s}`,
+        world.tick === 0 ? new Set<Seat>([0, 1, 2]) : new Set<Seat>(),
+      );
+    const there = () => {
+      const p = world.players[0].pos;
+      return Math.floor(p.x) === 23 && Math.floor(p.y) === 1 && world.gear[0]?.heldBy === 0;
+    };
+    while (world.tick < 6000 && !there()) step(world, act().inputs, TICK_MS);
+    expect(there(), "Can't see reached Q2's listen tile").toBe(true);
+    delete bots[0];
+    humans.add(0); // the person, who stands still from here
+    const told: string[] = [];
+    const tiles: string[] = [];
+    const end = world.tick + 400;
+    while (world.tick < end && world.stations.Q2?.solved !== true) {
+      const out = act();
+      for (const s of out.sent) {
+        if (s.from !== 1 || !s.receivers.includes(0)) continue;
+        const m = s.message;
+        if (m.method === "callout" && m.callout !== "stop" && m.callout !== "wait")
+          told.push(m.callout);
+        if (m.method === "text" && m.text.startsWith("Tap")) told.push(m.text);
+      }
+      out.inputs[0] = { seq: world.tick + 1, move: { x: 0, y: 0 }, act: false };
+      step(world, out.inputs, TICK_MS);
+      const g = world.players[1].pos;
+      const t = `${Math.floor(g.x)},${Math.floor(g.y)}`;
+      if (tiles.at(-1) !== t) tiles.push(t);
+    }
+    expect(told, told.join(" | ")).toEqual([]);
+    expect(tiles.length - 1, `the guide's tiles: ${tiles.join(" ")}`).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("the bot keep-alive never reaches a person (F1 of the phase 05 review, Task 290)", () => {
+  // `route` sends a callout to every seat whose role receives it: a person playing Can't speak beside a
+  // bot Can't see heard the heading again every 2.5 s on a long run, which breaks FR10.
+  it("a person as Can't speak hears no more callouts on a 30-tile corridor than the heading changes and one nudge", () => {
+    const grid = [
+      "##################################",
+      "#2..............................3#",
+      "#1..............................E#",
+      "##################################",
+    ];
+    const r = roomWith(grid, {}, { hints: { jobs: [{ beat: 1, goTo: "E", all: true }] } });
+    const world = createWorld(r);
+    const roles: [Role, Role, Role] = ["blind", "deaf", "mute"];
+    const humans = new Set<Seat>([2]);
+    const bots: Partial<Record<Seat, BotSeat>> = {
+      0: { memory: createBotMemory(0, humans, roles), inbox: [] },
+      1: { memory: createBotMemory(1, humans, roles), inbox: [] },
+    };
+    const heard: string[] = [];
+    let changes = 0;
+    let heading = "";
+    for (let i = 0; i < 400 && world.players[0].pos.x < 32; i++) {
+      const out = botsAct(
+        r,
+        world,
+        roles,
+        bots,
+        { until: {} },
+        world.tick * TICK_MS,
+        (s) => `Bot ${s}`,
+      );
+      for (const s of out.sent) {
+        if (s.message.method !== "callout" || !s.receivers.includes(2)) continue;
+        heard.push(s.message.callout);
+        if (s.message.callout !== heading) changes++;
+        heading = s.message.callout;
+      }
+      out.inputs[2] = { seq: i + 1, move: { x: 0, y: 0 }, act: false };
+      step(world, out.inputs, TICK_MS);
+    }
+    expect(Math.floor(world.players[0].pos.x), "reached the end").toBeGreaterThanOrEqual(32);
+    // a bot Can't see is nudged once (FR11's backoff is for a person who makes no progress)
+    expect(heard.length, heard.join(" ")).toBeLessThanOrEqual(changes + 1);
+  });
+});
+
+describe("a bot asks a person for what it needs (Task 299)", () => {
+  // Room 4's Q2: the Can't speak turner turns the dial and waits for the listener's Stop. Three bots
+  // play to the listen tile; there seat 0 becomes a person (or stays a bot) and stands still.
+  const asksOf = (person: boolean) => {
+    const r = room("04-the-safe");
+    const world = createWorld(r, 1, [...ROLES3]);
+    const humans = new Set<Seat>();
+    const bots: Partial<Record<Seat, BotSeat>> = {};
+    for (const s of [0, 1, 2] as const)
+      bots[s] = { memory: createBotMemory(s, humans, ROLES3), inbox: [] };
+    const cd = { until: {} };
+    const act = () =>
+      botsAct(
+        r,
+        world,
+        ROLES3,
+        bots,
+        cd,
+        world.tick * TICK_MS,
+        () => "Bot",
+        world.tick === 0 ? new Set<Seat>([0, 1, 2]) : new Set<Seat>(),
+      );
+    const there = () => {
+      const p = world.players[0].pos;
+      return Math.floor(p.x) === 23 && Math.floor(p.y) === 1 && world.gear[0]?.heldBy === 0;
+    };
+    while (world.tick < 6000 && !there()) step(world, act().inputs, TICK_MS);
+    expect(there(), "Can't see reached Q2's listen tile").toBe(true);
+    if (person) {
+      delete bots[0];
+      humans.add(0);
+    }
+    const asks: { kind: string; to: Seat; from: Seat; at: number }[] = [];
+    const end = world.tick + 400;
+    while (world.tick < end && world.stations.Q2?.solved !== true) {
+      const out = act();
+      for (const a of out.sentAsks) asks.push({ ...a, at: world.tick * TICK_MS });
+      if (person) out.inputs[0] = { seq: world.tick + 1, move: { x: 0, y: 0 }, act: false };
+      step(world, out.inputs, TICK_MS);
+    }
+    return asks;
+  };
+
+  it("the turner asks a person at the safe's back for Stop; no ask when the listener is a bot", () => {
+    const asks = asksOf(true);
+    expect(asks.length, "an ask was made").toBeGreaterThan(0);
+    expect(asks[0]).toMatchObject({ kind: "stop-on-click", to: 0, from: 2 });
+    expect(asksOf(false)).toEqual([]);
+  });
+});
+
+describe("a bot works at a person's pace (Task 303)", () => {
+  // Room 4's Q2: the Can't speak turner at the dial; its notches come this many ticks apart.
+  const gaps = (person: boolean) => {
+    const r = room("04-the-safe");
+    const world = createWorld(r, 1, [...ROLES3]);
+    const humans = new Set<Seat>();
+    const bots: Partial<Record<Seat, BotSeat>> = {};
+    for (const s of [0, 1, 2] as const)
+      bots[s] = { memory: createBotMemory(s, humans, ROLES3), inbox: [] };
+    const cd = { until: {} };
+    const act = () =>
+      botsAct(
+        r,
+        world,
+        ROLES3,
+        bots,
+        cd,
+        world.tick * TICK_MS,
+        () => "Bot",
+        world.tick === 0 ? new Set<Seat>([0, 1, 2]) : new Set<Seat>(),
+      );
+    const there = () => {
+      const p = world.players[0].pos;
+      return Math.floor(p.x) === 23 && Math.floor(p.y) === 1 && world.gear[0]?.heldBy === 0;
+    };
+    while (world.tick < 6000 && !there()) step(world, act().inputs, TICK_MS);
+    expect(there(), "Can't see reached Q2's listen tile").toBe(true);
+    if (person) {
+      delete bots[0];
+      humans.add(0);
+    }
+    const turns: number[] = [];
+    let last = JSON.stringify(world.stations.Q2?.input);
+    const end = world.tick + 600;
+    while (world.tick < end && world.stations.Q2?.solved !== true) {
+      const out = act();
+      if (person) out.inputs[0] = { seq: world.tick + 1, move: { x: 0, y: 0 }, act: false };
+      step(world, out.inputs, TICK_MS);
+      const now = JSON.stringify(world.stations.Q2?.input);
+      if (now !== last) turns.push(world.tick);
+      last = now;
+    }
+    return turns.slice(1).map((t, i) => t - (turns[i] as number));
+  };
+  it("a turner with a person listener turns no faster than every 40 ticks", () => {
+    const g = gaps(true);
+    expect(g.length).toBeGreaterThan(1);
+    expect(Math.min(...g)).toBeGreaterThanOrEqual(40);
+  });
+  it("a bot listener keeps an 8-tick pace", () => {
+    const g = gaps(false);
+    expect(g.length).toBeGreaterThan(1);
+    expect(Math.min(...g)).toBeLessThan(20);
+  });
+});
+
+describe("every station a person works is asked for (Task 304)", () => {
+  // the Desperate faces the bots sent the person in the last `play`, with when (game ms)
+  let faces: { from: Seat; at: number }[] = [];
+  // A three-bot game in `roomId` run to `tick`, then `person` becomes a person; returns each ask the
+  // bots make of each seat in the next `ticks`. A person here does nothing (their body stays put).
+  const play = (
+    roomId: string,
+    roles: [Role, Role, Role],
+    person: Seat,
+    run: (w: ReturnType<typeof createWorld>) => boolean,
+    ticks = 600,
+  ) => {
+    const r = room(roomId);
+    const world = createWorld(r, 1, [...roles]);
+    const humans = new Set<Seat>();
+    const bots: Partial<Record<Seat, BotSeat>> = {};
+    for (const s of [0, 1, 2] as const)
+      bots[s] = { memory: createBotMemory(s, humans, roles), inbox: [] };
+    const cd = { until: {} };
+    const act = () =>
+      botsAct(
+        r,
+        world,
+        roles,
+        bots,
+        cd,
+        world.tick * TICK_MS,
+        () => "Bot",
+        world.tick === 0 ? new Set<Seat>([0, 1, 2]) : new Set<Seat>(),
+      );
+    while (world.tick < 8000 && !run(world)) step(world, act().inputs, TICK_MS);
+    expect(run(world), "reached the setup").toBe(true);
+    delete bots[person];
+    humans.add(person);
+    for (const b of Object.values(bots)) (b as BotSeat).memory.queues = null;
+    const asks: { kind: string; to: Seat; from: Seat; at: number }[] = [];
+    const end = world.tick + ticks;
+    faces = [];
+    while (world.tick < end) {
+      const out = act();
+      for (const a of out.sentAsks) asks.push({ ...a, at: world.tick * TICK_MS });
+      for (const s of out.sent)
+        if (s.message.method === "face" && s.message.id === "f06" && s.receivers.includes(person))
+          faces.push({ from: s.from, at: world.tick * TICK_MS });
+      out.inputs[person] = { seq: world.tick + 1, move: { x: 0, y: 0 }, act: false };
+      step(world, out.inputs, TICK_MS);
+    }
+    return asks;
+  };
+
+  it("a Can't speak turner asks the Can't see person for Stop, and not the other seat (safes)", () => {
+    const asks = play(
+      "04-the-safe",
+      ROLES3,
+      0,
+      (w) => {
+        const p = w.players[0].pos;
+        return Math.floor(p.x) === 23 && Math.floor(p.y) === 1 && w.gear[0]?.heldBy === 0;
+      },
+      300,
+    );
+    expect(asks.length).toBeGreaterThan(0);
+    expect(asks.every((a) => a.kind === "stop-on-click" && a.to === 0)).toBe(true);
+  });
+
+  it("a Can't see person is asked for a plate's digit, never a Can't hear seat (plated stations)", () => {
+    const asks = play("05-the-gallery", ROLES3, 0, (w) => w.stations.Q2?.solved === true, 900);
+    const plate = asks.filter((a) => a.kind === "read-plate");
+    expect(plate.length).toBeGreaterThan(0);
+    expect(plate.every((a) => a.to === 0)).toBe(true);
+  });
+
+  it("the earpiece's presser asks Can't see for the plate first", () => {
+    const asks = play("08-music-room", ROLES3, 0, (w) => w.stations.Q1?.solved === true, 1500);
+    const first = asks.filter((a) => a.kind === "plate-first");
+    expect(first.length).toBeGreaterThan(0);
+    expect(first.every((a) => a.to === 0)).toBe(true);
+  });
+
+  it("a bells watcher asks the striker, a person, to strike the marked bell", () => {
+    const asks = play("08-music-room", ROLES3, 1, (w) => w.stations.Q2?.solved === true, 1500);
+    const strike = asks.filter((a) => a.kind === "strike-marked");
+    expect(strike.length).toBeGreaterThan(0);
+    expect(strike.every((a) => a.to === 1)).toBe(true);
+  });
+
+  it("a switches watcher asks the presser, a person, to press the marked button", () => {
+    const asks = play("06-lights-out", ROLES3, 2, (w) => w.stations.Q1?.solved === true, 900);
+    expect(asks.filter((a) => a.kind === "press-marked").length).toBeGreaterThan(0);
+    expect(asks.every((a) => a.to !== 1 || a.kind !== "press-marked")).toBe(true);
+  });
+
+  it("the sync lock's key holder asks the person who counts for the count", () => {
+    const asks = play("09-the-vault", ROLES3, 1, (w) => w.stations.Q4?.solved === true, 900);
+    const count = asks.filter((a) => a.kind === "count-turn");
+    expect(count.length).toBeGreaterThan(0);
+    expect(count.every((a) => a.to === 1)).toBe(true);
+  });
+
+  // Room 6's Q2 with Can't hear watching the lamps and Can't speak a person who never presses: the
+  // `mark` messages the watcher sends, with when.
+  const marksAt = (atSpot: boolean) => {
+    const r = room("06-lights-out");
+    const roles = ROLES3;
+    const world = createWorld(r, 1, [...roles]);
+    const humans = new Set<Seat>();
+    const bots: Partial<Record<Seat, BotSeat>> = {};
+    for (const s of [0, 1, 2] as const)
+      bots[s] = { memory: createBotMemory(s, humans, roles), inbox: [] };
+    const cd = { until: {} };
+    const act = () =>
+      botsAct(
+        r,
+        world,
+        roles,
+        bots,
+        cd,
+        world.tick * TICK_MS,
+        () => "Bot",
+        world.tick === 0 ? new Set<Seat>([0, 1, 2]) : new Set<Seat>(),
+      );
+    while (world.tick < 8000 && world.stations.Q1?.solved !== true)
+      step(world, act().inputs, TICK_MS);
+    expect(world.stations.Q1?.solved, "the radio is solved").toBe(true);
+    delete bots[2];
+    humans.add(2);
+    for (const b of Object.values(bots)) (b as BotSeat).memory.queues = null;
+    const marks: number[] = [];
+    const end = world.tick + 400;
+    while (world.tick < end && world.stations.Q2?.solved !== true) {
+      const out = act();
+      for (const m of out.sent)
+        if (m.message.method === "mark" && m.from === 1) marks.push(world.tick * TICK_MS);
+      if (atSpot) (bots[1] as BotSeat).memory.bodies[2] = { x: 0, y: 0 };
+      out.inputs[2] = { seq: world.tick + 1, move: { x: 0, y: 0 }, act: false };
+      step(world, out.inputs, TICK_MS);
+    }
+    return marks;
+  };
+
+  it("a switch mark is re-sent at about 8 s when nobody presses", () => {
+    const marks = marksAt(false);
+    expect(marks.length, marks.join()).toBeGreaterThanOrEqual(2);
+    const gap = (marks[1] as number) - (marks[0] as number);
+    expect(gap).toBeGreaterThanOrEqual(7000);
+    expect(gap).toBeLessThanOrEqual(10000);
+  });
+
+  it("a person at the spot gets no re-ask, and one who leaves is asked again", () => {
+    const m = createBotMemory(1, new Set<Seat>([0]), ROLES3);
+    const saidAt = (now: number, spot: boolean) =>
+      askFor(m, "press-marked", 0, "Q2", now, spot, false)?.saidAt;
+    const first = saidAt(10_000, true);
+    expect(saidAt(20_000, true), "held at the spot past 8 s").toBe(first);
+    expect(saidAt(40_000, true), "held at the spot past 24 s").toBe(first);
+    expect(saidAt(41_000, false), "asked again once they leave").toBe(41_000);
+  });
+
+  it("a Can't see bot with a person as its only steerer asks them to steer, and not the other seat", () => {
+    const asks = play("01-first-steps", ROLES3, 1, (w) => w.tick > 400, 400);
+    const steer = asks.filter((a) => a.kind === "steer-me");
+    expect(steer.length).toBeGreaterThan(0);
+    expect(steer.every((a) => a.to === 1 && a.from === 0)).toBe(true);
+  });
+
+  // Task 312: a Can't hear person is asked by a Desperate face from the asking bot, on the ask clock
+  it("a Can't see bot at a standstill sends the Can't hear person a face at the first ask, about 8 s and 16 s", () => {
+    play("01-first-steps", ROLES3, 1, (w) => w.tick > 400, 1100);
+    expect(faces.length, faces.map((f) => f.at).join()).toBeGreaterThanOrEqual(3);
+    expect(faces.every((f) => f.from === 0)).toBe(true);
+    const gap1 = (faces[1]?.at as number) - (faces[0]?.at as number);
+    const gap2 = (faces[2]?.at as number) - (faces[1]?.at as number);
+    expect(gap1, "first re-ask").toBeGreaterThanOrEqual(7500);
+    expect(gap1).toBeLessThanOrEqual(10_000);
+    expect(gap2, "second re-ask").toBeGreaterThanOrEqual(15_500);
+    expect(gap2).toBeLessThanOrEqual(18_000);
+  });
+
+  it("count-turn for a Can't hear person goes as a face too", () => {
+    play("09-the-vault", ROLES3, 1, (w) => w.stations.Q4?.solved === true, 900);
+    expect(faces.length).toBeGreaterThan(0);
+  });
+
+  it("no face goes to a person who is not Can't hear", () => {
+    play("04-the-safe", ROLES3, 0, (w) => w.tick > 400, 300);
+    expect(faces).toEqual([]);
+  });
+});
+
+describe("a bot takes over a person's idle job (BJ2, Task 305)", () => {
+  // Room 6 with three bots until the radio is solved; then Can't speak (seat 2), who owns the
+  // switches, becomes a person who stands still, or who presses one marked button at `pressAt` ticks.
+  const run = (pressAt?: number) => {
+    const r = room("06-lights-out");
+    const world = createWorld(r, 1, [...ROLES3]);
+    const humans = new Set<Seat>();
+    const bots: Partial<Record<Seat, BotSeat>> = {};
+    for (const s of [0, 1, 2] as const)
+      bots[s] = { memory: createBotMemory(s, humans, ROLES3), inbox: [] };
+    const cd = { until: {} };
+    let asks: ReturnType<typeof botsAct>["sentAsks"] = [];
+    const act = () =>
+      botsAct(
+        r,
+        world,
+        ROLES3,
+        bots,
+        cd,
+        world.tick * TICK_MS,
+        () => "Bot",
+        world.tick === 0 ? new Set<Seat>([0, 1, 2]) : new Set<Seat>(),
+        asks,
+      );
+    while (world.tick < 8000 && world.stations.Q1?.solved !== true)
+      step(world, act().inputs, TICK_MS);
+    expect(world.stations.Q1?.solved, "the radio is solved").toBe(true);
+    delete bots[2];
+    humans.add(2);
+    for (const b of Object.values(bots)) (b as BotSeat).memory.queues = null;
+    const from = world.tick;
+    const notices: { to: Seat; from: Seat; tick: number }[] = [];
+    let solvedAt: number | null = null;
+    while (world.tick < from + 3000 && solvedAt === null) {
+      const out = act();
+      asks = out.sentAsks;
+      for (const a of out.sentAsks)
+        if (a.kind === "taking-over") notices.push({ to: a.to, from: a.from, tick: world.tick });
+      const press = pressAt !== undefined && world.tick - from === pressAt;
+      // the person's one press: they stand on the first button and press it
+      if (press) {
+        const b = tilesOf(r.objects.find((o) => o.id === "Q2")?.params?.buttons)[0] as {
+          x: number;
+          y: number;
+        };
+        world.players[2].pos = { x: b.x + 0.5, y: b.y + 0.5 };
+      }
+      out.inputs[2] = { seq: world.tick + 1, move: { x: 0, y: 0 }, act: press };
+      step(world, out.inputs, TICK_MS);
+      if (world.stations.Q2?.solved) solvedAt = world.tick - from;
+    }
+    return { notices, solvedAt };
+  };
+
+  it("after 60 s a bot takes the switches, says so to the person, and solves them", () => {
+    const { notices, solvedAt } = run();
+    expect(notices.length, "a takeover notice").toBeGreaterThan(0);
+    expect(notices.every((n) => n.to === 2 && n.from !== 2)).toBe(true);
+    expect(notices[0]?.tick).toBeGreaterThanOrEqual(1200);
+    expect(solvedAt, "the switches are solved").not.toBeNull();
+  });
+
+  it("a person who makes progress at 50 s resets the clock", () => {
+    const { notices } = run(1000);
+    expect(notices.length, "a takeover notice").toBeGreaterThan(0);
+    expect(notices[0]?.tick, "no takeover before 60 s after the press").toBeGreaterThanOrEqual(
+      2200,
+    );
+  });
+});
+
+describe("the takeover clock is fair (Task 310, review F1 and F2 of bp04)", () => {
+  // Room 6 with three bots until the radio is solved, then a person in Can't speak's seat (as the
+  // BJ2 tests above): `takeOver` is run through the real observe path with that person's queue edited.
+  const setup = () => {
+    const r = room("06-lights-out");
+    const world = createWorld(r, 1, [...ROLES3]);
+    const humans = new Set<Seat>([2]);
+    const mem = createBotMemory(1, humans, ROLES3);
+    return { r, world, mem };
+  };
+  const seeStation = (
+    r: ReturnType<typeof room>,
+    world: ReturnType<typeof createWorld>,
+    mem: ReturnType<typeof createBotMemory>,
+    tick: number,
+  ) => {
+    world.tick = tick;
+    return think(r, viewFor(world, 1, "deaf", false), [], mem, tick * TICK_MS);
+  };
+
+  it("a person with a 70 s gear job first: the clock starts when it is done, not before", () => {
+    const { r, world, mem } = setup();
+    seeStation(r, world, mem, 1); // the bot builds its queues on its first look
+    const queue = mem.queues as NonNullable<typeof mem.queues>;
+    // a take job in front of the person's station job, not yet done
+    const station = queue[2].find((j) => j.target.kind === "station");
+    expect(station, "the person has a station job").toBeDefined();
+    const gear = { index: 99, beat: 1, target: { kind: "take", gear: "g1" }, all: false } as never;
+    queue[2].unshift(gear);
+    for (let t = 1; t <= 1500; t += 50) seeStation(r, world, mem, t);
+    expect(mem.takenOver.size, "no takeover while the earlier gear job is open").toBe(0);
+    expect(
+      mem.idleSince[(station as { index: number }).index],
+      "no idle clock yet",
+    ).toBeUndefined();
+  });
+
+  it("once the gear job is done, 60 s of idleness at the station is what is measured", () => {
+    const { r, world, mem } = setup();
+    seeStation(r, world, mem, 1);
+    const queue = mem.queues as NonNullable<typeof mem.queues>;
+    const station = queue[2].find((j) => j.target.kind === "station") as { index: number };
+    queue[2] = queue[2].filter((j) => j.target.kind !== "take"); // no earlier open job
+    let tookAt = -1;
+    for (let t = 2; t <= 3000 && tookAt < 0; t += 10) {
+      world.tick = t;
+      think(r, viewFor(world, 1, "deaf", false), [], mem, t * TICK_MS);
+      if (mem.takenOver.has(station.index)) tookAt = t;
+    }
+    expect(tookAt, "taken over after the clock ran").toBeGreaterThanOrEqual(TAKEOVER_TICKS);
+  });
+
+  it("a person holding gear a bot needs is asked to hand it over after the takeover window, and no take is made", () => {
+    // room 4, a person as Can't speak (seat 2) takes the stethoscope and keeps it; the Can't hear bot
+    // (seat 1) needs it handed on to Can't see
+    const r = room("04-the-safe");
+    const world = createWorld(r, 1, [...ROLES3]);
+    const humans = new Set<Seat>([2]);
+    const bots: Partial<Record<Seat, BotSeat>> = {};
+    for (const s of [0, 1] as const)
+      bots[s] = { memory: createBotMemory(s, humans, ROLES3), inbox: [] };
+    const cd = { until: {} };
+    // the person took the stethoscope at the start, and stands where it was with it
+    const stetho = world.gear.find((g) => g.item === "stethoscope");
+    if (stetho) Object.assign(stetho, { heldBy: 2, at: null });
+    let asks: ReturnType<typeof botsAct>["sentAsks"] = [];
+    const given: { tick: number; kind: string }[] = [];
+    for (let t = 0; t < TAKEOVER_TICKS * 3; t++) {
+      const out = botsAct(
+        r,
+        world,
+        ROLES3,
+        bots,
+        cd,
+        t * TICK_MS,
+        () => "Bot",
+        t === 0 ? new Set<Seat>([0, 1, 2]) : new Set<Seat>(),
+        asks,
+      );
+      asks = out.sentAsks;
+      for (const a of out.sentAsks)
+        if (a.kind === "hand-over-gear") given.push({ tick: t, kind: a.kind });
+      // the person walks onto the gear, takes it and then stands still with it
+      out.inputs[2] = { seq: t + 1, move: { x: 0, y: 0 }, act: false };
+      step(world, out.inputs, TICK_MS);
+    }
+    const held = world.gear.find((g) => g.item === "stethoscope")?.heldBy;
+    expect(held, "the person still holds it: a bot never takes gear from a teammate").toBe(2);
+    expect(given.length, "the bot asked them to hand it over").toBeGreaterThan(0);
+    expect(given[0]?.tick, "not before the takeover window").toBeGreaterThanOrEqual(TAKEOVER_TICKS);
+  });
+
+  it("a message from the person restarts the clock: a bot that cannot see the station does not time out while they work it", () => {
+    const { r, world, mem } = setup();
+    seeStation(r, world, mem, 1);
+    const queue = mem.queues as NonNullable<typeof mem.queues>;
+    const station = queue[2].find((j) => j.target.kind === "station") as { index: number };
+    // the person's own text arrives every 30 s: well inside 60 s of each other, for 4 minutes
+    const text = (at: number): ChannelMessage =>
+      ({
+        method: "text",
+        text: "ok",
+        from: { seat: 2, role: "mute", nickname: "P" },
+        sentAt: at * TICK_MS,
+      }) as ChannelMessage;
+    for (let t = 2; t <= 4800; t += 50) {
+      world.tick = t;
+      const inbox = t % 600 === 2 ? [text(t)] : [];
+      think(r, viewFor(world, 1, "deaf", false), inbox, mem, t * TICK_MS);
+    }
+    expect(mem.takenOver.has(station.index), "no takeover while the person keeps sending").toBe(
+      false,
+    );
+  });
+});
+
+describe("digits two people text each other never feed a bot's station (BS3, Task 306)", () => {
+  // Room 5's Q3, a keypad whose middle key is on Can't see's plate. People as Can't see (seat 0)
+  // and Can't hear (seat 1) text each other digits; the bot (Can't speak, seat 2) works the keypad.
+  it("the bot's plated keypad takes no digit it did not ask Can't see for", () => {
+    const r = room("05-the-gallery");
+    const humans = new Set<Seat>([0, 1]);
+    const world = createWorld(r, 1, [...ROLES3]);
+    const bot: BotSeat = { memory: createBotMemory(2, humans, ROLES3), inbox: [] };
+    const cd = { until: {} };
+    // the bot is placed by the keypad, where it hears its clue
+    world.players[2].pos = { x: 26.5, y: 4.5 };
+    const chat = (seat: Seat, text: string, at: number): ChannelMessage =>
+      ({
+        method: "text",
+        text,
+        from: { seat, role: ROLES3[seat], nickname: "P" },
+        sentAt: at,
+      }) as ChannelMessage;
+    for (let t = 0; t < 600; t++) {
+      const now = t * TICK_MS;
+      // every second, the two people trade a digit (Can't hear to Can't see, and back)
+      if (t % 20 === 0)
+        bot.inbox.push(chat((t / 20) % 2 === 0 ? 1 : 0, String((t / 20) % 10), now));
+      const out = botsAct(r, world, ROLES3, { 2: bot }, cd, now, () => "Bot");
+      step(world, out.inputs, TICK_MS);
+    }
+    const b = bot.memory.known?.stations.Q3;
+    expect(b, "the bot has a belief of Q3").toBeDefined();
+    // a digit from seat 1 is never one it asked for; seat 0's before the ask are not either
+    expect(b?.numbers ?? [], "no traded digit fed the keypad").toEqual([]);
+    expect(b?.askedTo === undefined || b?.askedTo === 0).toBe(true);
   });
 });

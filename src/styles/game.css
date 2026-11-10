@@ -454,6 +454,29 @@ body.playing main {
   font-stretch: 75%;
   font-weight: 700;
 }
+/* the bar's status row (Task 293): its items join the bar's one line from 720 px. On a phone it is the bar's
+   second row, a grid that never wraps: the clock, loot, the connection, the goal line, who is watching and
+   the menu. The goal line gives way first (an ellipsis: the whole line is in its title and read in full),
+   then the connection's words (the same). A wrapping row grew the bar by 71 px mid-game and shrank the map
+   when the lamp, "Offline. Retrying…" and a watcher showed. */
+.hud-status {
+  display: contents;
+}
+@media (max-width: 719.98px) {
+  .hud-status {
+    flex: 1 0 100%;
+    display: grid;
+    grid-template-columns: auto auto minmax(0, max-content) minmax(0, 1fr) auto auto;
+    align-items: center;
+    column-gap: var(--s-2);
+  }
+  .hud-status > .conn {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
 .hud-room {
   flex: 1;
   min-width: 0;
@@ -538,6 +561,30 @@ body.playing main {
   color: var(--ui);
   font-weight: 700;
 }
+/* the sighted goal line (T3): in the top bar on a phone, beside the live light on the bar's second row,
+   so the map keeps its height; from 720 px it is the .hud-hint under the bar, like Can't see's. One line
+   that gives way with an ellipsis, never a wrap: the lamp, "Offline. Retrying…" and "N watching" can join
+   that row mid-game, and a wrapping line grew the bar by 71 px and shrank the map (Task 293). The whole
+   line stays in its title and for a screen reader (Game.tsx). */
+.hud-goal {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--t-14);
+  line-height: 1.2;
+}
+@media (min-width: 720px) {
+  .hud-goal {
+    display: none;
+  }
+}
+@media (max-width: 719.98px) {
+  .hud-goal-wide {
+    display: none;
+  }
+}
 
 /* who is watching: a button that opens a list under the bar */
 .hud-watching {
@@ -575,6 +622,29 @@ body.playing main {
   }
 }
 
+/* in a game the transient alerts (voice lagging, a new host, who left or came back, how a vote ended) sit in
+   the frame's top column (.top-stack), under the side-job chip and the open plate and over the cache moment and
+   an open vote: they flow under each other, so none covers another (Task 292). The column overlays the frame,
+   so an alert coming or going never resizes it (Task 279: a note in the HUD's column once jolted the whole
+   view). An alert has no control, so it lets clicks through. */
+.hud-alerts {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-1);
+}
+.top-stack > .hud-alerts {
+  pointer-events: none;
+}
+.hud-alerts:empty {
+  display: none;
+}
+.hud-alerts > .hud-alert {
+  margin: 0;
+  width: fit-content;
+  max-width: calc(100% - 2 * var(--s-3) - 24px);
+  box-shadow: var(--lift);
+}
 .hud-alert {
   flex: none;
   margin: var(--s-1) var(--s-3) 0;
@@ -1351,6 +1421,27 @@ fieldset.settings {
   text-underline-offset: 3px;
 }
 
+/* a frame too short for labels above and plate below (1280×560): labels in a column to the
+   left, plate to the right. SIDE_TAB_W, SIDE_TAB_H and SIDE_GAP in client/wheelLayout.ts are
+   these sizes; at the narrow floor scale a label is still a 48 px target. */
+.wheel.is-side .wheel-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3em;
+  box-sizing: border-box;
+  width: 160px;
+  height: 50px;
+  padding: 0 var(--s-2);
+  font-size: var(--t-18);
+}
+.wheel.is-side .wheel-plate {
+  left: var(--side-off);
+  top: 0;
+  max-width: 20rem;
+  transform: translateY(-50%);
+}
+
 /* a wheel opened by click takes clicks on its slots and labels (a held one never does:
    the pointer is busy aiming, and must reach nothing underneath) */
 .wheel.is-click .wheel-slot,
@@ -1569,13 +1660,10 @@ fieldset.settings {
   }
 }
 
-/* a restart vote: a card at the top centre of the map, so people keep moving while they decide */
+/* a restart vote: a card at the top centre of the map, so people keep moving while they decide; in the frame's
+   top column, under anything above it there (Task 292) */
 .vote-prompt {
-  position: absolute;
-  top: var(--s-2);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 3;
+  align-self: center;
   display: grid;
   gap: var(--s-2);
   width: min(calc(100% - var(--s-4)), 26rem);
@@ -1855,13 +1943,12 @@ fieldset.settings {
   font-weight: 700;
 }
 /* what a cache's opening or stash says, at the top centre of the map for a few seconds, like a vote
-   card: it never blocks play */
+   card: it never blocks play. In the frame's top column, so it sits under the chip on every width */
+.top-stack > .cache-moment {
+  pointer-events: none;
+}
 .cache-moment {
-  position: absolute;
-  top: var(--s-2);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 3;
+  align-self: center;
   display: flex;
   align-items: center;
   gap: var(--s-2);
@@ -1879,12 +1966,6 @@ fieldset.settings {
 .cache-moment p {
   margin: 0;
   overflow-wrap: anywhere;
-}
-/* a phone's frame is too narrow for the chip and the card side by side: the card goes under the chip */
-@media (max-width: 719px) {
-  .cache-moment {
-    top: calc(var(--s-2) + 4.5rem);
-  }
 }
 /* phone: the gear slot is a 48 px button at the world's bottom right, clear of the touch controls */
 .gear-btn {

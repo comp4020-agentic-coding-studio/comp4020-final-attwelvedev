@@ -1,3 +1,4 @@
+import type { Ask } from "../game/asks.ts";
 import { createBotMemory } from "../game/bots/brain.ts";
 import { type BotSeat, type BotSent, botsAct } from "../game/bots/crew.ts";
 import {
@@ -77,6 +78,7 @@ export interface Game {
   startedAt: number;
   cooldowns: CooldownState;
   bots: Partial<Record<Seat, BotSeat>>; // a memory and an inbox for each seat a bot plays
+  asks: Ask[]; // what the bots asked of a person last tick: live while a bot keeps asking
   paused: Paused | null;
   vote: Vote | null;
   vacated: Partial<Record<Seat, string>>; // the device that left a seat a bot now plays, who may take it back
@@ -195,6 +197,7 @@ export function startGame(lobby: LobbyState, rooms: Room[]): Game {
     startedAt: Date.now(),
     cooldowns: { until: {} },
     bots: {},
+    asks: [],
     paused: null,
     vote: null,
     vacated: {},
@@ -248,6 +251,7 @@ export function advanceRoom(game: Game, lobby: LobbyState, rooms: Room[]): "next
   game.ready.clear();
   game.inputs = {};
   game.cooldowns = { until: {} };
+  game.asks = [];
   game.startedAt = Date.now();
   seatBots(game, botSeatsIn(lobby));
   return "next";
@@ -369,6 +373,7 @@ export function finishVote(
   game.ready.clear();
   game.inputs = {};
   game.cooldowns = { until: {} };
+  game.asks = [];
   game.startedAt = Date.now();
   seatBots(game, botSeatsIn(lobby));
   return "heist";
@@ -563,15 +568,23 @@ export function tickGame(
   nickname: (seat: Seat) => string = () => "Bot",
 ): { views: Map<Seat, RoleView>; cleared: boolean; sent: BotSent[]; caught: Caught[] } {
   if (game.paused) return { views: new Map(), cleared: false, sent: [], caught: [] };
-  const acted = botsAct(
-    game.world.room,
-    game.world,
-    game.roles,
-    game.bots,
-    game.cooldowns,
-    now,
-    nickname,
-  );
+  // bots act only while the room is played: once it is cleared nothing a bot says is relayed, so
+  // no bot line reaches the next room's reveal (playtest 3, B2)
+  const acted =
+    game.world.status === "playing"
+      ? botsAct(
+          game.world.room,
+          game.world,
+          game.roles,
+          game.bots,
+          game.cooldowns,
+          now,
+          nickname,
+          new Set(),
+          game.asks,
+        )
+      : { inputs: {}, sent: [], refused: 0, sentAsks: [] };
+  game.asks = acted.sentAsks;
   for (const seat of botSeatsOf(game)) {
     const input = acted.inputs[seat];
     if (input) applyInput(game, seat, input);
@@ -596,7 +609,10 @@ export function tickGame(
   );
   const views = new Map<Seat, RoleView>();
   for (const seat of [0, 1, 2] as const) {
-    views.set(seat, viewFor(game.world, seat, game.roles[seat], mapChanged || full.has(seat)));
+    views.set(
+      seat,
+      viewFor(game.world, seat, game.roles[seat], mapChanged || full.has(seat), game.asks),
+    );
   }
   // who was caught, by what, and where the team went back to: told to everyone
   const caught = game.world.events.flatMap((e) =>

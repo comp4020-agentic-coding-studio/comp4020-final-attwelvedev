@@ -1018,3 +1018,14 @@ describe("the jam (FR13)", () => {
     expect(w.jammedUntil.Q1).toBeUndefined();
   });
 });
+
+describe("a plated radio's bands read as one digit (F6, Task 286)", () => {
+  // the plate shows a band + 1, and the blind bot texts it a digit a key (`readNumber` takes ^\d$): a
+  // setting of 9 would read 10. Settings are capped at 8 (bands 1 to 9), whatever the range.
+  it("never draws a setting above 8, even at range 10, over 200 seeds", () => {
+    for (let seed = 0; seed < 200; seed++) {
+      const [real, , decoy1, , decoy2] = drawAnswer("radio", { range: 10 }, rng(seed), true);
+      for (const v of [real, decoy1, decoy2]) expect(v, `seed ${seed}`).toBeLessThanOrEqual(8);
+    }
+  });
+});

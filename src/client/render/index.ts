@@ -74,6 +74,9 @@ export interface Scene {
   // and whether you are walking or pushing at something. Overrides what the view says about you;
   // for Can't see it is all there is to draw.
   own?: Motion;
+  // The hand you hold, as touch (ADR 0030, `RoleView.you.hand`): Can't see's frame draws the link from
+  // their figure to one tile in `dir`, the arrow toward the leader. It never says who holds it.
+  hand?: { dir: Vec; leads: boolean; pulling: boolean };
   // The room is cleared: nobody walks on, so no figure hops or kicks up dust, whatever stale motion
   // the last view or the client's own input left behind (FR2).
   cleared?: boolean;
@@ -283,7 +286,8 @@ export const SUNRISE_STEPS = 24;
 function drawScene(ctx: CanvasRenderingContext2D, scene: Scene): void {
   ctx.clearRect(0, 0, scene.w, scene.h);
   setRise(scene.rise ?? 1, scene.tiles?.length);
-  if ((scene.role === "blind" && !scene.spectator) || !scene.tiles) {
+  // Can't see's black frame: their own page, and a watcher following them (FR4: the scene carries `own`)
+  if ((scene.role === "blind" && (!scene.spectator || scene.own)) || !scene.tiles) {
     ctx.fillStyle = COLOR.ink;
     ctx.fillRect(0, 0, scene.w, scene.h);
     if (scene.own) {

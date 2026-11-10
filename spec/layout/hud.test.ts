@@ -182,6 +182,59 @@ describe("the top bar", () => {
   });
 });
 
+// T3 (playtest 3): at 0:11 in room 1 the sighted had no goal on screen, where Can't see's HUD has its
+// line. Each sighted role, at 1280 and 375: the reveal's goal, whole (not clipped). From 720 px it is the
+// .hud-hint under the bar, like Can't see's; on a phone it sits inside the top bar (.hud-goal), so the map
+// keeps its height (Task 280: under the bar it cost the phone's frame 30 px and pushed the wheel out).
+describe("the goal line", () => {
+  it("shows Can't hear and Can't speak 'Get all three onto the exit.', whole: under the bar at 1280, inside it at 375", async () => {
+    const table = await sharedTable();
+    for (const [role, page] of [
+      ["deaf", table.byRole.deaf],
+      ["mute", table.byRole.mute],
+    ] as const) {
+      const before = page.viewportSize();
+      for (const size of [DESKTOP, PHONE]) {
+        await page.setViewportSize(size);
+        const where = `${role} at ${size.width}`;
+        const phone = size.width < 720;
+        const line = page.locator(phone ? ".hud-top .hud-goal" : ".hud-hint");
+        await line.waitFor({ timeout: 2000 });
+        expect(await line.innerText(), where).toBe("Get all three onto the exit.");
+        // one copy on screen: the other placement is hidden
+        expect(
+          await page.locator(".hud-goal, .hud-goal-wide").filter({ visible: true }).count(),
+          where,
+        ).toBe(1);
+        const m = await line.evaluate((el) => {
+          const box = (e: Element | null) => {
+            const r = (e as Element).getBoundingClientRect();
+            return { top: r.top, bottom: r.bottom, left: r.left, right: r.right };
+          };
+          return {
+            line: box(el),
+            bar: box(document.querySelector(".hud-top")),
+            frame: box(document.querySelector(".frame")),
+            clipped: el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1,
+            weight: getComputedStyle(el).fontWeight,
+          };
+        });
+        expect(m.clipped, `${where}: clipped`).toBe(false);
+        expect(m.weight, `${where}: Can't see's style`).toBe("700");
+        if (phone) {
+          expect(m.line.top, `${where}: inside the top bar`).toBeGreaterThanOrEqual(m.bar.top);
+          expect(m.line.bottom, `${where}: inside the top bar`).toBeLessThanOrEqual(m.bar.bottom);
+        } else {
+          expect(m.line.top, `${where}: below the top bar`).toBeGreaterThanOrEqual(m.bar.bottom);
+          expect(m.line.bottom, `${where}: above the frame`).toBeLessThanOrEqual(m.frame.top);
+        }
+        expect(m.line.right, `${where}: inside the window`).toBeLessThanOrEqual(size.width);
+      }
+      if (before) await page.setViewportSize(before);
+    }
+  });
+});
+
 describe("room one's labels", () => {
   it("shows the nearest chips, at most three, and the Labels toggle hides them", async () => {
     const table = await sharedTable();

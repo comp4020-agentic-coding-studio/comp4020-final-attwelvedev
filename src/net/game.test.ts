@@ -431,6 +431,30 @@ describe("bots in a game", () => {
     expect([...game.ready].sort()).toEqual([1, 2]);
   });
 
+  // B2 (playtest 3): a bot kept sending on the next reveal. Three bots guide each other through
+  // room 1 until it clears; from then, through the next room's reveal (a fresh world nobody has
+  // started), the game relays no callout, text or face. (The server's timer stops on the clearing
+  // tick; these ticks it would not run must be quiet too.)
+  it("send nothing once the room is cleared, nor on the next room's reveal", () => {
+    const all = lobby(null, null, null);
+    for (const i of [0, 1, 2]) all.seats[i] = bot(["Ace", "Jinx", "Moss"][i] as string);
+    const game = startGame(all, rooms);
+    let i = 0;
+    let guided = 0;
+    for (; i < 12_000 && game.world.status === "playing"; i++) {
+      guided += tickGame(game, new Set(), i * 50).sent.length;
+    }
+    expect(guided, "the bots guided").toBeGreaterThan(0);
+    expect(game.world.status, `cleared within ${i} ticks`).toBe("cleared");
+    const after: string[] = [];
+    for (let k = 0; k < 200; k++)
+      after.push(...tickGame(game, new Set(), (i + k) * 50).sent.map((s) => s.message.method));
+    expect(after, "after the clear").toEqual([]);
+    expect(advanceRoom(game, all, rooms)).toBe("next");
+    expect(game.world.status).toBe("playing");
+    expect(game.world.tick, "the reveal: nothing has run in the next room").toBe(0);
+  });
+
   it("are made afresh by a restart, and stay ready", () => {
     const game = botGame();
     tick(game, 40);

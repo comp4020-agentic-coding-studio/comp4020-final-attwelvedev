@@ -444,11 +444,11 @@ describe("holding hands", () => {
   it("either of the two Acting lets go", () => {
     const w = holding();
     press(w, 0);
-    expect(press(w, 1)).toContainEqual({ kind: "hold", seat: 1, leader: null });
+    expect(press(w, 1)).toContainEqual({ kind: "hold", seat: 1, leader: null, from: 0 });
     expect(w.holding).toEqual({});
     press(w, 0);
     expect(w.holding).toEqual({ 1: 0 });
-    expect(press(w, 0)).toContainEqual({ kind: "hold", seat: 1, leader: null });
+    expect(press(w, 0)).toContainEqual({ kind: "hold", seat: 1, leader: null, from: 0 });
     expect(w.holding).toEqual({});
   });
 

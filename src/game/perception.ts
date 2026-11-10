@@ -1,3 +1,4 @@
+import type { Ask, AskKind } from "./asks.ts";
 import type { Stamp } from "./channels.ts";
 import { intersectLight, subtractRects } from "./clip.ts";
 import { visiblePolygon } from "./cone.ts";
@@ -26,6 +27,7 @@ import {
   laserBeam,
   laserOn,
   laserParams,
+  num,
 } from "./sim/hazards.ts";
 import { blocksSight, lineOfSight, soundReaches } from "./sim/sight.ts";
 import {
@@ -129,6 +131,7 @@ export interface EntityView {
     solved: boolean;
     parts: { key: StationPartKey; at: Vec[] }[];
     furniture?: true; // only its parts are in sight, not where it shows its state: `shows` is empty
+    range?: number; // a radio: how many bands its dial has (room layout, the sim's `range`, 10 if unset)
     cut?: number[]; // a wires panel: the indices of its cut wires, state like `shows` (never in a furniture-only view)
     teach?: true; // a teaching station (clues FR7)
     practice?: true; // its practice lever is on: dimmed, and its keys and bells only play (Task 38)
@@ -189,6 +192,8 @@ export interface SoundCue {
     | "practice" // a key or bell pressed while its practice lever is on: it plays, it counts for nothing
     | "lever" // a practice lever flipped: the whole room hears it
     | "pull" // a tug of war between two hand-holders: only those two hear it
+    | "grip" // a hand taken: felt by the two holding hands only (ADR 0030)
+    | "release" // a hand let go: felt by the two who held hands only (ADR 0030)
     | "bellnote" // a music-box bell struck or played; `n` is which
     | "bell" // the bell rope: the whole room hears it
     | "dye" // the dye pack: a wrong answer, heard by the team
@@ -217,12 +222,16 @@ export interface RoleView {
   full: boolean; // true when tiles are included
   // motion: this seat's own walking and pushing, sent to every role (Can't see hears both already, so
   // it learns nothing it can't perceive). It reads only this seat's state, never another player's.
-  // hand: whose hand this seat holds (FR22: Can't see's own screen says who), from its own state only
+  // hand: the hand this seat holds, as touch (ADR 0030): a unit step toward the other hand, whether
+  // this seat leads, and whether the pair strains. Never who holds it: that is not felt.
   you: {
     seat: Seat;
     pos?: Vec;
     motion?: { moving: boolean; blocked: boolean };
-    hand?: Seat;
+    hand?: { dir: Vec; leads: boolean; pulling: boolean };
+    // what a bot is asking this seat to do (asks.ts), this seat's own view only: who asks and what
+    // kind, never a station or a value. `saidAt` is the tick it was last said, so a re-say is new.
+    asks?: { from: Seat; kind: AskKind; saidAt: number }[];
   };
   tiles?: string[];
   hue?: string; // the room's wall hue (room meta), only on a full view, with `tiles`: room layout, no perception
@@ -455,6 +464,7 @@ function entitiesFor(world: World, seat: Seat, role: Role): EntityView[] {
           shows: stationShows(world, s),
           solved: s.solved,
           ...(s.type === "wires" && s.input.length > 0 ? { cut: [...s.input] } : {}),
+          ...(s.type === "radio" ? { range: num(o.params, "range", 10) } : {}),
           parts: stationParts(o),
           ...(o.params?.teach === true ? { teach: true as const } : {}),
           ...(typeof o.params?.practice === "string" && world.levers[o.params.practice]
@@ -678,6 +688,11 @@ function soundsFor(world: World, seat: Seat): SoundCue[] {
     } else if (e.kind === "gear") {
       const c = cue(world, "gear", e.at, me);
       if (c) out.push(c);
+    } else if (e.kind === "hold") {
+      // a hand taken or let go is felt by the two whose hands they are, and by nobody else (ADR 0030)
+      const other = e.leader ?? e.from;
+      if (seat === e.seat || seat === other)
+        out.push({ kind: e.leader === null ? "release" : "grip", pan: 0, gain: 1 });
     } else if (e.kind === "pull") {
       // a strain between the two who hold hands: it is theirs alone, centred in their heads like the
       // earpiece, and nobody else in the room hears it
@@ -1222,7 +1237,34 @@ function brailleFor(world: World, seat: Seat, role: Role): RoleView["braille"] {
 
 // The one place that decides what a role may know (ADR 0007). A field added to
 // RoleView must be gated here against the role tables in types.ts.
-export function viewFor(world: World, seat: Seat, role: Role, full: boolean): RoleView {
+// The hand `seat` holds, as touch (ADR 0030): the 8-way unit step toward the other hand, which
+// end it is, and whether the pair is in a tug of war (the rule a figure's `pulling` uses).
+function handOf(world: World, seat: Seat): RoleView["you"]["hand"] {
+  const mate = partner(world, seat);
+  if (mate === undefined) return undefined;
+  const me = world.players[seat].pos;
+  const them = world.players[mate].pos;
+  const angle = Math.atan2(them.y - me.y, them.x - me.x);
+  const octant = Math.round(angle / (Math.PI / 4));
+  const dir = {
+    x: Math.round(Math.cos((octant * Math.PI) / 4)),
+    y: Math.round(Math.sin((octant * Math.PI) / 4)),
+  };
+  const leads = world.holding[seat] === undefined;
+  return {
+    dir: { x: dir.x + 0, y: dir.y + 0 },
+    leads,
+    pulling: !!world.pulling[leads ? mate : seat],
+  };
+}
+
+export function viewFor(
+  world: World,
+  seat: Seat,
+  role: Role,
+  full: boolean,
+  asks: readonly Ask[] = [],
+): RoleView {
   const view: RoleView = {
     tick: world.tick,
     ack: world.players[seat].lastSeq,
@@ -1239,8 +1281,16 @@ export function viewFor(world: World, seat: Seat, role: Role, full: boolean): Ro
     dark: false,
     gear: carried(world, seat)?.item ?? null, // own state: each role knows what it carries
   };
-  const hand = partner(world, seat);
-  if (hand !== undefined) view.you.hand = hand; // own state (FR22)
+  const hand = handOf(world, seat);
+  if (hand) view.you.hand = hand; // own state, felt not seen (ADR 0030)
+  // a Can't hear seat is asked by a face from the bot, never by words or a kind (Task 312)
+  const mine = role === "deaf" ? [] : asks.filter((a) => a.to === seat);
+  if (mine.length)
+    view.you.asks = mine.map((a) => ({
+      from: a.from,
+      kind: a.kind,
+      saidAt: Math.round((a.saidAt ?? 0) / TICK_MS),
+    }));
   const cache = cacheFor(world, seat);
   if (cache) view.cache = cache;
   const kept = keepsakeFor(world, seat);
@@ -1333,6 +1383,13 @@ export function spectatorView(
   };
   if (full) view.tiles = maskCache(world, world.room.grid); // a watcher sees the room, masked like the sighted
   if (full && typeof world.room.meta.hue === "string") view.hue = world.room.meta.hue;
+  if (follow !== null && role === "blind") {
+    // a watcher following Can't see sees Can't see's frame (FR4): its figure's motion and the hand it
+    // holds, as touch with no identity (ADR 0030); the room stays sent, so switching is instant
+    view.you.motion = motionOf(world, seat);
+    const hand = handOf(world, seat);
+    if (hand) view.you.hand = hand;
+  }
   const braille = follow === null ? undefined : brailleFor(world, seat, role);
   if (braille) view.braille = braille; // a watcher of Can't see reads over their shoulder
   const moment = cacheEventOf(world);

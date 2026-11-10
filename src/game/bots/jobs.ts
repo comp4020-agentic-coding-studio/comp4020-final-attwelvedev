@@ -1,6 +1,6 @@
 import { cacheOf, inRect, type Room } from "../rooms/format.ts";
 import { platePart } from "../sim/braille.ts";
-import type { Role, Seat, Vec } from "../types.ts";
+import { canReceive, canSend, type Method, type Role, type Seat, type Vec } from "../types.ts";
 import type { StationBelief } from "./decode.ts";
 
 // A room's hints (metadata key `hints`) say what the team has to do, beat by
@@ -50,6 +50,7 @@ export interface Known {
   stations: Record<string, StationBelief>; // what it has worked out of each station (decode.ts)
   gear: Record<string, { at: Vec | null; heldBy: Seat | null; sill: string | null }>;
   holding: Partial<Record<Seat, Seat>>; // towed seat -> leader
+  led?: Partial<Record<Seat, true>>; // seats seen leading someone by the hand (a tow's end counts only after)
   roles?: readonly [Role, Role, Role]; // who is what, so a give job knows its seat
   doorOpen: Record<string, boolean>;
   pressed: Record<string, boolean>;
@@ -370,7 +371,52 @@ const eligible = (role: Role, job: Job) =>
     (job.target.kind === "station" || job.target.kind === "watch") &&
     job.target.hearing === true
   );
+// What a seat doing a job must be able to *receive* from a teammate (BJ1, ADR 0031): a person given
+// a job whose signal their role cannot receive has no way to learn the answer.
+export type Signal = "callout" | "text" | "mark" | "none";
+const SIGNAL_METHOD: Record<Exclude<Signal, "none">, Method> = {
+  callout: "callout",
+  text: "text",
+  mark: "mark",
+};
+
+export function needs(job: Job, room: Room): Signal[] {
+  const t = job.target;
+  const stationType = (id: string) => room.objects.find((o) => o.id === id)?.params?.type;
+  if (t.kind === "listen") return stationType(t.station) === "dial" ? ["callout"] : ["none"];
+  if (t.kind === "watch") return ["mark"];
+  if (t.kind !== "station") return ["none"];
+  const o = room.objects.find((x) => x.id === t.id);
+  const type = o?.params?.type;
+  if (type === "dial") return ["callout"];
+  if (type === "sync") return ["text"];
+  if (type === "radio" || type === "wires" || type === "keypad") {
+    const plated = platePart(room, t.id) !== undefined;
+    const earpiece = type === "keypad" && String(o?.params?.clue ?? "").startsWith("g");
+    return plated || earpiece ? ["text"] : ["none"];
+  }
+  return ["none"];
+}
+
+const canReceiveAll = (role: Role, signals: Signal[]) =>
+  signals.every((sig) => sig === "none" || canReceive(role, SIGNAL_METHOD[sig]));
+// A sync key's holder who can text is the one who counts (brain.ts: syncCount): it sends the count
+// rather than receiving it, so the text it cannot receive is no bar.
+const fits = (role: Role, job: Job, room: Room) =>
+  canReceiveAll(role, needs(job, room)) ||
+  (job.target.kind === "station" &&
+    room.objects.find((o) => o.id === (job.target as { id: string }).id)?.params?.type === "sync" &&
+    canSend(role, "text"));
 const distance = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
+
+// May a seat of this role do the job at all: eligible, and it can receive what the job needs (BJ1).
+// A takeover (BJ2) re-claims a person's job for the lowest bot seat this holds for.
+export function canDo(role: Role, job: Job, room: Room): boolean {
+  return eligible(role, job) && fits(role, job, room);
+}
+
+const sameWork = (a: Job, b: Job) =>
+  a.target.kind === "station" && b.target.kind === "station" && a.target.id === b.target.id;
 
 // Splits the room's jobs between the three seats, one job per seat per beat, as
 // each seat's queue in beat order. In each beat humans choose first, the job
@@ -415,7 +461,7 @@ export function claimJobs(room: Room, jobs: Job[], seats: SeatInfo[]): Record<Se
       .filter((s) => s.human)
       .sort((a, b) => count(a.seat) - count(b.seat) || a.seat - b.seat);
     for (const who of humans) {
-      const options = left.filter((j) => eligible(who.role, j));
+      const options = left.filter((j) => eligible(who.role, j) && fits(who.role, j, room));
       if (options.length === 0) continue;
       const rank = (j: Job) =>
         (who.pos ? distance(who.pos, jobTile(room, j, who.seat)) * 10 : 0) +
@@ -428,6 +474,21 @@ export function claimJobs(room: Room, jobs: Job[], seats: SeatInfo[]): Record<Se
     }
     for (const job of [...left]) {
       const bots = seats.filter((s) => !s.human && free.has(s.seat) && eligible(s.role, job));
+      if (bots.length === 0) continue;
+      const rank = (s: SeatInfo) =>
+        (job.prefer === s.role ? 0 : 1) * 100 + count(s.seat) * 10 + s.seat;
+      give(bots.reduce((a, b) => (rank(b) < rank(a) ? b : a)).seat, job);
+    }
+    // A job no free seat could take (a person who cannot receive its signal left a bot two jobs in
+    // one beat) goes to a bot that has one already, rather than to nobody: the bot does both in turn.
+    for (const job of [...left]) {
+      const bots = seats.filter(
+        (s) =>
+          !s.human &&
+          eligible(s.role, job) &&
+          // two seats' share of one station (a sync lock's two keys) needs two seats
+          !queues[s.seat].some((j) => j.beat === job.beat && sameWork(j, job)),
+      );
       if (bots.length === 0) continue;
       const rank = (s: SeatInfo) =>
         (job.prefer === s.role ? 0 : 1) * 100 + count(s.seat) * 10 + s.seat;
@@ -515,13 +576,13 @@ export function isDone(
       return known.gear?.[job.target.gear]?.heldBy === known.roles?.indexOf(job.target.to);
     case "sill":
       return known.gear?.[job.target.gear]?.sill === job.target.hatch;
-    case "tow":
-      return (
-        at !== undefined &&
-        Math.abs(at.x - (job.target.to.x + 0.5)) < 0.5 &&
-        Math.abs(at.y - (job.target.to.y + 0.5)) < 0.5 &&
-        Object.keys(known.holding ?? {}).length === 0
-      );
+    case "tow": {
+      // done once the leader stands on the end tile, or (having led someone by the hand) on the tile
+      // beyond it, where it stops so that the figure it led stands ON the end (towStand, brain.ts)
+      if (at === undefined || Object.keys(known.holding ?? {}).length !== 0) return false;
+      const d = Math.hypot(at.x - (job.target.to.x + 0.5), at.y - (job.target.to.y + 0.5));
+      return d < 0.5 || (d <= 1.2 && (seat === undefined || known.led?.[seat] === true));
+    }
   }
 }
 

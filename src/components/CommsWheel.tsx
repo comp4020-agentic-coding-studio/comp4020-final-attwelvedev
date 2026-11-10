@@ -29,10 +29,15 @@ import {
   insideOutline,
   type Mode,
   modeFor,
+  mouseCentre,
   outlineOf,
+  type Placement,
+  placementFor,
+  SIDE_GAP,
   slotSize,
   tallestHalf,
   wheelScale,
+  widestHalf,
 } from "../client/wheelLayout.ts";
 import { COOLDOWN_MS, FACES, type Stamp } from "../game/channels.ts";
 import { canSend, type Method, type Role, type Seat, type Vec } from "../game/types.ts";
@@ -87,6 +92,7 @@ interface Hold {
   drawn: boolean;
   centre: Vec; // client px of the drawn wheel's centre: a drawn wheel is aimed by the cursor over it
   mode: Mode; // wide frames get the ring for Faces and Soundboard, narrow ones a 4x3 grid
+  placement: Placement; // labels and plate above and below the wheel, or beside it on a short frame
   frame: { w: number; h: number }; // the frame the wheel is drawn in, for its scale
   pinned: boolean; // a long press pinned a slot: letting go sends nothing
   aimIndex: number | null;
@@ -268,7 +274,8 @@ export function CommsWheel({
 
   // Drawn, the cursor itself aims: its offset from the wheel's centre. Before the
   // wheel is drawn there is nothing to point at, so a flick is the movement since the press.
-  const scaleOf = (h: Hold): number => wheelScale(h.page, h.mode, h.frame.w, h.frame.h);
+  const scaleOf = (h: Hold): number =>
+    wheelScale(h.page, h.mode, h.frame.w, h.frame.h, h.placement);
 
   const offset = (h: Hold): Vec => {
     // A key or the right mouse button draws the wheel under a cursor that can see it, so the
@@ -283,7 +290,7 @@ export function CommsWheel({
     const rel = offset(h);
     const aim = aimFrom(h.page, h.mode, rel, { x: 0, y: 0 });
     const finger = h.source === "touch" ? rel : null;
-    const tab = tabAt(h.page, h.mode, rel.x, rel.y);
+    const tab = tabAt(h.page, h.mode, rel.x, rel.y, h.placement);
     const t = performance.now();
     if (aim !== h.aimIndex) {
       h.aimIndex = aim;
@@ -299,25 +306,21 @@ export function CommsWheel({
     const box = frameBox();
     const w = box?.width ?? 0;
     const hgt = box?.height ?? 0;
-    h.mode = modeFor(w);
+    h.mode = modeFor(w, hgt);
+    h.placement = placementFor(w, hgt);
     h.frame = { w, h: hgt };
     // The key and the phone open it in the middle of the frame; the right mouse button
     // under the cursor. Either way it then stays put through page changes, so the centre
     // is clamped by the biggest page's extent in this mode and every page fits wherever it opened.
     let centre: Vec = { x: w / 2, y: hgt / 2 };
     if (h.source === "mouse" && box) {
-      let halfW = 0;
-      let halfH = 0;
-      for (const p of PAGES) {
-        const o = outlineOf(p, h.mode);
-        const k = wheelScale(p, h.mode, w, hgt);
-        halfW = Math.max(halfW, (o.kind === "circle" ? o.r : o.halfW) * k);
-        halfH = Math.max(halfH, (o.kind === "circle" ? o.r : o.halfH) * k + 40);
-      }
-      centre = {
-        x: w > 2 * halfW ? Math.max(halfW, Math.min(w - halfW, h.origin.x - box.left)) : w / 2,
-        y: hgt > 2 * halfH ? Math.max(halfH, Math.min(hgt - halfH, h.origin.y - box.top)) : hgt / 2,
-      };
+      centre = mouseCentre(
+        { x: h.origin.x - box.left, y: h.origin.y - box.top },
+        w,
+        hgt,
+        h.mode,
+        h.placement,
+      );
     }
     h.centre = { x: (box?.left ?? 0) + centre.x, y: (box?.top ?? 0) + centre.y };
     setShown({ page: h.page, centre, aim: null, tab: null, finger: null });
@@ -334,6 +337,7 @@ export function CommsWheel({
       drawn: false,
       centre: origin,
       mode: "wide",
+      placement: "stacked",
       frame: { w: 0, h: 0 },
       pinned: false,
       aimIndex: null,
@@ -577,6 +581,7 @@ export function CommsWheel({
 
   const slots = shown ? pageSlots(shown.page) : [];
   const mode: Mode = hold.current?.mode ?? "wide";
+  const placement: Placement = hold.current?.placement ?? "stacked";
   const wheelK = shown && hold.current ? scaleOf(hold.current) : 1;
   const outline = outlineOf(shown?.page ?? "talk", mode);
   const outlineHalfW = outline.kind === "circle" ? outline.r : outline.halfW;
@@ -629,6 +634,7 @@ export function CommsWheel({
         <section
           class={[
             mode === "narrow" ? "wheel is-narrow" : "wheel",
+            placement === "side" ? "is-side" : "",
             hold.current?.source === "click" ? "is-click" : "",
           ]
             .join(" ")
@@ -639,6 +645,7 @@ export function CommsWheel({
             top: `${shown.centre.y}px`,
             scale: String(wheelK),
             "--plate-top": `${tallestHalf(mode) + 8}px`,
+            "--side-off": `${widestHalf(mode) + SIDE_GAP}px`,
           }}
         >
           <span
@@ -653,7 +660,7 @@ export function CommsWheel({
           />
           <ul class="wheel-tabs" aria-label="Pages">
             {PAGES.map((p) => {
-              const { x, y } = tabXY(p, mode);
+              const { x, y } = tabXY(p, mode, placement);
               return (
                 <li
                   key={p}

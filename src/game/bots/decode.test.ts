@@ -8,6 +8,7 @@ import { step } from "../sim/step.ts";
 import { place, roomWith } from "../sim/testing.ts";
 import { createWorld, TICK_MS } from "../sim/world.ts";
 import {
+  admit,
   beliefFrom,
   bellsStep,
   COUNT_TICKS,
@@ -520,6 +521,22 @@ describe("the keypad decoder", () => {
     expect(rests).toBeGreaterThan(0);
     const answer = world.stations.Q1?.answer ?? [];
     expect(b.answer).toEqual([answer[0], null, answer[2]]);
+  });
+
+  it("a tune heard in part (one note of it, twice) is not taken as the code (Task 306)", () => {
+    // a seat that walks off between notes hears note 8 on each pass and misses the rest: two
+    // matching "tunes" of one note, where the code has three keys
+    const b = emptyBelief();
+    const v = (tick: number, n?: number): RoleView => ({
+      ...view(false),
+      tick,
+      sounds: n === undefined ? [] : [{ kind: "clue", n, pan: 0, gain: 0.7 }],
+    });
+    DECODERS.keypad?.(v(100, 9), [], b, q, 100 * TICK_MS);
+    DECODERS.keypad?.(v(212, 9), [], b, q, 212 * TICK_MS);
+    DECODERS.keypad?.(v(400), [], b, q, 400);
+    expect(b.answer).toEqual([]);
+    expect(keypadStep(q, b)).toBeNull();
   });
 
   it("out of earshot of the clue, it never presses a key", () => {
@@ -1133,10 +1150,12 @@ describe("a plated radio's turner (FR10)", () => {
     expect(radioPad(o, belief(0))).toBeNull();
   });
 
-  it("turns toward the told band by the shorter way, and stops there", () => {
-    expect(radioPad(o, belief(0, 5))).toEqual({ x: 2, y: 2 }); // 0 -> 5 is 3 notches back, not 5 up
-    expect(radioPad(o, belief(0, 2))).toEqual({ x: 4, y: 2 });
-    expect(radioPad(o, belief(5, 5))).toBeNull();
+  it("turns toward the told band (counted from 1) by the shorter way, and stops there", () => {
+    expect(radioPad(o, belief(0, 6))).toEqual({ x: 2, y: 2 }); // band 6 is position 5: 3 notches back, not 5 up
+    expect(radioPad(o, belief(0, 3))).toEqual({ x: 4, y: 2 });
+    expect(radioPad(o, belief(5, 6))).toBeNull();
+    expect(radioPad(o, belief(0, 1))).toBeNull(); // band 1 is position 0: already there
+    expect(radioPad(o, belief(5, 5))).toEqual({ x: 2, y: 2 }); // band 5 is position 4: one back
   });
 
   it("ignores a decoy's pips: only a pip on the band Can't see texted gives its digit (the real band never solves)", () => {
@@ -1145,12 +1164,16 @@ describe("a plated radio's turner (FR10)", () => {
     const untold = { ...emptyBelief(), shows: [3, 2] };
     DECODERS.radio?.(noView, [], untold, o, 0, 0);
     expect(untold.answer).toEqual([]);
-    // told band 5 but sitting on 3 (a decoy): its pip is not the digit
-    const decoy = { ...emptyBelief(), shows: [3, 2], numbers: [5] };
+    // told band 6 (position 5) but sitting on 3 (a decoy): its pip is not the digit
+    const decoy = { ...emptyBelief(), shows: [3, 2], numbers: [6] };
     DECODERS.radio?.(noView, [], decoy, o, 0, 0);
     expect(decoy.answer).toEqual([]);
+    // told band 5 is position 4, so sitting on position 5 is a decoy
+    const offByOne = { ...emptyBelief(), shows: [5, 2], numbers: [5] };
+    DECODERS.radio?.(noView, [], offByOne, o, 0, 0);
+    expect(offByOne.answer).toEqual([]);
     // sitting on the told band: the face's pip is the digit, solved or not
-    const real = { ...emptyBelief(), shows: [5, 2], numbers: [5] };
+    const real = { ...emptyBelief(), shows: [5, 2], numbers: [6] };
     DECODERS.radio?.(noView, [], real, o, 0, 0);
     expect(real.solved).toBe(false);
     expect(real.answer).toEqual([2]);
@@ -1208,5 +1231,155 @@ describe("a plate-held keypad key and wire (Task 77)", () => {
     const none = emptyBelief();
     DECODERS.wires?.(view, [], none, o("Q2"), 0, 0);
     expect(none.answer).toEqual([null]);
+  });
+});
+
+describe("a person's digits and words count only when asked for (BS1-BS3)", () => {
+  const radioRoom = roomWith(["#########", "#1.Q....#", "#2......#", "#3......#", "#########"], {
+    Q1: {
+      type: "radio",
+      pads: [
+        [2, 2],
+        [4, 2],
+      ],
+      range: 8,
+    },
+  });
+  const Q = radioRoom.objects.find((x) => x.id === "Q1");
+  if (!Q) throw new Error("no Q1");
+  const dialObj = {
+    ...Q,
+    params: {
+      type: "dial",
+      pads: [
+        [3, 1],
+        [5, 1],
+      ],
+      digits: 2,
+    },
+  };
+  const from = (seat: 0 | 1 | 2, m: Outgoing, sentAt: number): ChannelMessage =>
+    ({
+      ...m,
+      from: { seat, role: seat === 0 ? "blind" : "mute", nickname: "P" },
+      sentAt,
+    }) as ChannelMessage;
+  const humans = new Set<0 | 1 | 2>([0]);
+  const asked = (at: number): StationBelief => ({ ...emptyBelief(), askedAt: at, askedTo: 0 });
+
+  it("ignores a digit sent before the ask", () => {
+    const b = asked(5000);
+    const out = admit([from(0, { method: "text", text: "4" }, 1000)], b, Q, humans, 9000);
+    expect(out).toEqual([]);
+    expect(b.held).toEqual([]);
+  });
+  it("takes a digit sent after the ask, once it has settled for 2 s", () => {
+    const b = asked(5000);
+    const d = from(0, { method: "text", text: "4" }, 6000);
+    expect(admit([d], b, Q, humans, 6500)).toEqual([]);
+    expect(admit([], b, Q, humans, 8000)).toEqual([d]);
+  });
+  it("takes a corrected digit sent within 2 s: both arrive, in order, the last wins", () => {
+    const b = asked(5000);
+    const first = from(0, { method: "text", text: "4" }, 6000);
+    const fix = from(0, { method: "text", text: "6" }, 7500);
+    admit([first], b, Q, humans, 6000);
+    expect(admit([fix], b, Q, humans, 8000)).toEqual([]); // 2 s not yet since the fix
+    const got = admit([], b, Q, humans, 9500);
+    const radio = { ...emptyBelief(), shows: [5, 2] };
+    for (const m of got) radio.numbers.push(Number((m as { text: string }).text));
+    expect(radio.numbers.at(-1)).toBe(6);
+  });
+  it("forgets digits on a send-back (the ask is cleared with them)", () => {
+    const b = asked(5000);
+    admit([from(0, { method: "text", text: "4" }, 6000)], b, Q, humans, 6000);
+    b.held = [];
+    b.askedAt = undefined;
+    b.askedTo = undefined;
+    expect(admit([from(0, { method: "text", text: "4" }, 7000)], b, Q, humans, 20000)).toEqual([]);
+  });
+  it("never counts a digit from the other person, who was not asked", () => {
+    const b = asked(5000);
+    const both = new Set<0 | 1 | 2>([0, 2]);
+    const out = admit([from(2, { method: "text", text: "4" }, 6000)], b, Q, both, 20000);
+    expect(out).toEqual([]);
+  });
+  it("passes a bot's digit as before", () => {
+    const b = emptyBelief();
+    const d = from(0, { method: "text", text: "4" }, 0);
+    expect(admit([d], b, Q, new Set(), 0)).toEqual([d]);
+  });
+  it("the dial ignores a person's stop sent before the ask, and takes one after it", () => {
+    const stop = (at: number) => from(0, { method: "callout", callout: "stop" }, at);
+    const before = admit([stop(1000)], asked(5000), dialObj, humans, 9000);
+    expect(before).toEqual([]);
+    const after = admit([stop(6000)], asked(5000), dialObj, humans, 9000);
+    expect(after).toHaveLength(1);
+  });
+});
+
+describe("a person's late Stop at the safe (BP2)", () => {
+  const dialObj = {
+    id: "Q1",
+    kind: "station" as const,
+    tiles: [{ x: 4, y: 1 }],
+    visibleTo: [],
+    audibleTo: [],
+    params: {
+      type: "dial",
+      pads: [
+        [3, 1],
+        [5, 1],
+      ],
+      digits: 2,
+    },
+  };
+  const view = { tick: 100, sounds: [], entities: [] } as unknown as RoleView;
+  const stop = [
+    {
+      method: "callout",
+      callout: "stop",
+      from: { seat: 0, role: "blind", nickname: "P" },
+      sentAt: 0,
+    } as ChannelMessage,
+  ];
+  const belief = (now: number): StationBelief => ({
+    ...emptyBelief(),
+    shows: [4, 7],
+    personListens: true,
+    turns: [{ tick: now - 15, setting: 6 }],
+  });
+  it("credits a stop 15 ticks after a turn to the setting before it", () => {
+    const b = belief(100);
+    DECODERS.dial?.(view, stop, b, dialObj, 100);
+    expect(b.answer[1]).toBe(6);
+  });
+  it("credits a stop 25 ticks after a turn to the current setting", () => {
+    const b = belief(100);
+    b.turns = [{ tick: 75, setting: 6 }];
+    DECODERS.dial?.(view, stop, b, dialObj, 100);
+    expect(b.answer[1]).toBe(7);
+  });
+  it("a bot listener's stop is for the current setting however soon after a turn", () => {
+    const b = { ...belief(100), personListens: false };
+    DECODERS.dial?.(view, stop, b, dialObj, 100);
+    expect(b.answer[1]).toBe(7);
+  });
+});
+
+describe("the sync count at a person's pace (BP1)", () => {
+  it("spaces 3, 2, 1 by the given gap: 20 ticks for a person, 10 by default", () => {
+    const say = (gap?: number) => {
+      let count = null as ReturnType<typeof countStep>["count"];
+      const said: number[] = [];
+      for (let t = 0; t < 80; t++) {
+        const r = countStep(count, true, t, gap);
+        count = r.count;
+        if (r.say !== null) said.push(t);
+      }
+      return said.slice(0, 3);
+    };
+    expect(say(20)).toEqual([0, 20, 40]);
+    expect(say()).toEqual([0, COUNT_TICKS, 2 * COUNT_TICKS]);
   });
 });

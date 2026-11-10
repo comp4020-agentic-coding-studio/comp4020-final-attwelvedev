@@ -11,7 +11,7 @@ import {
   WIRE_RULES,
 } from "../sim/stations.ts";
 import type { StationType } from "../sim/world.ts";
-import type { Vec } from "../types.ts";
+import type { Seat, Vec } from "../types.ts";
 
 // What a bot has worked out about one station (clues FR5), from its own view and what teammates
 // send it, never from the simulation. A station type's decoder (phases 05 to 10) turns this into
@@ -34,6 +34,11 @@ export interface StationBelief {
   symbols: Partial<Record<string, number>>; // a vault: each solved wing's symbol, by its motif
   order: string[] | null; // a vault's order clue, read: the wings' motifs in socket order
   plate: number | null; // the number a braille plate carries for it, as Can't see texted it
+  personListens?: boolean; // a dial: its listener is a person (a late Stop is credited, BP2)
+  askedAt?: number; // game ms its ask (read-plate, plate-first, stop-on-click) was first said
+  askedTo?: Seat; // the person it asked
+  turns: { tick: number; setting: number }[]; // a dial: its own turns, with the setting before each, for the last TURN_LOG_TICKS
+  held: ChannelMessage[]; // a person's digits, held until they have settled (SETTLE_MS)
   plateFrom: number | null; // an earpiece keypad: how many digits it had been sent when it saw the plate read
 }
 
@@ -53,6 +58,8 @@ export const emptyBelief = (): StationBelief => ({
   shows: [],
   marked: [],
   numbers: [],
+  held: [],
+  turns: [],
   plateFrom: null,
   changedAt: Number.NEGATIVE_INFINITY,
   rule: null,
@@ -77,6 +84,40 @@ export function readBraille(cells: number[][]): number | null {
   return values.some((v) => v < 0) ? null : Number(values.join(""));
 }
 
+// BS1-BS3: what a station takes from a person. A digit or a `stop` from a seat held by a person
+// counts only when this bot asked that seat for it and the message was sent after the ask (the
+// ask is cleared on a send-back, so it is also since the last one). A bot's message, and a sync
+// lock's count (it only ever acts on a fresh "1"), pass as before. A person's digits are held until
+// SETTLE_MS after the last, so a corrected digit comes in behind the first and wins.
+export const SETTLE_MS = 2000;
+export function admit(
+  inbox: ChannelMessage[],
+  b: StationBelief,
+  o: RoomObject,
+  humans: ReadonlySet<Seat>,
+  now: number,
+): ChannelMessage[] {
+  if (o.params?.type === "sync") return inbox;
+  const asked = (m: ChannelMessage) =>
+    b.askedTo === m.from.seat && b.askedAt !== undefined && m.sentAt >= b.askedAt;
+  const out: ChannelMessage[] = [];
+  for (const m of inbox) {
+    const person = humans.has(m.from.seat);
+    if (!person) out.push(m);
+    else if (m.method === "callout" && m.callout === "stop") {
+      if (asked(m)) out.push(m);
+    } else if (m.method === "text" && readNumber(m.text) !== null) {
+      if (asked(m)) b.held.push(m);
+    } else out.push(m);
+  }
+  const last = b.held.at(-1);
+  if (last && now - last.sentAt >= SETTLE_MS) {
+    out.push(...b.held);
+    b.held = [];
+  }
+  return out;
+}
+
 // The only text a bot reads (P3): a single digit.
 export function readNumber(text: string): number | null {
   return /^\d$/.test(text.trim()) ? Number(text.trim()) : null;
@@ -97,6 +138,8 @@ export function beliefFrom(
     told: new Set(prior.told),
     marked: [...prior.marked],
     numbers: [...prior.numbers],
+    held: [...prior.held],
+    turns: [...prior.turns],
     heard: [...prior.heard],
     symbols: { ...prior.symbols },
   };
@@ -111,6 +154,14 @@ export function beliefFrom(
           b.wire = null;
         }
       }
+      // a dial turned a notch while in sight: log the setting it left (late credit, below)
+      if (o.params?.type === "dial" && prior.shows.length === e.station.shows.length) {
+        const pos = prior.shows.length - 1;
+        const was = prior.shows[pos];
+        if (pos >= 0 && was !== undefined && was !== e.station.shows[pos])
+          b.turns.push({ tick: view.tick, setting: was });
+      }
+      b.turns = b.turns.filter((t) => view.tick - t.tick <= TURN_LOG_TICKS);
       b.shows = [...e.station.shows];
       b.shownAt = view.tick;
     }
@@ -138,9 +189,12 @@ export function beliefFrom(
 // reads it itself. A real safe's number is heard, not seen: the tumbler reaches only a hearing
 // holder of the stethoscope at the safe's back. Can't see, holding it there, says "stop" (a
 // callout, which Can't speak receives): the dial is on the number now.
+export const TURN_LOG_TICKS = 60; // the turner keeps its own turns for the last 3 s
+export const PERSON_TURN_TICKS = 40; // BP1: a person listening gets 2 s a notch
+export const LATE_CREDIT_TICKS = 20; // BP2: a Stop this soon after a turn is for the setting before it
 export const TURN_WAIT_TICKS = 8; // after a turn the turner waits this long for the listener's word
 
-const dial: Decoder = (_view, inbox, b, o, _now, plated) => {
+const dial: Decoder = (_view, inbox, b, o, now, plated) => {
   if (o.params?.teach === true) {
     if (b.shows.length === 2) b.answer = [b.shows[1] === 1 ? (b.shows[0] as number) : null];
     return;
@@ -153,7 +207,14 @@ const dial: Decoder = (_view, inbox, b, o, _now, plated) => {
   );
   // the digits entered so far are on the face; the one being searched for is what was heard
   const answer: (number | null)[] = [...b.shows.slice(0, pos), b.answer[pos] ?? null];
-  if (word) answer[pos] = setting;
+  if (word) {
+    // a person's Stop is late: one that comes soon after a turn is for the setting that turn left
+    // (the bot's own log of its turns, nothing of the simulation: ADR 0018)
+    const turn = b.personListens
+      ? [...b.turns].reverse().find((t) => now - t.tick < LATE_CREDIT_TICKS)
+      : undefined;
+    answer[pos] = turn ? turn.setting : setting;
+  }
   // the digit a braille plate carries has no tumbler: Can't see reads it and texts it (Task 74)
   if (plated !== undefined) {
     for (const m of inbox) {
@@ -252,6 +313,8 @@ const keypad: Decoder = (view, _inbox, b, o, now, plated) => {
     if (plated !== undefined) {
       const reading = view.entities?.some((e) => e.kind === "braille" && e.state === "on");
       if (reading && b.plateFrom === null) b.plateFrom = b.numbers.length;
+      // asked of a person (plate-first): the first digit after the ask is the plate's
+      if (b.askedAt !== undefined && b.plateFrom === null) b.plateFrom = 0;
       if (b.numbers.length >= len) {
         const from = b.plateFrom !== null && b.plateFrom < b.numbers.length ? b.plateFrom : null;
         const told = b.numbers.map((d) => d - 1);
@@ -274,7 +337,9 @@ const keypad: Decoder = (view, _inbox, b, o, now, plated) => {
   // the held key's place in the tune: a slot a radio feeds, or a key a plate carries (rest markers
   // make no note, so the tune heard lacks it either way)
   const slot = slotOf(o) ?? plated ?? null;
-  if (tune) {
+  // a tune heard only in part (a seat that walked off between notes) is not the code: it has as
+  // many notes as the code has keys, less the slot
+  if (tune && tune.length === KEYPAD_LENGTH(o) - (slot === null ? 0 : 1)) {
     const code: (number | null)[] = [...tune];
     if (slot !== null) code.splice(slot, 0, null);
     b.answer = code;
@@ -312,7 +377,13 @@ function fromTile(view: RoleView, s: { dir?: Vec }, at: Vec): boolean {
 const radio: Decoder = (view, _inbox, b, o, _now, plated) => {
   // a radio with a plate has decoy bands that pip wrong digits (FR10), and the real band sounds like
   // them (it never solves): only a pip on the band Can't see texted is the digit
-  if (plated !== undefined && (b.shows[0] === undefined || b.numbers.at(-1) !== b.shows[0])) return;
+  // (Can't see texts the band as the plate counts it, from 1; the setting counts from 0)
+  const told = b.numbers.at(-1);
+  if (
+    plated !== undefined &&
+    (b.shows[0] === undefined || told === undefined || told - 1 !== b.shows[0])
+  )
+    return;
   if (b.shows.length === 2) b.answer = [b.shows[1] as number];
   for (const s of view.sounds)
     if (s.kind === "pip" && s.n !== undefined && fromTile(view, s, o.tiles[0] as Vec))
@@ -320,9 +391,11 @@ const radio: Decoder = (view, _inbox, b, o, _now, plated) => {
 };
 
 // The pad a plated radio's turner presses next: toward the band Can't see texted (the last number
-// it was sent), by the shorter way round the knob. Null while no band is known or it is there.
+// it was sent, counted from 1 like the face's ticks), by the shorter way round the knob. Null while
+// no band is known or it is there.
 export function radioPad(o: RoomObject, b: StationBelief): Vec | null {
-  const target = b.numbers.at(-1);
+  const told = b.numbers.at(-1);
+  const target = told === undefined ? undefined : told - 1;
   const setting = b.shows[0];
   const range = typeof o.params?.range === "number" ? o.params.range : 10;
   const pads = tilesOf(o.params?.pads);
@@ -459,6 +532,7 @@ export function vaultStep(o: RoomObject, b: StationBelief): Vec | null {
 // every key stood on, and turns on its "1"; the others turn when they read the "1". A miss starts
 // the count again after a pause.
 export const COUNT_TICKS = 10;
+export const PERSON_COUNT_TICKS = 20; // BP1: with a person turning a key, a count a person can follow
 const RECOUNT_TICKS = 60;
 export interface Count {
   n: number; // the digit last said
@@ -471,10 +545,11 @@ export function countStep(
   count: Count | null,
   ready: boolean,
   tick: number,
+  spacing: number = COUNT_TICKS,
 ): { say: number | null; count: Count | null } {
   if (count && count.n === 1 && tick - count.at < RECOUNT_TICKS) return { say: null, count };
   if (count && count.n > 1) {
-    if (tick - count.at < COUNT_TICKS) return { say: null, count };
+    if (tick - count.at < spacing) return { say: null, count };
     return { say: count.n - 1, count: { n: count.n - 1, at: tick } };
   }
   return ready ? { say: 3, count: { n: 3, at: tick } } : { say: null, count: null };

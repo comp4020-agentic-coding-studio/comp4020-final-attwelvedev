@@ -671,6 +671,10 @@ input {
   font-size: inherit;
   font-weight: 400;
 }
+/* the ticks are a group of their own, set apart from the Headphones row above them */
+.setup fieldset + .tick {
+  margin-top: var(--s-3);
+}
 .setup input[type="checkbox"] {
   width: 24px;
   min-height: 24px;

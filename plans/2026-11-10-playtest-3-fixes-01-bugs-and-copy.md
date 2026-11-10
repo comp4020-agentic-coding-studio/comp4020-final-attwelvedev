@@ -6,7 +6,7 @@
 
 ## Tasks
 
-### Task 265: The wheel keeps its tabs on a short window (B1) — [ ]
+### Task 265: The wheel keeps its tabs on a short window (B1) — [x]
 
 - **Found:** at 1280×560 the comms wheel opens with no Talk / Faces / Soundboard / Marks row. At 1280×800 it's there (`product/2026-11-10-shots/09-wheel-560.png`, `09-wheel-800.png`).
 - **Files:** `src/components/CommsWheel.tsx`, `src/styles/game.css`, `spec/layout/wheel.test.ts`.
@@ -20,7 +20,7 @@
 - **Break check:** a script restores the old sizing rule; the 560 case goes red.
 - **Depends on:** none.
 
-### Task 266: No bot line after the room ends (B2) — [ ]
+### Task 266: No bot line after the room ends (B2) — [x]
 
 - **Found:** in playtest 3, a bot kept sending callouts or talking on the next role reveal.
 - **Files:** to be found. Start at `src/game/bots/brain.ts:1159` (the bot's one `cleared` line) and `src/net/attach.ts` (where bot sends are relayed), then `src/client/speech.ts` (the spoken-line queue).
@@ -34,7 +34,7 @@
 - **Break check:** revert the guard by script; the test goes red.
 - **Depends on:** none.
 
-### Task 267: An off-screen face's pill faces the sender (B3) — [ ]
+### Task 267: An off-screen face's pill faces the sender (B3) — [x]
 
 - **Found:** a face sent through a wall showed its edge pill in the top-right corner, cut off, while the sender was elsewhere.
 - **Files:** `src/client/render/pops.ts` (`drawEdgePills`, line 57), `src/components/Game.tsx:227-238` (where pops get `from`), and their unit tests.
@@ -44,11 +44,11 @@
 
   Check whether the bug is that `from` is missing when out of line of sight (falling back to a corner). If it is, test that case.
 - **Fix:** the measured cause.
-- **Acceptance:** the test passes. A screenshot of a face sent through a wall: `review/p3-267-pill.png`.
+- **Acceptance:** the test passes. A screenshot of a face sent through a wall: `review/p3-267-pill.png` (made as `review/p3-267-pill-{1280,375}.png`).
 - **Break check:** by script; red.
 - **Depends on:** none.
 
-### Task 268: Phone movement, triage (B5) — [ ]
+### Task 268: Phone movement, triage (B5) — [ ] (review queued)
 
 - **Found:** `pnpm playtest` run `2026-11-10T04-39` showed Move left and right do nothing on the 375 tab in rooms 02 and 03, and Can't see "never showed moving" in room 04. Backlog 2026-11-08 says it passes alone.
 - **Steps:**
@@ -58,7 +58,7 @@
 - **Human review:** the user moves left and right on a real phone in room 02 (`review/QUEUE-p3.md`).
 - **Depends on:** none.
 
-### Task 269: A label for checkpoints (T1) — [ ]
+### Task 269: A label for checkpoints (T1) — [ ] (review queued)
 
 - **Files:** `src/client/labels.ts` (`LABEL_COPY`, `KIND_OF`), `src/client/labels.test.ts`, `DESIGN.md` (if it lists label copy).
 - **Copy:** `checkpoint: "Checkpoint: caught after this, you start here"`. The checkpoint's entity kind is `checkpoint` (`src/game/rooms/format.ts:43`). Confirm the view sends it under that kind before mapping it.
@@ -66,14 +66,14 @@
 - **Acceptance:** the test passes, and there's a screenshot in a room with a checkpoint at 1280 and 375. **Human review:** the wording, in `review/QUEUE-p3.md`.
 - **Depends on:** none.
 
-### Task 270: Earplugs copy (T2) — [ ]
+### Task 270: Earplugs copy (T2) — [x]
 
 - **Files:** `src/components/YourSetup.tsx:53`, its spec if one asserts the label (`spec/setup.test.ts`), and `DESIGN.md` copy if listed.
 - **Change:** the label becomes `Ears blocked (earplugs or earmuffs)`, with visible space between the Headphones row and this checkbox (an existing spacing token, no new token).
 - **Acceptance:** a lobby screenshot at 1280 and 375. Any spec naming the old label is updated in the same commit.
 - **Depends on:** none.
 
-### Task 271: The goal line for the sighted in room 1 (T3) — [ ]
+### Task 271: The goal line for the sighted in room 1 (T3) — [ ] (parked: `auto/playtest-3-parked-p3fix01-task271`)
 
 - **Found:** at 0:11 in room 1, Can't hear's and Can't speak's HUD has no goal. Can't see's has "No map. Listen. Get to the exit with the others." (`src/components/Game.tsx:1269`).
 - **Files:** `src/components/Game.tsx` near line 1269, `spec/layout/hud.test.ts`, `DESIGN.md`.

@@ -40,7 +40,8 @@
   sent a wire-cut spark from a dark zone it has no goggles for. From room 4 a wire
   plaque is a seeded riddle (`WIRE_RULES[].riddles`, `NUMBER_RIDDLES`) that bots read
   through `ruleOfText`/`numberOfText`. A cache's bot jobs carry `"cache"`; prove them in
-  `spec/bots-caches.test.ts`. A cache's chamber is
+  `spec/bots-caches.test.ts`. A station type a person may work needs an ask kind
+  (`src/game/asks.ts`), and `spec/rooms-people.test.ts` must clear it. A cache's chamber is
   appended **below** the room's rows. **Ids are numbered in reading order**, so a letter
   placed before an existing one of its kind renumbers it: append new ones after, and
   confirm nothing moved (`src/game/rooms/ids.test.ts`). Run `pnpm lint:rooms` and

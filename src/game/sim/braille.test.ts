@@ -72,9 +72,9 @@ describe("plateNumber: what a plate carries (overview §4.1)", () => {
     expect(plateNumber(w, "o1")).toBe((answer(w)[2] as number) + 1);
   });
 
-  it("a radio: its real band", () => {
+  it("a radio: its real band, counted from 1 (the face's ticks are numbered 1 to 10)", () => {
     const w = plated({ Q1: { type: "radio", pads: PADS, range: 10 } }, { for: "Q1", part: 0 });
-    expect(plateNumber(w, "o1")).toBe(answer(w)[0]);
+    expect(plateNumber(w, "o1")).toBe((answer(w)[0] as number) + 1);
   });
 
   it("wires: the wire to cut, plus one", () => {

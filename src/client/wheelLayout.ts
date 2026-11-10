@@ -18,8 +18,16 @@ export const SLOT_GAP = 8; // least clear space between two slot boxes
 
 // Frames at least this wide get the rings.
 export const WIDE_FRAME_PX = 560;
-export const modeFor = (frameWidth: number): Mode =>
-  frameWidth >= WIDE_FRAME_PX ? "wide" : "narrow";
+// Where the page labels and the plate go. "stacked": labels above the wheel, plate below.
+// "side": labels in a column to the wheel's left, plate to its right, for a frame wide
+// enough for the rings but too short for them stacked (playtest 3: a 1280×560 window
+// left a 337 px frame, and the labels were drawn off it).
+export type Placement = "stacked" | "side";
+
+export const modeFor = (frameWidth: number, frameHeight?: number): Mode =>
+  frameWidth >= WIDE_FRAME_PX && placementFor(frameWidth, frameHeight) === "stacked"
+    ? "wide"
+    : "narrow";
 
 export const layoutFor = (page: Page, mode: Mode): Layout =>
   page === "talk" || page === "marks" ? "ring8" : mode === "wide" ? "ring12" : "grid4";
@@ -182,6 +190,14 @@ export function slotIndexAt(page: Page, mode: Mode, dx: number, dy: number): num
 }
 
 const LABELS_PX = 62; // the page labels above the wheel
+// Side placement: the label column's width (it fits "3 Soundboard") and the gap between it,
+// the outline and the plate. Each label is SIDE_TAB_H tall, so at the narrow floor (0.96)
+// it is still a 48 px target, and SIDE_TAB_PITCH apart.
+export const SIDE_TAB_W = 160;
+export const SIDE_TAB_H = 50;
+export const SIDE_TAB_PITCH = 58;
+export const SIDE_GAP = 12;
+const SIDE_PLATE_W = 320; // the plate's max-width when it sits to the right (20rem)
 // The plate below it: an 8 px gap, the CSS max-height (80, border-box so it includes its
 // 2 px border), and a 6 px margin so a plate at full height never touches the frame edge.
 const PLATE_PX = 8 + 80 + 6;
@@ -197,28 +213,107 @@ export function tallestHalf(mode: Mode): number {
   return tallest;
 }
 
+// The widest outline (half width) over all pages in a mode: side labels and plate sit beside it.
+export function widestHalf(mode: Mode): number {
+  let widest = 0;
+  for (const p of PAGES_ALL) {
+    const o = outlineOf(p, mode);
+    widest = Math.max(widest, o.kind === "circle" ? o.r : o.halfW);
+  }
+  return widest;
+}
+
 // The full drawn extent of a page: its outline, plus the labels above and the plate
 // below, which sit outside the tallest outline of any page.
-export function wheelExtent(page: Page, mode: Mode): { width: number; height: number } {
+export function wheelExtent(
+  page: Page,
+  mode: Mode,
+  placement: Placement = "stacked",
+): { width: number; height: number } {
   const o = outlineOf(page, mode);
   const halfW = o.kind === "circle" ? o.r : o.halfW;
+  if (placement === "side") {
+    // centred on the outline: the wider side (the plate's) sets both halves
+    const side = SIDE_GAP + Math.max(SIDE_TAB_W, SIDE_PLATE_W);
+    return {
+      width: 2 * (widestHalf(mode) + side),
+      height: Math.max(2 * tallestHalf(mode), 4 * SIDE_TAB_PITCH),
+    };
+  }
   return { width: 2 * halfW, height: 2 * tallestHalf(mode) + LABELS_PX + PLATE_PX };
+}
+
+// The smallest scale that keeps every slot in a mode a 48 px target.
+function floorOf(mode: Mode): number {
+  let floor = 0;
+  for (const page of PAGES_ALL) {
+    const s = slotSize(page, mode);
+    const smallest = Math.min(s.w, s.h, s.centre > 0 ? s.centre : Number.POSITIVE_INFINITY);
+    floor = Math.max(floor, MIN_TARGET_PX / smallest);
+  }
+  return floor;
+}
+
+// Stacked, unless the frame is wide enough for the rings but too short for the wide wheel
+// with its labels above and plate below, even at its 48 px floor: then the compact (narrow)
+// slots, with the labels and plate beside them. Without a height, stacked.
+export function placementFor(frameW: number, frameH?: number): Placement {
+  if (frameH === undefined || frameW < WIDE_FRAME_PX) return "stacked";
+  const tallest = Math.max(...PAGES_ALL.map((p) => wheelExtent(p, "wide").height));
+  return tallest * floorOf("wide") <= frameH - 2 ? "stacked" : "side";
 }
 
 // How much of full size to draw at, so the wheel and its labels fit the frame, but never
 // so small that a slot drops under 48 px (then it is the frame that gives, not the target).
 // One scale for every page (the biggest page sets it), so the wheel never grows or shrinks
 // as the page changes and the labels and plate stay where they are.
-export function wheelScale(_page: Page, mode: Mode, frameW: number, frameH: number): number {
+export function wheelScale(
+  _page: Page,
+  mode: Mode,
+  frameW: number,
+  frameH: number,
+  placement: Placement = "stacked",
+): number {
   let fit = 1;
-  let floor = 0;
   for (const page of PAGES_ALL) {
-    const e = wheelExtent(page, mode);
+    const e = wheelExtent(page, mode, placement);
     // the outline already carries its own padding, so the frame needs only a hair of margin
     fit = Math.min(fit, (frameW - 2) / e.width, (frameH - 2) / e.height);
-    const s = slotSize(page, mode);
-    const smallest = Math.min(s.w, s.h, s.centre > 0 ? s.centre : Number.POSITIVE_INFINITY);
-    floor = Math.max(floor, MIN_TARGET_PX / smallest);
   }
-  return Math.max(floor, Math.min(1, fit));
+  return Math.max(floorOf(mode), Math.min(1, fit));
+}
+
+// Where a wheel opened under the mouse is centred, in frame pixels. Stays put through page changes, so it
+// is clamped by the biggest page's extent: stacked, the outline's half (and the labels and plate above
+// and below it); side, the label column to the left and the plate to the right, which differ, so each
+// side is clamped on its own. A frame too small for that centres it.
+export function mouseCentre(
+  origin: { x: number; y: number },
+  w: number,
+  h: number,
+  mode: Mode,
+  placement: Placement,
+): { x: number; y: number } {
+  let halfW = 0;
+  let halfH = 0;
+  for (const p of PAGES_ALL) {
+    const o = outlineOf(p, mode);
+    const k = wheelScale(p, mode, w, h, placement);
+    halfW = Math.max(halfW, (o.kind === "circle" ? o.r : o.halfW) * k);
+    halfH = Math.max(halfH, (o.kind === "circle" ? o.r : o.halfH) * k + 40);
+  }
+  if (placement === "side") {
+    const k = Math.max(...PAGES_ALL.map((p) => wheelScale(p, mode, w, h, placement)));
+    const left = (widestHalf(mode) + SIDE_GAP + SIDE_TAB_W) * k; // the label column
+    const right = (widestHalf(mode) + SIDE_GAP + SIDE_PLATE_W) * k; // the plate
+    const up = Math.max(tallestHalf(mode), 1.5 * SIDE_TAB_PITCH + SIDE_TAB_H / 2) * k;
+    return {
+      x: w >= left + right ? Math.max(left, Math.min(w - right, origin.x)) : (w + left - right) / 2,
+      y: h >= 2 * up ? Math.max(up, Math.min(h - up, origin.y)) : h / 2,
+    };
+  }
+  return {
+    x: w > 2 * halfW ? Math.max(halfW, Math.min(w - halfW, origin.x)) : w / 2,
+    y: h > 2 * halfH ? Math.max(halfH, Math.min(h - halfH, origin.y)) : h / 2,
+  };
 }

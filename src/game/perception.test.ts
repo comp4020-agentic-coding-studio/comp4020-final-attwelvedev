@@ -14,6 +14,7 @@ import { step } from "./sim/step.ts";
 import { gather, place, tap, withChamber, worldFrom, worldWith } from "./sim/testing.ts";
 import { decodeSeen } from "./sim/visibility.ts";
 import { createWorld, TICK_MS } from "./sim/world.ts";
+import type { Role } from "./types.ts";
 
 const GRID = [
   "##############################",
@@ -801,7 +802,12 @@ describe("spectatorView: a full view regardless of the followed role", () => {
     expect(view.role).toBe("blind");
     expect(view.tiles).toHaveLength(5);
     expect(view.entities.filter((e) => e.kind === "player")).toHaveLength(3);
-    expect(view.you).toEqual({ seat: 0, pos: { x: 10.5, y: 1.5 } });
+    // and Can't see's own motion, for Can't see's frame (FR4, Task 288); not held, so no hand
+    expect(view.you).toEqual({
+      seat: 0,
+      pos: { x: 10.5, y: 1.5 },
+      motion: { moving: false, blocked: false },
+    });
     expect(view.sounds.some((s) => s.kind === "footsteps")).toBe(true);
   });
 
@@ -1025,6 +1031,37 @@ describe("viewFor: stations, gear and signals", () => {
   };
   const wiresWorld = () =>
     worldWith(["##########", "#1..Q....#", "#2.......#", "#3.......#", "##########"], WIRES);
+
+  // F5 (Task 285): the radio's band count is room layout, the same for every sighted role; Can't see is
+  // sent no station, so no range either
+  it("a radio carries its range in a sighted view, and only a radio does", () => {
+    const radio = (range?: number) =>
+      worldWith(["##########", "#1..Q....#", "#2.......#", "#3.......#", "##########"], {
+        Q1: {
+          type: "radio",
+          pads: [
+            [3, 2],
+            [5, 2],
+          ],
+          ...(range === undefined ? {} : { range }),
+        },
+      });
+    const w = radio(8);
+    for (const [seat, role] of [
+      [1, "deaf"],
+      [2, "mute"],
+    ] as const) {
+      expect(
+        viewFor(w, seat, role, false).entities.find((e) => e.id === "Q1")?.station?.range,
+      ).toBe(8);
+    }
+    expect(
+      viewFor(radio(), 1, "deaf", false).entities.find((e) => e.id === "Q1")?.station?.range,
+    ).toBe(10);
+    expect(JSON.stringify(viewFor(w, 0, "blind", false))).not.toContain("range");
+    const wires = viewFor(wiresWorld(), 1, "deaf", false).entities.find((e) => e.id === "Q1");
+    expect(wires?.station && "range" in wires.station).toBe(false);
+  });
 
   it("a sighted viewer sees wire colours in sight; Can't see is shown no station at all", () => {
     const w = wiresWorld();
@@ -2254,5 +2291,208 @@ describe("a camera out of sight still shows its cone where the seat can see grou
     const world = createWorld(room, 1);
     world.players[2].pos = FAR;
     expect(viewFor(world, 2, "blind", true).entities).toEqual([]);
+  });
+});
+
+// ADR 0030: holding hands is felt, not seen. The hand is touch: a direction, which end you are and
+// whether the pair strains, never who holds it (FR2, FR5, Task 274).
+describe("viewFor: the hand is touch, with no identity", () => {
+  const ROLES = ["blind", "deaf", "mute"] as const;
+  const hold = () => {
+    const w = worldWith(["##########", "#1.......#", "#2.......#", "#3.......#", "##########"], {});
+    place(w, 0, { x: 3, y: 1 });
+    place(w, 1, { x: 4, y: 2 }); // down and to the right of the leader
+    place(w, 2, { x: 8, y: 3 });
+    step(w, { 0: { seq: 1, move: { x: 0, y: 0 }, act: true } }, TICK_MS);
+    step(w, {}, TICK_MS);
+    expect(w.holding).toEqual({ 1: 0 });
+    place(w, 0, { x: 3, y: 1 }); // towing stood the towed behind; put it down and to the right
+    place(w, 1, { x: 4, y: 2 });
+    return w;
+  };
+
+  it("each end gets a unit step toward the other hand, which end it is, and whether it pulls", () => {
+    for (const role of ROLES) {
+      const w = hold();
+      expect(viewFor(w, 0, role, false).you.hand, `${role} leading`).toEqual({
+        dir: { x: 1, y: 1 },
+        leads: true,
+        pulling: false,
+      });
+      expect(viewFor(w, 1, role, false).you.hand, `${role} towed`).toEqual({
+        dir: { x: -1, y: -1 },
+        leads: false,
+        pulling: false,
+      });
+    }
+  });
+
+  it("the hand carries no seat or id of the partner, for any role and either end", () => {
+    for (const role of ROLES) {
+      const w = hold();
+      for (const [seat, mate] of [
+        [0, 1],
+        [1, 0],
+      ] as const) {
+        const you = JSON.stringify(viewFor(w, seat, role, false).you);
+        expect(you, `${role} seat ${seat}`).not.toContain(`"seat":${mate}`);
+        expect(you).not.toContain(`P${mate}`);
+        expect(Object.keys(viewFor(w, seat, role, false).you.hand ?? {}).sort()).toEqual([
+          "dir",
+          "leads",
+          "pulling",
+        ]);
+      }
+    }
+  });
+
+  it("Can't see's whole view never names the partner in a hand field", () => {
+    const w = hold();
+    for (const [seat, mate] of [
+      [0, 1],
+      [1, 0],
+    ] as const) {
+      const text = JSON.stringify(viewFor(w, seat, "blind", true));
+      for (const field of ["hand", "holding", "heldBy", "partner", "leader"]) {
+        expect(text, `${field} in seat ${seat}'s view`).not.toMatch(
+          new RegExp(`"${field}":${mate}\\b`),
+        );
+      }
+    }
+  });
+
+  // F8 (Task 287): the test above checks five field names. This one walks everything under Can't see's
+  // `you`, at either end of a held pair, and fails on any key path not listed here, so a new field (say
+  // `with: 1`) fails until it is added on purpose and checked against ADR 0030.
+  const YOU_PATHS = [
+    "seat", // your own seat, never the partner's (the test above checks that)
+    "motion",
+    "motion.moving",
+    "motion.blocked",
+    "hand",
+    "hand.dir",
+    "hand.dir.x",
+    "hand.dir.y",
+    "hand.leads",
+    "hand.pulling",
+  ] as const;
+  it("Can't see's `you` has only known fields, at either end of a pair (no new one can carry the partner)", () => {
+    const paths = (o: unknown, at = ""): string[] =>
+      o !== null && typeof o === "object" && !Array.isArray(o)
+        ? Object.entries(o).flatMap(([k, v]) => [`${at}${k}`, ...paths(v, `${at}${k}.`)])
+        : [];
+    for (const seat of [0, 1] as const) {
+      const w = hold();
+      const got = paths(viewFor(w, seat, "blind", true).you);
+      const known = new Set<string>(YOU_PATHS);
+      expect(
+        got.filter((p) => !known.has(p)),
+        `seat ${seat}: ${got.join(", ")}`,
+      ).toEqual([]);
+    }
+  });
+
+  // F9 (Task 288, FR4 option b): a watcher following Can't see sees Can't see's frame, the link included,
+  // so the spectator view carries that seat's hand (the same touch, no identity) and its motion
+  it("a spectator following a held Can't see gets its hand, and following a sighted seat or nobody, none", () => {
+    const w = hold();
+    const v = spectatorView(w, 0, ["blind", "deaf", "mute"], true);
+    expect(Object.keys(v.you.hand ?? {}).sort()).toEqual(["dir", "leads", "pulling"]);
+    expect(v.you.hand).toEqual(viewFor(w, 0, "blind", false).you.hand);
+    expect(v.you.motion).toEqual({ moving: false, blocked: false });
+    expect(spectatorView(w, 1, ["blind", "deaf", "mute"], true).you.hand).toBeUndefined();
+    expect(spectatorView(w, null, ["blind", "deaf", "mute"], true).you.hand).toBeUndefined();
+  });
+
+  it("a pair in a tug of war is pulling at both ends", () => {
+    const w = hold();
+    step(
+      w,
+      {
+        0: { seq: 2, move: { x: 1, y: 0 }, act: false },
+        1: { seq: 3, move: { x: -1, y: 0 }, act: false },
+      },
+      TICK_MS,
+    );
+    expect(viewFor(w, 0, "blind", false).you.hand?.pulling).toBe(true);
+    expect(viewFor(w, 1, "deaf", false).you.hand?.pulling).toBe(true);
+  });
+
+  it("not held, no hand", () => {
+    const w = hold();
+    expect(viewFor(w, 2, "blind", false).you.hand).toBeUndefined();
+    step(w, { 1: { seq: 4, move: { x: 0, y: 0 }, act: true } }, TICK_MS); // the towed lets go
+    expect(viewFor(w, 0, "blind", false).you.hand).toBeUndefined();
+    expect(viewFor(w, 1, "mute", false).you.hand).toBeUndefined();
+  });
+});
+
+// ADR 0030: taking and letting go of a hand is felt by the pair alone (FR3, Task 276).
+describe("viewFor: grip and release reach the pair only", () => {
+  const ROLES = ["blind", "deaf", "mute"] as const;
+  const cues = (w: ReturnType<typeof worldWith>, seat: 0 | 1 | 2, kind: string) =>
+    viewFor(w, seat, ROLES[seat], false).sounds.filter((s) => s.kind === kind);
+
+  it("the two who take hands each get one centred grip; the third, beside them, none", () => {
+    const w = worldWith(["##########", "#1.......#", "#2.......#", "#3.......#", "##########"], {});
+    place(w, 0, { x: 3, y: 2 });
+    place(w, 2, { x: 4, y: 2 });
+    place(w, 1, { x: 3, y: 3 }); // Can't hear's seat, right beside the pair
+    step(w, { 2: { seq: 1, move: { x: 0, y: 0 }, act: true } }, TICK_MS);
+    expect(Object.keys(w.holding)).toHaveLength(1);
+    const mate = (w.holding[0] !== undefined ? 0 : w.holding[1] !== undefined ? 1 : 2) as 0 | 1 | 2;
+    const pair = new Set([2, mate]);
+    for (const seat of [0, 1, 2] as const) {
+      const got = cues(w, seat, "grip");
+      if (pair.has(seat)) expect(got, `seat ${seat}`).toEqual([{ kind: "grip", pan: 0, gain: 1 }]);
+      else expect(got, `seat ${seat}, not in the pair`).toEqual([]);
+    }
+    // letting go: a release for the same two, and nobody else
+    step(w, {}, TICK_MS);
+    step(w, { 2: { seq: 2, move: { x: 0, y: 0 }, act: true } }, TICK_MS);
+    expect(w.holding).toEqual({});
+    for (const seat of [0, 1, 2] as const) {
+      const got = cues(w, seat, "release");
+      if (pair.has(seat))
+        expect(got, `seat ${seat}`).toEqual([{ kind: "release", pan: 0, gain: 1 }]);
+      else expect(got, `seat ${seat}, not in the pair`).toEqual([]);
+      expect(cues(w, seat, "grip")).toEqual([]);
+    }
+  });
+
+  it("a sighted holder hears it too, whatever their role, and a third Can't see hears nothing", () => {
+    const w = worldWith(["##########", "#1.......#", "#2.......#", "#3.......#", "##########"], {});
+    place(w, 1, { x: 3, y: 2 });
+    place(w, 2, { x: 4, y: 2 });
+    place(w, 0, { x: 4, y: 3 }); // Can't see stands diagonally beside them, outside the pair
+    step(w, { 1: { seq: 1, move: { x: 0, y: 0 }, act: true } }, TICK_MS);
+    expect(w.holding).toEqual({ 2: 1 });
+    expect(cues(w, 2, "grip")).toHaveLength(1);
+    expect(cues(w, 0, "grip"), "Can't see, beside but not holding").toEqual([]);
+  });
+});
+
+describe("viewFor: an ask reaches the asked seat only (BT1)", () => {
+  const room1 = loadRooms()[0];
+  const rotations: [Role, Role, Role][] = [
+    ["blind", "deaf", "mute"],
+    ["deaf", "mute", "blind"],
+    ["mute", "blind", "deaf"],
+  ];
+  it("seat 0 asked by seat 2: only seat 0's view has it, with no station and no value", () => {
+    for (const roles of rotations) {
+      const w = createWorld(room1, 1, [...roles]);
+      const asks = [
+        { kind: "stop-on-click", from: 2, to: 0, station: "Q2", saidAt: 1000 },
+      ] as const;
+      const seen = ([0, 1, 2] as const).map((s) => viewFor(w, s, roles[s], false, asks).you.asks);
+      // Can't hear is asked by a face from the bot: its view carries no ask, no words and no kind
+      expect(seen[0], roles.join()).toEqual(
+        roles[0] === "deaf" ? undefined : [{ from: 2, kind: "stop-on-click", saidAt: 20 }],
+      );
+      expect(seen[1], roles.join()).toBeUndefined();
+      expect(seen[2], roles.join()).toBeUndefined();
+      expect(JSON.stringify(seen[0] ?? null)).not.toContain("Q2");
+    }
   });
 });

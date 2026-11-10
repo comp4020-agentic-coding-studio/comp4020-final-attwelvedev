@@ -28,7 +28,7 @@
 
 ## Tasks
 
-### Task 272: The radio counts from 1 (FR7–FR9) — [ ]
+### Task 272: The radio counts from 1 (FR7–FR9) — [ ] (review queued)
 
 - **Tests first (red):**
   - `src/game/sim/braille.test.ts` ("a radio: its real band", line 75): the plate carries `answer[0] + 1`.
@@ -49,7 +49,7 @@
 - **Break check:** by script, put back `return s.answer[0]`; the braille test and `spec/rooms.test.ts` room 6 go red.
 - **Depends on:** none.
 
-### Task 273: Bots say a direction once, and nudge once (FR10–FR11) — [ ]
+### Task 273: Bots say a direction once, and nudge once (FR10–FR11) — [x]
 
 - **Tests first (red), in `src/game/bots/brain.test.ts`,** with a tick count and no clock:
   - a guide whose heading doesn't change sends its direction exactly once over 10 s while the guided seat walks that way

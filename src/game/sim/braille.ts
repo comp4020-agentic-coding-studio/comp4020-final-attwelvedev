@@ -28,7 +28,7 @@ export function plateNumber(world: World, plateId: string): number | undefined {
   if (s.type === "dial") return s.answer[part];
   const plusOne = (v: number | undefined) => (v === undefined ? undefined : v + 1);
   if (s.type === "keypad") return plusOne(s.answer[part]); // keys are numbered 1 to 9
-  if (s.type === "radio") return s.answer[0];
+  if (s.type === "radio") return plusOne(s.answer[0]); // the face's ticks are numbered 1 to 10
   if (s.type === "wires") return plusOne(s.answer[0]); // the wire to cut, counted from 1
   return undefined;
 }

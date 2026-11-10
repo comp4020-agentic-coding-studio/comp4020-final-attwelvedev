@@ -12,6 +12,7 @@ import {
   fxOfCaught,
   fxOfCleared,
   fxOfCuts,
+  fxOfHand,
   openedDoors,
   popOfMessage,
 } from "../client/fx.ts";
@@ -52,10 +53,11 @@ import {
 import { afterRestart } from "../client/restart.ts";
 import { loadSettings, type Settings as SettingsState, saveSettings } from "../client/settings.ts";
 import type { ConnectionState, GameSocket } from "../client/socket.ts";
-import { browserSpeech } from "../client/speech.ts";
+import { askShownAsLine, browserSpeech, speakWhile } from "../client/speech.ts";
 import { isHighContrast, NET, setContrast, setHue } from "../client/tokens.ts";
 import { installUiSounds, savedSettings, uiSound } from "../client/uiSound.ts";
 import { quickSlot } from "../client/wheel.ts";
+import { ASK_COPY } from "../game/asks.ts";
 import { FACE_POP_MS, type Stamp } from "../game/channels.ts";
 import { botRef } from "../game/crew.ts";
 import type { BriefingCue } from "../game/cues.ts";
@@ -239,17 +241,18 @@ function useDraw(
         }
       }
       let labels: Scene["labels"];
-      if (!flat && rt.labelsOn && role !== "blind" && rt.tiles && rt.self) {
+      if (!flat && role !== "blind" && rt.tiles && rt.self) {
         const seenNow = view.seen ? seenOf(view.seen) : null;
         rt.labels = labelsFor(
           view.entities,
           rt.tiles,
           rt.self,
-          true,
+          rt.labelsOn,
           (at) => inSight(seenNow, at),
           rt.labelsAll ? undefined : ESCAPE_KINDS,
           size.w >= 720 ? LABEL_CAP.desktop : LABEL_CAP.phone,
           rt.metKinds,
+          { seat: view.you.seat, phone: size.w < 720, act: view.act }, // the hold-hands chip (FR6, F4)
         );
         for (const l of rt.labels) rt.roomKinds.add(l.kind);
         labels = rt.labels;
@@ -280,6 +283,8 @@ function useDraw(
         // Can't see is told whether they are walking or pushing (they hear it already); a sighted
         // role reads it off its own predicted position, which is ahead of the server
         own: ownMotion(rt, role),
+        // the hand you hold, felt: Can't see's frame draws its link (ADR 0030); it never says who
+        ...(view.you.hand ? { hand: view.you.hand } : {}),
         cleared: view.status === "cleared", // nobody walks on once the room is cleared (FR2)
         bots: crew.map((c) => !!c.bot) as Scene["bots"],
         layout: "follow", // the game camera on every screen; the intro's swoop flies it in from the whole room
@@ -320,7 +325,7 @@ function useDraw(
         const alarm = view.alarm ? "on" : "off";
         if (el.dataset.alarm !== alarm) el.dataset.alarm = alarm;
         // and which first-room labels are on show, which are only ever drawn
-        const shownLabels = rt.labelsOn ? rt.labels.map((l) => l.kind).join(" ") : "";
+        const shownLabels = rt.labels.map((l) => l.kind).join(" ");
         if ((el.dataset.labels ?? "") !== shownLabels) el.dataset.labels = shownLabels;
         // and where you are drawn, which is the point the light is cast from
         if (scene.self) {
@@ -442,10 +447,13 @@ function onView(rt: Runtime, view: RoleView, audio: GameAudio, names: readonly s
   if (view.status === "cleared") rt.walking = { moving: false, blocked: false };
   rt.prevEntities = rt.view?.entities ?? [];
   const wasCleared = rt.view?.status === "cleared";
+  const hadHand = rt.view?.you.hand;
   rt.view = view;
   const started = performance.now();
   hearCues(rt.cueHold, cueCaptions(view.sounds, names), started); // every view, so a one-tick sound is not missed
   const fresh = detectFx(rt.prevEntities, view.entities);
+  // Can't see's own hand joining or letting go: their frame has no figures to read it from (ADR 0030)
+  if (view.role === "blind") fresh.push(...fxOfHand(hadHand, view.you.hand));
   // a door opening is team-wide (ADR 0025): each one that opened gets a pill if it is off screen
   for (const d of openedDoors(rt.prevEntities, view.entities))
     rt.pops.push({ seat: null, id: "door", at: started, from: d.pos, name: "Door", mark: "door" });
@@ -920,26 +928,58 @@ function Hud({
   useEffect(() => {
     const speech = browserSpeech(role, () => live.current.settings.speech);
     if (role !== "blind") preloadFaces();
-    return socket.on("msg", (m) => {
+    // the cleanup empties the speech queue: this game unmounts when the next reveal opens (B2)
+    return speakWhile(speech, (say) =>
+      socket.on("msg", (m) => {
+        const now = performance.now();
+        const { settings: s, forceCaptions } = live.current;
+        if (m.method === "callout" || m.method === "text") {
+          say(m.method === "callout" ? CALLOUT_WORD[m.callout] : m.text);
+        } else if (m.method === "clip" && s.sound && !forceCaptions) {
+          audio.current?.playClip(m.clip);
+        } else {
+          const pop = popOfMessage(m, now);
+          if (pop) rt.pops.push(pop);
+        }
+        // text to Can't speak is always shown, since reading it is their only way
+        const caption = captionFor(m);
+        const wanted = s.captions || forceCaptions || (m.method === "text" && role !== "blind");
+        if (caption && wanted) {
+          const line = { id: ++live.current.lineId, ...caption, until: now + CAPTION_MS };
+          setLines((old) => [...old.filter((l) => l.until > now), line].slice(-3));
+        }
+      }),
+    );
+  }, [socket, role, rt, audio]);
+
+  // An ask said (new, or said again by the bot's clock): only Can't see gets it, spoken or as a line.
+  // Can't hear is asked by a face from the bot instead (BT1, BT2); Can't speak gets no words or lines.
+  useEffect(() => {
+    if (role !== "blind") return;
+    const speech = browserSpeech(role, () => live.current.settings.speech);
+    const said = new Map<string, number>();
+    const off = socket.on("view", (m) => {
       const now = performance.now();
-      const { settings: s, forceCaptions } = live.current;
-      if (m.method === "callout" || m.method === "text") {
-        speech.say(m.method === "callout" ? CALLOUT_WORD[m.callout] : m.text);
-      } else if (m.method === "clip" && s.sound && !forceCaptions) {
-        audio.current?.playClip(m.clip);
-      } else {
-        const pop = popOfMessage(m, now);
-        if (pop) rt.pops.push(pop);
-      }
-      // text to Can't speak is always shown, since reading it is their only way
-      const caption = captionFor(m);
-      const wanted = s.captions || forceCaptions || (m.method === "text" && role !== "blind");
-      if (caption && wanted) {
-        const line = { id: ++live.current.lineId, ...caption, until: now + CAPTION_MS };
-        setLines((old) => [...old.filter((l) => l.until > now), line].slice(-3));
+      for (const a of m.view.you.asks ?? []) {
+        const k = `${a.from}:${a.kind}`;
+        if (said.get(k) === a.saidAt) continue;
+        said.set(k, a.saidAt);
+        const text = ASK_COPY[a.kind].say;
+        speech.say(text);
+        const { settings: st } = live.current;
+        if (askShownAsLine(role, st.speech, st.captions)) {
+          const from = reveal.crew.find((c) => c.seat === a.from);
+          const who = { role: from?.role ?? "deaf", name: from?.nickname ?? "Bot" };
+          const line = { id: ++live.current.lineId, ...who, text, until: now + CAPTION_MS };
+          setLines((old) => [...old.filter((l) => l.until > now), line].slice(-3));
+        }
       }
     });
-  }, [socket, role, rt, audio]);
+    return () => {
+      off();
+      speech.stop();
+    };
+  }, [socket, role, reveal.crew]);
 
   useEffect(
     () =>
@@ -1221,97 +1261,66 @@ function Hud({
           </span>
         </span>
         <span class="sr-only">{roomTitle}</span>
-        <span class="hud-clock" role="timer" aria-label="Time">
-          {clock}
-        </span>
-        <span class="hud-loot" role="img" aria-label={`Loot ${loot}`}>
-          <span aria-hidden="true">◆ {loot}</span>
-        </span>
-        <Connection state={state} rttMs={rttMs} />
-        <span class="hud-watching">
-          <button
-            type="button"
-            class="hud-btn"
-            aria-expanded={watchOpen}
-            aria-controls="hud-watching"
-            disabled={watching.length === 0}
-            hidden={watching.length === 0}
-            onClick={() => setWatchOpen(!watchOpen)}
-          >
-            {watching.length} watching
-          </button>
-          {watchOpen && watching.length > 0 && (
-            <ul class="hud-watching-list" id="hud-watching" aria-label="Watching">
-              {watching.map((name, n) => (
-                <li key={`${n}:${name}`}>{name}</li>
-              ))}
-            </ul>
+        {/* the bar's status row: on a phone a row of its own that never wraps (Task 293); from 720 px its
+          items sit in the bar's one line as before */}
+        <div class="hud-status">
+          <span class="hud-clock" role="timer" aria-label="Time">
+            {clock}
+          </span>
+          <span class="hud-loot" role="img" aria-label={`Loot ${loot}`}>
+            <span aria-hidden="true">◆ {loot}</span>
+          </span>
+          <Connection state={state} rttMs={rttMs} />
+          {role !== "blind" && (
+            <span class="hud-goal" title="Get all three onto the exit.">
+              Get all three onto the exit.
+            </span>
           )}
-        </span>
-        <HudMenu
-          title={roomTitle}
-          onAsk={ask}
-          onLeave={onLeave}
-          settings={
-            <Settings
-              role={role}
-              settings={settings}
-              onChange={change}
-              maskNoiseAvailable={real.maskNoise}
-              maskNoiseDefault={real.maskDefault}
-              othersSoundOff={real.soundOff}
-              voiceOn={real.voice}
-            />
-          }
-        />
+          <span class="hud-watching">
+            <button
+              type="button"
+              class="hud-btn"
+              aria-expanded={watchOpen}
+              aria-controls="hud-watching"
+              disabled={watching.length === 0}
+              hidden={watching.length === 0}
+              onClick={() => setWatchOpen(!watchOpen)}
+            >
+              {watching.length} watching
+            </button>
+            {watchOpen && watching.length > 0 && (
+              <ul class="hud-watching-list" id="hud-watching" aria-label="Watching">
+                {watching.map((name, n) => (
+                  <li key={`${n}:${name}`}>{name}</li>
+                ))}
+              </ul>
+            )}
+          </span>
+          <HudMenu
+            title={roomTitle}
+            onAsk={ask}
+            onLeave={onLeave}
+            settings={
+              <Settings
+                role={role}
+                settings={settings}
+                onChange={change}
+                maskNoiseAvailable={real.maskNoise}
+                maskNoiseDefault={real.maskDefault}
+                othersSoundOff={real.soundOff}
+                voiceOn={real.voice}
+              />
+            }
+          />
+        </div>
       </header>
 
-      {role === "blind" && <p class="hud-hint">No map. Listen. Get to the exit with the others.</p>}
-
-      {voice.lagging && (
-        <p class="hud-alert" role="status">
-          Voice lagging
-        </p>
-      )}
-
-      {hostNote && (
-        <p class="hud-alert" role="status">
-          {hostNote}
-        </p>
-      )}
-
-      {replaced && (
-        <p class="hud-alert" role="status">
-          {replaced}
-        </p>
-      )}
-
-      {goneNote && (
-        <p class="hud-alert" role="status">
-          {goneNote}
-        </p>
-      )}
-
-      {back && (
-        <p class="hud-alert" role="status">
-          {back} is back.
-        </p>
-      )}
-
-      {voteNote && (
-        <p class="hud-alert" role="status">
-          {voteNote}
-        </p>
-      )}
-
-      {gone.length > 0 && (
-        <p class="hud-alert" role="status">
-          {gone
-            .map((g) =>
-              g.how === "left" ? `${g.name} left the game.` : `${g.name} lost connection.`,
-            )
-            .join(" ")}
-        </p>
+      {/* the goal, always in sight: Can't see's own words, and the reveal's goal for the sighted (T3). On a phone
+        the sighted line is in the top bar (.hud-goal), so the map loses no height; from 720 px it is here */}
+      {role === "blind" ? (
+        <p class="hud-hint">No map. Listen. Get to the exit with the others.</p>
+      ) : (
+        <p class="hud-hint hud-goal-wide">Get all three onto the exit.</p>
       )}
 
       <div class="frame">
@@ -1324,17 +1333,74 @@ function Hud({
             role="img"
             aria-label={role === "blind" ? "No map. Listen to the room." : "Map of the room"}
           />
-          {/* the side-job chip and the open plate share one column, so the plate sits under the chip at whatever
-            height the chip has (a riddle wraps to two lines); neither covers the other */}
+          {/* one column at the frame's top: the side-job chip, the open plate, the transient alerts, the cache
+            moment and an open vote flow under each other, so none covers another or takes its clicks (Task 292).
+            The column is an overlay: nothing in it resizes the frame (Task 279) */}
           <div class="top-stack">
             <SideJob cache={cache} keepsake={keepsake} />
             {braille && <BrailleCard cells={braille.cells} teach={braille.teach} />}
-          </div>
-          {moment && (
-            <div class="cache-moment" role="status">
-              <p>{moment}</p>
+            <div class="hud-alerts">
+              {voice.lagging && (
+                <p class="hud-alert" role="status">
+                  Voice lagging
+                </p>
+              )}
+
+              {hostNote && (
+                <p class="hud-alert" role="status">
+                  {hostNote}
+                </p>
+              )}
+
+              {replaced && (
+                <p class="hud-alert" role="status">
+                  {replaced}
+                </p>
+              )}
+
+              {goneNote && (
+                <p class="hud-alert" role="status">
+                  {goneNote}
+                </p>
+              )}
+
+              {back && (
+                <p class="hud-alert" role="status">
+                  {back} is back.
+                </p>
+              )}
+
+              {voteNote && (
+                <p class="hud-alert" role="status">
+                  {voteNote}
+                </p>
+              )}
+
+              {gone.length > 0 && (
+                <p class="hud-alert" role="status">
+                  {gone
+                    .map((g) =>
+                      g.how === "left" ? `${g.name} left the game.` : `${g.name} lost connection.`,
+                    )
+                    .join(" ")}
+                </p>
+              )}
             </div>
-          )}
+            {moment && (
+              <div class="cache-moment" role="status">
+                <p>{moment}</p>
+              </div>
+            )}
+            {vote && (
+              <VotePrompt
+                vote={vote}
+                seat={me as Seat}
+                crew={reveal.crew}
+                secondsLeft={voteLeft}
+                onCast={(yes) => socket.send({ t: "vote.cast", yes })}
+              />
+            )}
+          </div>
           <Captions lines={lines} cues={cues} />
           {!cleared && (
             <div class="hud-dock">
@@ -1405,15 +1471,6 @@ function Hud({
             <p class="caught-banner" role="alert">
               {caught}
             </p>
-          )}
-          {vote && (
-            <VotePrompt
-              vote={vote}
-              seat={me as Seat}
-              crew={reveal.crew}
-              secondsLeft={voteLeft}
-              onCast={(yes) => socket.send({ t: "vote.cast", yes })}
-            />
           )}
           {pause && (
             <Disconnect

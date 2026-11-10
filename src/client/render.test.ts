@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { linkOf } from "../game/links.ts";
 import type { Vec } from "../game/types.ts";
 import type { EntityView } from "../net/protocol.ts";
+import { fxOfHand } from "./fx.ts";
 import { drawStanding } from "./render/blocks.ts";
 import { HEIGHT } from "./render/column.ts";
 import { drawPlayer } from "./render/figures.ts";
@@ -893,6 +894,82 @@ describe("figures that move (FR31)", () => {
       y(blind({ moving: false, blocked: false })),
     );
     expect(blind({ moving: true, blocked: true }).some((o) => o.name === "scale")).toBe(true);
+  });
+});
+
+// ADR 0030: holding hands is felt, not seen. Can't see's frame draws the link from their own figure
+// to one tile in the hand's direction, as the sighted see it, and nothing that says who (Task 275).
+describe("Can't see's own hand", () => {
+  const own = { facing: { x: 0, y: 1 }, moving: false, blocked: false };
+  const frame = (over: Partial<Scene>) => {
+    const { ctx, ops } = recorder();
+    draw(ctx, {
+      ...scene({ role: "blind", seat: 0, tiles: null, entities: [], self: null, w: 1280, h: 600 }),
+      own,
+      ...over,
+    });
+    return ops;
+  };
+  const tile = MAP.phoneTilePx * 2; // Can't see's figure is drawn at this scale
+  // a bead is a small UI-coloured dot, 0.06 of a tile (0.07 taut); the figure's own marks are larger
+  const beads = (ops: Op[]) =>
+    ops
+      .filter(
+        (o) => o.name === "arc" && o.fillStyle === COLOR.ui && (o.args[2] as number) < tile * 0.08,
+      )
+      .map((o) => o.args as number[]);
+
+  it("draws no link when nobody holds your hand", () => {
+    const ops = frame({});
+    expect(beads(ops)).toEqual([]);
+    expect(ops.some((o) => o.name === "quadraticCurveTo")).toBe(false);
+  });
+
+  it("draws the arc and two beads from your figure to one tile in the hand's direction", () => {
+    for (const leads of [false, true]) {
+      const ops = frame({ hand: { dir: { x: 1, y: 0 }, leads, pulling: false } });
+      expect(
+        ops.some((o) => o.name === "quadraticCurveTo"),
+        `leads ${leads}`,
+      ).toBe(true);
+      const xs = beads(ops)
+        .map((a) => a[0] as number)
+        .sort((a, b) => a - b);
+      expect(xs).toHaveLength(2);
+      expect(xs[0]).toBeCloseTo(1280 / 2, 0); // your own hand, over your centred figure
+      expect((xs[1] as number) - (xs[0] as number)).toBeCloseTo(tile, 0); // one tile east
+    }
+  });
+
+  it("points the far bead the way the hand is", () => {
+    const ops = frame({ hand: { dir: { x: -1, y: 0 }, leads: false, pulling: false } });
+    const xs = beads(ops).map((a) => a[0] as number);
+    expect(Math.min(...xs)).toBeCloseTo(1280 / 2 - tile, 0);
+  });
+
+  it("draws a tug's taut line, with the tremor that follows the clock", () => {
+    const at = (nowMs: number) =>
+      frame({ hand: { dir: { x: 1, y: 0 }, leads: true, pulling: true }, nowMs });
+    const still = at(0);
+    expect(still.some((o) => o.name === "quadraticCurveTo")).toBe(false);
+    expect(still.some((o) => o.name === "stroke" && o.lineWidth === 4)).toBe(true);
+    const y = (ops: Op[]) => beads(ops)[0]?.[1] as number;
+    expect(y(at(125)) - y(at(0))).toBeCloseTo(1, 3); // sin(π/2): 1 px at a quarter of 2 Hz
+  });
+
+  it("joins with the beads meeting, and lets go with them drawn back", () => {
+    const hand = { dir: { x: 1, y: 0 }, leads: false, pulling: false };
+    const joining = frame({ hand, fx: fxOfHand(undefined, hand).map((f) => ({ ...f, age: 0.5 })) });
+    expect(
+      joining.some((o) => o.name === "quadraticCurveTo"),
+      "no arc mid-join",
+    ).toBe(false);
+    expect(beads(joining)).toHaveLength(2);
+    const going = frame({ fx: fxOfHand(hand, undefined).map((f) => ({ ...f, age: 0.5 })) });
+    expect(beads(going)).toHaveLength(2);
+    expect(fxOfHand(hand, hand)).toEqual([]);
+    expect(fxOfHand(undefined, hand).map((f) => f.kind)).toEqual(["join"]);
+    expect(fxOfHand(hand, undefined).map((f) => f.kind)).toEqual(["unjoin"]);
   });
 });
 

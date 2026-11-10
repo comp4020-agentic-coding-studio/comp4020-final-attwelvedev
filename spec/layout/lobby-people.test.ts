@@ -203,7 +203,7 @@ describe("preferences", () => {
   it("answers saved on /preferences prefill Your setup in the next lobby, and a change in the lobby shows on /preferences", async () => {
     const page = await openPage(browser, `${baseUrl}/preferences`, DESKTOP);
     await page.getByRole("group", { name: "Where" }).getByLabel("In the room").check();
-    await page.getByLabel("Earplugs or earmuffs").check();
+    await page.getByLabel("Ears blocked (earplugs or earmuffs)").check();
     await page
       .getByRole("status")
       .filter({ hasText: /^Saved/ })
@@ -216,7 +216,7 @@ describe("preferences", () => {
     expect(
       await page.getByRole("group", { name: "Where" }).getByLabel("In the room").isChecked(),
     ).toBe(true);
-    expect(await page.getByLabel("Earplugs or earmuffs").isChecked()).toBe(true);
+    expect(await page.getByLabel("Ears blocked (earplugs or earmuffs)").isChecked()).toBe(true);
 
     await page.getByLabel("Always show captions").check();
     await leaveAndClose(page); // this one made a lobby: closing the tab would only hold its seat
@@ -254,7 +254,7 @@ describe("preferences", () => {
     const guest = guests[0] as Page;
     await guest.getByRole("button", { name: "Preferences" }).click();
     const sheet = guest.getByRole("dialog", { name: "Preferences" });
-    await sheet.getByLabel("Earplugs or earmuffs").check();
+    await sheet.getByLabel("Ears blocked (earplugs or earmuffs)").check();
     await host.getByRole("button", { name: /^Start/ }).click();
     await guest
       .getByRole("button", { name: "I'm ready" })
@@ -302,7 +302,7 @@ describe("preferences", () => {
     const page = await openPage(browser, `${baseUrl}/preferences`, DESKTOP);
     await page.getByLabel("Nickname").focus();
     await page.keyboard.type("Keys");
-    const earplugs = page.getByLabel("Earplugs or earmuffs");
+    const earplugs = page.getByLabel("Ears blocked (earplugs or earmuffs)");
     for (
       let i = 0;
       i < 40 && !(await earplugs.evaluate((el) => el === document.activeElement));
@@ -314,7 +314,7 @@ describe("preferences", () => {
     expect(await earplugs.isChecked()).toBe(true);
     await page.reload({ waitUntil: "networkidle" });
     expect(await page.getByLabel("Nickname").inputValue()).toContain("Keys");
-    expect(await page.getByLabel("Earplugs or earmuffs").isChecked()).toBe(true);
+    expect(await page.getByLabel("Ears blocked (earplugs or earmuffs)").isChecked()).toBe(true);
     await page.context().close();
   });
 

@@ -1,9 +1,9 @@
 import type { Vec } from "../../game/types.ts";
 import type { EntityView } from "../../net/protocol.ts";
-import { motionT } from "../fx.ts";
+import { activeFx, HAND_FX, motionT } from "../fx.ts";
 import { COLOR, MAP, ROLE_COLOR, ROLE_SHAPE, WORLD } from "../tokens.ts";
 import { drawBlotches } from "./dye.ts";
-import { drawCarried } from "./gear.ts";
+import { drawCarried, drawHold, drawLetGo } from "./gear.ts";
 import type { Motion, Scene } from "./index.ts";
 import { paintFigureBody, paintFigureShadow, paintHatSheen } from "./materials.ts";
 import { hop as hopOf, pop, squash } from "./motion.ts";
@@ -352,5 +352,35 @@ export function drawOwnBlind(ctx: CanvasRenderingContext2D, scene: Scene, own: M
     { role: "blind", isSelf: false, bot: scene.bots?.[scene.seat] ?? false },
     { ...own, pushing: false },
   );
+  ctx.restore();
+  drawOwnHand(ctx, scene, foot, s, arrive);
+}
+
+// Can't see's own hand (ADR 0030): the link the sighted see, from their figure to one tile in the
+// hand's direction, drawn in a frame with their figure at (0, 0). The arrow points at the leader.
+function drawOwnHand(
+  ctx: CanvasRenderingContext2D,
+  scene: Scene,
+  foot: Vec,
+  s: number,
+  arrive: number,
+) {
+  const cam: Camera = { scale: s, ox: foot.x, oy: foot.y };
+  ctx.save();
+  ctx.globalAlpha = arrive;
+  const hand = scene.hand;
+  if (hand) {
+    const towed = hand.leads ? hand.dir : { x: 0, y: 0 };
+    const leader = hand.leads ? { x: 0, y: 0 } : hand.dir;
+    const join = motionT(scene, HAND_FX, "join");
+    const nowMs = scene.reducedMotion ? undefined : scene.nowMs;
+    drawHold(ctx, cam, towed, leader, hand.pulling, {
+      ...(join !== undefined ? { join } : {}),
+      ...(nowMs !== undefined ? { nowMs } : {}),
+    });
+  } else {
+    const going = scene.reducedMotion ? undefined : activeFx(scene.fx, HAND_FX, "unjoin");
+    if (going?.to) drawLetGo(ctx, cam, going.pos, going.to, going.age);
+  }
   ctx.restore();
 }

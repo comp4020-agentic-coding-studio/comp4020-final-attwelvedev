@@ -9,6 +9,7 @@ interface Synth<U> {
 
 export interface Speech {
   say(text: string): void;
+  stop(): void; // empties the queue: nothing already said is spoken after this
 }
 
 // Reads Say text aloud: for Can't see, who needs it, and Can't speak, who can
@@ -34,6 +35,24 @@ export function createSpeech<U>(options: {
       startedAt = t;
       synth.speak(options.utter(text));
     },
+    stop() {
+      options.synth?.cancel();
+    },
+  };
+}
+
+// Speaks what `listen` hands it until the returned cleanup runs, which also empties the queue.
+// The browser's queue is global and outlives the game that filled it: a game ends (unmounts) when
+// the next room's reveal opens, and a line queued in the room just cleared must not be spoken over
+// it (playtest 3, B2).
+export function speakWhile(
+  speech: Speech,
+  listen: (say: (text: string) => void) => () => void,
+): () => void {
+  const off = listen((text) => speech.say(text));
+  return () => {
+    off();
+    speech.stop();
   };
 }
 
@@ -47,4 +66,12 @@ export function browserSpeech(role: Role, enabled: () => boolean): Speech {
     enabled,
     utter: (text) => new SpeechSynthesisUtterance(text),
   });
+}
+
+// Whether an ask is also shown as a caption line. Can't see gets it when spoken lines are off (a
+// silent ask would be lost without trace) or captions are on. Can't hear gets a Desperate face
+// instead (BT1, BT2), and Can't speak gets no words at all (owner, 2026-11-11).
+export function askShownAsLine(role: Role, speechOn: boolean, captionsOn: boolean): boolean {
+  if (role === "blind") return !speechOn || captionsOn;
+  return false;
 }

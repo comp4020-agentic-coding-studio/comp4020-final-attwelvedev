@@ -203,6 +203,19 @@ export function capSparks(gate: number[], fresh: Fx[], now: number): Fx[] {
   });
 }
 
+// Can't see's own hand joining or letting go (ADR 0030), from `you.hand` appearing or going: their
+// frame has no entities to read it from. Its points are in that frame (your figure at 0, 0): `pos`
+// the towed end, `to` the leader's. For Can't see's own frame only, never the room's.
+export const HAND_FX = "hand";
+type Hand = { dir: Vec; leads: boolean; pulling: boolean };
+export function fxOfHand(prev: Hand | undefined, next: Hand | undefined): Fx[] {
+  if ((prev === undefined) === (next === undefined)) return [];
+  const hand = (next ?? prev) as Hand;
+  const me = { x: 0, y: 0 };
+  const ends = hand.leads ? { pos: hand.dir, to: me } : { pos: me, to: hand.dir };
+  return [{ kind: next ? "join" : "unjoin", tone: "ui", targetId: HAND_FX, ...ends }];
+}
+
 export function detectFx(prev: EntityView[], next: EntityView[]): Fx[] {
   if (prev.length === 0) return []; // the first view: everything would look new
   const out: Fx[] = [];

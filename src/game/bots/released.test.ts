@@ -143,8 +143,9 @@ describe("a bot led by a person's hand never lets go of it itself (Task 48)", ()
 // what a bot holds, so the give follows the take (room 4: a Can't-speak bot holds the stethoscope).
 describe("a bot that took a piece of gear hands it over even when a person has the give job (Task 48)", () => {
   const room4 = rooms.find((r) => r.id === "04-the-safe") as (typeof rooms)[0];
-  // the layouts where a bot plays Can't hear or Can't speak and takes the stethoscope
-  for (const people of [[0, 1], [0], [1], [0, 2]] as Seat[][]) {
+  // the layouts where a bot plays Can't hear or Can't speak and takes the stethoscope. With a person
+  // as Can't hear ([0, 1] and [1]) the person takes it: a dial needs a callout they cannot hear (BJ1).
+  for (const people of [[0], [0, 2]] as Seat[][]) {
     it(`room 4, people on seats ${people.join(" and ")}: Can't see ends up holding the stethoscope`, () => {
       const roles: [Role, Role, Role] = ["blind", "deaf", "mute"];
       const humans = new Set<Seat>(people);

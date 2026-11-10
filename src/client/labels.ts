@@ -1,4 +1,5 @@
 import type { EntityView } from "../game/perception.ts";
+import { inReach } from "../game/sim/gear.ts";
 import type { Vec } from "../game/types.ts";
 import { plateAt } from "./render/stations.ts";
 
@@ -25,6 +26,7 @@ export const LABEL_COPY: Record<string, string> = {
   laser: "Laser: a beam that catches you while it's on",
   guard: "Guard: keep out of its sight",
   exit: "Exit: everyone on it ends the room",
+  checkpoint: "Checkpoint: caught after this, you start here",
   dark: "Dark: you can't see here, but you can hear",
   // stations, gear and signals (spec §4.1 labels; the keys' line is ours: the spec named none)
   safe: "Safe: stand on an arrow and press Act to turn the dial",
@@ -42,7 +44,9 @@ export const LABEL_COPY: Record<string, string> = {
   gear: "Gear: walk over it and press Act to pick it up",
   lever: "Lever: while on, keys and bells only play",
   hands: "Hold hands: press Act next to a teammate",
+  canhold: "Space: hold hands", // a free teammate in reach (FR6); "Hold hands" on a phone (HOLD_PHONE)
 };
+const HOLD_PHONE = "Hold hands"; // a phone has no Space key: its Act button does it
 
 // The kinds that are new with the escape-room rooms: labelled in whichever room they first appear,
 // not only the first room (they first appear in room 2).
@@ -62,6 +66,7 @@ export const ESCAPE_KINDS = new Set([
   "lever",
   "gear",
   "hands",
+  "canhold",
   "stationdoor",
   "sequencedoor",
 ]);
@@ -93,6 +98,7 @@ const KIND_OF: Partial<Record<EntityView["kind"], string>> = {
   laser: "laser",
   guard: "guard",
   exit: "exit",
+  checkpoint: "checkpoint",
   gear: "gear",
   hatch: "hatch",
   bell: "bell",
@@ -129,6 +135,9 @@ export function labelsFor(
   only?: ReadonlySet<string>, // label just these kinds (past the first room: the new objects)
   max = Number.POSITIVE_INFINITY, // keep only this many chips: new kinds first, then the nearest
   met?: ReadonlySet<string>,
+  // your seat, for the hold-hands chip on a free teammate in reach (FR6), and whether this is a phone
+  // and what the server says Space does here (`view.act`): the chip shows only when that is "Hold hands" (F4)
+  me?: { seat: number; phone: boolean; act?: string },
 ): Label[] {
   if (!enabled) return [];
   const nearest = new Map<string, { at: Vec; d: number }>();
@@ -160,6 +169,15 @@ export function labelsFor(
     };
     offer(kind, mid);
   }
+  // Space would take a hand: the server says so (it knows gear underfoot or a sill comes first, and that
+  // you are free); the chip goes on the free teammate in reach whose hand it would be
+  const paired = (e: EntityView) => e.holding !== undefined || e.heldBy !== undefined;
+  if (me?.act === "Hold hands") {
+    for (const e of entities) {
+      if (e.kind !== "player" || e.seat === me.seat || paired(e)) continue;
+      if (inReach(near, e.pos) && visible(e.pos)) offer("canhold", e.pos); // `near`: where you are
+    }
+  }
   if (tiles) {
     const x0 = Math.max(0, Math.floor(near.x) - TILE_RADIUS);
     const x1 = Math.floor(near.x) + TILE_RADIUS;
@@ -175,9 +193,14 @@ export function labelsFor(
     }
   }
   const isNew = (kind: string) => met !== undefined && !met.has(kind);
-  return [...nearest]
+  const chips = [...nearest]
     .filter(([kind]) => !only || only.has(kind) || isNew(kind))
     .sort((a, b) => Number(isNew(b[0])) - Number(isNew(a[0])) || a[1].d - b[1].d)
     .slice(0, max)
-    .map(([kind, { at }]) => ({ kind, text: LABEL_COPY[kind] ?? kind, at }));
+    .map(([kind, { at }]) => ({
+      kind,
+      text: kind === "canhold" && me?.phone ? HOLD_PHONE : (LABEL_COPY[kind] ?? kind),
+      at,
+    }));
+  return chips;
 }
