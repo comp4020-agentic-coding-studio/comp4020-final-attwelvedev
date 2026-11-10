@@ -34,8 +34,10 @@ export interface StationBelief {
   symbols: Partial<Record<string, number>>; // a vault: each solved wing's symbol, by its motif
   order: string[] | null; // a vault's order clue, read: the wings' motifs in socket order
   plate: number | null; // the number a braille plate carries for it, as Can't see texted it
+  personListens?: boolean; // a dial: its listener is a person (a late Stop is credited, BP2)
   askedAt?: number; // game ms its ask (read-plate, plate-first, stop-on-click) was first said
   askedTo?: Seat; // the person it asked
+  turns: { tick: number; setting: number }[]; // a dial: its own turns, with the setting before each, for the last TURN_LOG_TICKS
   held: ChannelMessage[]; // a person's digits, held until they have settled (SETTLE_MS)
   plateFrom: number | null; // an earpiece keypad: how many digits it had been sent when it saw the plate read
 }
@@ -57,6 +59,7 @@ export const emptyBelief = (): StationBelief => ({
   marked: [],
   numbers: [],
   held: [],
+  turns: [],
   plateFrom: null,
   changedAt: Number.NEGATIVE_INFINITY,
   rule: null,
@@ -136,6 +139,7 @@ export function beliefFrom(
     marked: [...prior.marked],
     numbers: [...prior.numbers],
     held: [...prior.held],
+    turns: [...prior.turns],
     heard: [...prior.heard],
     symbols: { ...prior.symbols },
   };
@@ -150,6 +154,14 @@ export function beliefFrom(
           b.wire = null;
         }
       }
+      // a dial turned a notch while in sight: log the setting it left (late credit, below)
+      if (o.params?.type === "dial" && prior.shows.length === e.station.shows.length) {
+        const pos = prior.shows.length - 1;
+        const was = prior.shows[pos];
+        if (pos >= 0 && was !== undefined && was !== e.station.shows[pos])
+          b.turns.push({ tick: view.tick, setting: was });
+      }
+      b.turns = b.turns.filter((t) => view.tick - t.tick <= TURN_LOG_TICKS);
       b.shows = [...e.station.shows];
       b.shownAt = view.tick;
     }
@@ -177,9 +189,12 @@ export function beliefFrom(
 // reads it itself. A real safe's number is heard, not seen: the tumbler reaches only a hearing
 // holder of the stethoscope at the safe's back. Can't see, holding it there, says "stop" (a
 // callout, which Can't speak receives): the dial is on the number now.
+export const TURN_LOG_TICKS = 60; // the turner keeps its own turns for the last 3 s
+export const PERSON_TURN_TICKS = 40; // BP1: a person listening gets 2 s a notch
+export const LATE_CREDIT_TICKS = 20; // BP2: a Stop this soon after a turn is for the setting before it
 export const TURN_WAIT_TICKS = 8; // after a turn the turner waits this long for the listener's word
 
-const dial: Decoder = (_view, inbox, b, o, _now, plated) => {
+const dial: Decoder = (_view, inbox, b, o, now, plated) => {
   if (o.params?.teach === true) {
     if (b.shows.length === 2) b.answer = [b.shows[1] === 1 ? (b.shows[0] as number) : null];
     return;
@@ -192,7 +207,14 @@ const dial: Decoder = (_view, inbox, b, o, _now, plated) => {
   );
   // the digits entered so far are on the face; the one being searched for is what was heard
   const answer: (number | null)[] = [...b.shows.slice(0, pos), b.answer[pos] ?? null];
-  if (word) answer[pos] = setting;
+  if (word) {
+    // a person's Stop is late: one that comes soon after a turn is for the setting that turn left
+    // (the bot's own log of its turns, nothing of the simulation: ADR 0018)
+    const turn = b.personListens
+      ? [...b.turns].reverse().find((t) => now - t.tick < LATE_CREDIT_TICKS)
+      : undefined;
+    answer[pos] = turn ? turn.setting : setting;
+  }
   // the digit a braille plate carries has no tumbler: Can't see reads it and texts it (Task 74)
   if (plated !== undefined) {
     for (const m of inbox) {
@@ -508,6 +530,7 @@ export function vaultStep(o: RoomObject, b: StationBelief): Vec | null {
 // every key stood on, and turns on its "1"; the others turn when they read the "1". A miss starts
 // the count again after a pause.
 export const COUNT_TICKS = 10;
+export const PERSON_COUNT_TICKS = 20; // BP1: with a person turning a key, a count a person can follow
 const RECOUNT_TICKS = 60;
 export interface Count {
   n: number; // the digit last said
@@ -520,10 +543,11 @@ export function countStep(
   count: Count | null,
   ready: boolean,
   tick: number,
+  spacing: number = COUNT_TICKS,
 ): { say: number | null; count: Count | null } {
   if (count && count.n === 1 && tick - count.at < RECOUNT_TICKS) return { say: null, count };
   if (count && count.n > 1) {
-    if (tick - count.at < COUNT_TICKS) return { say: null, count };
+    if (tick - count.at < spacing) return { say: null, count };
     return { say: count.n - 1, count: { n: count.n - 1, at: tick } };
   }
   return ready ? { say: 3, count: { n: 3, at: tick } } : { say: null, count: null };

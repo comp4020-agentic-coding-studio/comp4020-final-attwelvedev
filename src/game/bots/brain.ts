@@ -28,6 +28,7 @@ import {
   beliefFrom,
   bellsStep,
   bellToMark,
+  COUNT_TICKS,
   type Count,
   countStep,
   DECODERS,
@@ -38,6 +39,8 @@ import {
   emptyEar,
   keypadStep,
   linkedFrom,
+  PERSON_COUNT_TICKS,
+  PERSON_TURN_TICKS,
   radioPad,
   radioToTell,
   readBraille,
@@ -406,6 +409,8 @@ function readStations(
   const admitted: Record<string, ChannelMessage[]> = {};
   for (const o of stations) {
     const prior = known.stations[o.id] ?? emptyBelief();
+    const listener = rolesOf(m, view.role).indexOf("blind");
+    prior.personListens = listener >= 0 && m.humans.has(listener as Seat);
     admitted[o.id] = admit(inbox, prior, o, m.humans, nowMs);
     known.stations[o.id] = beliefFrom(view, admitted[o.id] as ChannelMessage[], o, prior);
   }
@@ -1382,7 +1387,12 @@ function syncCount(
     keys.every((k) =>
       Object.values(m.bodies).some((b) => b && tileOf(b).x === k.x && tileOf(b).y === k.y),
     );
-  const next = countStep(m.count, stood, view.tick);
+  // a person turning a key gets a count they can follow (BP1)
+  const roles = rolesOf(m, view.role);
+  const personTurns = roles.some(
+    (r, s) => s !== m.seat && r !== "blind" && m.humans.has(s as Seat),
+  );
+  const next = countStep(m.count, stood, view.tick, personTurns ? PERSON_COUNT_TICKS : COUNT_TICKS);
   m.count = next.count;
   return next.say;
 }
@@ -1439,7 +1449,9 @@ function pressFor(
     // a real safe's turner gives the listener at its back time to hear each notch
     const b = known.stations[t.id];
     if (o?.params?.type === "dial" && o.params.teach !== true && b) {
-      return tick - b.changedAt < TURN_WAIT_TICKS ? "wait" : "act";
+      // a person listening is given time to hear each notch and say Stop (BP1)
+      const wait = b.personListens ? PERSON_TURN_TICKS : TURN_WAIT_TICKS;
+      return tick - b.changedAt < wait ? "wait" : "act";
     }
     if (o?.params?.type !== "sync") return "act";
     // the counter turns on its own "1"; the others when they read it (decode.ts: syncGo)

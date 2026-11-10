@@ -66,7 +66,7 @@ export interface BotTurn { input: PlayerInput; send: Outgoing | null; ask?: Ask 
 - **Break check:** drop the `at >= askedAt` filter by script; the "before the ask" tests go red.
 - **Depends on:** phase 02.
 
-### Task 303: A person's pace at the safe and the sync lock (BP1, BP2) — [ ]
+### Task 303: A person's pace at the safe and the sync lock (BP1, BP2) — [x]
 
 - **Behaviour:**
   - **The safe at a person's pace:** when a real (not teaching) dial's listener is a person, the turner waits `PERSON_TURN_TICKS = 40` (2 s) between turns instead of `TURN_WAIT_TICKS`.

@@ -2059,3 +2059,59 @@ describe("a bot asks a person for what it needs (Task 299)", () => {
     expect(asksOf(false)).toEqual([]);
   });
 });
+
+describe("a bot works at a person's pace (Task 303)", () => {
+  // Room 4's Q2: the Can't speak turner at the dial; its notches come this many ticks apart.
+  const gaps = (person: boolean) => {
+    const r = room("04-the-safe");
+    const world = createWorld(r, 1, [...ROLES3]);
+    const humans = new Set<Seat>();
+    const bots: Partial<Record<Seat, BotSeat>> = {};
+    for (const s of [0, 1, 2] as const)
+      bots[s] = { memory: createBotMemory(s, humans, ROLES3), inbox: [] };
+    const cd = { until: {} };
+    const act = () =>
+      botsAct(
+        r,
+        world,
+        ROLES3,
+        bots,
+        cd,
+        world.tick * TICK_MS,
+        () => "Bot",
+        world.tick === 0 ? new Set<Seat>([0, 1, 2]) : new Set<Seat>(),
+      );
+    const there = () => {
+      const p = world.players[0].pos;
+      return Math.floor(p.x) === 23 && Math.floor(p.y) === 1 && world.gear[0]?.heldBy === 0;
+    };
+    while (world.tick < 6000 && !there()) step(world, act().inputs, TICK_MS);
+    expect(there(), "Can't see reached Q2's listen tile").toBe(true);
+    if (person) {
+      delete bots[0];
+      humans.add(0);
+    }
+    const turns: number[] = [];
+    let last = JSON.stringify(world.stations.Q2?.input);
+    const end = world.tick + 600;
+    while (world.tick < end && world.stations.Q2?.solved !== true) {
+      const out = act();
+      if (person) out.inputs[0] = { seq: world.tick + 1, move: { x: 0, y: 0 }, act: false };
+      step(world, out.inputs, TICK_MS);
+      const now = JSON.stringify(world.stations.Q2?.input);
+      if (now !== last) turns.push(world.tick);
+      last = now;
+    }
+    return turns.slice(1).map((t, i) => t - (turns[i] as number));
+  };
+  it("a turner with a person listener turns no faster than every 40 ticks", () => {
+    const g = gaps(true);
+    expect(g.length).toBeGreaterThan(1);
+    expect(Math.min(...g)).toBeGreaterThanOrEqual(40);
+  });
+  it("a bot listener keeps an 8-tick pace", () => {
+    const g = gaps(false);
+    expect(g.length).toBeGreaterThan(1);
+    expect(Math.min(...g)).toBeLessThan(20);
+  });
+});

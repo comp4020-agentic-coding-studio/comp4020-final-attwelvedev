@@ -1301,3 +1301,69 @@ describe("a person's digits and words count only when asked for (BS1-BS3)", () =
     expect(after).toHaveLength(1);
   });
 });
+
+describe("a person's late Stop at the safe (BP2)", () => {
+  const dialObj = {
+    id: "Q1",
+    kind: "station" as const,
+    tiles: [{ x: 4, y: 1 }],
+    visibleTo: [],
+    audibleTo: [],
+    params: {
+      type: "dial",
+      pads: [
+        [3, 1],
+        [5, 1],
+      ],
+      digits: 2,
+    },
+  };
+  const view = { tick: 100, sounds: [], entities: [] } as unknown as RoleView;
+  const stop = [
+    {
+      method: "callout",
+      callout: "stop",
+      from: { seat: 0, role: "blind", nickname: "P" },
+      sentAt: 0,
+    } as ChannelMessage,
+  ];
+  const belief = (now: number): StationBelief => ({
+    ...emptyBelief(),
+    shows: [4, 7],
+    personListens: true,
+    turns: [{ tick: now - 15, setting: 6 }],
+  });
+  it("credits a stop 15 ticks after a turn to the setting before it", () => {
+    const b = belief(100);
+    DECODERS.dial?.(view, stop, b, dialObj, 100);
+    expect(b.answer[1]).toBe(6);
+  });
+  it("credits a stop 25 ticks after a turn to the current setting", () => {
+    const b = belief(100);
+    b.turns = [{ tick: 75, setting: 6 }];
+    DECODERS.dial?.(view, stop, b, dialObj, 100);
+    expect(b.answer[1]).toBe(7);
+  });
+  it("a bot listener's stop is for the current setting however soon after a turn", () => {
+    const b = { ...belief(100), personListens: false };
+    DECODERS.dial?.(view, stop, b, dialObj, 100);
+    expect(b.answer[1]).toBe(7);
+  });
+});
+
+describe("the sync count at a person's pace (BP1)", () => {
+  it("spaces 3, 2, 1 by the given gap: 20 ticks for a person, 10 by default", () => {
+    const say = (gap?: number) => {
+      let count = null as ReturnType<typeof countStep>["count"];
+      const said: number[] = [];
+      for (let t = 0; t < 80; t++) {
+        const r = countStep(count, true, t, gap);
+        count = r.count;
+        if (r.say !== null) said.push(t);
+      }
+      return said.slice(0, 3);
+    };
+    expect(say(20)).toEqual([0, 20, 40]);
+    expect(say()).toEqual([0, COUNT_TICKS, 2 * COUNT_TICKS]);
+  });
+});
