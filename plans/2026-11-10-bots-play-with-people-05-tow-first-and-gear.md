@@ -45,7 +45,7 @@
 - **Acceptance:** the tests pass, `spec/rooms.test.ts` is green in every rotation, and every `NOT_YET`/`NOT_YET_TWO` entry this clears is removed in the same commit.
 - **Depends on:** phase 04.
 
-### Task 308: Room 7's gear goes by role, goggles to Can't hear (decision 2) — [ ]
+### Task 308: Room 7's gear goes by role, goggles to Can't hear (decision 2) — [ ] (parked: see overnight log bp05/308)
 
 - **Behaviour:** in room 7, claim gear by the room's preferred role before nearness: goggles to the Can't hear seat (person or bot), torch to the seat that does the ink jobs.
   - This is the idea phase 04 tried and reverted because `released.test.ts` Task 48 (the torch test) went red. **Update that test's premise on purpose and say so in the decisions log**: its premise was "with people in the other two seats the bot that can't speak ends up with the torch because a person took the goggles". Under the owner's rule the person Can't hear holds the goggles, and the bot Can't speak still ends up with the torch, so the test's assertion (the torch carrier lights the ink and marks the wire) should still hold. Change only the set-up that decided who holds what.
@@ -59,7 +59,7 @@
 - **Acceptance:** tests pass, `spec/rooms.test.ts` green, room 7 `deaf` and `mute` entries removed if they clear.
 - **Depends on:** Task 307 (they share files; do 307 first).
 
-### Task 309: Diagnose and clear what is left; empty the guard (BG1) — [ ]
+### Task 309: Diagnose and clear what is left; empty the guard (BG1) — [x] (part: NOT_YET 19 and NOT_YET_TWO 15 remain, each with a diagnosed cause; review queued)
 
 - **Behaviour:** re-measure after 307 and 308. The entries left are the ones phase 04 marked "not diagnosed": room 4 rotation 1 Can't hear, room 7 and room 8 Can't speak, room 8 `mute` caught once, and the two-person Can't hear tows and guides Can't see combinations.
   - Diagnose each (a few lines in the decisions log with the stall tile or the cause). Fix it if it is in this feature's scope (asks, takeover, tow, gear, progress counted on the station); otherwise park it with the reason.

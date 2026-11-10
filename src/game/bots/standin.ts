@@ -28,7 +28,7 @@ export const SUPPRESSED_SIGNALS: {
     name: "digit text",
     why: "a plate, a keypad's code, the earpiece and the sync count are texted a digit only when asked",
     is: (o) => o.method === "text" && /^\d$/.test(o.text.trim()),
-    askedBy: ["read-plate", "count-turn"],
+    askedBy: ["read-plate", "plate-first", "count-turn"], // (room 8's keypad has an earpiece clue: plate-first)
   },
   {
     name: "x mark",

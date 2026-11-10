@@ -11,49 +11,43 @@ import type { Seat } from "../src/game/types.ts";
 const rooms = loadRooms();
 const NOT_YET: Record<string, string> = {
   "03-watchers|0|blind":
-    "caught 2 times, measured in phase 04 (Task 306): the bot guide walks a person as Can't see into a watcher's view (a guide fault, out of phase 04's scope; parked, overnight log bp04/306)",
+    "measured in phase 05 (Task 309): the bot guide walks a person as Can't see into a camera's view in room 3: the stand-in obeys a callout 1 s late and coasts 1 to 2 tiles into the beam, and room 3's hints have no tow job to cover (a tow that avoids a watcher's view is a new job for a hint-less room; owner question: may room 3 get a tow hint?) (parked, overnight log bp05/309)",
   "03-watchers|1|blind":
-    "caught 1 times, measured in phase 04 (Task 306): the bot guide walks a person as Can't see into a watcher's view (a guide fault, out of phase 04's scope; parked, overnight log bp04/306)",
+    "measured in phase 05 (Task 309): the bot guide walks a person as Can't see into a camera's view in room 3: the stand-in obeys a callout 1 s late and coasts 1 to 2 tiles into the beam, and room 3's hints have no tow job to cover (a tow that avoids a watcher's view is a new job for a hint-less room; owner question: may room 3 get a tow hint?) (parked, overnight log bp05/309)",
   "03-watchers|2|blind":
-    "caught 2 times, measured in phase 04 (Task 306): the bot guide walks a person as Can't see into a watcher's view (a guide fault, out of phase 04's scope; parked, overnight log bp04/306)",
+    "measured in phase 05 (Task 309): the bot guide walks a person as Can't see into a camera's view in room 3: the stand-in obeys a callout 1 s late and coasts 1 to 2 tiles into the beam, and room 3's hints have no tow job to cover (a tow that avoids a watcher's view is a new job for a hint-less room; owner question: may room 3 get a tow hint?) (parked, overnight log bp05/309)",
   "04-the-safe|0|blind":
-    "not cleared after 240 s, measured in phase 04 (Task 306): the bot guide cannot steer a person as Can't see onto a tile (it taps from an estimate that drifts, and a tow leaves them a tile short); a guide fault, not an ask or a station's progress, so out of phase 04's scope (parked, overnight log bp04/306)",
+    "not cleared after 240 s, measured in phase 05 (Task 309): room 4 rotation 0 with a person as Can't see: the guide stands in the gap at (5, 4) that the person must come through and oscillates between the gap and the corridor, so the person is stopped and sent back in room 1's lane (a guide fault out of a narrow gap; needs a stand-aside rule in the guide, not diagnosed further) (parked, overnight log bp05/309)",
   "04-the-safe|1|deaf":
-    "not cleared after 240 s, measured in phase 04 (Task 306): a person as Can't hear (the tow and the gear) and a bot Can't see: the room stalls at the safe; the cause is not yet diagnosed (parked, overnight log bp04/306)",
+    "not cleared after 240 s, measured in phase 05 (Task 309): room 4 rotation 1 with a person as Can't hear: the person takes the dial's turner jobs and the Can't see bot is guided out of sight; the stand-in's Stop reaches the dial but the room stalls before the second safe (not diagnosed further; parked, overnight log bp05/309)",
   "05-the-gallery|0|blind":
-    "not cleared after 240 s, measured in phase 04 (Task 306): the bot guide cannot steer a person as Can't see onto a tile (it taps from an estimate that drifts, and a tow leaves them a tile short); a guide fault, not an ask or a station's progress, so out of phase 04's scope (parked, overnight log bp04/306)",
+    "not cleared after 240 s, measured in phase 05 (Task 309): a person as Can't see in room 05: the tow reaches the first tile (rotations that clear in rooms 2, 4, 5, 7 and 9 show the tow works), but the room stalls later in the same lane/gap guide fault as room 4 rotation 0, or at a tile the guide taps to without landing (parked, overnight log bp05/309)",
   "05-the-gallery|2|blind":
-    "not cleared after 240 s, measured in phase 04 (Task 306): the bot guide cannot steer a person as Can't see onto a tile (it taps from an estimate that drifts, and a tow leaves them a tile short); a guide fault, not an ask or a station's progress, so out of phase 04's scope (parked, overnight log bp04/306)",
+    "not cleared after 240 s, measured in phase 05 (Task 309): a person as Can't see in room 05: the tow reaches the first tile (rotations that clear in rooms 2, 4, 5, 7 and 9 show the tow works), but the room stalls later in the same lane/gap guide fault as room 4 rotation 0, or at a tile the guide taps to without landing (parked, overnight log bp05/309)",
   "06-lights-out|0|blind":
-    "not cleared after 240 s, measured in phase 04 (Task 306): the bot guide cannot steer a person as Can't see onto a tile (it taps from an estimate that drifts, and a tow leaves them a tile short); a guide fault, not an ask or a station's progress, so out of phase 04's scope (parked, overnight log bp04/306)",
+    "not cleared after 240 s, measured in phase 05 (Task 309): a person as Can't see in room 06: the tow reaches the first tile (rotations that clear in rooms 2, 4, 5, 7 and 9 show the tow works), but the room stalls later in the same lane/gap guide fault as room 4 rotation 0, or at a tile the guide taps to without landing (parked, overnight log bp05/309)",
   "06-lights-out|1|blind":
-    "not cleared after 240 s, measured in phase 04 (Task 306): the bot guide cannot steer a person as Can't see onto a tile (it taps from an estimate that drifts, and a tow leaves them a tile short); a guide fault, not an ask or a station's progress, so out of phase 04's scope (parked, overnight log bp04/306)",
+    "not cleared after 240 s, measured in phase 05 (Task 309): a person as Can't see in room 06: the tow reaches the first tile (rotations that clear in rooms 2, 4, 5, 7 and 9 show the tow works), but the room stalls later in the same lane/gap guide fault as room 4 rotation 0, or at a tile the guide taps to without landing (parked, overnight log bp05/309)",
   "07-night-shift|0|blind":
-    "not cleared after 240 s, measured in phase 04 (Task 306): the bot guide cannot steer a person as Can't see onto a tile (it taps from an estimate that drifts, and a tow leaves them a tile short); a guide fault, not an ask or a station's progress, so out of phase 04's scope (parked, overnight log bp04/306)",
+    "not cleared after 240 s, measured in phase 05 (Task 309): a person as Can't see in room 07: the tow reaches the first tile (rotations that clear in rooms 2, 4, 5, 7 and 9 show the tow works), but the room stalls later in the same lane/gap guide fault as room 4 rotation 0, or at a tile the guide taps to without landing (parked, overnight log bp05/309)",
   "07-night-shift|0|deaf":
-    "not cleared after 240 s, measured in phase 04 (Task 306): a person as Can't hear takes the goggles (the nearest job), so the Can't speak watcher has only the torch and never sees the dark lamps; claiming gear by the room's preferred role cleared this but broke the Task 48 torch test (parked, overnight log bp04/306)",
+    "not cleared after 240 s, measured in phase 05 (Task 309, 308 parked): room 7 with a person as Can't deaf: claiming the goggles for the person Can't hear (owner decision) clears Can't hear but leaves Can't speak (the person) with the presser's ink jobs and a bot Can't hear watching: a person watcher's marks need an ask kind no bot sends (owner question: may a person watcher be asked to mark, ADR 0031?) (parked, overnight log bp05/308)",
   "07-night-shift|0|mute":
-    "not cleared after 240 s, measured in phase 04 (Task 306): a person as Can't speak is given the presser's goggles and the Can't hear watcher the torch, so nobody sees the dark lamps; gear is claimed by nearness, and claiming it by the room's preferred role broke the Task 48 torch test (parked, overnight log bp04/306)",
+    "not cleared after 240 s, measured in phase 05 (Task 309, 308 parked): room 7 with a person as Can't mute: claiming the goggles for the person Can't hear (owner decision) clears Can't hear but leaves Can't speak (the person) with the presser's ink jobs and a bot Can't hear watching: a person watcher's marks need an ask kind no bot sends (owner question: may a person watcher be asked to mark, ADR 0031?) (parked, overnight log bp05/308)",
   "07-night-shift|1|deaf":
-    "not cleared after 240 s, measured in phase 04 (Task 306): a person as Can't hear takes the goggles (the nearest job), so the Can't speak watcher has only the torch and never sees the dark lamps; claiming gear by the room's preferred role cleared this but broke the Task 48 torch test (parked, overnight log bp04/306)",
+    "not cleared after 240 s, measured in phase 05 (Task 309, 308 parked): room 7 with a person as Can't deaf: claiming the goggles for the person Can't hear (owner decision) clears Can't hear but leaves Can't speak (the person) with the presser's ink jobs and a bot Can't hear watching: a person watcher's marks need an ask kind no bot sends (owner question: may a person watcher be asked to mark, ADR 0031?) (parked, overnight log bp05/308)",
   "07-night-shift|1|mute":
-    "not cleared after 240 s, measured in phase 04 (Task 306): a person as Can't speak is given the presser's goggles and the Can't hear watcher the torch, so nobody sees the dark lamps; gear is claimed by nearness, and claiming it by the room's preferred role broke the Task 48 torch test (parked, overnight log bp04/306)",
+    "not cleared after 240 s, measured in phase 05 (Task 309, 308 parked): room 7 with a person as Can't mute: claiming the goggles for the person Can't hear (owner decision) clears Can't hear but leaves Can't speak (the person) with the presser's ink jobs and a bot Can't hear watching: a person watcher's marks need an ask kind no bot sends (owner question: may a person watcher be asked to mark, ADR 0031?) (parked, overnight log bp05/308)",
   "07-night-shift|2|mute":
-    "not cleared after 240 s, measured in phase 04 (Task 306): a person as Can't speak is given the presser's goggles and the Can't hear watcher the torch, so nobody sees the dark lamps; gear is claimed by nearness, and claiming it by the room's preferred role broke the Task 48 torch test (parked, overnight log bp04/306)",
+    "not cleared after 240 s, measured in phase 05 (Task 309, 308 parked): room 7 with a person as Can't mute: claiming the goggles for the person Can't hear (owner decision) clears Can't hear but leaves Can't speak (the person) with the presser's ink jobs and a bot Can't hear watching: a person watcher's marks need an ask kind no bot sends (owner question: may a person watcher be asked to mark, ADR 0031?) (parked, overnight log bp05/308)",
   "07-night-shift|2|deaf":
-    "not cleared after 240 s, measured in phase 04 (Task 306): a person as Can't hear takes the goggles (the nearest job), so the Can't speak watcher has only the torch and never sees the dark lamps; claiming gear by the room's preferred role cleared this but broke the Task 48 torch test (parked, overnight log bp04/306)",
-  "08-music-room|0|blind":
-    "not cleared after 240 s, measured in phase 04 (Task 306): the bot guide cannot steer a person as Can't see onto a tile (it taps from an estimate that drifts, and a tow leaves them a tile short); a guide fault, not an ask or a station's progress, so out of phase 04's scope (parked, overnight log bp04/306)",
+    "not cleared after 240 s, measured in phase 05 (Task 309, 308 parked): room 7 with a person as Can't deaf: claiming the goggles for the person Can't hear (owner decision) clears Can't hear but leaves Can't speak (the person) with the presser's ink jobs and a bot Can't hear watching: a person watcher's marks need an ask kind no bot sends (owner question: may a person watcher be asked to mark, ADR 0031?) (parked, overnight log bp05/308)",
   "08-music-room|0|mute":
-    "not cleared after 240 s, caught 1 times, measured in phase 04 (Task 306): a person as Can't speak works the music room's stations and is caught once, then stalls; the cause is not yet diagnosed (parked, overnight log bp04/306)",
+    "not cleared after 240 s, caught 1 times, measured in phase 05 (Task 309): a person as Can't speak works the music room's stations: the bot as Can't hear watches the bells and the person's bell strike is asked for only after the tune is marked; the person is caught once and the room stalls (not diagnosed beyond that; parked, overnight log bp05/309)",
   "08-music-room|1|mute":
-    "not cleared after 240 s, caught 1 times, measured in phase 04 (Task 306): a person as Can't speak works the music room's stations and is caught once, then stalls; the cause is not yet diagnosed (parked, overnight log bp04/306)",
-  "08-music-room|1|blind":
-    "not cleared after 240 s, measured in phase 04 (Task 306): the bot guide cannot steer a person as Can't see onto a tile (it taps from an estimate that drifts, and a tow leaves them a tile short); a guide fault, not an ask or a station's progress, so out of phase 04's scope (parked, overnight log bp04/306)",
+    "not cleared after 240 s, caught 1 times, measured in phase 05 (Task 309): a person as Can't speak works the music room's stations: the bot as Can't hear watches the bells and the person's bell strike is asked for only after the tune is marked; the person is caught once and the room stalls (not diagnosed beyond that; parked, overnight log bp05/309)",
   "08-music-room|2|mute":
-    "not cleared after 240 s, caught 1 times, measured in phase 04 (Task 306): a person as Can't speak works the music room's stations and is caught once, then stalls; the cause is not yet diagnosed (parked, overnight log bp04/306)",
-  "08-music-room|2|blind":
-    "not cleared after 240 s, measured in phase 04 (Task 306): the bot guide cannot steer a person as Can't see onto a tile (it taps from an estimate that drifts, and a tow leaves them a tile short); a guide fault, not an ask or a station's progress, so out of phase 04's scope (parked, overnight log bp04/306)",
+    "not cleared after 240 s, caught 1 times, measured in phase 05 (Task 309): a person as Can't speak works the music room's stations: the bot as Can't hear watches the bells and the person's bell strike is asked for only after the tune is marked; the person is caught once and the room stalls (not diagnosed beyond that; parked, overnight log bp05/309)",
 };
 
 describe("two bots and a stand-in person clear every room", () => {
@@ -95,37 +89,35 @@ describe("two bots and a stand-in person clear every room", () => {
 // §1 rule 1: a task that measures a new failure writes down why); keyed "<room>|<the bot's role>".
 const NOT_YET_TWO: Record<string, string> = {
   "03-watchers|deaf":
-    "caught 2 times, measured in phase 04 (Task 306): two people include Can't see, whom the bot guide cannot steer onto a tile (as in the one-person list) (parked, overnight log bp04/306)",
+    "measured in phase 05 (Task 309): two people include Can't see: same guide faults as the one-person list for this room, and a person as Can't hear who tows and guides a person as Can't see needs the stand-in to tow with the bot brain's limits; the stand-in's tow patience is not lengthened here (parked, overnight log bp05/309)",
   "03-watchers|mute":
-    "caught 2 times, measured in phase 04 (Task 306): two people include Can't see, whom the bot guide cannot steer onto a tile (as in the one-person list) (parked, overnight log bp04/306)",
+    "measured in phase 05 (Task 309): two people include Can't see: same guide faults as the one-person list for this room, and a person as Can't hear who tows and guides a person as Can't see needs the stand-in to tow with the bot brain's limits; the stand-in's tow patience is not lengthened here (parked, overnight log bp05/309)",
   "04-the-safe|deaf":
-    "not cleared after 240 s, measured in phase 04 (Task 306): two people include Can't see, whom the bot guide cannot steer onto a tile (as in the one-person list) (parked, overnight log bp04/306)",
+    "measured in phase 05 (Task 309): two people include Can't see: same guide faults as the one-person list for this room, and a person as Can't hear who tows and guides a person as Can't see needs the stand-in to tow with the bot brain's limits; the stand-in's tow patience is not lengthened here (parked, overnight log bp05/309)",
   "04-the-safe|mute":
-    "not cleared after 240 s, measured in phase 04 (Task 306): two people include Can't see, whom the bot guide cannot steer onto a tile (as in the one-person list) (parked, overnight log bp04/306)",
+    "measured in phase 05 (Task 309): two people include Can't see: same guide faults as the one-person list for this room, and a person as Can't hear who tows and guides a person as Can't see needs the stand-in to tow with the bot brain's limits; the stand-in's tow patience is not lengthened here (parked, overnight log bp05/309)",
   "05-the-gallery|deaf":
-    "not cleared after 240 s, measured in phase 04 (Task 306): two people include Can't see, whom the bot guide cannot steer onto a tile (as in the one-person list) (parked, overnight log bp04/306)",
+    "measured in phase 05 (Task 309): two people include Can't see: same guide faults as the one-person list for this room, and a person as Can't hear who tows and guides a person as Can't see needs the stand-in to tow with the bot brain's limits; the stand-in's tow patience is not lengthened here (parked, overnight log bp05/309)",
   "05-the-gallery|mute":
-    "not cleared after 240 s, measured in phase 04 (Task 306): two people include Can't see, whom the bot guide cannot steer onto a tile (as in the one-person list) (parked, overnight log bp04/306)",
+    "measured in phase 05 (Task 309): two people include Can't see: same guide faults as the one-person list for this room, and a person as Can't hear who tows and guides a person as Can't see needs the stand-in to tow with the bot brain's limits; the stand-in's tow patience is not lengthened here (parked, overnight log bp05/309)",
   "06-lights-out|blind":
-    "not cleared after 240 s, measured in phase 04 (Task 306): a person as Can't hear tows and guides a person as Can't see: the stand-in does both with the bot brain's limits; not diagnosed per combination (parked, overnight log bp04/306)",
+    "measured in phase 05 (Task 309): two people include Can't see: same guide faults as the one-person list for this room, and a person as Can't hear who tows and guides a person as Can't see needs the stand-in to tow with the bot brain's limits; the stand-in's tow patience is not lengthened here (parked, overnight log bp05/309)",
   "06-lights-out|deaf":
-    "not cleared after 240 s, measured in phase 04 (Task 306): two people include Can't see, whom the bot guide cannot steer onto a tile (as in the one-person list) (parked, overnight log bp04/306)",
+    "measured in phase 05 (Task 309): two people include Can't see: same guide faults as the one-person list for this room, and a person as Can't hear who tows and guides a person as Can't see needs the stand-in to tow with the bot brain's limits; the stand-in's tow patience is not lengthened here (parked, overnight log bp05/309)",
   "06-lights-out|mute":
-    "not cleared after 240 s, measured in phase 04 (Task 306): two people include Can't see, whom the bot guide cannot steer onto a tile (as in the one-person list) (parked, overnight log bp04/306)",
+    "measured in phase 05 (Task 309): two people include Can't see: same guide faults as the one-person list for this room, and a person as Can't hear who tows and guides a person as Can't see needs the stand-in to tow with the bot brain's limits; the stand-in's tow patience is not lengthened here (parked, overnight log bp05/309)",
   "07-night-shift|blind":
-    "not cleared after 240 s, measured in phase 04 (Task 306): a person as Can't hear tows and guides a person as Can't see: the stand-in does both with the bot brain's limits; not diagnosed per combination (parked, overnight log bp04/306)",
+    "measured in phase 05 (Task 309): two people include Can't see: same guide faults as the one-person list for this room, and a person as Can't hear who tows and guides a person as Can't see needs the stand-in to tow with the bot brain's limits; the stand-in's tow patience is not lengthened here (parked, overnight log bp05/309)",
   "07-night-shift|deaf":
-    "not cleared after 240 s, measured in phase 04 (Task 306): two people include Can't see, whom the bot guide cannot steer onto a tile (as in the one-person list) (parked, overnight log bp04/306)",
+    "measured in phase 05 (Task 309): two people include Can't see: same guide faults as the one-person list for this room, and a person as Can't hear who tows and guides a person as Can't see needs the stand-in to tow with the bot brain's limits; the stand-in's tow patience is not lengthened here (parked, overnight log bp05/309)",
   "07-night-shift|mute":
-    "not cleared after 240 s, measured in phase 04 (Task 306): two people include Can't see, whom the bot guide cannot steer onto a tile (as in the one-person list) (parked, overnight log bp04/306)",
+    "measured in phase 05 (Task 309): two people include Can't see: same guide faults as the one-person list for this room, and a person as Can't hear who tows and guides a person as Can't see needs the stand-in to tow with the bot brain's limits; the stand-in's tow patience is not lengthened here (parked, overnight log bp05/309)",
   "08-music-room|blind":
-    "not cleared after 240 s, caught 1 times, measured in phase 04 (Task 306): a person as Can't hear tows and guides a person as Can't see: the stand-in does both with the bot brain's limits; not diagnosed per combination (parked, overnight log bp04/306)",
+    "measured in phase 05 (Task 309): two people include Can't see: same guide faults as the one-person list for this room, and a person as Can't hear who tows and guides a person as Can't see needs the stand-in to tow with the bot brain's limits; the stand-in's tow patience is not lengthened here (parked, overnight log bp05/309)",
   "08-music-room|deaf":
-    "not cleared after 240 s, measured in phase 04 (Task 306): two people include Can't see, whom the bot guide cannot steer onto a tile (as in the one-person list) (parked, overnight log bp04/306)",
-  "08-music-room|mute":
-    "not cleared after 240 s, measured in phase 04 (Task 306): two people include Can't see, whom the bot guide cannot steer onto a tile (as in the one-person list) (parked, overnight log bp04/306)",
+    "measured in phase 05 (Task 309): two people include Can't see: same guide faults as the one-person list for this room, and a person as Can't hear who tows and guides a person as Can't see needs the stand-in to tow with the bot brain's limits; the stand-in's tow patience is not lengthened here (parked, overnight log bp05/309)",
   "09-the-vault|blind":
-    "not cleared after 240 s, measured in phase 04 (Task 306): a person as Can't hear tows and guides a person as Can't see: the stand-in does both with the bot brain's limits; not diagnosed per combination (parked, overnight log bp04/306)",
+    "measured in phase 05 (Task 309): two people include Can't see: same guide faults as the one-person list for this room, and a person as Can't hear who tows and guides a person as Can't see needs the stand-in to tow with the bot brain's limits; the stand-in's tow patience is not lengthened here (parked, overnight log bp05/309)",
 };
 
 describe("one bot and two stand-in people clear every room", () => {

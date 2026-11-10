@@ -132,4 +132,77 @@ describe("the stand-in person", () => {
     expect(Math.floor((letGoAt as { x: number }).x)).toBe(23);
     expect(Math.floor((letGoAt as { y: number }).y)).toBe(1);
   });
+
+  // The owner's check (2026-11-11): is a room with a braille plate and a person as Can't see possible with
+  // two bots? Can't see can text (RECEIVES/SENDS), the bot reads a single digit (`readNumber`), and the
+  // `read-plate` ask asks for it. Every plate's number is one digit (a dial setting 0-9, a key 1-9, a
+  // wire 1-4, a plated radio's band: never more than 9), so a one-digit read is enough.
+  it.each(["04", "05", "06", "07", "08", "09"])(
+    "room %s: a stand-in as Can't see reads its plate and texts the digit after read-plate; the bot's belief holds it",
+    (n) => {
+      const room = loadRooms("./rooms").find((r) => r.id.startsWith(n));
+      if (!room) throw new Error(`room ${n} missing`);
+      const plate = room.objects.find((o) => o.kind === "braille");
+      const stationId = String(plate?.params?.for);
+      let asked = false;
+      let said = "";
+      for (const rotation of [0, 1, 2]) {
+        const roles = rolesFor(rotation);
+        const seat = roles.indexOf("blind") as Seat;
+        const humans = new Set<Seat>([seat]);
+        const world = createWorld(room, 1, [...roles]);
+        const bots: Partial<Record<Seat, BotSeat>> = {};
+        for (const x of [0, 1, 2] as const)
+          bots[x] =
+            x === seat
+              ? createStandIn(x, humans, roles)
+              : { memory: createBotMemory(x, humans, roles), inbox: [] };
+        const cooldowns = { until: {} };
+        let asks: readonly never[] = [];
+        const budget = (typeof room.meta.budgetS === "number" ? room.meta.budgetS : 240) * 20;
+        let digits = 0;
+        for (let i = 0; i < budget && world.status !== "cleared"; i++) {
+          const turn = botsAct(
+            room,
+            world,
+            roles,
+            bots,
+            cooldowns,
+            world.tick * TICK_MS,
+            (b) => `Bot ${b}`,
+            new Set<Seat>(i === 0 ? [0, 1, 2] : []),
+            asks,
+          );
+          asks = turn.sentAsks as never[];
+          if (
+            turn.sentAsks.some(
+              (a) => (a.kind === "read-plate" || a.kind === "plate-first") && a.to === seat,
+            )
+          )
+            asked = true; // (room 8's keypad has an earpiece clue: its ask is plate-first)
+          for (const sent of turn.sent)
+            if (
+              sent.from === seat &&
+              sent.message.method === "text" &&
+              /^\d$/.test(sent.message.text)
+            )
+              digits++;
+          step(world, turn.inputs, TICK_MS);
+        }
+        if (digits > 0) said += `${rotation}:${digits} `;
+        // the bots' belief of the plated station holds a digit the person sent
+        const believed = [0, 1, 2]
+          .filter((x) => x !== seat)
+          .map((x) => bots[x as Seat]?.memory.known?.stations[stationId])
+          .some(
+            (b) =>
+              b && (b.plate !== null || b.numbers.length > 0 || b.answer.some((a) => a !== null)),
+          );
+        if (digits > 0)
+          expect(believed, `rotation ${rotation}: the bot's belief of ${stationId}`).toBe(true);
+      }
+      expect(asked, "a read-plate (or plate-first) ask was made of the person").toBe(true);
+      expect(said, "the stand-in texted a digit in at least one rotation").not.toBe("");
+    },
+  );
 });

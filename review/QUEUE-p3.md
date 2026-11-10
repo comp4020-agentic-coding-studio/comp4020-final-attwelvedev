@@ -166,3 +166,24 @@ Open three tabs (or a phone and two tabs), create a lobby in one, join with the 
 - **Screenshots:** none: this review is a playtest, and no new view was added.
 - **A pass looks like:** asks go to the right person, a person's own texts to another person never move a bot's station, and the rooms clear.
 - **What I judged:** in the stand-in harness, two stand-ins with one bot clear 9 of 27 room/seat combinations in rotation 0; one stand-in clears 52 of 81 (see `## Parked` below). Expect rooms 4 to 8 to be hard with a person as Can't see: the bot guide's steering of a person is the main known fault.
+
+### Task 307, 309 and 311 (phase 05): towed as Can't see, and the ask without spoken lines
+
+- **What to look at:** (a) you as Can't see in rooms 4, 7 and 8 (and 2, 5 and 9), two bots: the Can't hear bot should take your hand and lead you onto each plate and the listen tile, and let go on it. (b) You as Can't see with "spoken lines" off and captions off: an ask ("Listen for the click. Say Stop: wheel, Talk, Stop.") now shows as a caption line. (c) Standing still as Can't see: the direction callout is said once and repeated at 3, 6 and 12 s, then the bot is quiet until you move. (d) Room 7 with you as Can't hear: this is **not** done (see Parked below); you will hold the torch, not the goggles.
+- **How to start it locally:** `pnpm build && PORT=8191 INTRO_MS=0 pnpm start:check`, three tabs on `http://localhost:8191`, make a team and start; use the role wheel to pick Can't see in one tab. (`pnpm dev --host` works as for the earlier playtest.)
+- **Screenshots:** none: no new view was added (the ask caption reuses the caption line the Can't speak role already gets).
+- **A pass looks like:** you are led, not tapped, and are put on the tile (not a tile short); asks reach you whatever your speech setting; a standing-still person is not talked at forever; rooms 4, 7 and 8 clear.
+- **What I judged:** in the stand-in harness, a person as Can't see now clears rooms 2, 4 (rotations 1 and 2), 5 (rotation 1), 6 (rotation 2), 7 (rotations 1 and 2), 8 and 9 in every rotation. Not judged: how a real person's drift feels while towed, and the caption copy for Can't see in a real game. Known not to work: room 3 as Can't see (a camera sees the person while a callout is late), room 4 rotation 0 (the guide oscillates at the gap), rooms 5, 6, 7 rotation 0 and the rest listed in `spec/rooms-people.test.ts` with causes.
+
+### Task 310 (phase 05): the takeover clock and held gear
+
+- **What to look at:** you own a gear job and then a station job; the bot takes the station only after 60 s of idleness at the station, not time spent carrying. If you keep gear a bot needs, you get "Pass me the gear: stand beside me and press G." (a new ask, `hand-over-gear`) after 60 s and every 8/16/30 s; the bot never takes it from you.
+- **How to start it locally:** as above, room 4 with you as Can't speak: take the stethoscope and do not hand it on.
+- **Screenshots:** none: the ask is drawn by the same chip path as the other asks.
+- **A pass looks like:** the chip appears after a minute and names one thing to do; handing the gear on clears it.
+- **What I judged:** unit tests only (the gear ask is made after 60 s; no take; a message from you restarts the clock). Not judged: the copy, and whether 60 s of silence while carrying is right.
+
+## Parked (phase 05)
+
+- **Task 308, room 7's goggles to Can't hear:** parked on branch `auto/playtest-3-parked-bp05-task308`. Claiming gear by the role clears room 7 for a person as Can't hear but breaks the Task 48 torch test's premise and leaves a person as Can't speak stalled: a person watcher's marks have no ask a bot can send. **Owner question:** may a person at the goggles (Can't hear) be asked to mark the switches (a new ask kind), or should room 7's hints change so a bot watches for them? Details in `plans/2026-11-07-overnight.md` under `bp05/308`.
+- **Task 309, the guard is not empty:** 19 one-person and 15 two-person entries remain, each with a diagnosed cause in `spec/rooms-people.test.ts`. Owner questions: room 3 needs a tow hint or a different guide rule near a camera; the rest are guide faults (a person passing a one-tile gap, rotation 0) that need a stand-aside rule in the guide.

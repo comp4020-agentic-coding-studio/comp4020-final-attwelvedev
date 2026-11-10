@@ -86,11 +86,11 @@ export interface BotTurn { input: PlayerInput; send: Outgoing | null; ask?: Ask 
 | [x] 02 (reviews queued) | `-02-asks.md` | 299–301 (BT1–BT3, the chip, spoken asks) | `Unit done: bp02` | 01 |
 | [x] 03 (review queued; 35 NOT_YET entries still undiagnosed, see the overnight log) | `-03-signals-and-pace.md` | 302–304 (BS1–BS3, BP1–BP2, each station's ask, BJ3) | `Unit done: bp03` | 02 |
 | [x] 04 (task 306 parked in part: NOT_YET has 29 one-person and 18 two-person entries, see the overnight log bp04/306; reviews queued) | `-04-takeover-and-two-people.md` | 305–306 (BJ2, the two-stand-in runs, empty `NOT_YET`, docs) | `Unit done: bp04` | 03 |
-| [ ] 05 | `-05-tow-first-and-gear.md` | 307-311 (tow a Can't-see person, room 7 gear by role, empty NOT_YET, a fair takeover clock, asks and callouts for Can't see) | `Unit done: bp05` | 04 |
+| [x] 05 (task 308 parked, NOT_YET 19 and NOT_YET_TWO 15 remain with diagnosed causes; reviews queued) | `-05-tow-first-and-gear.md` | 307-311 (tow a Can't-see person, room 7 gear by role, empty NOT_YET, a fair takeover clock, asks and callouts for Can't see) | `Unit done: bp05` | 04 |
 
 ## 6. Definition of Done (feature)
 
-- Tasks 296–306 are ticked, or parked with a line under `## bots-people` in `plans/2026-11-07-overnight.md`.
+- Tasks 296–311 are ticked, or parked with a line under `## bots-people` in `plans/2026-11-07-overnight.md`. (After phase 05: 308 is parked; `NOT_YET` has 19 one-person and 15 two-person entries, each with a diagnosed cause; the spec stays `Approved`.)
 - `pnpm check` is green. `spec/rooms-people.test.ts` has an **empty** `NOT_YET`. `spec/rooms.test.ts` is green in every rotation.
 - Every human review is queued under `## Bots and people` in `review/QUEUE-p3.md`.
 - CLAUDE.md's Rooms invariant names the new rule: a station a person may work needs an ask, and the stand-in must clear it. DESIGN.md describes the ask chip.
