@@ -25,6 +25,13 @@ Open three tabs (or a phone and two tabs), create a lobby in one, join with the 
 
 ## Parked
 
+### Task 306 (part): the stand-in known-failing lists are not empty (bp04)
+
+- **Branch:** `auto/playtest-3-parked-bp04-task306` (the same commit as Task 306 on `auto/playtest-3`: what was fixed is committed there; nothing else was held back).
+- **Why:** the plan's "every `NOT_YET` entry is gone" and the spec's `Built` status. Measured after Task 306: one stand-in, 29 of 81 combinations still fail; two stand-ins with one bot (new), 18 of 27. Most include a person as Can't see: the bot guide steers a person by taps from an estimate that drifts and never lands them on a plate or the listen tile. That is a guide fault, beyond "asks routing and station progress", the scope this task names. Each entry in `spec/rooms-people.test.ts` says its cause, or that it is not yet diagnosed. Tried and reverted (overnight log, bp04/306): claiming gear by the room's preferred role (cleared room 7 with a person as Can't hear, but broke the Task 48 torch test), and a tow that walks past its end (broke room 2).
+- **What it needs from you:** a ruling on the guide: is a person as Can't see steered to a tile by taps (fix the guide's estimate of where they are), or towed by a bot onto the tile? And for room 7: who should carry the goggles when a person takes the nearest gear?
+- **Still worth a look in the morning:** Task 306's playtest under `## Bots and people`.
+
 ### Task 278: the jerk after the intro (B4), did not reproduce
 
 - **Branch:** `auto/playtest-3-parked-p3fix04-task278` (the measurements, kept frames, and the capture scripts `scripts/capture-intro.ts` and `scripts/capture-intro-page.ts`). No fix was made.
@@ -143,3 +150,19 @@ Open three tabs (or a phone and two tabs), create a lobby in one, join with the 
 - **Screenshots:** `review/bp-304-asks-room6-{1280,375}.png` (Can't speak: "Needs: the marked button pressed" on Bot Jinx), `review/bp-304-asks-room8-{1280,375}.png` (Can't hear: "Needs: steering" chip on the Can't see bot), `review/bp-304-asks-room4-{1280,375}.png` (room 4 as Can't see: the ask is spoken, so no chip is on this view).
 - **A pass looks like:** each chip names one thing to do and where it comes from, never a digit; a re-ask holds while you stand at the spot; the Can't see bot stops marching blind when nobody steers it and asks instead.
 - **What I judged:** the chips render at both widths and read clearly. Not judged: the spoken asks in a real three-tab game, how naggy the 8/16/30 s cadence feels, and the Can't see view of room 4 (no chip by design).
+
+### Task 305: a bot takes over a person's idle job (BJ2)
+
+- **What to look at:** you own a station or watch job and do nothing for a minute. The asks repeat; after about 60 s with no progress at the station, a bot that can do the job takes it and says "I'll do this one" (a chip on that bot for 3 s; spoken for Can't see). It does not hand the job back if you start later.
+- **How to start it locally:** `pnpm build && PORT=8191 INTRO_MS=0 pnpm start:check`, open three tabs on `http://localhost:8191`, make a team and start. Play room 6 as Can't speak with two bots: once the radio is solved, stand still instead of pressing the switches. After about 60 s the Can't hear bot walks to the buttons and presses them itself.
+- **Screenshots:** none new. The chip is drawn by the same `labelsFor` path as Task 301's ask chip (`review/bp-301-ask-chip-*.png`) with shorter copy ("I'll do this one", from `ASK_COPY`), so the reviewed layout holds.
+- **A pass looks like:** the takeover comes no sooner than about a minute of doing nothing at the station; the notice is noticed but not alarming; the bot finishes the job; a single press by you resets the minute.
+- **What I judged:** the unit tests (a still person loses room 6's switches after 60 s and gets the notice; a press at 50 s puts it off). Not judged: whether 60 s feels right in play.
+
+### Task 306: two people and one bot (BG1), in a real game
+
+- **What to look at:** the plan's own review: a real playtest of rooms 4, 6 and 8, (a) you with two bots, and (b) two people with one bot. The stand-in is a proxy for a person; this is the check.
+- **How to start it locally:** `pnpm build && PORT=8191 INTRO_MS=0 pnpm start:check`, three tabs on `http://localhost:8191` (two of them people for (b), the third left to a bot), make a team, start, and play rooms 4, 6 and 8 (the room list on the lobby, or play through).
+- **Screenshots:** none: this review is a playtest, and no new view was added.
+- **A pass looks like:** asks go to the right person, a person's own texts to another person never move a bot's station, and the rooms clear.
+- **What I judged:** in the stand-in harness, two stand-ins with one bot clear 9 of 27 room/seat combinations in rotation 0; one stand-in clears 52 of 81 (see `## Parked` below). Expect rooms 4 to 8 to be hard with a person as Can't see: the bot guide's steering of a person is the main known fault.

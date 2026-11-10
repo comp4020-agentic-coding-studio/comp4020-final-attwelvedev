@@ -337,7 +337,9 @@ const keypad: Decoder = (view, _inbox, b, o, now, plated) => {
   // the held key's place in the tune: a slot a radio feeds, or a key a plate carries (rest markers
   // make no note, so the tune heard lacks it either way)
   const slot = slotOf(o) ?? plated ?? null;
-  if (tune) {
+  // a tune heard only in part (a seat that walked off between notes) is not the code: it has as
+  // many notes as the code has keys, less the slot
+  if (tune && tune.length === KEYPAD_LENGTH(o) - (slot === null ? 0 : 1)) {
     const code: (number | null)[] = [...tune];
     if (slot !== null) code.splice(slot, 0, null);
     b.answer = code;

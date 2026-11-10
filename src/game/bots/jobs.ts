@@ -1,6 +1,6 @@
 import { cacheOf, inRect, type Room } from "../rooms/format.ts";
 import { platePart } from "../sim/braille.ts";
-import { canReceive, type Method, type Role, type Seat, type Vec } from "../types.ts";
+import { canReceive, canSend, type Method, type Role, type Seat, type Vec } from "../types.ts";
 import type { StationBelief } from "./decode.ts";
 
 // A room's hints (metadata key `hints`) say what the team has to do, beat by
@@ -399,13 +399,23 @@ export function needs(job: Job, room: Room): Signal[] {
 
 const canReceiveAll = (role: Role, signals: Signal[]) =>
   signals.every((sig) => sig === "none" || canReceive(role, SIGNAL_METHOD[sig]));
+// A sync key's holder who can text is the one who counts (brain.ts: syncCount): it sends the count
+// rather than receiving it, so the text it cannot receive is no bar.
+const fits = (role: Role, job: Job, room: Room) =>
+  canReceiveAll(role, needs(job, room)) ||
+  (job.target.kind === "station" &&
+    room.objects.find((o) => o.id === (job.target as { id: string }).id)?.params?.type === "sync" &&
+    canSend(role, "text"));
 const distance = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
 
 // May a seat of this role do the job at all: eligible, and it can receive what the job needs (BJ1).
 // A takeover (BJ2) re-claims a person's job for the lowest bot seat this holds for.
 export function canDo(role: Role, job: Job, room: Room): boolean {
-  return eligible(role, job) && canReceiveAll(role, needs(job, room));
+  return eligible(role, job) && fits(role, job, room);
 }
+
+const sameWork = (a: Job, b: Job) =>
+  a.target.kind === "station" && b.target.kind === "station" && a.target.id === b.target.id;
 
 // Splits the room's jobs between the three seats, one job per seat per beat, as
 // each seat's queue in beat order. In each beat humans choose first, the job
@@ -450,9 +460,7 @@ export function claimJobs(room: Room, jobs: Job[], seats: SeatInfo[]): Record<Se
       .filter((s) => s.human)
       .sort((a, b) => count(a.seat) - count(b.seat) || a.seat - b.seat);
     for (const who of humans) {
-      const options = left.filter(
-        (j) => eligible(who.role, j) && canReceiveAll(who.role, needs(j, room)),
-      );
+      const options = left.filter((j) => eligible(who.role, j) && fits(who.role, j, room));
       if (options.length === 0) continue;
       const rank = (j: Job) =>
         (who.pos ? distance(who.pos, jobTile(room, j, who.seat)) * 10 : 0) +
@@ -465,6 +473,21 @@ export function claimJobs(room: Room, jobs: Job[], seats: SeatInfo[]): Record<Se
     }
     for (const job of [...left]) {
       const bots = seats.filter((s) => !s.human && free.has(s.seat) && eligible(s.role, job));
+      if (bots.length === 0) continue;
+      const rank = (s: SeatInfo) =>
+        (job.prefer === s.role ? 0 : 1) * 100 + count(s.seat) * 10 + s.seat;
+      give(bots.reduce((a, b) => (rank(b) < rank(a) ? b : a)).seat, job);
+    }
+    // A job no free seat could take (a person who cannot receive its signal left a bot two jobs in
+    // one beat) goes to a bot that has one already, rather than to nobody: the bot does both in turn.
+    for (const job of [...left]) {
+      const bots = seats.filter(
+        (s) =>
+          !s.human &&
+          eligible(s.role, job) &&
+          // two seats' share of one station (a sync lock's two keys) needs two seats
+          !queues[s.seat].some((j) => j.beat === job.beat && sameWork(j, job)),
+      );
       if (bots.length === 0) continue;
       const rank = (s: SeatInfo) =>
         (job.prefer === s.role ? 0 : 1) * 100 + count(s.seat) * 10 + s.seat;

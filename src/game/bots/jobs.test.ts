@@ -696,6 +696,32 @@ describe("a person's jobs and the signals they need", () => {
     }
   }
 
+  // Task 306: room 9 with a person as Can't hear, who can take neither beat-1 dial (a callout):
+  // the second dial went to nobody, and the sync lock's second key with it, so the room stalled.
+  it("09-the-vault with a person as Can't hear: every job is held by someone, a sync key by two seats", () => {
+    const room = shipped.find((r) => r.id.startsWith("09"));
+    if (!room) throw new Error("room 9 missing");
+    for (const roles of orders) {
+      const deafSeat = roles.indexOf("deaf") as Seat;
+      const info = roles.map((role, seat) => ({
+        seat: seat as Seat,
+        role,
+        human: seat === deafSeat,
+      }));
+      const jobs = hintsOf(room);
+      const queues = claimJobs(room, jobs, info);
+      for (const j of jobs.filter((x) => !x.all && x.target.kind !== "keepsake" && !x.cache))
+        expect(
+          ([0, 1, 2] as Seat[]).some((s) => queues[s].includes(j)),
+          `${roles.join("/")}: job ${j.index} is held`,
+        ).toBe(true);
+      const keys = ([0, 1, 2] as Seat[]).filter((s) =>
+        queues[s].some((j) => j.target.kind === "station" && j.target.id === "Q3"),
+      );
+      expect(keys.length, `${roles.join("/")}: two seats turn the sync lock`).toBe(2);
+    }
+  });
+
   it("names each station's signal", () => {
     const room = shipped.find((r) => r.id.startsWith("04"));
     if (!room) throw new Error("room 4 missing");

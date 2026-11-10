@@ -1579,13 +1579,16 @@ function syncCount(
       Object.values(m.bodies).some((b) => b && tileOf(b).x === k.x && tileOf(b).y === k.y),
     );
   // a person turning a key gets a count they can follow (BP1)
-  const roles = rolesOf(m, view.role);
-  const personTurns = roles.some(
-    (r, s) => s !== m.seat && r !== "blind" && m.humans.has(s as Seat),
-  );
+  const personTurns = personTurnsKey(m);
   const next = countStep(m.count, stood, view.tick, personTurns ? PERSON_COUNT_TICKS : COUNT_TICKS);
   m.count = next.count;
   return next.say;
+}
+
+// Does a person other than this bot hold a sync key (any seat but Can't see)?
+function personTurnsKey(m: BotMemory): boolean {
+  const roles = m.roles ?? ROLES;
+  return roles.some((r, s) => s !== m.seat && r !== "blind" && m.humans.has(s as Seat));
 }
 
 // Act or G, pressed once a seat stands where its station, gear or tow job wants it, and let go
@@ -1647,7 +1650,9 @@ function pressFor(
     }
     if (o?.params?.type !== "sync") return "act";
     // the counter turns on its own "1"; the others when they read it (decode.ts: syncGo)
-    const own = m.count?.n === 1 && tick - m.count.at <= 2;
+    // (with a person at a key, on the beat after its "1": they turn when they have read it, BP1)
+    const late = m.humans.size > 0 && personTurnsKey(m) ? PERSON_COUNT_TICKS : 0;
+    const own = m.count?.n === 1 && tick - m.count.at >= late && tick - m.count.at <= late + 2;
     return own || (b !== undefined && syncGo(b, tick)) ? "act" : "wait";
   }
   if (t.kind === "take" || t.kind === "give" || t.kind === "sill") {

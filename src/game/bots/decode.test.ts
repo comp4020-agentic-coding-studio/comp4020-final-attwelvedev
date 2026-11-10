@@ -523,6 +523,22 @@ describe("the keypad decoder", () => {
     expect(b.answer).toEqual([answer[0], null, answer[2]]);
   });
 
+  it("a tune heard in part (one note of it, twice) is not taken as the code (Task 306)", () => {
+    // a seat that walks off between notes hears note 8 on each pass and misses the rest: two
+    // matching "tunes" of one note, where the code has three keys
+    const b = emptyBelief();
+    const v = (tick: number, n?: number): RoleView => ({
+      ...view(false),
+      tick,
+      sounds: n === undefined ? [] : [{ kind: "clue", n, pan: 0, gain: 0.7 }],
+    });
+    DECODERS.keypad?.(v(100, 9), [], b, q, 100 * TICK_MS);
+    DECODERS.keypad?.(v(212, 9), [], b, q, 212 * TICK_MS);
+    DECODERS.keypad?.(v(400), [], b, q, 400);
+    expect(b.answer).toEqual([]);
+    expect(keypadStep(q, b)).toBeNull();
+  });
+
   it("out of earshot of the clue, it never presses a key", () => {
     const { b } = listen(2, "mute", { x: 10, y: 2 });
     expect(b.answer).toEqual([]);

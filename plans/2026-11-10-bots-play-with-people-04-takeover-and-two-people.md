@@ -50,7 +50,7 @@ export interface AskClock { firstAt: number; lastAt: number; count: number; prog
 - **Break check:** set `TAKEOVER_TICKS` to infinity by script; the test goes red.
 - **Depends on:** phase 03.
 
-### Task 306: Two people with one bot; the guard complete; docs (BG1) — [ ]
+### Task 306: Two people with one bot; the guard complete; docs (BG1) — [ ] (part parked: NOT_YET not empty; review queued)
 
 - **Behaviour:** `spec/rooms-people.test.ts` adds two stand-ins with one bot. The bot is in each seat in turn, in one rotation (`rolesFor(0)`). The assertions are the same.
   - Add a unit test that two stand-ins' digit texts to each other don't feed the bot (BS3). This is already guarded by Task 302; this run checks it in context.

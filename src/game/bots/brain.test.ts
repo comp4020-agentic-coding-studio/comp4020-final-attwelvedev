@@ -2346,3 +2346,37 @@ describe("a bot takes over a person's idle job (BJ2, Task 305)", () => {
     );
   });
 });
+
+describe("digits two people text each other never feed a bot's station (BS3, Task 306)", () => {
+  // Room 5's Q3, a keypad whose middle key is on Can't see's plate. People as Can't see (seat 0)
+  // and Can't hear (seat 1) text each other digits; the bot (Can't speak, seat 2) works the keypad.
+  it("the bot's plated keypad takes no digit it did not ask Can't see for", () => {
+    const r = room("05-the-gallery");
+    const humans = new Set<Seat>([0, 1]);
+    const world = createWorld(r, 1, [...ROLES3]);
+    const bot: BotSeat = { memory: createBotMemory(2, humans, ROLES3), inbox: [] };
+    const cd = { until: {} };
+    // the bot is placed by the keypad, where it hears its clue
+    world.players[2].pos = { x: 26.5, y: 4.5 };
+    const chat = (seat: Seat, text: string, at: number): ChannelMessage =>
+      ({
+        method: "text",
+        text,
+        from: { seat, role: ROLES3[seat], nickname: "P" },
+        sentAt: at,
+      }) as ChannelMessage;
+    for (let t = 0; t < 600; t++) {
+      const now = t * TICK_MS;
+      // every second, the two people trade a digit (Can't hear to Can't see, and back)
+      if (t % 20 === 0)
+        bot.inbox.push(chat((t / 20) % 2 === 0 ? 1 : 0, String((t / 20) % 10), now));
+      const out = botsAct(r, world, ROLES3, { 2: bot }, cd, now, () => "Bot");
+      step(world, out.inputs, TICK_MS);
+    }
+    const b = bot.memory.known?.stations.Q3;
+    expect(b, "the bot has a belief of Q3").toBeDefined();
+    // a digit from seat 1 is never one it asked for; seat 0's before the ask are not either
+    expect(b?.numbers ?? [], "no traded digit fed the keypad").toEqual([]);
+    expect(b?.askedTo === undefined || b?.askedTo === 0).toBe(true);
+  });
+});
