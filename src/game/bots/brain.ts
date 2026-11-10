@@ -134,7 +134,9 @@ interface Guide {
   bumped: Vec | null; // a person pushed at something here: until they are clear of it, line them up first
   tapAt: number; // when the guide last asked a person for a tap
   sentFrom: Vec | null; // where they were when last told a direction, to measure their progress
-  nudged: boolean; // they have been told the same direction once more (FR11); reset on a new one
+  nudges: number; // repeats of this direction since it was said or they last made progress (FR11)
+  progressAt: number; // when they last made progress along it (or were told it)
+  progressMark: number; // how far along it they were then, in tiles
 }
 
 // Jobs a seat works where it stands (Act on a part, the gear, a hand): a guide on one parks the
@@ -168,7 +170,8 @@ function perceivedHazards(known: Known, tick: number): ReadonlySet<string> {
 const newNav = (): Nav => ({ key: "", plan: [], i: 0, expect: null });
 const ZERO: Vec = { x: 0, y: 0 };
 const STEP_LEN = (SPEED_TPS * TICK_MS) / 1000;
-const NUDGE_MS = 3000; // a person who has made no progress this long after a direction hears it once more
+const NUDGE_MS = 3000; // a person who has made no progress this long after a direction hears it again (FR11)
+const NUDGE_QUIET_MS = 2000; // and only once nothing has been sent for this long
 const PROGRESS = 0.25; // tiles along the heading that count as progress
 const FLAVOUR_MS = 10_000;
 const MARK_AFTER_MS = 20_000; // a torch carrier at the ink gives the others this long to read it first
@@ -224,7 +227,9 @@ export function createBotMemory(
       bumped: null,
       tapAt: Number.NEGATIVE_INFINITY,
       sentFrom: null,
-      nudged: false,
+      nudges: 0,
+      progressAt: Number.NEGATIVE_INFINITY,
+      progressMark: 0,
     },
     lastClipAt: Number.NEGATIVE_INFINITY,
     blindAt: null,
@@ -1623,24 +1628,35 @@ function guideBlind(
         g.heading = { ...heading };
         g.moving = true;
         g.sentFrom = { ...p };
-        g.nudged = false;
+        g.nudges = 0;
+        g.progressAt = now;
+        g.progressMark = 0;
       }
     }
   }
   void job;
 
-  // a direction is said once (FR10); a person who has made no progress along it for NUDGE_MS hears
-  // it once more, and then nothing until the next turn (FR11)
-  if (
-    !callout &&
-    !tap &&
-    g.moving &&
-    !g.nudged &&
-    now - g.lastSentAt >= NUDGE_MS &&
-    progress(g, p) < PROGRESS
-  ) {
+  // a direction is said once (FR10). A person who makes no progress along it hears it again after
+  // 3 s, 6 s, 12 s, then every 12 s; progress (PROGRESS tiles past the last mark) or a new direction
+  // starts that over, and a repeat waits for 2 s with nothing sent (FR11, as changed on 2026-11-10).
+  // A bot Can't see is nudged once, as before: the stuck rule handles it.
+  let nudgeAt = Number.POSITIVE_INFINITY;
+  if (g.moving && !blindIsBot) {
+    const along = progress(g, p);
+    if (along - g.progressMark >= PROGRESS) {
+      g.progressMark = along;
+      g.progressAt = now;
+      g.nudges = 0;
+    }
+    const gap = NUDGE_MS * 2 ** Math.min(g.nudges, 2);
+    const quiet = Math.max(g.lastSentAt, m.lastFlavourAt) + NUDGE_QUIET_MS;
+    nudgeAt = Math.max(Math.max(g.lastSentAt, g.progressAt) + gap, quiet);
+  } else if (g.moving && g.nudges < 1 && progress(g, p) < PROGRESS) {
+    nudgeAt = g.lastSentAt + NUDGE_MS;
+  }
+  if (!callout && !tap && now >= nudgeAt) {
     callout = WORD[headingWord(g.heading)] as Callout;
-    g.nudged = true;
+    g.nudges++;
   }
   if (callout) {
     g.lastSentAt = now;
@@ -1651,7 +1667,12 @@ function guideBlind(
     g.lastSentAt = now;
     return { method: "text", text: tap };
   }
-  if (now - m.lastFlavourAt >= FLAVOUR_MS && now - g.lastSentAt >= 1000) {
+  // (flavour holds off when a repeat is due within 2 s, so it never pushes the repeat back)
+  if (
+    now - m.lastFlavourAt >= FLAVOUR_MS &&
+    now - g.lastSentAt >= 1000 &&
+    nudgeAt - now >= NUDGE_QUIET_MS
+  ) {
     const situation: Situation = !g.started ? "start" : g.moving ? "moving" : "waiting";
     g.started = true;
     m.lastFlavourAt = now;

@@ -74,7 +74,7 @@ The same shape applies to any `.hud-alert` that appears or goes mid-game (lag, g
 - **Break check:** remove the `seen &&` guard by script; the test goes red.
 - **Depends on:** none.
 
-### Task 282: Repeat nudges with backoff (F3, FR11 changed by the user) — [ ]
+### Task 282: Repeat nudges with backoff (F3, FR11 changed by the user) — [x]
 
 **Finding (confirmed, MEDIUM):**
 - The stuck rule needs `blindIsBot || seen?.blocked || progress >= PROGRESS`, so a person standing still on open floor never triggers it.

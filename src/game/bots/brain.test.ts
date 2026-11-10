@@ -1608,7 +1608,7 @@ describe("cache jobs (ADR 0024)", () => {
   });
 });
 
-describe("a guide says a direction once, and nudges once (FR10-FR11, Task 273)", () => {
+describe("a guide says a direction once, and repeats it with backoff while no progress (FR10-FR11, Tasks 273, 282)", () => {
   const ROLES: [Role, Role, Role] = ["blind", "deaf", "mute"];
   const DIRS: Record<string, { x: number; y: number }> = {
     up: { x: 0, y: -1 },
@@ -1630,6 +1630,7 @@ describe("a guide says a direction once, and nudges once (FR10-FR11, Task 273)",
     grid: string[],
     ticks: number,
     walk: (heard: string | null, pos: Pos, tap: string | null) => Pos,
+    onTick?: (tick: number, memory: ReturnType<typeof createBotMemory>) => void,
   ) => {
     const r = roomWith(grid, {}, { hints: { jobs: [{ beat: 1, goTo: "E", all: true }] } });
     const world = createWorld(r);
@@ -1642,6 +1643,7 @@ describe("a guide says a direction once, and nudges once (FR10-FR11, Task 273)",
       world.players[0].pos = walk(heard, { ...world.players[0].pos }, tap);
       tap = null;
       world.players[1].pos = { ...world.players[0].pos };
+      onTick?.(t, memory);
       const turn = think(r, viewFor(world, 1, "deaf", true), [], memory, t * TICK_MS);
       if (turn.send?.method === "callout") {
         said.push({ word: turn.send.callout, tick: t });
@@ -1662,17 +1664,96 @@ describe("a guide says a direction once, and nudges once (FR10-FR11, Task 273)",
     expect(run.at.x).toBeGreaterThan(15); // and they did walk it
   });
 
-  it("a person standing still is told once more after 3 s, then nothing for 10 s", () => {
-    const run = guided(OPEN, 60 + 60 + 200, (_heard, p) => p);
-    expect(run.said.map((s) => s.word)).toEqual(["right", "right"]);
-    expect((run.said[1]?.tick ?? 0) - (run.said[0]?.tick ?? 0)).toBe(3000 / TICK_MS);
-  });
-
-  it("a person walking against the heading is told once more after 3 s, then nothing", () => {
+  it("a person walking against the heading is told it again after 3 s, then backs off", () => {
     const run = guided(OPEN, 60 + 60 + 200, (heard, p) =>
       heard === null ? p : { x: Math.max(1.5, p.x - 0.02), y: p.y },
     );
-    expect(run.said.map((s) => s.word)).toEqual(["right", "right"]);
+    // 16 s: said at 0, then repeats at 3 s and 9 s (no progress, walking the other way)
+    expect(run.said.map((s) => s.word)).toEqual(["right", "right", "right"]);
+  });
+
+  // FR11 as the user changed it after the review (2026-11-10): repeats back off, 3 s, 6 s, 12 s, then every 12 s
+  const STEPS = 3000 / TICK_MS; // 60 ticks
+  const gaps = (ticks: number[]) => ticks.slice(1).map((t, i) => t - (ticks[i] as number));
+  it("a person who never moves hears the direction again after 3, 6, 12 and 12 s: four repeats in 40 s (Task 282)", () => {
+    const run = guided(OPEN, 40_000 / TICK_MS, (_heard, p) => p);
+    const ticks = run.said.map((s) => s.tick);
+    expect(run.said.every((s) => s.word === "right")).toBe(true);
+    expect(ticks).toHaveLength(5); // the direction, then exactly four repeats
+    const g = gaps(ticks);
+    for (const [i, want] of [STEPS, 2 * STEPS, 4 * STEPS, 4 * STEPS].entries()) {
+      expect(
+        Math.abs((g[i] as number) - want),
+        `gap ${i + 1}: ${g.join(", ")}`,
+      ).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("progress resets the backoff: a person creeping along is not repeated at, and once they stop it starts over at 3 s (Task 282)", () => {
+    // they stand through the 3 s and 6 s repeats (the next would be 12 s away), then creep along the
+    // heading for 20 s, a quarter tile every ~1 s, then stand. (Standing after progress, the stuck rule
+    // says "stop" and the direction again: that word, not a repeat, starts the cadence.)
+    let t = 0;
+    const run = guided(OPEN, 40_000 / TICK_MS, (heard, p) => {
+      t++;
+      return heard && t > 200 && t <= 600 ? along(heard, p, 0.012) : p;
+    });
+    const words = run.said.filter((s) => s.word === "right").map((s) => s.tick);
+    const label = run.said.map((s) => `${s.word}@${s.tick}`).join(", ");
+    expect(
+      words.filter((tick) => tick > 210 && tick <= 600),
+      `creeping: ${label}`,
+    ).toEqual([]);
+    const after = words.filter((tick) => tick > 600);
+    expect(after.length, label).toBeGreaterThanOrEqual(2);
+    expect(
+      Math.abs((after[1] as number) - (after[0] as number) - STEPS),
+      label,
+    ).toBeLessThanOrEqual(1);
+  });
+
+  it("a repeat waits until nothing has been sent for 2 s (Task 282)", () => {
+    // a flavour line goes out at 2.5 s, half a second before the first repeat is due
+    const run = guided(
+      OPEN,
+      10_000 / TICK_MS,
+      (_heard, p) => p,
+      (t, memory) => {
+        if (t === 51) memory.lastFlavourAt = t * TICK_MS;
+      },
+    );
+    const ticks = run.said.map((s) => s.tick);
+    expect(ticks[1], ticks.join(", ")).toBeGreaterThanOrEqual(51 + 2000 / TICK_MS);
+  });
+
+  it("a new heading resets the backoff and is said at once (Task 282)", () => {
+    const L = [
+      "#############",
+      "#2..........#",
+      "#1..........#",
+      "#3..........#",
+      "##########.##",
+      "##########.##",
+      "##########E##",
+      "#############",
+    ];
+    // stand still long enough to back off to 12 s, then walk with the guide
+    let t = 0;
+    const run = guided(L, 1200, (heard, p, tap) => {
+      t++;
+      if (t < 25_000 / TICK_MS) return p;
+      return tap ? along(tap, p, 0.2) : along(heard, p, 0.2);
+    });
+    const down = run.said.find((s) => s.word === "down");
+    expect(down).toBeDefined();
+    // standing at the corner after the turn: the first repeat of "down" comes 3 s later, not 12
+    const s2 = guided(L, 1200, (heard, p, tap) => {
+      if (heard === "down") return p; // freeze once told down
+      return tap ? along(tap, p, 0.2) : along(heard, p, 0.2);
+    });
+    const downs = s2.said.filter((s) => s.word === "down").map((s) => s.tick);
+    expect(downs.length).toBeGreaterThanOrEqual(2);
+    expect(Math.abs((downs[1] as number) - (downs[0] as number) - STEPS)).toBeLessThanOrEqual(1);
   });
 
   it("a turn sends the new word at once, and each word once", () => {
