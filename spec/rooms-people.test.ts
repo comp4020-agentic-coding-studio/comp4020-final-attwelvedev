@@ -20,21 +20,13 @@ const NOT_YET: Record<string, string> = {
     "not cleared after 240 s, measured in phase 04 (Task 306): the bot guide cannot steer a person as Can't see onto a tile (it taps from an estimate that drifts, and a tow leaves them a tile short); a guide fault, not an ask or a station's progress, so out of phase 04's scope (parked, overnight log bp04/306)",
   "04-the-safe|1|deaf":
     "not cleared after 240 s, measured in phase 04 (Task 306): a person as Can't hear (the tow and the gear) and a bot Can't see: the room stalls at the safe; the cause is not yet diagnosed (parked, overnight log bp04/306)",
-  "04-the-safe|1|blind":
-    "not cleared after 240 s, measured in phase 04 (Task 306): the bot guide cannot steer a person as Can't see onto a tile (it taps from an estimate that drifts, and a tow leaves them a tile short); a guide fault, not an ask or a station's progress, so out of phase 04's scope (parked, overnight log bp04/306)",
-  "04-the-safe|2|blind":
-    "not cleared after 240 s, measured in phase 04 (Task 306): the bot guide cannot steer a person as Can't see onto a tile (it taps from an estimate that drifts, and a tow leaves them a tile short); a guide fault, not an ask or a station's progress, so out of phase 04's scope (parked, overnight log bp04/306)",
   "05-the-gallery|0|blind":
-    "not cleared after 240 s, measured in phase 04 (Task 306): the bot guide cannot steer a person as Can't see onto a tile (it taps from an estimate that drifts, and a tow leaves them a tile short); a guide fault, not an ask or a station's progress, so out of phase 04's scope (parked, overnight log bp04/306)",
-  "05-the-gallery|1|blind":
     "not cleared after 240 s, measured in phase 04 (Task 306): the bot guide cannot steer a person as Can't see onto a tile (it taps from an estimate that drifts, and a tow leaves them a tile short); a guide fault, not an ask or a station's progress, so out of phase 04's scope (parked, overnight log bp04/306)",
   "05-the-gallery|2|blind":
     "not cleared after 240 s, measured in phase 04 (Task 306): the bot guide cannot steer a person as Can't see onto a tile (it taps from an estimate that drifts, and a tow leaves them a tile short); a guide fault, not an ask or a station's progress, so out of phase 04's scope (parked, overnight log bp04/306)",
   "06-lights-out|0|blind":
     "not cleared after 240 s, measured in phase 04 (Task 306): the bot guide cannot steer a person as Can't see onto a tile (it taps from an estimate that drifts, and a tow leaves them a tile short); a guide fault, not an ask or a station's progress, so out of phase 04's scope (parked, overnight log bp04/306)",
   "06-lights-out|1|blind":
-    "not cleared after 240 s, measured in phase 04 (Task 306): the bot guide cannot steer a person as Can't see onto a tile (it taps from an estimate that drifts, and a tow leaves them a tile short); a guide fault, not an ask or a station's progress, so out of phase 04's scope (parked, overnight log bp04/306)",
-  "06-lights-out|2|blind":
     "not cleared after 240 s, measured in phase 04 (Task 306): the bot guide cannot steer a person as Can't see onto a tile (it taps from an estimate that drifts, and a tow leaves them a tile short); a guide fault, not an ask or a station's progress, so out of phase 04's scope (parked, overnight log bp04/306)",
   "07-night-shift|0|blind":
     "not cleared after 240 s, measured in phase 04 (Task 306): the bot guide cannot steer a person as Can't see onto a tile (it taps from an estimate that drifts, and a tow leaves them a tile short); a guide fault, not an ask or a station's progress, so out of phase 04's scope (parked, overnight log bp04/306)",
@@ -46,12 +38,8 @@ const NOT_YET: Record<string, string> = {
     "not cleared after 240 s, measured in phase 04 (Task 306): a person as Can't hear takes the goggles (the nearest job), so the Can't speak watcher has only the torch and never sees the dark lamps; claiming gear by the room's preferred role cleared this but broke the Task 48 torch test (parked, overnight log bp04/306)",
   "07-night-shift|1|mute":
     "not cleared after 240 s, measured in phase 04 (Task 306): a person as Can't speak is given the presser's goggles and the Can't hear watcher the torch, so nobody sees the dark lamps; gear is claimed by nearness, and claiming it by the room's preferred role broke the Task 48 torch test (parked, overnight log bp04/306)",
-  "07-night-shift|1|blind":
-    "not cleared after 240 s, measured in phase 04 (Task 306): the bot guide cannot steer a person as Can't see onto a tile (it taps from an estimate that drifts, and a tow leaves them a tile short); a guide fault, not an ask or a station's progress, so out of phase 04's scope (parked, overnight log bp04/306)",
   "07-night-shift|2|mute":
     "not cleared after 240 s, measured in phase 04 (Task 306): a person as Can't speak is given the presser's goggles and the Can't hear watcher the torch, so nobody sees the dark lamps; gear is claimed by nearness, and claiming it by the room's preferred role broke the Task 48 torch test (parked, overnight log bp04/306)",
-  "07-night-shift|2|blind":
-    "not cleared after 240 s, measured in phase 04 (Task 306): the bot guide cannot steer a person as Can't see onto a tile (it taps from an estimate that drifts, and a tow leaves them a tile short); a guide fault, not an ask or a station's progress, so out of phase 04's scope (parked, overnight log bp04/306)",
   "07-night-shift|2|deaf":
     "not cleared after 240 s, measured in phase 04 (Task 306): a person as Can't hear takes the goggles (the nearest job), so the Can't speak watcher has only the torch and never sees the dark lamps; claiming gear by the room's preferred role cleared this but broke the Task 48 torch test (parked, overnight log bp04/306)",
   "08-music-room|0|blind":
@@ -66,8 +54,6 @@ const NOT_YET: Record<string, string> = {
     "not cleared after 240 s, caught 1 times, measured in phase 04 (Task 306): a person as Can't speak works the music room's stations and is caught once, then stalls; the cause is not yet diagnosed (parked, overnight log bp04/306)",
   "08-music-room|2|blind":
     "not cleared after 240 s, measured in phase 04 (Task 306): the bot guide cannot steer a person as Can't see onto a tile (it taps from an estimate that drifts, and a tow leaves them a tile short); a guide fault, not an ask or a station's progress, so out of phase 04's scope (parked, overnight log bp04/306)",
-  "09-the-vault|0|blind":
-    "not cleared after 240 s, caught 1 times, measured in phase 04 (Task 306): the bot guide cannot steer a person as Can't see onto a tile (it taps from an estimate that drifts, and a tow leaves them a tile short); a guide fault, not an ask or a station's progress, so out of phase 04's scope (parked, overnight log bp04/306)",
 };
 
 describe("two bots and a stand-in person clear every room", () => {
@@ -140,10 +126,6 @@ const NOT_YET_TWO: Record<string, string> = {
     "not cleared after 240 s, measured in phase 04 (Task 306): two people include Can't see, whom the bot guide cannot steer onto a tile (as in the one-person list) (parked, overnight log bp04/306)",
   "09-the-vault|blind":
     "not cleared after 240 s, measured in phase 04 (Task 306): a person as Can't hear tows and guides a person as Can't see: the stand-in does both with the bot brain's limits; not diagnosed per combination (parked, overnight log bp04/306)",
-  "09-the-vault|deaf":
-    "caught 1 times, measured in phase 04 (Task 306): two people include Can't see, whom the bot guide cannot steer onto a tile (as in the one-person list) (parked, overnight log bp04/306)",
-  "09-the-vault|mute":
-    "not cleared after 240 s, measured in phase 04 (Task 306): two people include Can't see, whom the bot guide cannot steer onto a tile (as in the one-person list) (parked, overnight log bp04/306)",
 };
 
 describe("one bot and two stand-in people clear every room", () => {

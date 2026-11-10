@@ -27,7 +27,7 @@
 
 **Order of work: 311, 307, 308, 310, 309.** The numbers are only labels. Do 311 first (small, and the owner cannot playtest without it), and 309 last (it re-measures and empties the guard). If budget runs short, park the later ones with the reason; never weaken a test to finish. This unit runs on Sonnet: park what is beyond you rather than guess.
 
-### Task 307: Tow a person as Can't see onto each tile (BJ3, decision 1) — [ ]
+### Task 307: Tow a person as Can't see onto each tile (BJ3, decision 1) — [x] (part: room 3 watchers and rooms 5, 6, 8 rotations remain in NOT_YET, see overnight log bp05/307 and 309)
 
 - **Behaviour:**
   - **Measure first.** Run `pnpm vitest run spec/rooms-people.test.ts` with only the `blind` entries removed from `NOT_YET` (and the `*|blind`/two-person entries that name Can't see). Log which rooms/rotations clear and which stall, and the stall tile.

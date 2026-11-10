@@ -475,8 +475,10 @@ function readStations(
   const figures = view.entities.filter((e) => e.kind === "player" && e.seat !== undefined);
   for (const f of figures) {
     const seat = f.seat as Seat;
-    if (f.heldBy !== undefined) known.holding[seat] = f.heldBy;
-    else if (f.holding === undefined) delete known.holding[seat];
+    if (f.heldBy !== undefined) {
+      known.holding[seat] = f.heldBy;
+      known.led = { ...known.led, [f.heldBy]: true };
+    } else if (f.holding === undefined) delete known.holding[seat];
   }
   const hatchAt = (t: Vec) =>
     room.objects.find((o) => o.kind === "hatch" && o.tiles.some((h) => key(h) === key(t)))?.id;
@@ -925,6 +927,29 @@ function sequenceTurn(
   return { n, progress, ready };
 }
 
+// Has the seat a tow leads done its earlier-beat reads and listens (so that leading it on strands nothing)?
+function towedIsReady(
+  room: Room,
+  m: BotMemory,
+  known: Known,
+  tow: Job,
+  at: Vec | undefined,
+): boolean {
+  if (tow.target.kind !== "tow") return true;
+  const towed = known.roles?.indexOf(tow.target.role) ?? -1;
+  if (towed < 0) return true;
+  const queue = queuesOf(room, m, tow.target.role)[towed as Seat];
+  return !queue
+    .slice(m.ptr[towed as Seat])
+    .some(
+      (j) =>
+        j.cache === undefined &&
+        j.beat < tow.beat &&
+        (j.target.kind === "read" || j.target.kind === "listen") &&
+        !isDone(room, j, known, at, towed as Seat),
+    );
+}
+
 // Where a seat is headed: the first job of its queue not yet done, or the exit.
 // A plate it may not step on yet is approached as far as the tile before it.
 function goalFor(
@@ -971,6 +996,11 @@ function goalFor(
   if (!queued) return { goal: lookAtDoor(room, known, from, exitTile(room, seat)), job: queued };
   // gear passes hand to hand in the hints' order: a gear job waits for every earlier one to be done
   if (GEAR_KINDS.has(queued.target.kind) && !gearTurn(room, m, queued, known, own)) {
+    return { goal: from, job: null };
+  }
+  // a tow waits for the seat it leads to finish the reads and listens of earlier beats: leading a person
+  // off a plate they have not read, or a safe they have not heard, would strand the room
+  if (queued.target.kind === "tow" && !towedIsReady(room, m, known, queued, at)) {
     return { goal: from, job: null };
   }
   const worked = workGoal(room, m, queued, known, seat);
@@ -1117,7 +1147,8 @@ function workGoal(room: Room, m: BotMemory, job: Job, known: Known, seat: Seat):
   if (t.kind === "tow") {
     const towed = known.roles?.indexOf(t.role) ?? -1;
     if (towed < 0) return null;
-    if (known.holding?.[towed as Seat] === seat) return t.to;
+    if (known.holding?.[towed as Seat] === seat)
+      return towStand(room, m, known, t.to, towed as Seat);
     const p = m.bodies[towed as Seat];
     // beside them, on the side away from a person standing by them: an Act takes the nearest hand,
     // and it must not be theirs (all-bot crews keep the plain nearest side)
@@ -1127,6 +1158,32 @@ function workGoal(room: Room, m: BotMemory, job: Job, known: Known, seat: Seat):
     return p ? besideOf(room, known, tileOf(p), m.lastPos, others) : null;
   }
   return null;
+}
+
+// Where the leader of a tow stands to let go. A towed figure is set 0.9 tiles behind its leader along
+// the way the leader faces (sim/gear.ts), so a leader that stops ON the end tile leaves a figure that
+// trailed it a tile short of it, and a wall behind the end tile stops it coming round. The leader goes
+// to the end tile, then steps on to a free neighbour: it now faces away from the end, so the figure
+// is set on the end tile, and the leader lets go there.
+function towStand(room: Room, m: BotMemory, known: Known, to: Vec, towed: Seat): Vec {
+  const me = m.lastPos;
+  const them = m.bodies[towed];
+  if (!me || !them) return to;
+  const mine = tileOf(me);
+  const theirs = tileOf(them);
+  if (theirs.x === to.x && theirs.y === to.y) return mine; // they are on it: let go
+  if (mine.x !== to.x || mine.y !== to.y) return to; // not at the end tile yet
+  const blocked = blockedFor(room, known, to);
+  const motifs = new Set(
+    room.objects.flatMap((o) => cacheOf(o)?.tiles.map((t) => key(t.at)) ?? []),
+  );
+  const free = [
+    { x: to.x + 1, y: to.y },
+    { x: to.x - 1, y: to.y },
+    { x: to.x, y: to.y + 1 },
+    { x: to.x, y: to.y - 1 },
+  ].filter((t) => !blocked(t.x, t.y) && !motifs.has(key(t)));
+  return free[0] ?? to;
 }
 
 // The floor tile next to `tile` nearest `from` (west first on a tie): where to stand to reach it.
@@ -1606,12 +1663,21 @@ function press(
   const tile = tileOf(pos);
   const centred = Math.hypot(pos.x - (tile.x + 0.5), pos.y - (tile.y + 0.5)) < 0.15;
   const goal = job ? workGoal(room, m, job, known, m.seat) : null;
-  const here = centred && goal !== null && goal.x === tile.x && goal.y === tile.y;
+  // (a leader that holds a hand is dragged off the middle of its tile by the figure's tug: a tow
+  // lets go from anywhere on the tile)
+  const leading =
+    job?.target.kind === "tow" &&
+    known.holding[(known.roles?.indexOf(job.target.role) ?? -1) as Seat] === m.seat;
+  const here = (centred || leading) && goal !== null && goal.x === tile.x && goal.y === tile.y;
   // a station seen jammed (FR13) ignores every press: the bot waits the jam out on its tile
   const jammed =
     job?.target.kind === "station" &&
     view.entities.some((e) => e.id === (job.target as { id: string }).id && e.station?.jammed);
-  const pressed = job && here ? (jammed ? "wait" : pressFor(room, m, known, job, view.tick)) : null;
+  // a tow's last stride (towStride): one step on, away from the end tile, sets the figure on it
+  // (no hand is taken while the person it would lead still has a read or a listen to do: towedIsReady)
+  const notYet = job?.target.kind === "tow" && !towedIsReady(room, m, known, job, pos);
+  const pressed =
+    job && here && !notYet ? (jammed ? "wait" : pressFor(room, m, known, job, view.tick)) : null;
   // An Act from a towed seat lets go of the hand that leads it (sim/gear.ts: actOn), so a bot a
   // person is leading never presses one: it waits, and works once they let go. G is unaffected.
   const towed = view.you.hand !== undefined && known.holding[view.you.seat] !== undefined;
@@ -1720,7 +1786,19 @@ function moveSelf(room: Room, view: RoleView, m: BotMemory, known: Known, pos: V
   if (view.role === "deaf" && idleGuide && blindListening(room, m, known, view.role, reckoned)) {
     return follow(room, view, m, known, pos, tile);
   }
-  if (lost) return follow(room, view, m, known, pos, centreOf(tileOf(lost)));
+  if (lost) {
+    // (a person's reckoned place is a guess: go to the tile it is on, as `follow` takes a tile. A bot's
+    // is followed to the centre point, as before)
+    const blindSeat = rolesOf(m, view.role).indexOf("blind");
+    return follow(
+      room,
+      view,
+      m,
+      known,
+      pos,
+      m.humans.has(blindSeat as Seat) ? tileOf(lost) : centreOf(tileOf(lost)),
+    );
+  }
 
   // pushing: stand behind the crate and walk into it until it is where it belongs
   if (job?.target.kind === "push") {
@@ -1872,7 +1950,12 @@ function guideBlind(
   const tile = tileOf(p);
   // while the guide works a station or gear job of its own, the Can't-see seat waits where it is
   const mine = currentJob(room, m, known, view.role, m.seat, p) ?? undefined;
-  const parked = mine !== undefined && WORK_KINDS.has(mine.target.kind);
+  // (a tow waiting for the Can't-see seat to finish a read or a listen first is not work: the guide
+  // is what gets them there)
+  const parked =
+    mine !== undefined &&
+    WORK_KINDS.has(mine.target.kind) &&
+    !(mine.target.kind === "tow" && !towedIsReady(room, m, known, mine, p));
   const { goal, job } = parked
     ? { goal: tile, job: null }
     : goalFor(room, m, b as Seat, "blind", p, known, tile, view);

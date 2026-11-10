@@ -54,6 +54,11 @@ export function createStandIn(
   // an ask is heard late like a message: it counts once it has been live for the delay
   const liveSince = new Map<AskKind, number>();
   const taps: { due: number; dir: Vec }[] = [];
+  // a Stop is a reaction to a sound (the tumbler): a person says it about a second after hearing it,
+  // which is what the bot's late credit (BP2) is for. One is held at a time.
+  let stopDue: number | null = null;
+  // what a person has read and not yet been asked to send (a plate's digits): remembered, sent when asked
+  const kept: Outgoing[] = [];
   return {
     memory: createBotMemory(seat, humans, roles),
     inbox: [],
@@ -86,14 +91,36 @@ export function createStandIn(
         for (const kind of [...liveSince.keys()])
           if (!asks.some((a) => a.kind === kind)) liveSince.delete(kind);
         for (const a of asks) if (!liveSince.has(a.kind)) liveSince.set(a.kind, now);
+        if (stopDue !== null && now >= stopDue) {
+          stopDue = null;
+          return { method: "callout", callout: "stop" };
+        }
+        const first = kept[0];
+        const keptHeld = first ? SUPPRESSED_SIGNALS.find((s) => s.is(first)) : undefined;
+        if (
+          first &&
+          keptHeld?.askedBy.some(
+            (k) =>
+              now - (liveSince.get(k) ?? Number.POSITIVE_INFINITY) >= STANDIN_DELAY_TICKS * TICK_MS,
+          )
+        ) {
+          // (the kept signal waits a turn if the bot has something else to send)
+          if (!send) return kept.shift() as Outgoing;
+        }
         if (!send) return send;
         const held = SUPPRESSED_SIGNALS.find((s) => s.is(send));
         if (!held) return send;
-        const asked = held.askedBy.some(
-          (k) =>
-            now - (liveSince.get(k) ?? Number.POSITIVE_INFINITY) >= STANDIN_DELAY_TICKS * TICK_MS,
-        );
-        return asked ? send : null;
+        if (held.name === "stop callout") {
+          const asked = held.askedBy.some(
+            (k) =>
+              now - (liveSince.get(k) ?? Number.POSITIVE_INFINITY) >= STANDIN_DELAY_TICKS * TICK_MS,
+          );
+          if (!asked) return null;
+          stopDue ??= now + STANDIN_DELAY_TICKS * TICK_MS;
+          return null;
+        }
+        kept.push(send);
+        return null;
       },
     },
   };

@@ -50,6 +50,7 @@ export interface Known {
   stations: Record<string, StationBelief>; // what it has worked out of each station (decode.ts)
   gear: Record<string, { at: Vec | null; heldBy: Seat | null; sill: string | null }>;
   holding: Partial<Record<Seat, Seat>>; // towed seat -> leader
+  led?: Partial<Record<Seat, true>>; // seats seen leading someone by the hand (a tow's end counts only after)
   roles?: readonly [Role, Role, Role]; // who is what, so a give job knows its seat
   doorOpen: Record<string, boolean>;
   pressed: Record<string, boolean>;
@@ -575,13 +576,13 @@ export function isDone(
       return known.gear?.[job.target.gear]?.heldBy === known.roles?.indexOf(job.target.to);
     case "sill":
       return known.gear?.[job.target.gear]?.sill === job.target.hatch;
-    case "tow":
-      return (
-        at !== undefined &&
-        Math.abs(at.x - (job.target.to.x + 0.5)) < 0.5 &&
-        Math.abs(at.y - (job.target.to.y + 0.5)) < 0.5 &&
-        Object.keys(known.holding ?? {}).length === 0
-      );
+    case "tow": {
+      // done once the leader stands on the end tile, or (having led someone by the hand) on the tile
+      // beyond it, where it stops so that the figure it led stands ON the end (towStand, brain.ts)
+      if (at === undefined || Object.keys(known.holding ?? {}).length !== 0) return false;
+      const d = Math.hypot(at.x - (job.target.to.x + 0.5), at.y - (job.target.to.y + 0.5));
+      return d < 0.5 || (d <= 1.2 && (seat === undefined || known.led?.[seat] === true));
+    }
   }
 }
 

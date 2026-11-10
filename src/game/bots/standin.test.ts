@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { ChannelMessage } from "../channels.ts";
+import { rolesFor } from "../crew.ts";
 import { loadRooms } from "../rooms/load.ts";
-import { TICK_MS } from "../sim/world.ts";
-import type { Role } from "../types.ts";
+import { step } from "../sim/step.ts";
+import { createWorld, TICK_MS } from "../sim/world.ts";
+import type { Role, Seat } from "../types.ts";
+import { createBotMemory } from "./brain.ts";
+import { type BotSeat, botsAct } from "./crew.ts";
 import { solveRoom } from "./solve.ts";
 import { createStandIn, STANDIN_DELAY_TICKS } from "./standin.ts";
 
@@ -40,20 +44,36 @@ describe("the stand-in person", () => {
     expect(person?.speak(chat, 0, [])).toEqual(chat);
   });
 
-  it("sends a suppressed signal only after an ask of its kind has been live for the delay", () => {
+  it("sends a Stop only after an ask of its kind has been live for the delay, and then a reaction late", () => {
     const person = createStandIn(0, new Set([0]), ROLES).person;
     const stop = { method: "callout", callout: "stop" } as const;
     const ask = [{ kind: "stop-on-click", from: 2, to: 0 }] as const;
+    const delay = STANDIN_DELAY_TICKS * TICK_MS;
     expect(person?.speak(stop, 1000, ask)).toBeNull(); // just asked
-    expect(person?.speak(stop, 1000 + (STANDIN_DELAY_TICKS - 1) * TICK_MS, ask)).toBeNull();
-    expect(person?.speak(stop, 1000 + STANDIN_DELAY_TICKS * TICK_MS, ask)).toEqual(stop);
+    expect(person?.speak(stop, 1000 + delay - TICK_MS, ask)).toBeNull();
+    // the ask is live: the sound is heard, and the Stop follows a reaction later (BP2's late credit)
+    expect(person?.speak(stop, 1000 + delay, ask)).toBeNull();
+    expect(person?.speak(null, 1000 + 2 * delay - TICK_MS, ask)).toBeNull();
+    expect(person?.speak(null, 1000 + 2 * delay, ask)).toEqual(stop);
     // a different kind of ask does not unlock it, and the ask ending takes it away again
     const other = [{ kind: "read-plate", from: 2, to: 0 }] as const;
     expect(person?.speak(stop, 9000, other)).toBeNull();
-    expect(person?.speak(stop, 9000 + STANDIN_DELAY_TICKS * TICK_MS, [])).toBeNull();
+    expect(person?.speak(null, 9000 + 3 * delay, other)).toBeNull();
+    expect(person?.speak(stop, 20000 + delay, [])).toBeNull();
   });
 
-  it("solveRoom without stand-ins is unchanged, and with one the safe room does not clear", () => {
+  it("a digit read before it was asked for is kept and sent once the ask has been live for the delay", () => {
+    const person = createStandIn(0, new Set([0]), ROLES).person;
+    const digit = { method: "text", text: "7" } as const;
+    const ask = [{ kind: "read-plate", from: 2, to: 0 }] as const;
+    const delay = STANDIN_DELAY_TICKS * TICK_MS;
+    expect(person?.speak(digit, 0, [])).toBeNull(); // read, not asked for: kept
+    expect(person?.speak(null, 1000, ask)).toBeNull(); // just asked
+    expect(person?.speak(null, 1000 + delay, ask)).toEqual(digit);
+    expect(person?.speak(null, 1000 + delay + TICK_MS, ask)).toBeNull(); // sent once
+  });
+
+  it("solveRoom without stand-ins is unchanged, and with one the safe room clears by an ask", () => {
     const rooms = loadRooms("./rooms");
     const r1 = rooms.find((r) => r.id.startsWith("01"));
     if (!r1) throw new Error("room 1 missing");
@@ -63,7 +83,53 @@ describe("the stand-in person", () => {
     expect(again.ticks).toBe(base.ticks);
     const r4 = rooms.find((r) => r.id.startsWith("04"));
     if (!r4) throw new Error("room 4 missing");
-    const people = solveRoom(r4, ["deaf", "blind", "mute"], 120, { standIns: new Set([1]) });
-    expect(people.cleared, "a person at the safe's back is never told to call stop").toBe(false);
+    // (this said "does not clear" while nothing told a person at the safe's back to call stop; the bot now
+    // asks for it (stop-on-click) and tows them there, so the room clears: overnight log bp05/307)
+    const people = solveRoom(r4, ["deaf", "blind", "mute"], 240, { standIns: new Set([1]) });
+    expect(people.cleared, "a person at the safe's back is asked to call stop, and does").toBe(
+      true,
+    );
+  });
+
+  it("a person as Can't see is towed onto the safe's back (23, 1) in room 4, not left a tile short at (24, 1)", () => {
+    const room = loadRooms("./rooms").find((r) => r.id.startsWith("04"));
+    if (!room) throw new Error("room 4 missing");
+    const roles = rolesFor(1); // (rotation 0 is still in rooms-people's NOT_YET: bp05/307)
+    const seat = roles.indexOf("blind") as Seat;
+    const humans = new Set<Seat>([seat]);
+    const world = createWorld(room, 1, [...roles]);
+    const bots: Partial<Record<Seat, BotSeat>> = {};
+    for (const s of [0, 1, 2] as const)
+      bots[s] =
+        s === seat
+          ? createStandIn(s, humans, roles)
+          : { memory: createBotMemory(s, humans, roles), inbox: [] };
+    const cooldowns = { until: {} };
+    let asks: readonly never[] = [];
+    let held = false;
+    let letGoAt: { x: number; y: number } | null = null;
+    for (let i = 0; i < 1500 && letGoAt === null; i++) {
+      const full = new Set<Seat>(i === 0 ? [0, 1, 2] : []);
+      const turn = botsAct(
+        room,
+        world,
+        roles,
+        bots,
+        cooldowns,
+        world.tick * TICK_MS,
+        (n) => `Bot ${n}`,
+        full,
+        asks,
+      );
+      asks = turn.sentAsks as never[];
+      step(world, turn.inputs, TICK_MS);
+      const now = world.holding[seat] !== undefined;
+      // the first tow of the room ends at the safe's back, east of the flag
+      if (held && !now && world.players[seat].pos.x > 20) letGoAt = { ...world.players[seat].pos };
+      held = now;
+    }
+    expect(letGoAt, "the hand was let go").not.toBeNull();
+    expect(Math.floor((letGoAt as { x: number }).x)).toBe(23);
+    expect(Math.floor((letGoAt as { y: number }).y)).toBe(1);
   });
 });
