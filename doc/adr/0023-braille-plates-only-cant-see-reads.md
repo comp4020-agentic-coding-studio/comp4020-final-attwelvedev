@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed
+accepted (2026-11-11)
 
 The design is `specs/2026-11-05-blind-purpose-and-riddles.md`. Builds on 0007 (per-role
 perception), 0012 (line-of-sight perception), 0017 (balance by presence) and 0018 (perception-only

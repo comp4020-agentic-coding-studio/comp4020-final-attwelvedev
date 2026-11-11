@@ -392,7 +392,7 @@ small map of the old ids: Loading Dock, Don't Blink, Lights Out, Sound Off).
 - [ ] `pnpm build && pnpm start` then `pnpm check` passes
 - [ ] Task 28 done: bots plan only around hazards their role has perceived, and
       no room is cleared by planning from the room file
-- [ ] Tasks 22 and 23 human reviews accepted
+- [x] Tasks 22 and 23 human reviews accepted (accepted by the user 2026-11-11) (Task 23 was cancelled)
 - [ ] Playtest 4 offered to the user (the whole heist), written up in
       `playtests/` with the comms maps as balance evidence, and logged in
       `PROCESS_LOG.md`

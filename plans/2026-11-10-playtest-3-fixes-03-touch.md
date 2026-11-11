@@ -44,7 +44,7 @@ hand?: { dir: Vec; leads: boolean; pulling: boolean }; // dir: a unit step towar
 - **Break check:** by script, add `seat: mate` back into `hand`; test (a) goes red.
 - **Depends on:** none.
 
-### Task 275: Can't see sees the link (FR1, FR4, FR5) — [ ] (review queued)
+### Task 275: Can't see sees the link (FR1, FR4, FR5) — [x] (review accepted by the user 2026-11-11)
 
 - **Behaviour:** on Can't see's frame (no tiles, no entities), while `view.you.hand` is set, draw `drawHold` from your own figure to `pos + dir` (one tile), with the arrow toward the leader:
   - towed: from yourself to the far point
@@ -58,7 +58,7 @@ hand?: { dir: Vec; leads: boolean; pulling: boolean }; // dir: a unit step towar
 - **Acceptance:** the tests pass. Real-canvas screenshots of Can't see towed and leading at 1280 and 375: `review/p3-275-touch-*.png`. **Human review:** it reads as touch; the link is the same as the sighted see; nothing identifies the partner.
 - **Depends on:** Task 274.
 
-### Task 276: Grip and release sounds for the pair only (FR3) — [ ] (review queued)
+### Task 276: Grip and release sounds for the pair only (FR3) — [x] (review accepted by the user 2026-11-11)
 
 - **Behaviour:**
   - On the tick a hold starts, the two seats in the pair each get a `grip` cue (pan 0, gain 1). On the tick it ends, a `release` cue.
@@ -73,7 +73,7 @@ hand?: { dir: Vec; leads: boolean; pulling: boolean }; // dir: a unit step towar
 - **Break check:** by script, send `grip` to every seat; the perception test goes red.
 - **Depends on:** Task 274 (shares the file and the pair helpers).
 
-### Task 277: "Space: hold hands" in reach (FR6) — [ ] (review queued)
+### Task 277: "Space: hold hands" in reach (FR6) — [x] (review accepted by the user 2026-11-11)
 
 - **Behaviour:** for a sighted seat that isn't in a pair, a teammate figure within hand reach (the rule `beside(world, seat)` uses in `gear.ts`) that isn't in a pair gets the label `Space: hold hands` on desktop and `Hold hands` on phone. It obeys the label cap and range. The existing `hands` chip for a figure already holding (`labels.ts:115`) is unchanged.
 - **Files:** `src/client/labels.ts` (a new kind, e.g. `canhold`, with copy in `LABEL_COPY` and added to `ESCAPE_KINDS` if it should show beyond room 1), `src/client/labels.test.ts`, and `Game.tsx` if `labelsFor` needs your own position or pair state, which it has (`near`).

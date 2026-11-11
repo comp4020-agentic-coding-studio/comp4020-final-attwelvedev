@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed
+accepted (2026-11-11)
 
 The design is `specs/2026-11-07-playtests.md`. Builds on 0018 (perception-only bots).
 

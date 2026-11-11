@@ -297,7 +297,7 @@ review/playtest/<run>/
       failure it reports is a real bug, logged and fixed test-first); `pnpm playtest:review <run> --room
       01 --yes` writes a `review.html` the user has read
 - [ ] Every requirement in §2 is covered (see §7)
-- [ ] Every `Human review:` task explicitly accepted by the user
+- [x] Every `Human review:` task explicitly accepted by the user (accepted by the user 2026-11-11)
 - [ ] No item remains in §8
 
 ## 7. Requirements coverage check

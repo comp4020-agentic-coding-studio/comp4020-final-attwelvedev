@@ -234,7 +234,7 @@ slip. Each phase ends committed, green and deployed.
 - [ ] `pnpm check` and `pnpm check:evidence` pass against the local build and against the deployed `*.fly.dev` URL (`APP_URL=https://<app>.fly.dev pnpm check`)
 - [ ] Manually verified: the spec's Phase 4 demo script, steps 1–9, on the deployed app with one phone and two desktops
 - [ ] Every requirement in §2 is covered — see §7
-- [ ] Every `Human review:` task explicitly accepted by the user
+- [x] Every `Human review:` task explicitly accepted by the user (accepted by the user 2026-11-11)
 - [ ] No item remains in §8
 
 ## 7. Requirements coverage check

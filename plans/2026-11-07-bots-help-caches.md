@@ -337,9 +337,9 @@ state to keep in step across send-backs, for no behaviour `currentJob` lacks.
 ## 6. Definition of Done
 
 - [x] Tasks 83 to 87 ticked.
-- [ ] The Task 85 Human review was played and accepted by the user. (review queued)
+- [x] The Task 85 Human review was played and accepted by the user (2026-11-11).
 - [x] `pnpm check` is green.
-- [ ] ADR 0024 accepted, and 0020's status updated. (acceptance queued)
+- [x] ADR 0024 accepted, and 0020's status updated (2026-11-11).
 
 ## 7. Coverage
 

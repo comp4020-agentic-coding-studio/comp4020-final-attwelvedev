@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed
+accepted (2026-11-11)
 
 Amends 0012 (`doc/adr/0012-line-of-sight-perception.md`) for ordinary doors only: their sound has no
 reach limit, and their state is not local to line of sight. Everything else in 0012 stands. A cache's

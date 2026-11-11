@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed
+accepted (2026-11-11)
 
 The design is `specs/2026-11-07-playtests.md`. Reads the evidence of 0027's regression run.
 

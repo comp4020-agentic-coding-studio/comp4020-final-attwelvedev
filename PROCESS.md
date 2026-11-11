@@ -28,4 +28,4 @@ I had been rerunning red checks until green, which hid why they failed. I had th
 
 ## Limits
 
-Can't speak still dominates the keypad. ADRs 0023 and 0028 are `proposed`.
+Can't speak still dominates the keypad; it is not yet rebalanced.

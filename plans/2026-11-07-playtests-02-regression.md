@@ -358,7 +358,7 @@ and the view JSON are written next to the beat shots as `fail-<n>.png` and `fail
 - [x] `pnpm test:unit` passes (it includes `scripts/**/*.test.ts`)
 - [x] `pnpm check` passes against `pnpm start:check` (195 files, 2773 tests)
 - [ ] A full `pnpm playtest` run completed: NOT MET. The default run stops at room 04 (`run:timeout`, the bots stall at the Q2 dial about half the time under autopilot, with or without the input check; `specs/backlog.md`). Rooms 05 to 09 and the heist screen have never run through the full loop. Next: fix or reseed room 04's stall, or let the run skip a stalled room (a restart) and go on.
-- [ ] Task 128's human review accepted by the user (review queued; not yet given)
+- [x] Task 128's human review accepted by the user (2026-11-11)
 - [ ] Tick phase 02 in overview §5 and commit (left open: the full run and the human review above are not done; unticked by auto fixes 6, Task 264)
 
 ## 7. Requirements coverage (this phase)

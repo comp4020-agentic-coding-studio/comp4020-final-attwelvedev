@@ -219,7 +219,7 @@ including through `sendBack`, which does not touch `doorOpen` for ordinary doors
 - [x] Tasks 88 to 91 ticked.
 - [x] The Human reviews in Tasks 89, 90 and 91 accepted. (review queued)
 - [x] `pnpm check` is green.
-- [ ] ADR 0025 accepted.
+- [x] ADR 0025 accepted (2026-11-11).
 
 ## 7. Coverage
 

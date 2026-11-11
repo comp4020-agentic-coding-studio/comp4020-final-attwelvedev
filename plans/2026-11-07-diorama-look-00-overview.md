@@ -350,7 +350,7 @@ export function activeFx( // added by Task 111fx: readonly (Fx & { age: number }
 - [ ] Every requirement in §2 is covered (§7).
 - [ ] Every `Human review:` task (97, 99, 100, 101, 102, 105, 107, 108, 109, 112, 115, 117, 119) is
       explicitly accepted by the user.
-- [ ] ADR 0026's acceptance has been asked for; the status changes only on the user's word.
+- [x] ADR 0026 accepted(accepted by the user 2026-11-11).
 - [ ] Nothing remains in §8.
 
 ## 7. Requirements coverage check

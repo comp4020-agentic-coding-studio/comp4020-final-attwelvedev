@@ -314,8 +314,8 @@ in build order.)
   - room 4's plate read by Can't see, relayed, and the safe opened
   - room 6 cleared through a decoy and the real band
 - [ ] Every requirement in §2 is covered (see §7).
-- [ ] Every `Human review:` task (70, 75, 79, 81) is explicitly accepted by the user.
-- [ ] ADR 0023's acceptance has been asked for; the status changes only on the user's word.
+- [x] Every `Human review:` task (70, 75, 79, 81) is explicitly accepted by the user. (accepted by the user 2026-11-11)
+- [x] ADR 0023 accepted(accepted by the user 2026-11-11).
 - [ ] Nothing remains in §8.
 
 ## 7. Requirements coverage check

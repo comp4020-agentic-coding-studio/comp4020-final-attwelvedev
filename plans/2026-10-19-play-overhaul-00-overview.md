@@ -279,7 +279,7 @@ Phase 04 needs only 01, so it may run before 02–03 if that suits the user.
       callout, line of sight with glass and vent, restart vote declined, comms
       map, versioned leaderboard)
 - [ ] Every requirement in §2 is covered — see §7
-- [ ] Every `Human review:` task explicitly accepted by the user
+- [x] Every `Human review:` task explicitly accepted by the user (accepted by the user 2026-11-11)
 - [ ] ADRs 0011–0016 accepted; `CLAUDE.md` and `DESIGN.md` match the code
 - [ ] No item remains in §8
 

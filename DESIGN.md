@@ -110,7 +110,7 @@ by room (never lilac); the room's `hue` meta picks it, defaulting to rose: `setH
 | `--w-dye-pink`, `--w-dye-mint`, `--w-dye-sky` | The dye pack's splats | built |
 | `--w-sconce` | Decor's light: a picture light's or a sconce's glow, clipped to its own wall face (unused in high contrast) | built |
 
-**Materials** (built, Tasks 104 and 105; ADR 0026 `proposed`): light comes from the north-west, and every tone is a world token mixed toward white or black (`mix` in `src/client/tokens.ts`), so no material brings a colour of its own. The painters are in `src/client/render/materials.ts`: stone flags in four tones with a 1.5 px `--w-seam` groove, a lit lip south-east of it and a faint speckle (boards in rooms 04 and 08, `FLOOR_OF`); a soft `--w-wall-shade` shade (at most 16 %) on the floor at a wall's foot; a wall top graded from its lit north-west corner with a bright lip along its south edge; a wall front darker toward the foot with a 1 px bevel along its top. The backdrop adds a sun glow in the top-left corner (it holds through a pan north or south: the last sky is drawn a few pixels stale until the horizon settles, then repainted), three strata across the cliff, a `--w-ripple` foam line with a white crest where the cliff meets the water, and a still reflection of the slab at 12 %. Floor and wall tiles are painted once into a per-tile **atlas** (`src/client/render/atlas.ts`) at the frame's device scale and copied after, except while the board tips at the start of a room or dusk is blending; `pnpm bench:frame --compare` holds the frame time to the committed baseline. **High contrast draws none of it**: today's flat fills only. Mist, night, cones and labels stay flat.
+**Materials** (built, Tasks 104 and 105; ADR 0026): light comes from the north-west, and every tone is a world token mixed toward white or black (`mix` in `src/client/tokens.ts`), so no material brings a colour of its own. The painters are in `src/client/render/materials.ts`: stone flags in four tones with a 1.5 px `--w-seam` groove, a lit lip south-east of it and a faint speckle (boards in rooms 04 and 08, `FLOOR_OF`); a soft `--w-wall-shade` shade (at most 16 %) on the floor at a wall's foot; a wall top graded from its lit north-west corner with a bright lip along its south edge; a wall front darker toward the foot with a 1 px bevel along its top. The backdrop adds a sun glow in the top-left corner (it holds through a pan north or south: the last sky is drawn a few pixels stale until the horizon settles, then repainted), three strata across the cliff, a `--w-ripple` foam line with a white crest where the cliff meets the water, and a still reflection of the slab at 12 %. Floor and wall tiles are painted once into a per-tile **atlas** (`src/client/render/atlas.ts`) at the frame's device scale and copied after, except while the board tips at the start of a room or dusk is blending; `pnpm bench:frame --compare` holds the frame time to the committed baseline. **High contrast draws none of it**: today's flat fills only. Mist, night, cones and labels stay flat.
 
 **The alarm's dusk set** (built, Task 18): `--dusk-sky-hi`, `--dusk-sky-lo`, `--dusk-water`, `--dusk-water-deep`, `--dusk-wall-top`, `--dusk-wall-front`, `--dusk-wall-shade`, `--dusk-floor`, `--dusk-floor-front` and `--dusk-seam` replace the day colours over about 600 ms while the alarm is on (instant under reduced motion or with no clock). Lasers, role colours and Show items do not change. **High contrast** (built): black sky and water, near-black floor, white walls, and the shell's own set; `setContrast` in `src/client/tokens.ts` swaps the canvas's copy, and dusk steps aside while it is on. The mist is half black. A 3 px outline on interactables is still to draw.
 
@@ -224,7 +224,7 @@ in the same 3/4 world, steel and brass, as quiet as a plate; the UV pool is the 
 Each room has a theme, and its walls carry a little of it: real things you could name, each with a
 job. Why: a room should feel like a place, and a thing you can name is one you will not take for a
 signal. Decor is also drawn in the home feeds (room 01's, for the sighted feeds only). Decided in ADR
-0026 and narrowed by ADR 0029 (both `proposed`).
+0026 and narrowed by ADR 0029 (both accepted).
 
 | Room (theme) | Fronts | Tops |
 |---|---|---|
@@ -253,7 +253,7 @@ signal. Decor is also drawn in the home feeds (room 01's, for the sighted feeds 
   mixed toward the wall, each solid lit on its north-west edges and shaded on its south-east (`litBox`).
   No outline, no motion. `pnpm decor:sheet` draws every look of a room on a wall tile at 1×, 2× and
   3× to `review/decor/`.
-- **The rules** (ADR 0029, `proposed`; they replace the old list of banned shapes):
+- **The rules** (ADR 0029; they replace the old list of banned shapes):
   1. **A job or a theme.** Every item lights, holds, hangs, covers or supports something, or belongs
      to the room's theme. Nothing is there only to fill a wall.
   2. **Never a clue.** No text, numerals, note heads or the motif shapes (moon, star, wave, key, eye,

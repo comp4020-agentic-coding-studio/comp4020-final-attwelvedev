@@ -60,7 +60,7 @@
 - **Break check:** drop `lastSpokeAt` from the window by script; the test goes red.
 - **Depends on:** Task 290.
 
-### Task 292: Alerts don't cover or block the cards under them (review F3) — [ ] (review queued)
+### Task 292: Alerts don't cover or block the cards under them (review F3) — [x] (review accepted by the user 2026-11-11)
 
 **Finding:**
 - `.hud-alerts` (`src/styles/game.css`, about 600–615) is a zero-height layer at `z-index: 5`, with no `pointer-events: none`.

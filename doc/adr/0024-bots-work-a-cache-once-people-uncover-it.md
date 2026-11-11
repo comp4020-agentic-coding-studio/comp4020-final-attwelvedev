@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed
+accepted (2026-11-11)
 
 Supersedes the bots clause of 0020 (`doc/adr/0020-side-jobs-are-hidden-optional-stations.md`):
 "Bots never open, enter, work or take from a chamber". Everything else in 0020, and 0021's way of

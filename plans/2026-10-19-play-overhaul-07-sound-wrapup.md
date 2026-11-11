@@ -122,7 +122,7 @@ under the alarm (it silences the rest, FR9). Settings gains `ambience: boolean`
 - [ ] Every task in §5 is complete and its tests pass
 - [ ] `pnpm test:unit` passes
 - [ ] `pnpm build && pnpm start` then `pnpm check` passes
-- [ ] Tasks 26 and 27 human reviews accepted
+- [x] Tasks 26 and 27 human reviews accepted (accepted by the user 2026-11-11)
 - [ ] Tick this phase in overview §5 and commit
 
 ## 7. Requirements coverage (this phase)

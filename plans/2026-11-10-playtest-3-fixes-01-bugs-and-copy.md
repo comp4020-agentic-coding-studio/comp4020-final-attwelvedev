@@ -48,7 +48,7 @@
 - **Break check:** by script; red.
 - **Depends on:** none.
 
-### Task 268: Phone movement, triage (B5) — [ ] (review queued)
+### Task 268: Phone movement, triage (B5) — [x] (review accepted by the user 2026-11-11)
 
 - **Found:** `pnpm playtest` run `2026-11-10T04-39` showed Move left and right do nothing on the 375 tab in rooms 02 and 03, and Can't see "never showed moving" in room 04. Backlog 2026-11-08 says it passes alone.
 - **Steps:**
@@ -58,7 +58,7 @@
 - **Human review:** the user moves left and right on a real phone in room 02 (`review/QUEUE-p3.md`).
 - **Depends on:** none.
 
-### Task 269: A label for checkpoints (T1) — [ ] (review queued)
+### Task 269: A label for checkpoints (T1) — [x] (review accepted by the user 2026-11-11)
 
 - **Files:** `src/client/labels.ts` (`LABEL_COPY`, `KIND_OF`), `src/client/labels.test.ts`, `DESIGN.md` (if it lists label copy).
 - **Copy:** `checkpoint: "Checkpoint: caught after this, you start here"`. The checkpoint's entity kind is `checkpoint` (`src/game/rooms/format.ts:43`). Confirm the view sends it under that kind before mapping it.

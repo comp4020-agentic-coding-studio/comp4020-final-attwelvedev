@@ -19,7 +19,7 @@ The driver (`overnight/run20.sh`) rebases `auto/playtest-3` onto `origin/main` b
 
 ## Tasks
 
-### Task 279: The restart jerk (B4, re-opened) — [ ] (review queued)
+### Task 279: The restart jerk (B4, re-opened) — [x] (review accepted by the user 2026-11-11)
 
 **Leading hypothesis (from reading the code; confirm it by measuring, don't assume it):**
 - A passed vote's `vote.end` handler (`src/components/Game.tsx`, the restart-vote `useEffect`, about line 1000) calls `setVoteNote(outcomeText(...))` and clears it after **3000 ms**.
@@ -44,7 +44,7 @@ The same shape applies to any `.hud-alert` that appears or goes mid-game (lag, g
 - **Break check:** by script, put `.hud-alert` back in the flow; the spec goes red.
 - **Depends on:** none.
 
-### Task 280: The goal line for the sighted, in the phone's top bar (T3, un-parked) — [ ] (review queued)
+### Task 280: The goal line for the sighted, in the phone's top bar (T3, un-parked) — [x] (review accepted by the user 2026-11-11)
 
 - **Start from the parked commit:** `git cherry-pick 41ba3d4` from `auto/playtest-3-parked-p3fix01-task271`, with `-n`, since you'll amend it. Drop its `PARKED` wording and its `review/QUEUE-p3.md` hunk if it conflicts.
 - **The change:** on a phone width (< 720 px, the same breakpoint the HUD uses), render the sighted line inside `.hud-top`, not as `.hud-hint` under it, so the map frame loses no height. On desktop, keep the `.hud-hint`. Can't see's line is unchanged everywhere.
@@ -124,7 +124,7 @@ The same shape applies to any `.hud-alert` that appears or goes mid-game (lag, g
 - **Break check:** put back the outline-only clamp by script; the unit test goes red.
 - **Depends on:** none.
 
-### Task 285: The radio draws its own range of ticks (F5) — [ ] (review queued)
+### Task 285: The radio draws its own range of ticks (F5) — [x] (review accepted by the user 2026-11-11)
 
 **Finding (confirmed, LOW):**
 - `src/client/render/stations.ts` (about 797) has `const range = 10;` and builds the ticks and `tickX` from it.
@@ -167,7 +167,7 @@ The same shape applies to any `.hud-alert` that appears or goes mid-game (lag, g
 - **Break check:** drop the `act` gate by script; the F4 test goes red. Add a `with: seat` field to Can't see's `you` by script; the F8 test goes red.
 - **Depends on:** none.
 
-### Task 288: A spectator following Can't see sees Can't see's frame (F9, FR4, option b) — [ ] (review queued)
+### Task 288: A spectator following Can't see sees Can't see's frame (F9, FR4, option b) — [x] (review accepted by the user 2026-11-11)
 
 **Finding (confirmed, LOW):**
 - `spectatorView` (`perception.ts` about 1331) never sets `you.hand`.

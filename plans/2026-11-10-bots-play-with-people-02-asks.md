@@ -74,7 +74,7 @@ export function needs(job: Job, room: Room): Signal[];
 - **Break check:** send asks to every seat by script; the perception test goes red.
 - **Depends on:** Task 299.
 
-### Task 301: The chip and the spoken ask (BT1, BT2) — [ ] (review queued)
+### Task 301: The chip and the spoken ask (BT1, BT2) — [x] (review accepted by the user 2026-11-11)
 
 - **Behaviour:**
   - **Client chip:** a label of kind `ask`, with `ASK_COPY[kind].chip`, anchored on the asking bot's figure, for each entry in `view.you.asks`. It's sighted only, because Can't see's frame draws no labels.

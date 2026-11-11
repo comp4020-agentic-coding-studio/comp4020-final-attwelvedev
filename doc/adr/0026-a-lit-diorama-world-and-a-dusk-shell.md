@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed
+accepted (2026-11-11)
 
 This supersedes the "flat-shaded blocks" part of 0016 (`doc/adr/0016-tilted-three-quarter-view.md`). The
 tilted 3/4 view, north up, the island over water and drawing everything in code all stand. The design

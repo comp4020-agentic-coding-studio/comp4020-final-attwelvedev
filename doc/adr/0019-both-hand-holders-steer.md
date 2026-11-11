@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed
+accepted (2026-11-11)
 
 Changes spec FR22 (`specs/2026-10-28-escape-room-heist.md`, "Hold hands: … the leader tows"). The
 spec's own sentence stands; this record changes what "tows" means in the simulation.
