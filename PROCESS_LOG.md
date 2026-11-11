@@ -1691,3 +1691,63 @@ see, drawn from Can't see's own figure, plus a sound only the pair hears ([ADR 0
 Checking the code for it found the server already sends every role its partner's seat (`you.hand`), unread by
 any client: the planned fix replaces it with a direction, and a perception test will fail if a seat leaks
 back in. Both corrections are in `product/2026-11-10-review.md`'s challenge round and in the spec.
+
+## 2026-11-07 — A product-review skill that scores the unbuilt plans, not only new ideas
+
+e31f468
+
+I had the agent turn the Week 11 lecture's six product questions (PRFAQ, five users, RICE, first
+five minutes, one feature, the pitch) into a harness skill that writes to `product/` and feeds the
+backlog, alongside brainstorm, plan and execute. I made three calls on its shape. The browser walk
+asks first, because it is slow and costly. Deadlines are asked about, not assumed, so the skill
+stays reusable after the course. Backlog lines are written automatically, but a repo without a
+backlog gets asked, not a new process.
+
+Two corrections came after I read the first draft. My tutor's Atlassian guide to prioritisation
+frameworks showed RICE was not enough on its own. The lecture itself warns that RICE favours small,
+safe changes, so I had Kano added: missing basics go first whatever their score, and delighters are
+named as the bets RICE buries. MoSCoW is used when there is a deadline, and its won't-haves are
+parked with reasons. The guide's warning that RICE scores drift became a fixed scoring basis. The
+second correction was a question: how does it treat plans not yet built? The honest answer was
+badly. This repo has about twenty unbuilt plans dated today, and the draft would have credited them
+as shipped or proposed them again as new ideas. The obvious fix was to skip planned work. I chose to
+score it in the same RICE table as the new ideas, so the review can say a queued plan should move or
+be dropped. That is the most useful thing a PM can tell me two days before the deadline.
+
+How I'll know it was right: the skill has not been run yet. The first real run on this repo should
+put the queued plans in its Pipeline table with labels I agree with, and suggest at least one
+reorder or cut I would not have made myself.
+
+## 2026-11-07 — The first product review read the puzzles as drift; I corrected it to the challenge
+
+(not yet committed: `product/2026-11-07-review.md`)
+
+The first run of `/product-review` chose a group of friends who rarely play games (Hanna) as the
+customer, then read the last three weeks of station puzzles, caches and braille as the build
+drifting toward a puzzle enthusiast. The obvious response was to accept that and trim the puzzles
+back. I disagreed with the reading. A co-op game needs a challenge, and the challenge here is
+puzzles, chosen because escape-room puzzles are familiar to most people. I tried environment flips
+first (darkness and alarms, FR11 of the first spec), and playtest 1 showed they were too hard: the
+dark area stranded Can't hear. The puzzles are what Hanna plays, not a sign of serving someone else;
+only optional depth (caches, keepsakes) is for the enthusiast. Environment flips are parked for
+later, harder rooms rather than dropped.
+
+The correction kept the review's recommendation and sharpened it: the open question is not whether
+there should be puzzles but whether a group like Hanna's can read rooms 1 to 4 without help, which
+only a human playtest answers. How I'll know: playtest 3 finds no one asking what the goal is or
+calling a role deadweight.
+
+## 2026-11-07 — A backlog line that dropped "with bots" made the review call room 4 impossible
+
+(not yet committed: `product/2026-11-07-review.md`, `specs/backlog.md`)
+
+The product review listed room 4's cache dial as impossible and made fixing or hiding it a Must for
+Monday, at 3 hours. Its only evidence was the 2026-11-05 backlog line, which said "impossible as
+played" and left out that it was only impossible with bots in the crew: people can solve it. The
+obvious response was to fix the review alone. I had the cause fixed too. The Parked line now says
+"with bots in the crew", so the next reader (person or agent) cannot draw the same conclusion, and
+the bots case is already covered by `specs/2026-11-07-bots-help-caches.md`. The review dropped the
+Must, which freed 3 of the 40 hours before the deadline. The lesson for the harness is that a backlog
+line is evidence only for what it states, so it should name the conditions under which it is true.
+How I knew it was right: the Decided section's own line for the same issue already said "with bots
+in the crew"; only the Parked line had lost it.

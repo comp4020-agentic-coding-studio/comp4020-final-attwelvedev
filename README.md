@@ -1,44 +1,30 @@
 # Sensory heist
 
-One player can't see, one can't hear, and one can't speak. They have to communicate well in spite of it to complete the heist together. A redeploy ends games in progress, but heist records persist.
+Three players each lack one channel: one can't see, one can't hear, one can't speak. The rule behind the game is that a missing sense changes who you have to ask, never whether the team can know, so the puzzles are hard because you have to talk, not because information is missing.
 
 ## What good means here
 
-Everyone can perceive everything that happens in a room, at least in a limited way. What Can't see cannot see, they hear, and it is captioned. What Can't hear cannot hear, they see in the same moment. Can't speak sees and hears it all. The players then talk to fill the gaps: a camera switching on makes a noise, but Can't see cannot tell where its cone falls, so the other two must guide them. Nobody is shut out of a fact; they are only made to rely on a teammate.
+Every event has both a sound and a sight, so a player missing one sense can still learn of it through the other, within earshot and line of sight. A camera's sound tells Can't see it is on, but not where its cone is, so the others must guide them. `src/game/types.ts` defines what each role can send and receive ([ADR 0011](doc/adr/0011-channels-by-method.md)).
 
-| Role | Cannot perceive |
-| -- | -- |
-| Can't see | Map, faces, stamps |
-| Can't hear | Voice (and text chat), sounds |
-| Can't speak | n/a |
+This is how the idea is enforced:
 
-**Enforced.**
+- **Parity:** `src/game/parity.test.ts` has one row per sound the game can make (41 today). Exceptions: the alarm, the clue chime and gear, each with its reason in its row. `CLAUDE.md` binds later sessions to it.
+- **Perception:** the server sends each role only what it can perceive, over a WebSocket, since a browser given the map would let Can't see cheat ([ADR 0007](doc/adr/0007-websocket-game-server-with-per-role-perception.md)); `spec/perception.test.ts` checks the raw messages.
+- **Solvability:** perception-only bots clear all nine rooms in every role rotation ([ADR 0018](doc/adr/0018-perception-only-bots-and-paced-rooms.md)); checked by `spec/rooms.test.ts`.
 
-- **Parity.** `src/game/parity.test.ts` has one row per sound the game can make (22 today). Each builds a real situation and checks that Can't see receives the sound, Can't hear sees a change in the same tick, and a caption exists. A sound with no row fails the typecheck. The alarm is the one deliberate exception: it silences the other sounds for those who hear. `CLAUDE.md` binds later agent sessions to the rule.
-- **Perception.** The server sends each role only what it can perceive ([ADR 0007](doc/adr/0007-websocket-game-server-with-per-role-perception.md)); otherwise dev tools would show the map to Can't see. `spec/perception.test.ts` reads the raw messages.
-- **Solvability.** `spec/rooms.test.ts` has three bots, each seeing only its own role's view and talking through the channel router, clear every room in every rotation of roles without being caught. An early room could trap a team behind a door that closed when a player stepped off its plate.
+The brief asks for multi-user, real-time and persistent. Three people join from three browsers, each in a seat of their own ([ADR 0008](doc/adr/0008-anonymous-device-and-nickname.md)); the WebSocket is the real-time mechanism. Only heist records persist ([ADR 0009](doc/adr/0009-only-heist-records-persist.md)): team name, nicknames (bots marked), time, loot and date, ranked on the leaderboard. `spec/persistence.test.ts` restarts the app on the same database and checks a record survives; it does not cover Fly's `/data` volume.
 
-**Judged.** The tests prove information is sent, not that a person can use it. I judged that by playing with friends ([playtest 1](playtests/2026-10-09-playtest-01.md): three people, laptops, no explanation given). It worked where hoped: two players agreed that an air horn meant "go" and a car horn meant "down", a shared language the game never taught. It also failed twice. Can't speak had little to do, and room 3's dark area left Can't hear unable to take part. Neither is fixed yet.
+**Judged through playtesting:** the tests prove information is sent, not that a person can use it. In [playtest 1](playtests/2026-10-09-playtest-01.md), players invented a shared language the game never taught (air-horn for "go", car-horn for "down"), but Can't speak had little to do and room 3's dark area was impossible for Can't hear. Leaning on the deficits made the game too hard, so I pivoted to escape-room tasks. [Playtest 2](playtests/2026-10-14-playtest-02.md) found Can't see "deadweight", so braille gave it information only it can read. [Playtest 3](playtests/2026-11-08-playtest-03.md) found the side jobs and braille engaging, and Can't speak now dominating the keypad, which is not yet rebalanced.
+
+The look is judged too. `DESIGN.md` records the design language, `CLAUDE.md` sends visual changes through it, and `spec/layout/` checks that layouts hold.
 
 ## What I read
 
-The [Game Accessibility Guidelines](https://gameaccessibilityguidelines.com/full-list/) say important information conveyed by audio should be repeated in text or visuals, and suggest muting the game to find what you miss. I took that as the design rule for every role. Ben Kane's GDC 2016 talk on [asymmetric design in *Keep Talking and Nobody Explodes*](https://gdcvault.com/play/1023113/Designing-Asymmetric-Gameplay-For-Keep) frames that game as one about communication between players, which is what I wanted to build around. A student [analysis of *Pico Park*](https://mechanicsofmagic.com/2026/04/16/critical-play-competitive-analysis-122/) credits its chaos to identical players sharing a space, and treats miscommunication as part of the design.
+The viral "blind, deaf, mute" videos that inspired this have people attempt familiar tasks, like [cooking](https://www.youtube.com/watch?v=5KP1726bIvQ) or [Minecraft](https://www.youtube.com/watch?v=I-XA7KQO9cU), under the same missing senses. My first build did the opposite and was too hard, so I borrowed familiar escape-room tasks.
+
+The [Game Accessibility Guidelines](https://gameaccessibilityguidelines.com/full-list/) say [audio information should be replicated in text or visuals](https://gameaccessibilityguidelines.com/ensure-that-all-important-supplementary-information-eg-the-direction-you-are-being-shot-from-conveyed-by-audio-is-replicated-in-text-visuals/); every sound follows that rule. [Ben Kane's GDC 2016 talk](https://gdcvault.com/play/1023113/Designing-Asymmetric-Gameplay-For-Keep) calls *Keep Talking and Nobody Explodes* "a game about communication between players", so I built puzzles that require talking. A student [analysis of *Pico Park*](https://mechanicsofmagic.com/2026/04/16/critical-play-competitive-analysis-122/) notes that with identical players the weakest holds everyone back; braille gives Can't see its own job. [Galantucci (2005)](https://pubmed.ncbi.nlm.nih.gov/21702792/) showed pairs inventing signalling systems through narrow channels; my playtesters did the same with horns and a numbered face wheel.
 
 ## What I chose not to build
 
-I considered special abilities per role, such as only Can't see pushing crates, or only Can't speak seeing hidden codes. It would be funny, but the game would prescribe the strategy. Open problem-solving is what makes communication matter, and *Pico Park* and *Lethal Company* give no roles yet need constant talk.
-
-I also considered drawing, inspired by Gartic Phone, and GIFs. With them the channels felt bloated, and would dilute the humour of the existing ones.
-
-## Playtests
-
-Two commands check the game across layers. Neither is in `pnpm check`, and each needs the app built (`pnpm build`).
-
-- `pnpm playtest [--room NN] [--width 1280|375] [--rotations all]` is free. It starts a throwaway server and plays three real browser tabs through every room (or one with `--room 01`, about 30 seconds): an input check on each seat, then the server's bots drive while frame and room-end invariants are checked. It writes screenshots, each role's perceived text and `report.html` under `review/playtest/<run>/` (git-ignored) and exits non-zero if anything failed.
-- `pnpm playtest:review <run> [--room NN] [--model ID] [--yes]` reads that run offline and asks a model, for each role at each beat, what a first-time player could not read, would be misled by or would not know to do next. It writes `review.html`, with each answer beside the beat's designed intent. It prints an estimate first and does nothing without `--yes`. It spends the course proxy's budget (about $2 a heist, 132 calls; room 01 is about $0.07) and uses `ANTHROPIC_BASE_URL` and `ANTHROPIC_MODEL` from the environment.
-
-The run finds bugs between layers (something drawn that was never sent, a sound not played, a menu action that does nothing). The review finds legibility leads. Both are blind to comms gaps and to whether it is fun: those stay with people, and the review's findings are leads to check, not verdicts. The run needs `PLAYTEST_AUTOPILOT=1`, which the command sets for its own server; it must never be set on Fly, where the server refuses to start ([ADR 0027](doc/adr/0027-a-test-only-autopilot-for-a-persons-seat.md), [ADR 0028](doc/adr/0028-a-screenshot-review-from-what-a-player-perceives.md)).
-
-## The pantry, archived
-
-The shared-pantry app is preserved at the git tag [`archive/pantry-2026-10-08`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-attwelvedev/releases/tag/archive%2Fpantry-2026-10-08).
+- Role abilities, because they prescribe strategy ([ADR 0017](doc/adr/0017-balance-by-presence-stations-and-gear.md)). Braille is the one exception I reversed, for the reason above ([ADR 0023](doc/adr/0023-braille-plates-only-cant-see-reads.md)); arbitrary capabilities, such as only Can't see pushing crates, stay declined.
+- Drawing and GIFs: they bloated the channels and could dilute the humour of the existing ones.
